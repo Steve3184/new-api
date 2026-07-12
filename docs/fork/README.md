@@ -177,6 +177,18 @@ File:
 
 - `web/default/src/features/pricing/lib/model-helpers.ts`
 
+## Authentication form separator position fix
+
+The separator divider on login and registration pages now appears after OAuth
+provider buttons instead of before them, improving visual hierarchy. Login page
+order is now: Passkey → OAuth buttons → separator → username/password form.
+Registration page order is now: OAuth buttons → separator → username/password/
+email form.
+
+File:
+
+- `web/default/src/features/auth/components/oauth-providers.tsx`
+
 ## Translations
 
 All new default-frontend text is present in English, Simplified Chinese,
