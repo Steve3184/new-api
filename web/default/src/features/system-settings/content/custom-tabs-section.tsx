@@ -48,6 +48,7 @@ import {
 import {
   CUSTOM_TAB_CATEGORIES,
   CUSTOM_TAB_ICONS,
+  isValidCustomTabURL,
   parseCustomTabs,
   type CustomTab,
   type CustomTabCategory,
@@ -129,29 +130,21 @@ export function CustomTabsSection({ defaultValues }: CustomTabsSectionProps) {
       toast.error(t('Label is required'))
       return
     }
-    if (!formValues.url.trim()) {
+    const normalizedURL = formValues.url.trim()
+    if (!normalizedURL) {
       toast.error(t('URL is required'))
       return
     }
-    if (formValues.external) {
-      try {
-        const parsedURL = new URL(formValues.url)
-        if (parsedURL.protocol !== 'http:' && parsedURL.protocol !== 'https:') {
-          throw new Error('unsupported protocol')
-        }
-      } catch {
-        toast.error(t('External URLs must start with http:// or https://'))
-        return
-      }
-    } else if (!formValues.url.trim().startsWith('/')) {
-      toast.error(t('Internal URLs must start with /'))
+
+    if (!isValidCustomTabURL(normalizedURL)) {
+      toast.error(t('External URLs must start with http:// or https://'))
       return
     }
 
     const normalizedValues = {
       ...formValues,
       label: formValues.label.trim(),
-      url: formValues.url.trim(),
+      url: normalizedURL,
     }
 
     if (editingTab) {

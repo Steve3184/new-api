@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
+import { NoticePopup } from '@/components/notice-popup'
 import { Dashboard } from '@/features/dashboard'
 import {
   DASHBOARD_SECTION_IDS,
@@ -34,5 +35,16 @@ export const Route = createFileRoute('/_authenticated/dashboard/$section')({
       })
     }
   },
-  component: Dashboard,
+  component: DashboardRoute,
 })
+
+function DashboardRoute() {
+  const { section } = Route.useParams()
+
+  return (
+    <>
+      <Dashboard />
+      {section === 'overview' ? <NoticePopup placement='dashboard' /> : null}
+    </>
+  )
+}

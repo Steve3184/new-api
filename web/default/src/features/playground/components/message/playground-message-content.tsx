@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Download, FileText } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -48,7 +49,7 @@ import {
   type MessageAlignment,
 } from '../../lib'
 import { getMessageContentStyles } from '../../lib/message/message-styles'
-import type { Message } from '../../types'
+import type { Message, PlaygroundAttachment } from '../../types'
 import { MessageError } from './message-error'
 import { MessageMetadata } from './message-metadata'
 
@@ -59,6 +60,54 @@ type PlaygroundMessageContentProps = {
   isSourceVisible?: boolean
   message: Message
   versionContent: string
+}
+
+function PlaygroundMessageAttachments(props: {
+  attachments: PlaygroundAttachment[]
+}) {
+  const { t } = useTranslation()
+
+  if (props.attachments.length === 0) return null
+
+  return (
+    <div className='flex max-w-full flex-wrap gap-2'>
+      {props.attachments.map((attachment, index) => {
+        const filename = attachment.filename || t('File')
+        const key = `${filename}-${index}`
+
+        if (attachment.mediaType.startsWith('image/')) {
+          return (
+            <a
+              key={key}
+              href={attachment.dataUrl}
+              download={filename}
+              aria-label={`${t('Download')} ${filename}`}
+              className='border-border/70 bg-background/60 block overflow-hidden rounded-md border'
+            >
+              <img
+                src={attachment.dataUrl}
+                alt={filename}
+                className='max-h-48 max-w-64 object-contain'
+              />
+            </a>
+          )
+        }
+
+        return (
+          <a
+            key={key}
+            href={attachment.dataUrl}
+            download={filename}
+            className='border-border/70 bg-background/60 text-foreground hover:bg-muted flex max-w-64 items-center gap-2 rounded-md border px-2.5 py-2 text-xs transition-colors'
+          >
+            <FileText className='text-muted-foreground size-4 shrink-0' />
+            <span className='min-w-0 flex-1 truncate'>{filename}</span>
+            <Download className='text-muted-foreground size-3.5 shrink-0' />
+          </a>
+        )
+      })}
+    </div>
+  )
 }
 
 export function PlaygroundMessageContent({
@@ -80,6 +129,7 @@ export function PlaygroundMessageContent({
     sources,
   } = getMessageContentState(message, versionContent)
   const isError = isErrorMessage(message)
+  const attachments = message.attachments ?? []
   const isMessageFinal =
     message.status !== MESSAGE_STATUS.LOADING &&
     message.status !== MESSAGE_STATUS.STREAMING
@@ -137,25 +187,31 @@ export function PlaygroundMessageContent({
       {!isError && showMessageContent && (
         <>
           {isSourceVisible ? (
-            <CodeBlock
-              code={versionContent}
-              className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch]'
-              collapsedLines={24}
-              defaultCollapsed={false}
-              language='markdown'
-              maxExpandedLines={48}
-              showLineNumbers
-              showToolbar
-              title={t('Raw response')}
-            >
-              <CodeBlockCopyButton />
-            </CodeBlock>
+            <div className='flex w-full flex-col gap-2'>
+              <PlaygroundMessageAttachments attachments={attachments} />
+              <CodeBlock
+                code={versionContent}
+                className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch]'
+                collapsedLines={24}
+                defaultCollapsed={false}
+                language='markdown'
+                maxExpandedLines={48}
+                showLineNumbers
+                showToolbar
+                title={t('Raw response')}
+              >
+                <CodeBlockCopyButton />
+              </CodeBlock>
+            </div>
           ) : (
             <MessageContent
               variant='flat'
               className={cn(getMessageContentStyles())}
             >
-              <Response final={isMessageFinal}>{displayContent}</Response>
+              <PlaygroundMessageAttachments attachments={attachments} />
+              {displayContent && (
+                <Response final={isMessageFinal}>{displayContent}</Response>
+              )}
             </MessageContent>
           )}
           <MessageMetadata alignment={alignment} message={message} />

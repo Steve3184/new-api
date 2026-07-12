@@ -57,6 +57,8 @@ func InitOptionMap() {
 	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
 	common.OptionMap["PaymentAnnouncement"] = common.PaymentAnnouncement
 	common.OptionMap["CustomTabs"] = common.CustomTabs
+	common.OptionMap["NoticePopupEnabled"] = strconv.FormatBool(common.NoticePopupEnabled)
+	common.OptionMap["NoticePopupOnDashboardEnabled"] = strconv.FormatBool(common.NoticePopupOnDashboardEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
@@ -313,6 +315,10 @@ func updateOptionMap(key string, value string) (err error) {
 			common.CapEnabled = boolValue
 		case "ForceCheckinCaptcha":
 			common.ForceCheckinCaptcha = boolValue
+		case "NoticePopupEnabled":
+			common.NoticePopupEnabled = boolValue
+		case "NoticePopupOnDashboardEnabled":
+			common.NoticePopupOnDashboardEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":

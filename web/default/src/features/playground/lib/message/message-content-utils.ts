@@ -60,7 +60,7 @@ function shouldShowMessageContent(
 ): boolean {
   return (
     (message.from === MESSAGE_ROLES.USER || !message.isReasoningStreaming) &&
-    versionContent.length > 0
+    (versionContent.length > 0 || Boolean(message.attachments?.length))
   )
 }
 

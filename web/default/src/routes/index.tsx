@@ -18,8 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
+import { NoticePopup } from '@/components/notice-popup'
 import { Home } from '@/features/home'
 
 export const Route = createFileRoute('/')({
-  component: Home,
+  component: HomeRoute,
 })
+
+function HomeRoute() {
+  return (
+    <>
+      <Home />
+      <NoticePopup placement='home' />
+    </>
+  )
+}

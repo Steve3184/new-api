@@ -100,6 +100,19 @@ export function parseCustomTabs(raw: string | undefined): CustomTab[] {
   }
 }
 
+export function isValidCustomTabURL(value: string): boolean {
+  const normalizedURL = value.trim()
+  if (!normalizedURL) return false
+  if (normalizedURL.startsWith('/')) return true
+
+  try {
+    const parsedURL = new URL(normalizedURL)
+    return parsedURL.protocol === 'http:' || parsedURL.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function getCustomTabIcon(name: string) {
   return CUSTOM_TAB_ICONS[name as keyof typeof CUSTOM_TAB_ICONS] || Globe
 }

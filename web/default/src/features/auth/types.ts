@@ -138,6 +138,8 @@ export interface SystemStatus {
     password_login_enabled?: boolean
     password_register_enabled?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
+    notice_popup_enabled?: boolean
+    notice_popup_on_dashboard?: boolean
     [key: string]: unknown
   }
   // Allow direct access to common properties
@@ -188,6 +190,8 @@ export interface SystemStatus {
   password_login_enabled?: boolean
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
+  notice_popup_enabled?: boolean
+  notice_popup_on_dashboard?: boolean
   custom_tabs?: string
   [key: string]: unknown
 }

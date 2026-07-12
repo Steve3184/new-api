@@ -24,6 +24,7 @@ import type {
   MessageVersion,
   ChatCompletionMessage,
   ContentPart,
+  PlaygroundAttachment,
 } from '../../types'
 
 /**
@@ -76,12 +77,14 @@ export function updateCurrentVersionContent(
  */
 export function createUserMessage(
   content: string,
+  attachments: PlaygroundAttachment[] = [],
   createdAt: number = Date.now()
 ): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
     versions: [createMessageVersion(content)],
+    attachments: attachments.length > 0 ? attachments : undefined,
     createdAt,
   }
 }
@@ -111,11 +114,9 @@ export function createLoadingAssistantMessage(
  */
 export function buildMessageContent(
   text: string,
-  imageUrls: string[] = []
+  attachments: PlaygroundAttachment[] = []
 ): string | ContentPart[] {
-  const validImages = imageUrls.filter((url) => url.trim() !== '')
-
-  if (validImages.length === 0) {
+  if (attachments.length === 0) {
     return text
   }
 
@@ -124,11 +125,27 @@ export function buildMessageContent(
       type: 'text',
       text: text || '',
     },
-    ...validImages.map((url) => ({
-      type: 'image_url' as const,
-      image_url: { url: url.trim() },
-    })),
   ]
+
+  for (const attachment of attachments) {
+    if (!attachment.dataUrl) continue
+
+    if (attachment.mediaType.startsWith('image/')) {
+      parts.push({
+        type: 'image_url',
+        image_url: { url: attachment.dataUrl },
+      })
+      continue
+    }
+
+    parts.push({
+      type: 'file',
+      file: {
+        filename: attachment.filename,
+        file_data: attachment.dataUrl,
+      },
+    })
+  }
 
   return parts
 }
@@ -156,7 +173,7 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   return {
     role: message.from,
-    content: currentVersion.content,
+    content: buildMessageContent(currentVersion.content, message.attachments),
   }
 }
 

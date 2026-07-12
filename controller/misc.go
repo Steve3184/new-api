@@ -80,6 +80,8 @@ func GetStatus(c *gin.Context) {
 		"checkin_captcha_difficulty":  common.CheckinCaptchaDifficulty,
 		"force_checkin_captcha":       common.ForceCheckinCaptcha,
 		"custom_tabs":                 common.CustomTabs,
+		"notice_popup_enabled":        common.NoticePopupEnabled,
+		"notice_popup_on_dashboard":   common.NoticePopupOnDashboardEnabled,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type

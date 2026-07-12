@@ -125,9 +125,11 @@ Files:
 
 `CustomTabs` stores a JSON array of up to 50 links. Each entry has an ID, label,
 URL, icon, category (`chat`, `general`, `personal`, or `admin`), and an external
-link flag. Internal URLs must start with `/`; external URLs must use HTTP or
-HTTPS. Icons are selected from a bounded Lucide set to avoid bundling the full
-icon library.
+link flag. URLs may be internal paths starting with `/` or absolute HTTP/HTTPS
+URLs. URL validation is independent of the external-link flag: the flag controls
+whether the link opens in a new tab, not whether an absolute URL is accepted.
+Icons are selected from a bounded Lucide set to avoid bundling the full icon
+library.
 
 When "Open in new tab" is unchecked (`external: false`), clicking the sidebar
 entry renders the target URL inside a full-height iframe within the app shell.
@@ -148,6 +150,7 @@ Files:
 - `web/default/src/features/system-settings/content/section-registry.tsx`
 - `web/default/src/features/system-settings/content/custom-tabs-section.tsx`
 - `web/default/src/lib/custom-tabs.ts`
+- `web/default/src/lib/custom-tabs.test.ts`
 - `web/default/src/hooks/use-sidebar-data.ts`
 - `web/default/src/features/system-settings/hooks/use-update-option.ts`
 - `web/default/src/components/layout/types.ts`
@@ -215,6 +218,133 @@ File:
 
 - `web/default/src/features/playground/components/chat/playground-empty-state.tsx`
 
+## Default frontend maintenance batch (2026-07-13)
+
+This batch fixes several default-frontend regressions and completes previously
+stubbed Playground attachment actions. It intentionally does not change the
+classic frontend.
+
+### Table row-height isolation
+
+The shared table body no longer forces every row to `h-15`. The fixed height is
+applied only by the usage-log table, which is the surface that needs room for
+the token timing metrics. This prevents unrelated user, token, channel, and
+settings tables from becoming taller when usage-log timing fields are added.
+
+Files:
+
+- `web/default/src/components/ui/table.tsx`
+- `web/default/src/features/usage-logs/components/usage-logs-table.tsx`
+
+### Playground editor stability and attachments
+
+The history-message CodeMirror editor now keeps key handlers in a ref instead
+of recreating the editor extension whenever the parent renders. This preserves
+the selection and IME composition state while editing an existing message.
+
+Playground attachment actions now support regular files, images, camera capture,
+and browser screen capture. Selected files are previewed, converted from blob
+URLs to data URLs before submission, retained when conversion/submission fails,
+and rendered on the submitted user message. Images are sent as `image_url`
+content parts; other files use file content parts with `filename` and
+`file_data`. Attachment-only messages are supported. The input limits each
+message to 8 files with a 10 MiB per-file limit.
+
+Files:
+
+- `web/default/src/components/ai-elements/code-block.tsx`
+- `web/default/src/components/ai-elements/prompt-input.tsx`
+- `web/default/src/features/playground/components/input/playground-input-controls.tsx`
+- `web/default/src/features/playground/components/input/playground-input-tools.tsx`
+- `web/default/src/features/playground/components/input/playground-input.tsx`
+- `web/default/src/features/playground/components/message/playground-message-content.tsx`
+- `web/default/src/features/playground/hooks/use-playground-conversation.ts`
+- `web/default/src/features/playground/lib/input/input-control-utils.ts`
+- `web/default/src/features/playground/lib/input/input-control-utils.test.ts`
+- `web/default/src/features/playground/lib/input/input-tool-utils.ts`
+- `web/default/src/features/playground/lib/message/conversation-message-utils.ts`
+- `web/default/src/features/playground/lib/message/message-content-utils.ts`
+- `web/default/src/features/playground/lib/message/message-utils.ts`
+- `web/default/src/features/playground/lib/message/message-utils.test.ts`
+- `web/default/src/features/playground/types.ts`
+
+### System notice popup
+
+Two additive options control whether the existing HTML/Markdown system notice
+is displayed as a dialog:
+
+| Option | Purpose |
+| --- | --- |
+| `NoticePopupEnabled` | Shows the notice whenever the home route is opened |
+| `NoticePopupOnDashboardEnabled` | Also shows it when the overview dashboard route is opened |
+
+The dashboard option is effective only when the main popup option is enabled.
+The dialog uses the existing sanitized rich-content renderer, has a top-right X
+close control, and provides a **Close Today** action. Close-today state is stored
+in the existing `notification-storage` local-storage entry and suppresses both
+placements until the browser's local date changes. Ordinary X dismissal applies
+only to the current mounted dialog, so reopening the configured route can show
+the notice again.
+
+New option rows use the existing option table and public status payload; no
+schema migration is required.
+
+Files:
+
+- `common/constants.go`
+- `model/option.go`
+- `model/option_notice_popup_test.go`
+- `controller/misc.go`
+- `web/default/src/components/notice-popup.tsx`
+- `web/default/src/features/auth/types.ts`
+- `web/default/src/features/system-settings/hooks/use-update-option.ts`
+- `web/default/src/features/system-settings/maintenance/notice-section.tsx`
+- `web/default/src/features/system-settings/site/index.tsx`
+- `web/default/src/features/system-settings/site/section-registry.tsx`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/routes/index.tsx`
+- `web/default/src/routes/_authenticated/dashboard/$section.tsx`
+
+### User-table search responsiveness
+
+The user table's username/name/email filter now waits 350 ms after typing before
+committing the route and server-side search state. The input itself remains
+immediate, avoiding a query and table rerender for every keystroke.
+
+File:
+
+- `web/default/src/features/users/components/users-table.tsx`
+
+### First-token timing audit (no source change)
+
+The current stream scanner records `FirstResponseTime` on the first non-empty
+SSE `data:` frame that is not `[DONE]`. It does not wait for visible assistant
+text. Consequently, a reasoning frame counts toward first-token time, and
+Responses-style lifecycle frames such as `response.created` may make GPT model
+TTFT appear lower than the time to the first reasoning or output token. The log
+field `other.frt` and performance TTFT aggregation both derive from this same
+timestamp. This behavior was audited but intentionally not changed in this
+batch; review `relay/helper/stream_scanner.go` and provider-specific streaming
+parsers before changing the metric definition during a future upstream sync.
+
+### Local runtime override (not part of source sync)
+
+The development SQLite database currently has `CapEnabled=false` to disable the
+login captcha temporarily. This is deployment data in `one-api.db`, is not a Git
+change, and must not be expected to transfer through an upstream merge. The
+separate `ForceCheckinCaptcha` option remains enabled in that local database.
+
+### Verification for this batch
+
+- `go test ./common ./model ./controller`
+- `bun run i18n:sync`
+- `bun run typecheck`
+- `bun run build`
+- `git diff --check`
+- Browser checks for custom absolute URLs, Playground editing/IME and uploads,
+  notice popup placement/close-today behavior, table heights, and user search
+  responsiveness
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.
@@ -228,5 +358,15 @@ File:
    lint for changed files, and `bun run build`.
 7. Test Turnstile and Cap separately, including token reuse rejection and a
    forced check-in after an earlier login captcha.
-8. Test wallet Markdown, internal/external custom tabs, vendor CRUD, and Model
-   Square pricing with and without a selected group.
+8. Test wallet Markdown, internal/absolute custom-tab URLs with both open modes,
+   vendor CRUD, and Model Square pricing with and without a selected group.
+9. Test Playground history editing with an IME and verify file, image, camera,
+   screen-capture, and attachment-only submissions.
+10. Verify that only usage-log rows retain the fixed height and that user search
+    commits after the debounce without delaying visible typing.
+11. Test notice popup behavior on `/` and `/dashboard/overview`, including X
+    dismissal, **Close Today** persistence, empty notices, and both option
+    combinations.
+12. If upstream changes stream event parsing, re-audit TTFT so lifecycle events
+    are not accidentally treated as model tokens without an explicit metric
+    decision.

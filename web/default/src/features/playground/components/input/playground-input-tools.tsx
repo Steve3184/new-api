@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { GlobeIcon, PaperclipIcon, Trash2Icon } from 'lucide-react'
-import { useState } from 'react'
+import { type ChangeEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
   PromptInputButton,
   PromptInputTools,
+  usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
@@ -38,11 +39,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import {
-  ATTACHMENT_ACTIONS,
-  getAttachmentActionNotice,
-  getSearchActionNotice,
-} from '../../lib'
+import { ATTACHMENT_ACTIONS, getSearchActionNotice } from '../../lib'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
 
@@ -62,6 +59,62 @@ type PlaygroundInputToolsProps = {
   parameterEnabled: ParameterEnabled
 }
 
+async function captureScreenshotFile(): Promise<File> {
+  const getDisplayMedia = navigator.mediaDevices?.getDisplayMedia
+  if (!getDisplayMedia) {
+    throw new Error('screen-capture-unsupported')
+  }
+
+  const stream = await getDisplayMedia.call(navigator.mediaDevices, {
+    audio: false,
+    video: true,
+  })
+
+  try {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.srcObject = stream
+
+    await new Promise<void>((resolve, reject) => {
+      video.addEventListener('loadeddata', () => resolve(), { once: true })
+      video.addEventListener(
+        'error',
+        () => reject(new Error('screen-capture-load-failed')),
+        { once: true }
+      )
+    })
+    await video.play()
+
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const context = canvas.getContext('2d')
+    if (!context) {
+      throw new Error('screen-capture-context-failed')
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((value) => {
+        if (value) {
+          resolve(value)
+        } else {
+          reject(new Error('screen-capture-encode-failed'))
+        }
+      }, 'image/png')
+    })
+    const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-')
+    return new File([blob], `screenshot-${timestamp}.png`, {
+      type: 'image/png',
+    })
+  } finally {
+    for (const track of stream.getTracks()) {
+      track.stop()
+    }
+  }
+}
+
 export function PlaygroundInputTools({
   config,
   disabled,
@@ -72,13 +125,51 @@ export function PlaygroundInputTools({
   parameterEnabled,
 }: PlaygroundInputToolsProps) {
   const { t } = useTranslation()
+  const attachments = usePromptInputAttachments()
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileAction = (action: string) => {
-    const notice = getAttachmentActionNotice(action)
-    toast.info(t(notice.title), {
-      description: notice.description,
-    })
+  const handleFileAction = async (action: string) => {
+    if (action === 'upload-file') {
+      attachments.openFileDialog()
+      return
+    }
+    if (action === 'upload-photo') {
+      photoInputRef.current?.click()
+      return
+    }
+    if (action === 'take-photo') {
+      cameraInputRef.current?.click()
+      return
+    }
+    if (action !== 'take-screenshot') return
+
+    try {
+      attachments.add([await captureScreenshotFile()])
+    } catch (error) {
+      if (
+        error instanceof DOMException &&
+        (error.name === 'AbortError' || error.name === 'NotAllowedError')
+      ) {
+        return
+      }
+      if (
+        error instanceof Error &&
+        error.message === 'screen-capture-unsupported'
+      ) {
+        toast.error(t('Screen capture is not supported in this browser'))
+        return
+      }
+      toast.error(t('Unable to capture screenshot'))
+    }
+  }
+
+  const handleImageInput = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.currentTarget.files?.length) {
+      attachments.add(event.currentTarget.files)
+    }
+    event.currentTarget.value = ''
   }
 
   const handleSearchAction = () => {
@@ -120,7 +211,7 @@ export function PlaygroundInputTools({
               {ATTACHMENT_ACTIONS.map(({ action, icon: Icon, label }) => (
                 <DropdownMenuItem
                   key={action}
-                  onClick={() => handleFileAction(action)}
+                  onClick={() => void handleFileAction(action)}
                 >
                   <Icon className='mr-2' size={16} />
                   {t(label)}
@@ -176,6 +267,25 @@ export function PlaygroundInputTools({
           </TooltipContent>
         </Tooltip>
       </PromptInputTools>
+
+      <input
+        ref={photoInputRef}
+        type='file'
+        accept='image/*'
+        multiple
+        className='hidden'
+        aria-label={t('Upload photo')}
+        onChange={handleImageInput}
+      />
+      <input
+        ref={cameraInputRef}
+        type='file'
+        accept='image/*'
+        capture='environment'
+        className='hidden'
+        aria-label={t('Take photo')}
+        onChange={handleImageInput}
+      />
 
       <ConfirmDialog
         destructive

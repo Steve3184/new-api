@@ -25,52 +25,80 @@ import * as z from 'zod'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
-import { SettingsForm } from '../components/settings-form-layout'
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const noticeSchema = z.object({
   Notice: z.string().optional(),
+  NoticePopupEnabled: z.boolean(),
+  NoticePopupOnDashboardEnabled: z.boolean(),
 })
 
 type NoticeFormValues = z.infer<typeof noticeSchema>
 
 type NoticeSectionProps = {
-  defaultValue: string
+  defaultValues: NoticeFormValues
 }
 
-export function NoticeSection({ defaultValue }: NoticeSectionProps) {
+export function NoticeSection({ defaultValues }: NoticeSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const defaultNotice = defaultValues.Notice ?? ''
+  const defaultPopupEnabled = defaultValues.NoticePopupEnabled
+  const defaultDashboardPopupEnabled =
+    defaultValues.NoticePopupOnDashboardEnabled
   const form = useForm<NoticeFormValues>({
     resolver: zodResolver(noticeSchema),
     defaultValues: {
-      Notice: defaultValue ?? '',
+      Notice: defaultNotice,
+      NoticePopupEnabled: defaultPopupEnabled,
+      NoticePopupOnDashboardEnabled: defaultDashboardPopupEnabled,
     },
   })
 
   useEffect(() => {
-    form.reset({ Notice: defaultValue ?? '' })
-  }, [defaultValue, form])
+    form.reset({
+      Notice: defaultNotice,
+      NoticePopupEnabled: defaultPopupEnabled,
+      NoticePopupOnDashboardEnabled: defaultDashboardPopupEnabled,
+    })
+  }, [defaultDashboardPopupEnabled, defaultNotice, defaultPopupEnabled, form])
 
   const onSubmit = async (values: NoticeFormValues) => {
-    const normalized = values.Notice ?? ''
-    if (normalized === (defaultValue ?? '')) {
-      return
+    const normalizedValues: NoticeFormValues = {
+      ...values,
+      Notice: values.Notice ?? '',
     }
-    await updateOption.mutateAsync({
-      key: 'Notice',
-      value: normalized,
-    })
+    const initialValues: NoticeFormValues = {
+      Notice: defaultNotice,
+      NoticePopupEnabled: defaultPopupEnabled,
+      NoticePopupOnDashboardEnabled: defaultDashboardPopupEnabled,
+    }
+    const updates = Object.entries(normalizedValues).filter(
+      ([key, value]) => value !== initialValues[key as keyof NoticeFormValues]
+    )
+
+    for (const [key, value] of updates) {
+      await updateOption.mutateAsync({ key, value })
+    }
   }
+
+  const popupEnabled = form.watch('NoticePopupEnabled')
 
   return (
     <SettingsSection title={t('System Notice')}>
@@ -98,6 +126,55 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
                 </FormControl>
                 <FormMessage />
               </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='NoticePopupEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Show notice as a popup')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Show the system notice whenever users open the home page'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='NoticePopupOnDashboardEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
+                    {t('Also show on the overview dashboard')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Show the notice whenever users open the backend overview page'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    disabled={!popupEnabled}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
             )}
           />
         </SettingsForm>

@@ -166,6 +166,12 @@ var PaymentAnnouncement = ""
 // CustomTabs stores a JSON array of admin-defined sidebar tab entries
 var CustomTabs = "[]"
 
+// NoticePopupEnabled shows the system notice when users enter the home page.
+var NoticePopupEnabled = false
+
+// NoticePopupOnDashboardEnabled also shows the notice on the overview dashboard.
+var NoticePopupOnDashboardEnabled = false
+
 var TelegramBotToken = ""
 var TelegramBotName = ""
 

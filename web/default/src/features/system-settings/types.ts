@@ -109,6 +109,8 @@ export type SystemTaskListResponse = {
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string
+  NoticePopupEnabled: boolean
+  NoticePopupOnDashboardEnabled: boolean
   SystemName: string
   Logo: string
   Footer: string
