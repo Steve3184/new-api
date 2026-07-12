@@ -187,12 +187,14 @@ export async function getSelf() {
 }
 
 // Get user available models
-export async function getUserModels(): Promise<{
+export async function getUserModels(group?: string): Promise<{
   success: boolean
   message?: string
   data?: string[]
 }> {
-  const res = await api.get('/api/user/models')
+  const res = await api.get('/api/user/models', {
+    params: group ? { group } : undefined,
+  })
   return res.data
 }
 
@@ -200,7 +202,14 @@ export async function getUserModels(): Promise<{
 export async function getUserGroups(): Promise<{
   success: boolean
   message?: string
-  data?: Record<string, { desc: string; ratio: number | string }>
+  data?: Record<
+    string,
+    {
+      desc: string
+      ratio: number | string
+      default_model?: string
+    }
+  >
 }> {
   const res = await api.get('/api/user/self/groups')
   return res.data

@@ -105,7 +105,7 @@ export function ApiKeysMutateDrawer({
   // Fetch models
   const { data: modelsData } = useQuery({
     queryKey: ['user-models'],
-    queryFn: getUserModels,
+    queryFn: () => getUserModels(),
     enabled: open,
     staleTime: 0,
   })

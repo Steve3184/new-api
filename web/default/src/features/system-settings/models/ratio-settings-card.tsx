@@ -130,8 +130,10 @@ const createGroupSchema = (t: Translate) =>
         parsed.every((item) => typeof item === 'string'),
       predicateMessage: 'Expected a JSON array of group identifiers',
     }),
+    AutoGroupDescription: z.string(),
     DefaultUseAutoGroup: z.boolean(),
     GroupSpecialUsableGroup: createJsonStringField(t),
+    GroupDefaultModel: createJsonStringField(t),
   })
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
@@ -204,10 +206,12 @@ export function RatioSettingsCard({
     UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
     GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
+    AutoGroupDescription: groupDefaults.AutoGroupDescription,
     DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
     GroupSpecialUsableGroup: normalizeJsonString(
       groupDefaults.GroupSpecialUsableGroup
     ),
+    GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
   })
   const modelSchema = useMemo(() => createModelSchema(t), [t])
   const groupSchema = useMemo(() => createGroupSchema(t), [t])
@@ -242,9 +246,11 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+      AutoGroupDescription: groupDefaults.AutoGroupDescription,
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
     },
   })
 
@@ -290,10 +296,12 @@ export function RatioSettingsCard({
       UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
       GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
+      AutoGroupDescription: groupDefaults.AutoGroupDescription,
       DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
       GroupSpecialUsableGroup: normalizeJsonString(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
     }
 
     groupForm.reset({
@@ -303,9 +311,11 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+      AutoGroupDescription: groupDefaults.AutoGroupDescription,
       GroupSpecialUsableGroup: formatJsonForTextarea(
         groupDefaults.GroupSpecialUsableGroup
       ),
+      GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
     })
   }, [groupDefaults, groupForm])
 
@@ -360,10 +370,12 @@ export function RatioSettingsCard({
         UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
         AutoGroups: normalizeJsonString(values.AutoGroups),
+        AutoGroupDescription: values.AutoGroupDescription.trim(),
         DefaultUseAutoGroup: values.DefaultUseAutoGroup,
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),
+        GroupDefaultModel: normalizeJsonString(values.GroupDefaultModel),
       }
 
       // Map form field names to API keys (most are 1:1, except GroupSpecialUsableGroup)

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -33,15 +34,21 @@ func GetUserGroups(c *gin.Context) {
 		// UserUsableGroups contains the groups that the user can use
 		if desc, ok := userUsableGroups[groupName]; ok {
 			usableGroups[groupName] = map[string]interface{}{
-				"ratio": service.GetUserGroupRatio(userGroup, groupName),
-				"desc":  desc,
+				"ratio":         service.GetUserGroupRatio(userGroup, groupName),
+				"desc":          desc,
+				"default_model": ratio_setting.GetGroupDefaultModel(groupName),
 			}
 		}
 	}
-	if _, ok := userUsableGroups["auto"]; ok {
+	if len(service.GetUserAutoGroup(userGroup)) > 0 {
+		autoDescription := strings.TrimSpace(setting.AutoGroupDescription)
+		if autoDescription == "" {
+			autoDescription = setting.GetUsableGroupDescription("auto")
+		}
 		usableGroups["auto"] = map[string]interface{}{
-			"ratio": "自动",
-			"desc":  setting.GetUsableGroupDescription("auto"),
+			"ratio":         "自动",
+			"desc":          autoDescription,
+			"default_model": ratio_setting.GetGroupDefaultModel("auto"),
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{

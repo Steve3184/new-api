@@ -135,6 +135,7 @@ func InitOptionMap() {
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
 	common.OptionMap["DefaultUseAutoGroup"] = strconv.FormatBool(setting.DefaultUseAutoGroup)
+	common.OptionMap["AutoGroupDescription"] = setting.AutoGroupDescription
 	common.OptionMap["PayMethods"] = operation_setting.PayMethods2JsonString()
 	common.OptionMap["GitHubClientId"] = ""
 	common.OptionMap["GitHubClientSecret"] = ""
@@ -160,6 +161,7 @@ func InitOptionMap() {
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
+	common.OptionMap["GroupDefaultModel"] = ratio_setting.GroupDefaultModel2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
@@ -415,6 +417,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateChatsByJsonString(value)
 	case "AutoGroups":
 		err = setting.UpdateAutoGroupsByJsonString(value)
+	case "AutoGroupDescription":
+		setting.AutoGroupDescription = value
 	case "CustomCallbackAddress":
 		operation_setting.CustomCallbackAddress = value
 	case "EpayId":
@@ -579,6 +583,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateGroupRatioByJSONString(value)
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
+	case "GroupDefaultModel":
+		err = ratio_setting.UpdateGroupDefaultModelByJSONString(value)
 	case "UserUsableGroups":
 		err = setting.UpdateUserUsableGroupsByJSONString(value)
 	case "CompletionRatio":

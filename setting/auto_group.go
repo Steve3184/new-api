@@ -9,6 +9,7 @@ var autoGroups = []string{
 }
 
 var DefaultUseAutoGroup = false
+var AutoGroupDescription = ""
 
 func ContainsAutoGroup(group string) bool {
 	for _, autoGroup := range autoGroups {

@@ -42,6 +42,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
@@ -59,6 +60,7 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
+import { GroupCodingModelEditor } from './group-coding-model-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
@@ -68,8 +70,10 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  AutoGroupDescription: string
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
+  GroupDefaultModel: string
 }
 
 type GroupRatioFormProps = {
@@ -104,6 +108,16 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const watchedGroupRatio = form.watch('GroupRatio')
   const watchedUserUsableGroups = form.watch('UserUsableGroups')
   const watchedTopupGroupRatio = form.watch('TopupGroupRatio')
+  const watchedDefaultModels = form.watch('GroupDefaultModel')
+  const watchedAutoGroups = form.watch('AutoGroups')
+  const hasAutoGroups = useMemo(
+    () =>
+      safeJsonParse<string[]>(watchedAutoGroups, {
+        fallback: [],
+        silent: true,
+      }).length > 0,
+    [watchedAutoGroups]
+  )
   const groupNames = useMemo(() => {
     const ratioMap = safeJsonParse<Record<string, number>>(watchedGroupRatio, {
       fallback: {},
@@ -117,14 +131,24 @@ export const GroupRatioForm = memo(function GroupRatioForm({
       watchedTopupGroupRatio,
       { fallback: {}, silent: true }
     )
+    const defaultModelMap = safeJsonParse<Record<string, string>>(
+      watchedDefaultModels,
+      { fallback: {}, silent: true }
+    )
     return [
       ...new Set([
         ...Object.keys(ratioMap),
         ...Object.keys(usableMap),
         ...Object.keys(topupMap),
+        ...Object.keys(defaultModelMap),
       ]),
-    ]
-  }, [watchedGroupRatio, watchedUserUsableGroups, watchedTopupGroupRatio])
+    ].sort()
+  }, [
+    watchedDefaultModels,
+    watchedGroupRatio,
+    watchedTopupGroupRatio,
+    watchedUserUsableGroups,
+  ])
 
   return (
     <div className='space-y-6'>
@@ -182,6 +206,38 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 handleFieldChange('GroupSpecialUsableGroup', value)
               }
             />
+
+            <GroupCodingModelEditor
+              groups={groupNames}
+              defaultModels={form.watch('GroupDefaultModel')}
+              onChange={handleFieldChange}
+            />
+
+            {hasAutoGroups ? (
+              <FormField
+                control={form.control}
+                name='AutoGroupDescription'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Auto group description')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder={t(
+                          'Optional description for the auto group'
+                        )}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Shown to users when automatic group selection is available.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             <FormField
               control={form.control}
@@ -268,6 +324,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
             <FormField
               control={form.control}
+              name='GroupDefaultModel'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group default models')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={6} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON map of group to the default model used in coding tool setup instructions.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name='GroupGroupRatio'
               render={({ field }) => (
                 <FormItem>
@@ -305,6 +380,32 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 </FormItem>
               )}
             />
+
+            {hasAutoGroups ? (
+              <FormField
+                control={form.control}
+                name='AutoGroupDescription'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Auto group description')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder={t(
+                          'Optional description for the auto group'
+                        )}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Shown to users when automatic group selection is available.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             <FormField
               control={form.control}
@@ -404,7 +505,9 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
 
         <div className={sideDrawerFormClassName('gap-5')}>
           <section className='space-y-2'>
-            <h3 className='text-sm font-semibold'>{t('The two roles of a group')}</h3>
+            <h3 className='text-sm font-semibold'>
+              {t('The two roles of a group')}
+            </h3>
             <div className='text-muted-foreground space-y-2 text-sm leading-6'>
               <p>
                 {t(
@@ -416,7 +519,9 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                   {t('Token group')}
                 </span>
                 {': '}
-                {t('decides which channels are used and which base ratio applies.')}
+                {t(
+                  'decides which channels are used and which base ratio applies.'
+                )}
               </p>
               <p>
                 <span className='text-foreground font-medium'>
@@ -431,7 +536,9 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
           </section>
 
           <section className='space-y-2'>
-            <h3 className='text-sm font-semibold'>{t('How a call is priced')}</h3>
+            <h3 className='text-sm font-semibold'>
+              {t('How a call is priced')}
+            </h3>
             <ol className='text-muted-foreground list-decimal space-y-2 pl-5 text-sm leading-6'>
               <li>
                 <span className='text-foreground font-medium'>
@@ -453,7 +560,9 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                 <span className='text-foreground font-medium'>
                   {t('Charge.')}
                 </span>{' '}
-                {t('Cost = model price × that one ratio. Nothing else from the group settings enters the formula.')}
+                {t(
+                  'Cost = model price × that one ratio. Nothing else from the group settings enters the formula.'
+                )}
               </li>
             </ol>
             <p className='text-muted-foreground text-sm leading-6'>
@@ -466,7 +575,9 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
           <section className='space-y-3'>
             <h3 className='text-sm font-semibold'>{t('Worked example')}</h3>
             <p className='text-muted-foreground text-sm leading-6'>
-              {t('The admin configured three groups and one special ratio rule:')}
+              {t(
+                'The admin configured three groups and one special ratio rule:'
+              )}
             </p>
 
             <div className='overflow-hidden rounded-lg border'>
@@ -529,7 +640,9 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                 </div>
                 <div className='space-y-2 p-3'>
                   <GuideStepRow chip='1'>
-                    {t('Billing group = premium (the token has a group, so use it)')}
+                    {t(
+                      'Billing group = premium (the token has a group, so use it)'
+                    )}
                   </GuideStepRow>
                   <GuideStepRow chip='2'>
                     {t(
@@ -550,7 +663,9 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                 </div>
                 <div className='space-y-2 p-3'>
                   <GuideStepRow chip='1'>
-                    {t('Billing group = default (the token has a group, so use it)')}
+                    {t(
+                      'Billing group = default (the token has a group, so use it)'
+                    )}
                   </GuideStepRow>
                   <GuideStepRow chip='2'>
                     {t(

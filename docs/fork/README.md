@@ -345,6 +345,71 @@ separate `ForceCheckinCaptcha` option remains enabled in that local database.
   notice popup placement/close-today behavior, table heights, and user search
   responsiveness
 
+## API key coding-tool setup (2026-07-13)
+
+The API key cell has a permanently visible Terminal action beside the existing
+copy button. It resolves the full key on demand and opens a setup dialog for
+Codex, OpenCode, and Claude Code; the action is intentionally not hidden in the
+row overflow menu.
+
+The dialog derives its base URL from `ServerAddress` (falling back to the current
+origin), uses the selected key's group, and loads models through
+`/api/user/models?group=<group>`. The model selector is placed above the tool
+tabs and does not receive initial focus when the dialog opens. Selecting a model
+updates all generated configurations:
+
+- Codex uses a custom `newapi` Responses provider, file-based `auth.json`,
+  sandbox network access, and the selected model. The review model is
+  `codex-auto-review` when the selected model ID contains `gpt-`; otherwise it
+  matches the selected model.
+- OpenCode dynamically generates its `models` object from the selected group's
+  available models. Each entry uses the model ID as its display name and omits
+  guessed context/output limits.
+- Claude Code writes the selected model and includes
+  `CLAUDE_CODE_ATTRIBUTION_HEADER=0`,
+  `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, the API key, and an
+  Anthropic-format base URL ending in `/` without `/v1`.
+
+Every path and configuration block has a copy action. CodeMirror content uses a
+dialog-specific horizontal inset so configuration text does not touch the modal
+edge.
+
+`GroupDefaultModel` is an additive JSON option mapping group names to the model
+initially selected in the dialog. The group-pricing settings page exposes a
+portal-based searchable selector for each group; each selector queries that
+group's available models and still permits a custom model ID. Review models are
+not persisted separately.
+
+`AutoGroupDescription` is an optional string option shown in group settings only
+when `AutoGroups` is non-empty. `/api/user/self/groups` exposes the virtual
+`auto` group only when the current user has at least one usable automatic group,
+and uses this description when configured.
+
+Files:
+
+- `setting/auto_group.go`
+- `setting/ratio_setting/group_model.go`
+- `setting/ratio_setting/group_model_test.go`
+- `model/option.go`
+- `controller/group.go`
+- `controller/option.go`
+- `web/default/src/features/keys/components/api-keys-cells.tsx`
+- `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+- `web/default/src/features/keys/components/dialogs/api-key-usage-dialog.tsx`
+- `web/default/src/features/keys/components/api-keys-mutate-drawer.tsx`
+- `web/default/src/features/keys/components/dialogs/cc-switch-dialog.tsx`
+- `web/default/src/features/keys/types.ts`
+- `web/default/src/features/models/components/drawers/model-mutate-drawer.tsx`
+- `web/default/src/features/system-settings/models/group-coding-model-editor.tsx`
+- `web/default/src/features/system-settings/models/group-ratio-form.tsx`
+- `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+- `web/default/src/features/system-settings/models/index.tsx`
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/lib/api.ts`
+- `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.
@@ -370,3 +435,9 @@ separate `ForceCheckinCaptcha` option remains enabled in that local database.
 12. If upstream changes stream event parsing, re-audit TTFT so lifecycle events
     are not accidentally treated as model tokens without an explicit metric
     decision.
+13. On the API key page, verify the Terminal action remains visible beside copy,
+    each tool config uses the selected key/group/model, and all copy actions
+    include the full resolved key and normalized site URL.
+14. In group pricing, verify model selectors are not clipped by the table,
+    request only group-available models, and the optional auto-group description
+    is returned only when automatic grouping is usable.
