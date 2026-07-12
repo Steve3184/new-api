@@ -37,13 +37,13 @@ import type {
 
 // User login with username and password
 export async function login(payload: LoginPayload) {
-  const turnstile = payload.turnstile ?? ''
+  const params = payload.cap_token
+    ? { cap_token: payload.cap_token }
+    : { turnstile: payload.turnstile ?? '' }
   const res = await api.post<LoginResponse>(
-    `/api/user/login?turnstile=${turnstile}`,
-    {
-      username: payload.username,
-      password: payload.password,
-    }
+    '/api/user/login',
+    { username: payload.username, password: payload.password },
+    { params }
   )
   return res.data
 }
@@ -67,10 +67,11 @@ export async function logout(): Promise<ApiResponse> {
 // Send password reset email
 export async function sendPasswordResetEmail(
   email: string,
-  turnstile?: string
+  captchaToken?: string,
+  captchaParamName: string = 'turnstile'
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
-    params: { email, turnstile },
+    params: { email, [captchaParamName]: captchaToken },
   })
   return res.data
 }
@@ -106,8 +107,12 @@ export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  const res = await api.post(`/api/user/register`, payload, {
-    params: { turnstile: payload.turnstile ?? '' },
+  const captchaParams = payload.cap_token
+    ? { cap_token: payload.cap_token }
+    : { turnstile: payload.turnstile ?? '' }
+  const { cap_token: _capToken, turnstile: _turnstile, ...body } = payload
+  const res = await api.post(`/api/user/register`, body, {
+    params: captchaParams,
   })
   return res.data
 }
@@ -115,10 +120,11 @@ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
 // Send email verification code
 export async function sendEmailVerification(
   email: string,
-  turnstile?: string
+  captchaToken?: string,
+  captchaParamName: string = 'turnstile'
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
-    params: { email, turnstile },
+    params: { email, [captchaParamName]: captchaToken },
   })
   return res.data
 }

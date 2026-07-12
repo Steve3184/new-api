@@ -156,6 +156,8 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Optional markdown announcement shown on the topup page */
+  payment_announcement?: string
 }
 
 /**

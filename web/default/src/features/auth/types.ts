@@ -26,6 +26,7 @@ export interface LoginPayload {
   username: string
   password: string
   turnstile?: string
+  cap_token?: string
 }
 
 export interface TwoFAPayload {
@@ -39,6 +40,7 @@ export interface RegisterPayload {
   verification_code?: string
   aff_code?: string
   turnstile?: string
+  cap_token?: string
 }
 
 export interface PasswordResetPayload {
@@ -112,6 +114,13 @@ export interface SystemStatus {
     WeChatAccountQRCodeImageURL?: string
     turnstile_check?: boolean
     turnstile_site_key?: string
+    captcha_type?: string
+    cap_enabled?: boolean
+    cap_api_endpoint?: string
+    cap_checkin_api_endpoint?: string
+    force_checkin_captcha?: boolean
+    login_captcha_difficulty?: number
+    checkin_captcha_difficulty?: number
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -155,6 +164,13 @@ export interface SystemStatus {
   WeChatAccountQRCodeImageURL?: string
   turnstile_check?: boolean
   turnstile_site_key?: string
+  captcha_type?: string
+  cap_enabled?: boolean
+  cap_api_endpoint?: string
+  cap_checkin_api_endpoint?: string
+  force_checkin_captcha?: boolean
+  login_captcha_difficulty?: number
+  checkin_captcha_difficulty?: number
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean
@@ -172,6 +188,7 @@ export interface SystemStatus {
   password_login_enabled?: boolean
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
+  custom_tabs?: string
   [key: string]: unknown
 }
 

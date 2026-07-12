@@ -142,6 +142,30 @@ var WeChatAccountQRCodeImageURL = ""
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
 
+// Fork additions - Cap CAPTCHA (PoW) and unified captcha settings.
+var CapEnabled = false
+var CapServerURL = ""
+var CapAdminAPIKey = ""
+var CapSiteKey = ""
+var CapSecretKey = ""
+var CapCheckinSiteKey = ""
+var CapCheckinSecretKey = ""
+var ForceCheckinCaptcha = false
+
+// CaptchaType selects the active captcha provider: "turnstile" or "cap"
+var CaptchaType = "turnstile"
+
+// Difficulty values are synchronized to the corresponding Cap Standalone keys.
+var LoginCaptchaDifficulty = 4
+
+var CheckinCaptchaDifficulty = 4
+
+// PaymentAnnouncement is optional markdown text shown on the topup page below payment methods
+var PaymentAnnouncement = ""
+
+// CustomTabs stores a JSON array of admin-defined sidebar tab entries
+var CustomTabs = "[]"
+
 var TelegramBotToken = ""
 var TelegramBotName = ""
 

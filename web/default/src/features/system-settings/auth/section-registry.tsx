@@ -109,6 +109,17 @@ const AUTH_SECTIONS = [
           TurnstileCheckEnabled: settings.TurnstileCheckEnabled,
           TurnstileSiteKey: settings.TurnstileSiteKey,
           TurnstileSecretKey: settings.TurnstileSecretKey,
+          CaptchaType: settings.CaptchaType,
+          CapEnabled: settings.CapEnabled,
+          CapServerURL: settings.CapServerURL,
+          CapAdminAPIKey: settings.CapAdminAPIKey,
+          CapSiteKey: settings.CapSiteKey,
+          CapSecretKey: settings.CapSecretKey,
+          CapCheckinSiteKey: settings.CapCheckinSiteKey,
+          CapCheckinSecretKey: settings.CapCheckinSecretKey,
+          LoginCaptchaDifficulty: settings.LoginCaptchaDifficulty,
+          CheckinCaptchaDifficulty: settings.CheckinCaptchaDifficulty,
+          ForceCheckinCaptcha: settings.ForceCheckinCaptcha,
         }}
       />
     ),

@@ -44,6 +44,19 @@ func InitOptionMap() {
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
+	common.OptionMap["CapEnabled"] = strconv.FormatBool(common.CapEnabled)
+	common.OptionMap["CapServerURL"] = common.CapServerURL
+	common.OptionMap["CapAdminAPIKey"] = common.CapAdminAPIKey
+	common.OptionMap["CapSiteKey"] = common.CapSiteKey
+	common.OptionMap["CapSecretKey"] = common.CapSecretKey
+	common.OptionMap["CapCheckinSiteKey"] = common.CapCheckinSiteKey
+	common.OptionMap["CapCheckinSecretKey"] = common.CapCheckinSecretKey
+	common.OptionMap["ForceCheckinCaptcha"] = strconv.FormatBool(common.ForceCheckinCaptcha)
+	common.OptionMap["CaptchaType"] = common.CaptchaType
+	common.OptionMap["LoginCaptchaDifficulty"] = strconv.Itoa(common.LoginCaptchaDifficulty)
+	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
+	common.OptionMap["PaymentAnnouncement"] = common.PaymentAnnouncement
+	common.OptionMap["CustomTabs"] = common.CustomTabs
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
@@ -277,7 +290,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == "CapEnabled" || key == "ForceCheckinCaptcha" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -296,6 +309,10 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TelegramOAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
 			common.TurnstileCheckEnabled = boolValue
+		case "CapEnabled":
+			common.CapEnabled = boolValue
+		case "ForceCheckinCaptcha":
+			common.ForceCheckinCaptcha = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
@@ -500,6 +517,32 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
+	case "CapSiteKey":
+		common.CapSiteKey = value
+	case "CapSecretKey":
+		common.CapSecretKey = value
+	case "CapServerURL":
+		common.CapServerURL = strings.TrimRight(strings.TrimSpace(value), "/")
+	case "CapAdminAPIKey":
+		common.CapAdminAPIKey = value
+	case "CapCheckinSiteKey":
+		common.CapCheckinSiteKey = value
+	case "CapCheckinSecretKey":
+		common.CapCheckinSecretKey = value
+	case "CaptchaType":
+		common.CaptchaType = value
+	case "LoginCaptchaDifficulty":
+		if v, err := strconv.Atoi(value); err == nil {
+			common.LoginCaptchaDifficulty = v
+		}
+	case "CheckinCaptchaDifficulty":
+		if v, err := strconv.Atoi(value); err == nil {
+			common.CheckinCaptchaDifficulty = v
+		}
+	case "PaymentAnnouncement":
+		common.PaymentAnnouncement = value
+	case "CustomTabs":
+		common.CustomTabs = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":

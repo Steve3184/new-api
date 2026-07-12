@@ -29,6 +29,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Cap } from '@/components/cap'
 import { Dialog } from '@/components/dialog'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
@@ -41,6 +42,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
@@ -50,14 +52,10 @@ import type { CheckinRecord } from '../types'
 
 interface CheckinCalendarCardProps {
   checkinEnabled: boolean
-  turnstileEnabled: boolean
-  turnstileSiteKey: string
 }
 
 export function CheckinCalendarCard({
   checkinEnabled,
-  turnstileEnabled,
-  turnstileSiteKey,
 }: CheckinCalendarCardProps) {
   const { t } = useTranslation()
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -65,10 +63,20 @@ export function CheckinCalendarCard({
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [checkinLoading, setCheckinLoading] = useState(false)
-  const [turnstileModalVisible, setTurnstileModalVisible] = useState(false)
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [captchaModalVisible, setCaptchaModalVisible] = useState(false)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
   const [initialLoaded, setInitialLoaded] = useState(false)
   const [collapsed, setCollapsed] = useState<boolean>(false)
+
+  const {
+    isCaptchaEnabled,
+    isTurnstileEnabled,
+    isCapEnabled,
+    turnstileSiteKey,
+    capApiEndpoint,
+    setCaptchaToken,
+    tokenQueryParam,
+  } = useCaptcha('checkin')
 
   const currentMonthStr = useMemo(() => {
     const y = currentMonth.getFullYear()
@@ -129,37 +137,25 @@ export function CheckinCalendarCard({
     setInitialLoaded(true)
   }, [checkinData, checkedToday, initialLoaded, isLoading])
 
-  const shouldTriggerTurnstile = useCallback(
-    (message?: string) => {
-      if (!turnstileEnabled) return false
-      if (typeof message !== 'string') return true
-      return message.includes('Turnstile')
-    },
-    [turnstileEnabled]
-  )
-
   const doCheckin = useCallback(
     async (token?: string) => {
       setCheckinLoading(true)
       try {
-        const res = await performCheckin(token)
+        const res = await performCheckin(
+          token,
+          token ? tokenQueryParam : 'turnstile'
+        )
         if (res.success && res.data) {
           toast.success(
             `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
           )
           refetch()
-          setTurnstileModalVisible(false)
+          setCaptchaModalVisible(false)
+          setCaptchaToken('')
         } else {
-          if (!token && shouldTriggerTurnstile(res.message)) {
-            if (!turnstileSiteKey) {
-              toast.error(t('Turnstile is enabled but site key is empty.'))
-              return
-            }
-            setTurnstileModalVisible(true)
-            return
-          }
-          if (token && shouldTriggerTurnstile(res.message)) {
-            setTurnstileWidgetKey((v) => v + 1)
+          if (token) {
+            setCaptchaWidgetKey((v) => v + 1)
+            setCaptchaToken('')
           }
           toast.error(res.message || t('Check-in failed'))
         }
@@ -169,8 +165,32 @@ export function CheckinCalendarCard({
         setCheckinLoading(false)
       }
     },
-    [refetch, shouldTriggerTurnstile, t, turnstileSiteKey]
+    [refetch, setCaptchaToken, t, tokenQueryParam]
   )
+
+  const handleCheckinClick = useCallback(() => {
+    if (!isCaptchaEnabled) {
+      void doCheckin()
+      return
+    }
+    if (isTurnstileEnabled && !turnstileSiteKey) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
+    if (isCapEnabled && !capApiEndpoint) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
+    setCaptchaModalVisible(true)
+  }, [
+    capApiEndpoint,
+    doCheckin,
+    isCapEnabled,
+    isCaptchaEnabled,
+    isTurnstileEnabled,
+    t,
+    turnstileSiteKey,
+  ])
 
   const handlePrevMonth = () => {
     setCurrentMonth(
@@ -252,11 +272,12 @@ export function CheckinCalendarCard({
   return (
     <TooltipProvider delay={100}>
       <Dialog
-        open={turnstileModalVisible}
+        open={captchaModalVisible}
         onOpenChange={(open) => {
-          setTurnstileModalVisible(open)
+          setCaptchaModalVisible(open)
           if (!open) {
-            setTurnstileWidgetKey((v) => v + 1)
+            setCaptchaWidgetKey((v) => v + 1)
+            setCaptchaToken('')
           }
         }}
         title={t('Security Check')}
@@ -268,16 +289,31 @@ export function CheckinCalendarCard({
           {t('Please complete the security check to continue.')}
         </div>
         <div className='flex justify-center py-4'>
-          <Turnstile
-            key={turnstileWidgetKey}
-            siteKey={turnstileSiteKey}
-            onVerify={(token) => {
-              doCheckin(token)
-            }}
-            onExpire={() => {
-              setTurnstileWidgetKey((v) => v + 1)
-            }}
-          />
+          {isTurnstileEnabled && (
+            <Turnstile
+              key={captchaWidgetKey}
+              siteKey={turnstileSiteKey}
+              onVerify={(token) => {
+                doCheckin(token)
+              }}
+              onExpire={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+              }}
+            />
+          )}
+          {isCapEnabled && (
+            <Cap
+              key={captchaWidgetKey}
+              apiEndpoint={capApiEndpoint}
+              onVerify={(token) => {
+                doCheckin(token)
+              }}
+              onReset={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+                setCaptchaToken('')
+              }}
+            />
+          )}
         </div>
       </Dialog>
 
@@ -323,7 +359,7 @@ export function CheckinCalendarCard({
               </div>
             </button>
             <Button
-              onClick={() => doCheckin()}
+              onClick={handleCheckinClick}
               disabled={checkinLoading || checkedToday}
               size='sm'
               className='w-full shrink-0 sm:w-auto'

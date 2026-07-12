@@ -3,12 +3,14 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -81,12 +83,23 @@ func GetOptions(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
+		isPublicSiteKey := strings.HasSuffix(k, "SiteKey")
+		isSensitiveKey := !isPublicSiteKey && (strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
+			strings.HasSuffix(k, "api_key"))
 		if isSensitiveKey {
+			// Return a sentinel instead of omitting the key entirely. The
+			// frontend uses this to distinguish "already configured" from
+			// "never set": a non-empty sentinel passes validation without
+			// revealing the actual secret, and the save loop skips it when
+			// the user has not typed a new value.
+			sentinel := ""
+			if value != "" {
+				sentinel = "***"
+			}
+			options = append(options, &model.Option{Key: k, Value: sentinel})
 			continue
 		}
 		options = append(options, &model.Option{
@@ -117,6 +130,61 @@ type OptionUpdateRequest struct {
 	Value any    `json:"value"`
 }
 
+type customTabOption struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	URL      string `json:"url"`
+	Icon     string `json:"icon"`
+	Category string `json:"category"`
+	External bool   `json:"external"`
+}
+
+func syncCapDifficultyForOption(c *gin.Context, key, value string) error {
+	switch key {
+	case "CapServerURL", "CapAdminAPIKey", "CapSiteKey", "CapCheckinSiteKey", "LoginCaptchaDifficulty", "CheckinCaptchaDifficulty":
+	default:
+		return nil
+	}
+
+	serverURL := common.CapServerURL
+	apiKey := common.CapAdminAPIKey
+	loginSiteKey := common.CapSiteKey
+	checkinSiteKey := common.CapCheckinSiteKey
+	loginDifficulty := common.LoginCaptchaDifficulty
+	checkinDifficulty := common.CheckinCaptchaDifficulty
+
+	switch key {
+	case "CapServerURL":
+		serverURL = strings.TrimRight(strings.TrimSpace(value), "/")
+	case "CapAdminAPIKey":
+		apiKey = value
+	case "CapSiteKey":
+		loginSiteKey = value
+	case "CapCheckinSiteKey":
+		checkinSiteKey = value
+	case "LoginCaptchaDifficulty":
+		loginDifficulty, _ = strconv.Atoi(value)
+	case "CheckinCaptchaDifficulty":
+		checkinDifficulty, _ = strconv.Atoi(value)
+	}
+
+	if loginSiteKey != "" && loginSiteKey == checkinSiteKey && loginDifficulty != checkinDifficulty {
+		return fmt.Errorf("login and check-in require different Cap site keys when their difficulties differ")
+	}
+
+	switch key {
+	case "CapCheckinSiteKey", "CheckinCaptchaDifficulty":
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, checkinSiteKey, checkinDifficulty)
+	case "CapSiteKey", "LoginCaptchaDifficulty":
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, loginSiteKey, loginDifficulty)
+	default:
+		if err := service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, loginSiteKey, loginDifficulty); err != nil {
+			return err
+		}
+		return service.SyncCapDifficulty(c.Request.Context(), serverURL, apiKey, checkinSiteKey, checkinDifficulty)
+	}
+}
+
 func UpdateOption(c *gin.Context) {
 	var option OptionUpdateRequest
 	err := common.DecodeJson(c.Request.Body, &option)
@@ -137,7 +205,62 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
+	// Reject the read-only sentinel that GetOptions emits for already-set
+	// sensitive fields. The frontend skips unchanged password fields, but
+	// guard here as well so a stale client can never accidentally overwrite
+	// a real secret with the placeholder.
+	if option.Value == "***" {
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+		return
+	}
 	switch option.Key {
+	case "CaptchaType":
+		if option.Value != "turnstile" && option.Value != "cap" {
+			common.ApiErrorMsg(c, "CaptchaType must be turnstile or cap")
+			return
+		}
+	case "CapServerURL":
+		if option.Value != "" {
+			parsedURL, parseErr := url.ParseRequestURI(option.Value.(string))
+			if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+				common.ApiErrorMsg(c, "Cap server URL must be a valid HTTP or HTTPS URL")
+				return
+			}
+		}
+	case "LoginCaptchaDifficulty", "CheckinCaptchaDifficulty":
+		difficulty, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || difficulty < 1 || difficulty > 8 {
+			common.ApiErrorMsg(c, "Cap difficulty must be between 1 and 8")
+			return
+		}
+	case "PaymentAnnouncement":
+		if len(option.Value.(string)) > 50000 {
+			common.ApiErrorMsg(c, "Payment announcement is too long")
+			return
+		}
+	case "CustomTabs":
+		var tabs []customTabOption
+		if err = common.UnmarshalJsonStr(option.Value.(string), &tabs); err != nil || len(tabs) > 50 {
+			common.ApiErrorMsg(c, "Invalid custom tabs configuration")
+			return
+		}
+		validCategories := map[string]bool{"chat": true, "general": true, "personal": true, "admin": true}
+		for _, tab := range tabs {
+			if strings.TrimSpace(tab.ID) == "" || strings.TrimSpace(tab.Label) == "" || len(tab.Label) > 80 || len(tab.URL) > 2048 || len(tab.Icon) > 64 || !validCategories[tab.Category] {
+				common.ApiErrorMsg(c, "Invalid custom tab entry")
+				return
+			}
+			if tab.External {
+				parsedURL, parseErr := url.ParseRequestURI(tab.URL)
+				if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+					common.ApiErrorMsg(c, "External custom tab URLs must use HTTP or HTTPS")
+					return
+				}
+			} else if !strings.HasPrefix(tab.URL, "/") {
+				common.ApiErrorMsg(c, "Internal custom tab URLs must start with /")
+				return
+			}
+		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
@@ -206,6 +329,22 @@ func UpdateOption(c *gin.Context) {
 			})
 
 			return
+		}
+	case "CapEnabled":
+		if option.Value == "true" && (common.CapServerURL == "" || common.CapSiteKey == "" || common.CapSecretKey == "" || common.CapAdminAPIKey == "") {
+			common.ApiErrorMsg(c, "Configure the Cap server, API key, login site key, and secret before enabling Cap")
+			return
+		}
+	case "ForceCheckinCaptcha":
+		if option.Value == "true" {
+			if common.CaptchaType == "cap" && (!common.CapEnabled || common.CapCheckinSiteKey == "" || common.CapCheckinSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable the Cap check-in site key before forcing check-in captcha")
+				return
+			}
+			if common.CaptchaType != "cap" && !common.TurnstileCheckEnabled {
+				common.ApiErrorMsg(c, "Enable Turnstile before forcing check-in captcha")
+				return
+			}
 		}
 	case "TelegramOAuthEnabled":
 		if option.Value == "true" && common.TelegramBotToken == "" {
@@ -331,6 +470,10 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	}
+	if err = syncCapDifficultyForOption(c, option.Key, option.Value.(string)); err != nil {
+		common.ApiError(c, err)
+		return
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

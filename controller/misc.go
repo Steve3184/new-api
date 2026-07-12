@@ -72,6 +72,14 @@ func GetStatus(c *gin.Context) {
 		"server_address":              system_setting.ServerAddress,
 		"turnstile_check":             common.TurnstileCheckEnabled,
 		"turnstile_site_key":          common.TurnstileSiteKey,
+		"cap_enabled":                 common.CapEnabled,
+		"cap_api_endpoint":            buildCapEndpoint(common.CapServerURL, common.CapSiteKey),
+		"cap_checkin_api_endpoint":    buildCapEndpoint(common.CapServerURL, common.CapCheckinSiteKey),
+		"captcha_type":                common.CaptchaType,
+		"login_captcha_difficulty":    common.LoginCaptchaDifficulty,
+		"checkin_captcha_difficulty":  common.CheckinCaptchaDifficulty,
+		"force_checkin_captcha":       common.ForceCheckinCaptcha,
+		"custom_tabs":                 common.CustomTabs,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
@@ -169,6 +177,15 @@ func GetStatus(c *gin.Context) {
 		"data":    data,
 	})
 	return
+}
+
+func buildCapEndpoint(serverURL, siteKey string) string {
+	serverURL = strings.TrimRight(strings.TrimSpace(serverURL), "/")
+	siteKey = strings.TrimSpace(siteKey)
+	if serverURL == "" || siteKey == "" {
+		return ""
+	}
+	return serverURL + "/" + siteKey + "/"
 }
 
 func GetNotice(c *gin.Context) {

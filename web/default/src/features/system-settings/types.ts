@@ -157,6 +157,17 @@ export type AuthSettings = {
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
+  CaptchaType: 'turnstile' | 'cap'
+  CapEnabled: boolean
+  CapServerURL: string
+  CapAdminAPIKey: string
+  CapSiteKey: string
+  CapSecretKey: string
+  CapCheckinSiteKey: string
+  CapCheckinSecretKey: string
+  LoginCaptchaDifficulty: number
+  CheckinCaptchaDifficulty: number
+  ForceCheckinCaptcha: boolean
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string
@@ -185,6 +196,7 @@ export type ContentSettings = {
   MjForwardUrlEnabled: boolean
   MjModeClearEnabled: boolean
   MjActionCheckSuccessEnabled: boolean
+  CustomTabs: string
 }
 
 export type ModelSettings = {
@@ -328,6 +340,7 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  PaymentAnnouncement: string
 }
 
 export type OperationsSettings = {

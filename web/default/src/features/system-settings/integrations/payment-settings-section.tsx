@@ -176,6 +176,7 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  PaymentAnnouncement: z.string(),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -457,6 +458,7 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      PaymentAnnouncement: values.PaymentAnnouncement.trim(),
     }
 
     const initial = {
@@ -504,6 +506,7 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      PaymentAnnouncement: initialRef.current.PaymentAnnouncement.trim(),
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -707,6 +710,13 @@ export function PaymentSettingsSection({
       sanitized.WaffoPancakeReturnURL !== initial.WaffoPancakeReturnURL ||
       waffoPancakeSelection.storeID !== waffoPancakeSavedBinding.storeID ||
       waffoPancakeSelection.productID !== waffoPancakeSavedBinding.productID
+
+    if (sanitized.PaymentAnnouncement !== initial.PaymentAnnouncement) {
+      updates.push({
+        key: 'PaymentAnnouncement',
+        value: sanitized.PaymentAnnouncement,
+      })
+    }
 
     if (updates.length === 0 && !hasWaffoPancakeChanges) {
       toast.info(t('No changes to save'))
@@ -1119,6 +1129,34 @@ export function PaymentSettingsSection({
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name='PaymentAnnouncement'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Payment Announcement')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={4}
+                          placeholder={t(
+                            'Optional markdown text shown to users on the topup page below payment methods'
+                          )}
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Optional markdown text shown to users on the topup page below payment methods'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             </TabsContent>
 

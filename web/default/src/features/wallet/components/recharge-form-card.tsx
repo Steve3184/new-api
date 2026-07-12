@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Markdown } from '@/components/ui/markdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import {
@@ -496,6 +497,17 @@ export function RechargeFormCard({
             />
           </div>
         )}
+
+      {topupInfo?.payment_announcement && (
+        <div className='border-t pt-4 sm:pt-6'>
+          <Markdown
+            breaks
+            className='bg-muted/30 rounded-md border px-4 py-3 text-sm'
+          >
+            {topupInfo.payment_announcement}
+          </Markdown>
+        </div>
+      )}
 
       {/* Redemption Code Section */}
       {redemptionEnabled ? (

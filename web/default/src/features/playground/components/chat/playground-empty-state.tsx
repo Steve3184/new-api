@@ -32,10 +32,30 @@ type PlaygroundEmptyStateProps = {
 }
 
 const starterPrompts = [
-  { icon: BarChartIcon, text: 'Analyze data' },
-  { icon: NotepadTextIcon, text: 'Summarize text' },
-  { icon: CodeSquareIcon, text: 'Code' },
-  { icon: GraduationCapIcon, text: 'Get advice' },
+  {
+    icon: BarChartIcon,
+    text: 'Analyze data',
+    prompt:
+      'I have a dataset I need help analyzing. What steps would you recommend to explore it, identify patterns, and draw meaningful conclusions?',
+  },
+  {
+    icon: NotepadTextIcon,
+    text: 'Summarize text',
+    prompt:
+      'Please summarize the following text concisely, preserving the key points and main ideas:\n\n[Paste your text here]',
+  },
+  {
+    icon: CodeSquareIcon,
+    text: 'Code',
+    prompt:
+      'Help me write a function that [describe what the function should do]. Please include clear variable names and a brief explanation of how it works.',
+  },
+  {
+    icon: GraduationCapIcon,
+    text: 'Get advice',
+    prompt:
+      'I need advice on [describe your situation or challenge]. What are the key considerations and what would you recommend?',
+  },
 ]
 
 export function PlaygroundEmptyState({
@@ -62,21 +82,17 @@ export function PlaygroundEmptyState({
         </div>
 
         <div className='grid gap-2 sm:grid-cols-2'>
-          {starterPrompts.map(({ icon: Icon, text }) => {
-            const prompt = t(text)
-
-            return (
-              <Button
-                className='h-auto min-h-11 justify-start gap-2 px-3 py-2.5 text-left whitespace-normal'
-                key={text}
-                onClick={() => onSelectPrompt(prompt)}
-                variant='outline'
-              >
-                <Icon className='text-muted-foreground size-4' />
-                <span>{prompt}</span>
-              </Button>
-            )
-          })}
+          {starterPrompts.map(({ icon: Icon, text, prompt }) => (
+            <Button
+              className='h-auto min-h-11 justify-start gap-2 px-3 py-2.5 text-left whitespace-normal'
+              key={text}
+              onClick={() => onSelectPrompt(prompt)}
+              variant='outline'
+            >
+              <Icon className='text-muted-foreground size-4' />
+              <span>{t(text)}</span>
+            </Button>
+          ))}
         </div>
       </div>
     </div>

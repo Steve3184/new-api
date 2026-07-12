@@ -60,7 +60,7 @@ export function ModelsPrimaryButtons() {
   }
 
   const handleManageVendors = () => {
-    setOpen('create-vendor') // Will be a separate vendors management dialog
+    setOpen('manage-vendors')
   }
 
   return (
@@ -73,7 +73,15 @@ export function ModelsPrimaryButtons() {
 
       {/* More Actions */}
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='outline'
+              size='sm'
+              aria-label={t('More actions')}
+            />
+          }
+        >
           <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-56'>
