@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -260,6 +261,11 @@ func UpdateOption(c *gin.Context) {
 				common.ApiErrorMsg(c, "Internal custom tab URLs must start with /")
 				return
 			}
+		}
+	case "PlaygroundSettings":
+		if err = playground_setting.ValidateJSONString(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
 		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { PlaygroundPublicSettings } from '@/features/playground/types'
 import type { User } from '@/features/users/types'
 
 // ============================================================================
@@ -140,6 +141,7 @@ export interface SystemStatus {
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     notice_popup_enabled?: boolean
     notice_popup_on_dashboard?: boolean
+    playground?: PlaygroundPublicSettings
     [key: string]: unknown
   }
   // Allow direct access to common properties
@@ -192,6 +194,7 @@ export interface SystemStatus {
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   notice_popup_enabled?: boolean
   notice_popup_on_dashboard?: boolean
+  playground?: PlaygroundPublicSettings
   custom_tabs?: string
   [key: string]: unknown
 }

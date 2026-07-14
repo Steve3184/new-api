@@ -160,3 +160,63 @@ export interface GroupOption {
   ratio: number
   desc?: string
 }
+
+export type PlaygroundFeature = 'chat' | 'image' | 'speech' | 'three_d'
+export type SpeechModelType = 'openai' | 'azure'
+
+export interface PlaygroundPublicSettings {
+  enabled_features: PlaygroundFeature[]
+  models: Record<PlaygroundFeature, string[]>
+  speech_model_types: Record<string, SpeechModelType>
+}
+
+export interface ImageGenerationRequest {
+  model: string
+  group: string
+  prompt: string
+  n: number
+  size: string
+  quality?: string
+  response_format: 'b64_json'
+}
+
+export interface ImageGenerationResponse {
+  created: number
+  data: Array<{
+    url?: string
+    b64_json?: string
+    revised_prompt?: string
+  }>
+}
+
+export interface SpeechGenerationRequest {
+  model: string
+  group: string
+  input: string
+  voice: string
+  response_format: string
+  speed: number
+  volume?: number
+  pitch?: number
+}
+
+export interface ThreeDGenerationRequest {
+  model: string
+  group: string
+  prompt?: string
+  input_reference?: string
+  source_task_id?: string
+  metadata?: { art_style?: string }
+}
+
+export interface ThreeDGenerationResponse {
+  id: string
+  object: '3d'
+  model: string
+  status: 'queued' | 'in_progress' | 'completed' | 'failed'
+  progress: number
+  created_at: number
+  completed_at?: number
+  data?: { format: string; url: string }
+  error?: { message: string; code: string }
+}

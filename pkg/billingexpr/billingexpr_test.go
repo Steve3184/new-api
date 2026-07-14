@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -157,6 +159,17 @@ func TestRequestProbeHelpers(t *testing.T) {
 	if math.Abs(cost-want) > 1e-6 {
 		t.Errorf("cost = %f, want %f", cost, want)
 	}
+}
+
+func TestPerRequestVariableSupportsImageSizePricing(t *testing.T) {
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		`param("size") == "4096x4096" ? tier("4k", req * 0.12) : tier("base", req * 0.03)`,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Body: []byte(`{"size":"4096x4096"}`)},
+	)
+	require.NoError(t, err)
+	assert.InDelta(t, 120_000, cost, 1e-6)
+	assert.Equal(t, "4k", trace.MatchedTier)
 }
 
 func TestHeaderProbeHelper(t *testing.T) {

@@ -2,14 +2,17 @@ package volcengine
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -108,6 +111,47 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	switch info.RelayMode {
 	case constant.RelayModeImagesGenerations:
+		return request, nil
+	case constant.RelayModeImagesEdits:
+		if c.Request.MultipartForm == nil {
+			return request, nil
+		}
+		var imageFiles []*multipart.FileHeader
+		for _, fieldName := range []string{"image", "image[]"} {
+			if files := c.Request.MultipartForm.File[fieldName]; len(files) > 0 {
+				imageFiles = files
+				break
+			}
+		}
+		if len(imageFiles) == 0 {
+			for fieldName, files := range c.Request.MultipartForm.File {
+				if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
+					imageFiles = files
+					break
+				}
+			}
+		}
+		if len(imageFiles) == 0 {
+			return nil, errors.New("image is required")
+		}
+
+		file, err := imageFiles[0].Open()
+		if err != nil {
+			return nil, fmt.Errorf("open input image: %w", err)
+		}
+		defer file.Close()
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return nil, fmt.Errorf("read input image: %w", err)
+		}
+		mimeType := imageFiles[0].Header.Get("Content-Type")
+		if mimeType == "" {
+			mimeType = http.DetectContentType(data)
+		}
+		request.Image, err = common.Marshal(fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(data)))
+		if err != nil {
+			return nil, err
+		}
 		return request, nil
 	// 根据官方文档,并没有发现豆包生图支持表单请求:https://www.volcengine.com/docs/82379/1824121
 	//case constant.RelayModeImagesEdits:

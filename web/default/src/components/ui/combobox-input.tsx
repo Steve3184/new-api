@@ -39,6 +39,7 @@ interface ComboboxInputProps {
   id?: string
   allowCustomValue?: boolean
   openOnFocus?: boolean
+  disabled?: boolean
 }
 
 export function ComboboxInput({
@@ -51,6 +52,7 @@ export function ComboboxInput({
   id,
   allowCustomValue = false,
   openOnFocus = true,
+  disabled = false,
 }: ComboboxInputProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -164,6 +166,7 @@ export function ComboboxInput({
         ref={inputRef}
         id={id}
         type='text'
+        disabled={disabled}
         role='combobox'
         aria-expanded={open}
         aria-haspopup='listbox'

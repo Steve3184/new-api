@@ -135,6 +135,15 @@ export const BILLING_VARS: BillingVar[] = [
     side: 'output',
     group: 'media',
   },
+  {
+    key: 'req',
+    field: 'requestPrice',
+    tierField: 'request_unit_cost',
+    label: 'Request price',
+    shortLabel: 'Request',
+    side: 'output',
+    group: 'request',
+  },
 ]
 
 /** Vars that have real price fields (excludes condition-only vars like `len`) */

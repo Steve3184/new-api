@@ -46,6 +46,7 @@ const STATUS_RELATED_KEYS = new Set([
   'CapCheckinSiteKey',
   'ForceCheckinCaptcha',
   'CustomTabs',
+  'PlaygroundSettings',
 ])
 
 export function useUpdateOption() {

@@ -35,9 +35,27 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/images/edits',
+  SPEECH: '/pg/audio/speech',
+  THREE_D: '/pg/3d',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
+
+export const OPENAI_SPEECH_VOICES = [
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'fable',
+  'nova',
+  'onyx',
+  'sage',
+  'shimmer',
+  'verse',
+] as const
 
 // Default group — uses 'default' as the safe fallback; auto-group is
 // only selected when the backend confirms it is available for the user.

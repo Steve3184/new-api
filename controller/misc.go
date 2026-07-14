@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -80,6 +81,7 @@ func GetStatus(c *gin.Context) {
 		"checkin_captcha_difficulty":  common.CheckinCaptchaDifficulty,
 		"force_checkin_captcha":       common.ForceCheckinCaptcha,
 		"custom_tabs":                 common.CustomTabs,
+		"playground":                  playground_setting.Get(),
 		"notice_popup_enabled":        common.NoticePopupEnabled,
 		"notice_popup_on_dashboard":   common.NoticePopupOnDashboardEnabled,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,

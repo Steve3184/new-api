@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -206,11 +207,29 @@ func (a *TaskAdaptor) ConvertToThreeD(task *model.Task) ([]byte, error) {
 	response.ID = task.TaskID
 	response.Object = "3d"
 	response.Model = task.Properties.OriginModelName
-	if response.Status == "completed" {
+	if progress, err := strconv.Atoi(strings.TrimSuffix(task.Progress, "%")); err == nil {
+		response.Progress = progress
+	}
+	switch task.Status {
+	case model.TaskStatusSuccess:
+		response.Status = "completed"
+		response.Progress = 100
 		if response.Data == nil {
 			response.Data = &dto.ThreeDData{Format: "glb"}
 		}
 		response.Data.URL = taskcommon.BuildThreeDProxyURL(task.TaskID)
+	case model.TaskStatusFailure:
+		response.Status = "failed"
+		response.Data = nil
+		if task.FailReason != "" {
+			response.Error = &dto.ThreeDError{Code: "generation_failed", Message: task.FailReason}
+		}
+	case model.TaskStatusInProgress:
+		response.Status = "in_progress"
+		response.Data = nil
+	default:
+		response.Status = "queued"
+		response.Data = nil
 	}
 	return common.Marshal(response)
 }

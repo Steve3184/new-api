@@ -41,6 +41,7 @@ export type VisualTier = {
   image_output_unit_cost?: number
   audio_input_unit_cost?: number
   audio_output_unit_cost?: number
+  request_unit_cost?: number
   [field: string]: unknown
 }
 
@@ -75,6 +76,7 @@ export function normalizeVisualTier(
     image_output_unit_cost: Number(tier.image_output_unit_cost) || 0,
     audio_input_unit_cost: Number(tier.audio_input_unit_cost) || 0,
     audio_output_unit_cost: Number(tier.audio_output_unit_cost) || 0,
+    request_unit_cost: Number(tier.request_unit_cost) || 0,
   }
 }
 
@@ -292,6 +294,7 @@ export function evalExprLocally(
       p: promptTokens,
       c: completionTokens,
       len,
+      req: 1_000_000,
       tier: tierFn,
       max: Math.max,
       min: Math.min,

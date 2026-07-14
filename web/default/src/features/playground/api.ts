@@ -24,6 +24,11 @@ import type {
   ChatCompletionResponse,
   ModelOption,
   GroupOption,
+  ImageGenerationRequest,
+  ImageGenerationResponse,
+  SpeechGenerationRequest,
+  ThreeDGenerationRequest,
+  ThreeDGenerationResponse,
 } from './types'
 
 /**
@@ -79,4 +84,58 @@ export async function getUserGroups(): Promise<GroupOption[]> {
     ratio: info.ratio,
     desc: info.desc,
   }))
+}
+
+export async function generateImage(
+  payload: ImageGenerationRequest,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.IMAGE_GENERATIONS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function editImage(
+  payload: FormData,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function generateSpeech(
+  payload: SpeechGenerationRequest,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const res = await api.post(API_ENDPOINTS.SPEECH, payload, {
+    signal,
+    responseType: 'blob',
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data as Blob
+}
+
+export async function generateThreeD(
+  payload: ThreeDGenerationRequest
+): Promise<ThreeDGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.THREE_D, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getThreeDTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<ThreeDGenerationResponse> {
+  const res = await api.get(`${API_ENDPOINTS.THREE_D}/${taskId}`, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
 }

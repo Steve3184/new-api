@@ -16,6 +16,7 @@ import (
 //   - p, c             — prompt / completion tokens (auto-excluding separately-priced sub-categories)
 //   - len              — total input context length for tier conditions (never reduced by sub-category exclusion)
 //   - cr, cc, cc1h     — cache read / creation / creation-1h tokens
+//   - req               — one request, represented as 1M units so its coefficient is $/request
 //   - tier(name, value) — trace callback that records which tier matched
 //   - max, min, abs, ceil, floor — standard math helpers
 //
@@ -53,16 +54,17 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 	headers := normalizeHeaders(request.Headers)
 
 	env := map[string]interface{}{
-		"p":    params.P,
-		"c":    params.C,
-		"len":  params.Len,
-		"cr":   params.CR,
-		"cc":   params.CC,
-		"cc1h": params.CC1h,
-		"img":  params.Img,
+		"p":     params.P,
+		"c":     params.C,
+		"len":   params.Len,
+		"cr":    params.CR,
+		"cc":    params.CC,
+		"cc1h":  params.CC1h,
+		"img":   params.Img,
 		"img_o": params.ImgO,
-		"ai":   params.AI,
-		"ao":   params.AO,
+		"ai":    params.AI,
+		"ao":    params.AO,
+		"req":   float64(1_000_000),
 		"tier": func(name string, value float64) float64 {
 			trace.MatchedTier = name
 			trace.Cost = value
@@ -94,10 +96,10 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 		"month":   func(tz string) int { return int(timeInZone(tz).Month()) },
 		"day":     func(tz string) int { return timeInZone(tz).Day() },
 		"max":     math.Max,
-		"min":   math.Min,
-		"abs":   math.Abs,
-		"ceil":  math.Ceil,
-		"floor": math.Floor,
+		"min":     math.Min,
+		"abs":     math.Abs,
+		"ceil":    math.Ceil,
+		"floor":   math.Floor,
 	}
 
 	out, err := expr.Run(prog, env)

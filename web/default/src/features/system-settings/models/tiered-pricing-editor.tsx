@@ -108,6 +108,9 @@ const CACHE_PRICE_VARS = BILLING_EXTRA_VARS.filter(
 const MEDIA_PRICE_VARS = BILLING_EXTRA_VARS.filter(
   (variable) => variable.group === 'media'
 )
+const REQUEST_PRICE_VAR = BILLING_EXTRA_VARS.find(
+  (variable) => variable.group === 'request'
+)
 
 const CONDITION_INPUT_OPTIONS: {
   value: TierConditionInput['var']
@@ -589,6 +592,7 @@ function VisualTierCard({
 
   const inputUnitPrice = unitCostToPrice(tier.input_unit_cost)
   const outputUnitPrice = unitCostToPrice(tier.output_unit_cost)
+  const requestUnitPrice = unitCostToPrice(tier.request_unit_cost ?? 0)
   const hasMediaPricing = MEDIA_PRICE_VARS.some((variable) => {
     const fieldKey = variable.tierField as keyof VisualTier
     return unitCostToPrice((tier[fieldKey] as number | undefined) ?? 0) > 0
@@ -700,6 +704,16 @@ function VisualTierCard({
                 handlePriceChange('output_unit_cost', priceToUnitCost(value))
               }
             />
+            {REQUEST_PRICE_VAR && (
+              <PriceField
+                label={t(REQUEST_PRICE_VAR.label)}
+                hint={t('USD per request')}
+                value={requestUnitPrice}
+                onChange={(value) =>
+                  handlePriceChange('request_unit_cost', priceToUnitCost(value))
+                }
+              />
+            )}
           </div>
 
           <div className='space-y-2'>
@@ -1417,7 +1431,7 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
             // BILLING_EXTRA_VARS only contains pricing variables; they are
             // guaranteed to have a non-null `field` (the `len` condition-only
             // variable is filtered out). Narrow the type here for safety.
-            if (!variable.field) return null
+            if (!variable.field || variable.group === 'request') return null
             const stateKey = variable.field.replace(
               'Price',
               'Tokens'

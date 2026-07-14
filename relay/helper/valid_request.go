@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 
@@ -65,6 +66,17 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 	case relayconstant.RelayModeAudioSpeech:
 		if audioRequest.Model == "" {
 			return nil, errors.New("model is required")
+		}
+		if strings.HasPrefix(c.Request.URL.Path, "/pg/") {
+			if audioRequest.Speed == nil {
+				return nil, errors.New("speed is required")
+			}
+			if math.IsNaN(*audioRequest.Speed) || math.IsInf(*audioRequest.Speed, 0) || *audioRequest.Speed < 0.25 || *audioRequest.Speed > 4 {
+				return nil, errors.New("speed must be between 0.25 and 4")
+			}
+		}
+		if strings.HasPrefix(c.Request.URL.Path, "/pg/") && playground_setting.GetSpeechModelType(audioRequest.Model) != playground_setting.SpeechModelTypeAzure && (audioRequest.Volume != nil || audioRequest.Pitch != nil) {
+			return nil, errors.New("volume and pitch are only supported by Azure playground speech models")
 		}
 	default:
 		if audioRequest.Model == "" {

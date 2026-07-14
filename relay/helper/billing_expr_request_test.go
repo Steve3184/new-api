@@ -61,3 +61,19 @@ func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
 	require.Equal(t, "user", gjson.GetBytes(input.Body, "messages.0.role").String())
 	require.Equal(t, float64(3000), gjson.GetBytes(input.Body, "max_tokens").Float())
 }
+
+func TestBuildBillingExprRequestInputPreservesMultipartImagePricingFields(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:   "gpt-image-2",
+		Prompt:  "edit the sky",
+		Size:    "4096x4096",
+		Quality: "high",
+		N:       lo.ToPtr(uint(1)),
+	}
+
+	input, err := BuildBillingExprRequestInputFromRequest(request, nil)
+	require.NoError(t, err)
+	require.Equal(t, "4096x4096", gjson.GetBytes(input.Body, "size").String())
+	require.Equal(t, "high", gjson.GetBytes(input.Body, "quality").String())
+	require.Equal(t, float64(1), gjson.GetBytes(input.Body, "n").Float())
+}

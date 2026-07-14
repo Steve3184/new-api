@@ -122,6 +122,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	if !strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "application/json") {
+		requestInput, inputErr := helper.BuildBillingExprRequestInputFromRequest(request, relayInfo.RequestHeaders)
+		if inputErr != nil {
+			newAPIError = types.NewError(inputErr, types.ErrorCodeInvalidRequest)
+			return
+		}
+		relayInfo.BillingRequestInput = &requestInput
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken

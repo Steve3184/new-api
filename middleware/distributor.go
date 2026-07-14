@@ -83,29 +83,20 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				// check path is /pg/chat/completions
-				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-					playgroundRequest := &dto.PlayGroundRequest{}
-					err = common.UnmarshalBodyReusable(c, playgroundRequest)
-					if err != nil {
-						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
+				if strings.HasPrefix(c.Request.URL.Path, "/pg/") && modelRequest.Group != "" {
+					if !service.GroupInUserUsableGroups(usingGroup, modelRequest.Group) && modelRequest.Group != usingGroup {
+						abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 						return
 					}
-					if playgroundRequest.Group != "" {
-						if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
-							return
-						}
-						usingGroup = playgroundRequest.Group
-						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
-					}
+					usingGroup = modelRequest.Group
+					common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
-						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) {
+						channelSupportsRequestPath(preferred, canonicalRelayPath(c.Request.URL.Path), modelRequest.Model) {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
@@ -136,7 +127,7 @@ func Distribute() func(c *gin.Context) {
 						Ctx:         c,
 						ModelName:   modelRequest.Model,
 						TokenGroup:  usingGroup,
-						RequestPath: c.Request.URL.Path,
+						RequestPath: canonicalRelayPath(c.Request.URL.Path),
 						Retry:       common.GetPointer(0),
 					})
 					if err != nil {
@@ -181,6 +172,13 @@ func channelSupportsRequestPath(channel *model.Channel, requestPath string, requ
 	}
 	config := channel.GetOtherSettings().AdvancedCustom
 	return config != nil && config.SupportsPathForModel(requestPath, requestModel)
+}
+
+func canonicalRelayPath(path string) string {
+	if strings.HasPrefix(path, "/pg/") {
+		return "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
+	return path
 }
 
 // getModelFromRequest 从请求中读取模型信息
@@ -253,6 +251,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
+	relayPath := canonicalRelayPath(c.Request.URL.Path)
 	if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
@@ -296,7 +295,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		relayMode := relayconstant.RelayModeVideoSubmit
 		c.Set("relay_mode", relayMode)
 		shouldSelectChannel = false
-	} else if c.Request.URL.Path == "/v1/3d" || strings.HasPrefix(c.Request.URL.Path, "/v1/3d/") {
+	} else if relayPath == "/v1/3d" || strings.HasPrefix(relayPath, "/v1/3d/") {
 		relayMode := relayconstant.RelayModeThreeDSubmit
 		if c.Request.Method == http.MethodPost {
 			req, err := getModelFromRequest(c)
@@ -357,7 +356,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
-	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+	} else if !strings.HasPrefix(relayPath, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		req, err := getModelFromRequest(c)
 		if err != nil {
 			return nil, false, err
@@ -378,9 +377,9 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = c.Param("model")
 		}
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
+	if strings.HasPrefix(relayPath, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
-	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
+	} else if strings.HasPrefix(relayPath, "/v1/images/edits") {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
 		contentType := c.ContentType()
 		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
@@ -390,19 +389,19 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			}
 		}
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/audio") {
+	if strings.HasPrefix(relayPath, "/v1/audio") {
 		relayMode := relayconstant.RelayModeAudioSpeech
-		if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/speech") {
+		if strings.HasPrefix(relayPath, "/v1/audio/speech") {
 
 			modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "tts-1")
-		} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/translations") {
+		} else if strings.HasPrefix(relayPath, "/v1/audio/translations") {
 			// 先尝试从请求读取
 			if req, err := getModelFromRequest(c); err == nil && req.Model != "" {
 				modelRequest.Model = req.Model
 			}
 			modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "whisper-1")
 			relayMode = relayconstant.RelayModeAudioTranslation
-		} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
+		} else if strings.HasPrefix(relayPath, "/v1/audio/transcriptions") {
 			// 先尝试从请求读取
 			if req, err := getModelFromRequest(c); err == nil && req.Model != "" {
 				modelRequest.Model = req.Model
@@ -412,18 +411,11 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("relay_mode", relayMode)
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-		// playground chat completions
-		req, err := getModelFromRequest(c)
-		if err != nil {
-			return nil, false, err
-		}
-		modelRequest.Model = req.Model
-		modelRequest.Group = req.Group
+	if strings.HasPrefix(c.Request.URL.Path, "/pg/") {
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
 
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
+	if strings.HasPrefix(relayPath, "/v1/responses/compact") && modelRequest.Model != "" {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil

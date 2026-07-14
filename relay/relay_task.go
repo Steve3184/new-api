@@ -37,6 +37,9 @@ type TaskSubmitResult struct {
 // 该函数在控制器的重试循环之前调用一次，其结果通过 info 字段和上下文持久化。
 func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
 	path := c.Request.URL.Path
+	if strings.HasPrefix(path, "/pg/") {
+		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
 	if strings.Contains(path, "/v1/videos/") && strings.HasSuffix(path, "/remix") {
 		info.Action = constant.TaskActionRemix
 	}
@@ -409,7 +412,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 
 	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
-	isThreeDAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/3d/")
+	isThreeDAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/3d/") || strings.HasPrefix(c.Request.RequestURI, "/pg/3d/")
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {

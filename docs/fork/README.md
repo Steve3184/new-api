@@ -218,6 +218,132 @@ File:
 
 - `web/default/src/features/playground/components/chat/playground-empty-state.tsx`
 
+## Multi-generation Playground
+
+The default frontend Playground now provides in-view tabs for chat, image
+generation/editing, text-to-speech, and asynchronous 3D generation. The
+classic frontend remains unchanged. Chat is the only feature enabled by
+default, preserving the previous deployment behavior.
+
+`PlaygroundSettings` is one additive JSON option with this shape:
+
+```json
+{
+  "enabled_features": ["chat"],
+  "models": {
+    "chat": [],
+    "image": [],
+    "speech": [],
+    "three_d": []
+  },
+  "speech_model_types": {}
+}
+```
+
+An empty model list means all models available to that user and group are
+allowed. A non-empty list is enforced by the backend, not only filtered in the
+browser. Speech model types are `openai` (default) or `azure`. The public status
+payload exposes the normalized configuration under `playground`.
+
+All generation tabs use the same combined model/group picker as chat. The
+frontend loads model availability for every usable group in parallel, builds a
+union model list, and filters the group column for the selected model. A group
+that does not provide the selected model is not shown; if a model change makes
+the current group invalid, the first eligible group is selected automatically.
+Only the combined picker is rendered, rather than separate model and group
+fields.
+
+Session-authenticated Playground relay routes are additive equivalents of the
+existing token-authenticated APIs:
+
+| Route | Purpose |
+| --- | --- |
+| `POST /pg/chat/completions` | Chat |
+| `POST /pg/images/generations` | Image generation |
+| `POST /pg/images/edits` | Multipart image editing |
+| `POST /pg/audio/speech` | Speech generation |
+| `POST /pg/3d` | Submit a 3D task |
+| `GET /pg/3d/:task_id` | Poll a user-owned 3D task |
+
+Image controls use the OpenAI Images request shape and include 1K, 2K, and 4K
+size presets. GPT Image and Seedream-compatible channels continue through the
+existing image adaptors. Gemini image models, including Nano Banana aliases,
+are converted to native `generateContent` image requests; uploaded edit images
+become Gemini `inlineData`, and Gemini image parts are converted back to the
+OpenAI Images response shape. `gpt-image-2` is included in the OpenAI model
+catalog. VolcEngine image edits convert the first multipart upload to the data
+URI accepted by the Seedream generations endpoint, and the channel catalog
+includes Seedream 4.0 plus generic Seedream 5.0 aliases.
+
+Speech always sends the required `speed` float (`1.0` baseline). Azure-typed
+models additionally expose optional `volume` (`1.0` baseline) and integer
+`pitch` in Hz (`0` baseline); those fields are omitted for OpenAI-typed models.
+The Azure voice selector vendors the 322 names from
+`s3aidocs/docs/.vitepress/dist/azure-tts-voice-list.txt`. Volume and pitch each
+have an explicit opt-in switch, so their baseline values are not sent unless
+the user enables that parameter. The speech layout gives most desktop width to
+the editor, uses a fixed larger text area, and keeps the audio result panel
+compact on mobile.
+
+The 3D tab supports text/image input, Meshy art styles, draft-to-texture source
+task IDs, progress polling, GLB download, and a lazily loaded Three.js viewer.
+It always confirms the locally persisted task state before mounting the viewer,
+which avoids loading the content proxy while an immediately completed upstream
+response is still being inserted locally. Transient task lookup errors are
+retried, and GLB/GLTF load failures now produce an explicit UI state instead of
+a blank canvas. On small screens, generation forms and result workspaces use a
+single vertical scroll area; desktop keeps the split workspace.
+
+Dynamic billing expressions add `req`, fixed at `1,000,000` in the v1
+expression environment. Its coefficient is therefore a per-request USD price
+while preserving the existing `$ / 1M` quota conversion. Request rules can
+then apply size multipliers through `param("size")`. Non-JSON image edits also
+freeze a normalized request body for pre-consume and settlement, so multipart
+`size` values participate in the same pricing rule.
+
+Files:
+
+- `setting/playground_setting/playground_setting.go`
+- `setting/playground_setting/playground_setting_test.go`
+- `model/option.go`
+- `controller/misc.go`
+- `controller/playground.go`
+- `controller/relay.go`
+- `router/relay-router.go`
+- `middleware/distributor.go`
+- `relay/constant/relay_mode.go`
+- `relay/relay_task.go`
+- `relay/helper/valid_request.go`
+- `relay/channel/openai/constant.go`
+- `relay/channel/gemini/adaptor.go`
+- `relay/channel/gemini/relay-gemini.go`
+- `relay/channel/gemini/image_generation_test.go`
+- `relay/channel/volcengine/adaptor.go`
+- `relay/channel/volcengine/constants.go`
+- `relay/channel/volcengine/image_edit_test.go`
+- `dto/audio.go`
+- `pkg/billingexpr/compile.go`
+- `pkg/billingexpr/run.go`
+- `pkg/billingexpr/expr.md`
+- `pkg/billingexpr/billingexpr_test.go`
+- `web/default/package.json`
+- `web/bun.lock`
+- `web/default/src/components/ui/combobox-input.tsx`
+- `web/default/src/features/playground/`
+- `web/default/src/features/pricing/lib/billing-expr.ts`
+- `web/default/src/features/pricing/lib/dynamic-price.ts`
+- `web/default/src/features/pricing/lib/tier-expr.ts`
+- `web/default/src/features/system-settings/models/playground-settings-card.tsx`
+- `web/default/src/features/system-settings/models/index.tsx`
+- `web/default/src/features/system-settings/models/section-registry.tsx`
+- `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+- `web/default/src/features/system-settings/hooks/use-update-option.ts`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/features/models/components/drawers/model-mutate-drawer.tsx`
+- `web/default/src/features/auth/types.ts`
+- `web/default/src/i18n/static-keys.ts`
+- `web/default/src/i18n/locales/*.json`
+
 ## Default frontend maintenance batch (2026-07-13)
 
 This batch fixes several default-frontend regressions and completes previously

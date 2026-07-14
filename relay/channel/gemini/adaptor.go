@@ -1,12 +1,16 @@
 package gemini
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -62,7 +66,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation, only imagen models are supported")
+		return buildGeminiNativeImageRequest(c, request)
 	}
 
 	// convert size to aspect ratio but allow user to specify aspect ratio
@@ -124,6 +128,148 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	return geminiRequest, nil
+}
+
+func buildGeminiNativeImageRequest(c *gin.Context, request dto.ImageRequest) (*dto.GeminiChatRequest, error) {
+	imageN := uint(1)
+	if request.N != nil {
+		imageN = *request.N
+	}
+	if imageN != 1 {
+		return nil, errors.New("Gemini native image generation supports n=1")
+	}
+
+	parts := []dto.GeminiPart{{Text: request.Prompt}}
+	if inlineData, err := resolveGeminiInputImage(c, request); err != nil {
+		return nil, err
+	} else if inlineData != nil {
+		parts = append(parts, dto.GeminiPart{InlineData: inlineData})
+	}
+
+	imageConfig := map[string]string{}
+	aspectRatio, imageSize := resolveGeminiImageConfig(request.Size, request.Quality)
+	if aspectRatio != "" {
+		imageConfig["aspectRatio"] = aspectRatio
+	}
+	if imageSize != "" {
+		imageConfig["imageSize"] = imageSize
+	}
+	imageConfigJSON, err := common.Marshal(imageConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{{Role: "user", Parts: parts}},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ResponseModalities: []string{"IMAGE"},
+			ImageConfig:        imageConfigJSON,
+		},
+	}, nil
+}
+
+func resolveGeminiInputImage(c *gin.Context, request dto.ImageRequest) (*dto.GeminiInlineData, error) {
+	if c.Request.MultipartForm != nil {
+		for _, fieldName := range []string{"image", "image[]"} {
+			files := c.Request.MultipartForm.File[fieldName]
+			if len(files) == 0 {
+				continue
+			}
+			file, err := files[0].Open()
+			if err != nil {
+				return nil, fmt.Errorf("open input image: %w", err)
+			}
+			defer file.Close()
+			data, err := io.ReadAll(file)
+			if err != nil {
+				return nil, fmt.Errorf("read input image: %w", err)
+			}
+			mimeType := files[0].Header.Get("Content-Type")
+			if mimeType == "" {
+				mimeType = http.DetectContentType(data)
+			}
+			return &dto.GeminiInlineData{MimeType: mimeType, Data: base64.StdEncoding.EncodeToString(data)}, nil
+		}
+	}
+
+	if len(request.Image) == 0 {
+		return nil, nil
+	}
+	var imageValue string
+	if err := common.Unmarshal(request.Image, &imageValue); err != nil || imageValue == "" {
+		return nil, nil
+	}
+	if !strings.HasPrefix(imageValue, "data:") {
+		return nil, errors.New("Gemini image editing requires a data URI or multipart upload")
+	}
+	header, encoded, found := strings.Cut(imageValue, ",")
+	if !found || !strings.Contains(header, ";base64") {
+		return nil, errors.New("invalid image data URI")
+	}
+	mimeType := strings.TrimPrefix(strings.SplitN(header, ";", 2)[0], "data:")
+	if _, err := base64.StdEncoding.DecodeString(encoded); err != nil {
+		return nil, errors.New("invalid image base64 data")
+	}
+	return &dto.GeminiInlineData{MimeType: mimeType, Data: encoded}, nil
+}
+
+func resolveGeminiImageConfig(size, quality string) (string, string) {
+	size = strings.TrimSpace(size)
+	quality = strings.ToUpper(strings.TrimSpace(quality))
+	imageSize := ""
+	if quality == "1K" || quality == "2K" || quality == "4K" {
+		imageSize = quality
+	}
+	if strings.Contains(size, ":") {
+		return size, imageSize
+	}
+	upperSize := strings.ToUpper(size)
+	if upperSize == "1K" || upperSize == "2K" || upperSize == "4K" {
+		return "", upperSize
+	}
+
+	parts := strings.Split(strings.ToLower(size), "x")
+	if len(parts) != 2 {
+		return "", imageSize
+	}
+	width, widthErr := strconv.Atoi(parts[0])
+	height, heightErr := strconv.Atoi(parts[1])
+	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+		return "", imageSize
+	}
+	if imageSize == "" {
+		maxDimension := max(width, height)
+		switch {
+		case maxDimension > 2048:
+			imageSize = "4K"
+		case maxDimension > 1024:
+			imageSize = "2K"
+		default:
+			imageSize = "1K"
+		}
+	}
+	return nearestImageAspectRatio(width, height), imageSize
+}
+
+func nearestImageAspectRatio(width, height int) string {
+	ratio := float64(width) / float64(height)
+	options := []struct {
+		label string
+		ratio float64
+	}{
+		{"1:1", 1}, {"2:3", 2.0 / 3}, {"3:2", 3.0 / 2},
+		{"3:4", 3.0 / 4}, {"4:3", 4.0 / 3}, {"9:16", 9.0 / 16}, {"16:9", 16.0 / 9},
+	}
+	best := options[0]
+	bestDistance := math.Abs(ratio - best.ratio)
+	for _, option := range options[1:] {
+		distance := math.Abs(ratio - option.ratio)
+		if distance < bestDistance {
+			best = option
+			bestDistance = distance
+		}
+	}
+	return best.label
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -276,6 +422,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
+		return GeminiNativeImageHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model

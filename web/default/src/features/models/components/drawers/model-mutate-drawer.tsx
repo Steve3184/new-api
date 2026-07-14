@@ -165,6 +165,8 @@ export function ModelMutateDrawer({
   const modelSettings = useMemo(() => {
     if (!systemOptionsData?.data) return null
     const defaultModelSettings: ModelSettings = {
+      PlaygroundSettings:
+        '{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[]},"speech_model_types":{}}',
       'global.pass_through_request_enabled': false,
       'global.thinking_model_blacklist': '[]',
       'global.chat_completions_to_responses_policy': '{}',

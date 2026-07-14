@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
+	"github.com/QuantumNous/new-api/setting/playground_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
@@ -57,6 +58,7 @@ func InitOptionMap() {
 	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
 	common.OptionMap["PaymentAnnouncement"] = common.PaymentAnnouncement
 	common.OptionMap["CustomTabs"] = common.CustomTabs
+	common.OptionMap["PlaygroundSettings"] = playground_setting.ToJSONString()
 	common.OptionMap["NoticePopupEnabled"] = strconv.FormatBool(common.NoticePopupEnabled)
 	common.OptionMap["NoticePopupOnDashboardEnabled"] = strconv.FormatBool(common.NoticePopupOnDashboardEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
@@ -553,6 +555,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.PaymentAnnouncement = value
 	case "CustomTabs":
 		common.CustomTabs = value
+	case "PlaygroundSettings":
+		err = playground_setting.UpdateByJSONString(value)
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":

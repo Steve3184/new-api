@@ -82,6 +82,7 @@ func TestConvertToThreeDHidesUpstreamTaskAndArtifactURL(t *testing.T) {
 
 	task := &model.Task{
 		TaskID: "task_public_result",
+		Status: model.TaskStatusSuccess,
 		Properties: model.Properties{
 			OriginModelName: "meshy-6-draft",
 		},
@@ -105,6 +106,35 @@ func TestConvertToThreeDHidesUpstreamTaskAndArtifactURL(t *testing.T) {
 	assert.Equal(t, "task_public_result", response.ID)
 	assert.Equal(t, "https://gateway.example.com/v1/3d/task_public_result/content", response.Data.URL)
 	assert.NotContains(t, string(body), "8f57e450-2cad-4b2d-9369-05e6ee891452")
+	assert.NotContains(t, string(body), "meshy.internal")
+}
+
+func TestConvertToThreeDWaitsForPersistedTaskStatus(t *testing.T) {
+	task := &model.Task{
+		TaskID:   "task_public_pending",
+		Status:   model.TaskStatusNotStart,
+		Progress: "0%",
+		Properties: model.Properties{
+			OriginModelName: "meshy-6",
+		},
+	}
+	task.SetData(dto.ThreeDResponse{
+		ID:     "upstream-task-id",
+		Status: "completed",
+		Data: &dto.ThreeDData{
+			Format: "glb",
+			URL:    "https://meshy.internal/private.glb",
+		},
+	})
+
+	body, err := (&TaskAdaptor{}).ConvertToThreeD(task)
+	require.NoError(t, err)
+	var response dto.ThreeDResponse
+	require.NoError(t, common.Unmarshal(body, &response))
+
+	assert.Equal(t, "queued", response.Status)
+	assert.Zero(t, response.Progress)
+	assert.Nil(t, response.Data)
 	assert.NotContains(t, string(body), "meshy.internal")
 }
 

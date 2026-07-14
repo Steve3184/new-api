@@ -37,6 +37,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `cc1h` | 缓存创建 token 数 — 1小时 TTL（Claude 专用） |
 | `img` | 图片输入 token 数 |
 | `ai` | 音频输入 token 数 |
+| `req` | 单次请求；固定为 1,000,000，因此系数单位为 $/request |
 
 **输出侧变量：**
 
@@ -104,16 +105,19 @@ len <= 200000
 # Image model (no separate cache/audio pricing — those tokens stay in p/c)
 tier("base", p * 2 + c * 8 + img * 2.5)
 
+# Per-request image pricing with size-based request rules
+(tier("base", req * 0.04)) * (param("size") == "2048x2048" ? 2 : 1) * (param("size") == "4096x4096" ? 4 : 1)
+
 # Multimodal with audio
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
 ```
 
-### Request Rules (appended after `|||`)
+### Request Rules
 
-Request-conditional multipliers are appended to the expression after a `|||` separator:
+Request-conditional multipliers are multiplied with the base expression:
 
 ```
-tier("base", p * 5 + c * 25)|||when(header("anthropic-beta") has "fast-mode") * 6
+(tier("base", p * 5 + c * 25)) * (has(header("anthropic-beta"), "fast-mode") ? 6 : 1)
 ```
 
 These are parsed and applied separately by the request rule system.
@@ -136,7 +140,7 @@ Two editing modes:
 - **Visual mode**: Fill in prices per variable, conditions per tier. Generates expression via `generateExprFromVisualConfig()`.
 - **Raw mode**: Edit the expression string directly. Includes preset templates for common models.
 
-The editor outputs a billing expression string and an optional request rule expression string. These are combined via `combineBillingExpr(billingExpr, requestRuleExpr)` before storage.
+The editor outputs a billing expression string and an optional request rule expression string. These are combined as one multiplicative expression via `combineBillingExpr(billingExpr, requestRuleExpr)` before storage.
 
 ### 2. Storage
 

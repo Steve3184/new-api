@@ -473,6 +473,48 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return usage, nil
 }
 
+func GeminiNativeImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	_ = resp.Body.Close()
+
+	var geminiResponse dto.GeminiChatResponse
+	if err := common.Unmarshal(responseBody, &geminiResponse); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	openAIResponse := dto.ImageResponse{Created: common.GetTimestamp(), Data: []dto.ImageData{}}
+	for _, candidate := range geminiResponse.Candidates {
+		revisedPrompt := ""
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" {
+				revisedPrompt += part.Text
+			}
+			if part.InlineData == nil || !strings.HasPrefix(part.InlineData.MimeType, "image/") || part.InlineData.Data == "" {
+				continue
+			}
+			openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
+				B64Json:       part.InlineData.Data,
+				RevisedPrompt: strings.TrimSpace(revisedPrompt),
+			})
+		}
+	}
+	if len(openAIResponse.Data) == 0 {
+		return nil, types.NewOpenAIError(errors.New("no images generated"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+	jsonResponse, err := common.Marshal(openAIResponse)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	c.Header("Content-Type", "application/json")
+	c.Status(resp.StatusCode)
+	_, _ = c.Writer.Write(jsonResponse)
+
+	usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
+	return &usage, nil
+}
+
 type GeminiModelsResponse struct {
 	Models        []dto.GeminiModel `json:"models"`
 	NextPageToken string            `json:"nextPageToken"`
