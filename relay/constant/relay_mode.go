@@ -42,6 +42,8 @@ const (
 
 	RelayModeVideoFetchByID
 	RelayModeVideoSubmit
+	RelayModeThreeDFetchByID
+	RelayModeThreeDSubmit
 
 	RelayModeRerank
 
@@ -86,6 +88,10 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRerank
 	} else if strings.HasPrefix(path, "/v1/realtime") {
 		relayMode = RelayModeRealtime
+	} else if strings.HasPrefix(path, "/v1/3d/") {
+		relayMode = RelayModeThreeDFetchByID
+	} else if path == "/v1/3d" {
+		relayMode = RelayModeThreeDSubmit
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
 	} else if strings.HasPrefix(path, "/mj") {

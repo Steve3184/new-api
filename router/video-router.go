@@ -8,6 +8,21 @@ import (
 )
 
 func SetVideoRouter(router *gin.Engine) {
+	threeDContentRouter := router.Group("/v1")
+	threeDContentRouter.Use(middleware.RouteTag("relay"))
+	threeDContentRouter.Use(middleware.TokenOrUserAuth())
+	{
+		threeDContentRouter.GET("/3d/:task_id/content", controller.ThreeDProxy)
+	}
+
+	threeDRouter := router.Group("/v1")
+	threeDRouter.Use(middleware.RouteTag("relay"))
+	threeDRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		threeDRouter.POST("/3d", controller.RelayTask)
+		threeDRouter.GET("/3d/:task_id", controller.RelayTaskFetch)
+	}
+
 	// Video proxy: accepts either session auth (dashboard) or token auth (API clients)
 	videoProxyRouter := router.Group("/v1")
 	videoProxyRouter.Use(middleware.RouteTag("relay"))

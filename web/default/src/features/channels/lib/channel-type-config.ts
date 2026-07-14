@@ -144,6 +144,33 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'meshy',
+    supportedModels: [
+      'meshy-6',
+      'meshy-6-draft',
+      'meshy-6-texture',
+      'meshy-5.3',
+      'meshy-5.3-draft',
+      'meshy-5.3-texture',
+      'meshy-5.1',
+      'meshy-5.1-draft',
+      'meshy-5.1-texture',
+      'meshy-5',
+      'meshy-5-draft',
+      'meshy-5-texture',
+      'meshy-4',
+      'meshy-4-draft',
+      'meshy-4-texture',
+    ],
+    hints: {
+      baseUrl: 'Meshy2API service URL',
+      key: 'Meshy2API API key',
+      models: 'Meshy 3D model names',
+    },
+  },
 }
 
 /**

@@ -56,15 +56,15 @@ function buildCodexConfig(
   defaultModel: string,
   reviewModel: string
 ) {
-  return `model_provider = "newapi"
+  return `model_provider = "OpenAI"
 model = "${defaultModel}"
 review_model = "${reviewModel}"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "high"
 disable_response_storage = true
 windows_wsl_setup_acknowledged = true
 
-[model_providers.newapi]
-name = "New API"
+[model_providers.OpenAI]
+name = "OpenAI"
 base_url = "${baseUrl}/v1"
 wire_api = "responses"
 requires_openai_auth = true

@@ -36,10 +36,23 @@ type TaskSubmitResult struct {
 // 以及提取 OtherRatios（时长、分辨率）。
 // 该函数在控制器的重试循环之前调用一次，其结果通过 info 字段和上下文持久化。
 func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	// 检测 remix action
 	path := c.Request.URL.Path
 	if strings.Contains(path, "/v1/videos/") && strings.HasSuffix(path, "/remix") {
 		info.Action = constant.TaskActionRemix
+	}
+	isThreeDTexture := false
+	if c.Request.Method == http.MethodPost && path == "/v1/3d" {
+		var request dto.ThreeDRequest
+		if err := common.UnmarshalBodyReusable(c, &request); err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+		}
+		isThreeDTexture = strings.HasSuffix(strings.TrimSpace(request.Model), "-texture")
+		if isThreeDTexture {
+			info.OriginTaskID = strings.TrimSpace(request.SourceTaskID)
+			if info.OriginTaskID == "" {
+				return service.TaskErrorWrapperLocal(errors.New("source_task_id is required for texture models"), "missing_source_task_id", http.StatusBadRequest)
+			}
+		}
 	}
 
 	// 提取 remix 任务的 video_id
@@ -54,6 +67,9 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	if info.OriginTaskID == "" {
 		return nil
 	}
+	if info.ChannelMeta == nil {
+		info.InitChannelMeta(c)
+	}
 
 	// 查找原始任务
 	originTask, exist, err := model.GetByTaskId(info.UserId, info.OriginTaskID)
@@ -62,6 +78,32 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	}
 	if !exist {
 		return service.TaskErrorWrapperLocal(errors.New("task_origin_not_exist"), "task_not_exist", http.StatusBadRequest)
+	}
+	info.OriginUpstreamTaskID = originTask.GetUpstreamTaskID()
+	ch, err := model.GetChannelById(originTask.ChannelId, true)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "channel_not_found", http.StatusBadRequest)
+	}
+
+	if isThreeDTexture {
+		if originTask.Status != model.TaskStatusSuccess {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("source task is not completed: %s", originTask.Status), "source_task_not_completed", http.StatusBadRequest)
+		}
+		if ch.Type != constant.ChannelTypeMeshy2API {
+			return service.TaskErrorWrapperLocal(errors.New("source task was not created by Meshy2API"), "invalid_source_task", http.StatusBadRequest)
+		}
+
+		sourceModel := originTask.Properties.OriginModelName
+		if sourceModel == "" {
+			var taskData dto.ThreeDResponse
+			_ = common.Unmarshal(originTask.Data, &taskData)
+			sourceModel = taskData.Model
+		}
+		requestedModel := strings.TrimSpace(info.OriginModelName)
+		if !strings.HasSuffix(sourceModel, "-draft") ||
+			strings.TrimSuffix(sourceModel, "-draft") != strings.TrimSuffix(requestedModel, "-texture") {
+			return service.TaskErrorWrapperLocal(errors.New("texture model must match a completed draft model"), "invalid_source_model", http.StatusBadRequest)
+		}
 	}
 
 	// 从原始任务推导模型名称
@@ -80,30 +122,10 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	}
 
 	// 锁定到原始任务的渠道（重试时复用同一渠道，轮换 key）
-	ch, err := model.GetChannelById(originTask.ChannelId, true)
-	if err != nil {
-		return service.TaskErrorWrapperLocal(err, "channel_not_found", http.StatusBadRequest)
-	}
 	if ch.Status != common.ChannelStatusEnabled {
 		return service.TaskErrorWrapperLocal(errors.New("the channel of the origin task is disabled"), "task_channel_disable", http.StatusBadRequest)
 	}
 	info.LockedChannel = ch
-
-	if originTask.ChannelId != info.ChannelId {
-		key, _, newAPIError := ch.GetNextEnabledKey()
-		if newAPIError != nil {
-			return service.TaskErrorWrapper(newAPIError, "channel_no_available_key", newAPIError.StatusCode)
-		}
-		common.SetContextKey(c, constant.ContextKeyChannelKey, key)
-		common.SetContextKey(c, constant.ContextKeyChannelType, ch.Type)
-		common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, ch.GetBaseURL())
-		common.SetContextKey(c, constant.ContextKeyChannelId, originTask.ChannelId)
-
-		info.ChannelBaseUrl = ch.GetBaseURL()
-		info.ChannelId = originTask.ChannelId
-		info.ChannelType = ch.Type
-		info.ApiKey = key
-	}
 
 	// 提取 remix 参数（时长、分辨率 → OtherRatios）
 	if info.Action == constant.TaskActionRemix {
@@ -288,9 +310,10 @@ func noteTaskQuotaClamp(info *relaycommon.RelayInfo, clamp *common.QuotaClamp) {
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
-	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
-	relayconstant.RelayModeVideoFetchByID: videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeSunoFetchByID:   sunoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeSunoFetch:       sunoFetchRespBodyBuilder,
+	relayconstant.RelayModeVideoFetchByID:  videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeThreeDFetchByID: videoFetchByIDRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
@@ -386,10 +409,29 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 
 	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
+	isThreeDAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/3d/")
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {
 		respBody = realtimeResp
+		return
+	}
+
+	if isThreeDAPI {
+		adaptor := GetTaskAdaptor(originTask.Platform)
+		if adaptor == nil {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
+			return
+		}
+		converter, ok := adaptor.(channel.ThreeDConverter)
+		if !ok {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
+			return
+		}
+		respBody, err = converter.ConvertToThreeD(originTask)
+		if err != nil {
+			taskResp = service.TaskErrorWrapper(err, "convert_to_3d_failed", http.StatusInternalServerError)
+		}
 		return
 	}
 

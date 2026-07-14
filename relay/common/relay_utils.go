@@ -276,6 +276,7 @@ func isKnownTaskField(field string) bool {
 		"size":            true,
 		"duration":        true,
 		"input_reference": true, // Sora 特有字段
+		"source_task_id":  true,
 	}
 	return knownFields[field]
 }

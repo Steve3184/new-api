@@ -410,6 +410,185 @@ Files:
 - `web/default/src/lib/api.ts`
 - `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
+## Meshy2API native 3D provider
+
+Channel type `59` adds native Meshy2API support. It uses a dedicated task
+adapter and the `/v1/3d` protocol end to end; it does not route 3D requests
+through the OpenAI/Sora video API.
+
+Configure a channel with:
+
+| Field | Value |
+| --- | --- |
+| Type | `Meshy2API` (`59`) |
+| Base URL | Meshy2API service origin, without `/v1` |
+| Key | API key configured in Meshy2API |
+| Models | One or more model names from the list below |
+
+The channel test action is intentionally disabled because a real 3D test would
+create a billable asynchronous generation task. Use the API examples below for
+an explicit end-to-end test.
+
+### API contract
+
+Create a task:
+
+```http
+POST /v1/3d
+Authorization: Bearer sk-new-api-key
+Content-Type: application/json
+```
+
+Poll a task and download its GLB result:
+
+```http
+GET /v1/3d/{task_id}
+GET /v1/3d/{task_id}/content
+```
+
+Supported model names:
+
+| Base model | Full pipeline | Draft only | Texture an existing draft |
+| --- | --- | --- | --- |
+| Meshy 6 | `meshy-6` | `meshy-6-draft` | `meshy-6-texture` |
+| Meshy 5.3 | `meshy-5.3` | `meshy-5.3-draft` | `meshy-5.3-texture` |
+| Meshy 5.1 | `meshy-5.1` | `meshy-5.1-draft` | `meshy-5.1-texture` |
+| Meshy 5 | `meshy-5` | `meshy-5-draft` | `meshy-5-texture` |
+| Meshy 4 | `meshy-4` | `meshy-4-draft` | `meshy-4-texture` |
+
+`art_style` accepts `realistic`, `cartoon`, `sculpture`, or `pbr`.
+`input_reference` accepts a base64 data URL or bare base64 image. HTTP image
+URLs are rejected so the gateway never fetches a caller-controlled URL.
+
+Text-to-3D example:
+
+```json
+{
+  "model": "meshy-6",
+  "prompt": "a medieval wooden treasure chest with iron bands",
+  "metadata": {
+    "art_style": "cartoon"
+  }
+}
+```
+
+Image-to-3D example:
+
+```json
+{
+  "model": "meshy-6-draft",
+  "input_reference": "data:image/png;base64,iVBORw0KGgo...",
+  "metadata": {
+    "art_style": "realistic"
+  }
+}
+```
+
+Create texture for an existing draft:
+
+```json
+{
+  "model": "meshy-6-texture",
+  "source_task_id": "task_public_draft_id",
+  "prompt": "weathered oak with dark iron bands",
+  "metadata": {
+    "art_style": "pbr"
+  }
+}
+```
+
+`source_task_id` is the public `id` returned by new-api for a completed draft.
+Clients must not pass a Meshy or Meshy2API internal ID. new-api verifies that
+the source belongs to the caller, is complete, was created by the same
+Meshy2API channel, and uses the same base model. It then replaces the public ID
+with the stored upstream task ID before forwarding the request.
+
+Submission response:
+
+```json
+{
+  "id": "task_a_public_new_api_id",
+  "object": "3d",
+  "model": "meshy-6-draft",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1783495163
+}
+```
+
+Completed response:
+
+```json
+{
+  "id": "task_a_public_new_api_id",
+  "object": "3d",
+  "model": "meshy-6-draft",
+  "status": "completed",
+  "progress": 100,
+  "created_at": 1783495163,
+  "completed_at": 1783495245,
+  "data": {
+    "format": "glb",
+    "url": "https://new-api.example.com/v1/3d/task_a_public_new_api_id/content"
+  }
+}
+```
+
+The public response never exposes the upstream task ID or upstream artifact
+URL. The content endpoint authenticates the caller, checks task ownership, and
+streams the GLB from the original Meshy2API channel.
+
+### Billing
+
+3D tasks use the existing asynchronous per-call billing lifecycle. Configure a
+fixed model price for every enabled full, draft, and texture model name. A
+failed upstream task follows the normal asynchronous task refund path. Full
+pipeline prices should include both draft and automatic texture generation.
+
+### Compatibility boundary
+
+- Meshy2API native support is available only through `/v1/3d`.
+- No `/v1/videos` compatibility route is registered by the Meshy2API service.
+- Existing Sora/video channels and their `/v1/videos` behavior are unchanged.
+- Existing database schemas are reused; task ownership, upstream IDs, API keys,
+  billing context, and result URLs remain in the existing task record.
+- All database behavior remains compatible with SQLite, MySQL, and PostgreSQL.
+
+### Files
+
+- `common/endpoint_defaults.go`
+- `common/endpoint_type.go`
+- `constant/channel.go`
+- `constant/endpoint_type.go`
+- `controller/channel-test.go`
+- `controller/model.go`
+- `controller/relay.go`
+- `controller/swag_three_d.go`
+- `controller/three_d_proxy.go`
+- `dto/three_d.go`
+- `middleware/distributor.go`
+- `model/task.go`
+- `relay/channel/adapter.go`
+- `relay/channel/task/meshy/adaptor.go`
+- `relay/channel/task/meshy/adaptor_test.go`
+- `relay/channel/task/meshy/constants.go`
+- `relay/channel/task/taskcommon/helpers.go`
+- `relay/common/relay_info.go`
+- `relay/common/relay_utils.go`
+- `relay/constant/relay_mode.go`
+- `relay/relay_adaptor.go`
+- `relay/relay_task.go`
+- `relay/relay_task_three_d_test.go`
+- `router/video-router.go`
+- `web/default/scripts/sync-i18n.mjs`
+- `web/default/src/features/channels/constants.ts`
+- `web/default/src/features/channels/lib/channel-type-config.ts`
+- `web/default/src/features/channels/lib/channel-utils.ts`
+- `web/default/src/features/models/constants.ts`
+- `web/default/src/features/pricing/components/model-details-api.tsx`
+- `web/default/src/features/pricing/constants.ts`
+- `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.
