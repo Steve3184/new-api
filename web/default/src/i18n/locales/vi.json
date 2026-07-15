@@ -643,6 +643,7 @@
     "Binding your {{provider}} account": "Đang liên kết tài khoản {{provider}} của bạn",
     "Binding...": "Đang liên kết...",
     "Bindings": "Ràng buộc",
+    "Bitrate": "Tốc độ bit",
     "Blacklist": "Danh sách đen",
     "Blacklist (Block listed domains)": "Danh sách đen (Các tên miền bị chặn)",
     "Blacklist (Block listed IPs)": "Danh sách đen (Các IP bị chặn)",
@@ -3432,6 +3433,7 @@
     "Pick a date": "Chọn ngày",
     "Pick or create both a store and a product before saving.": "Hãy chọn hoặc tạo cả cửa hàng và sản phẩm trước khi lưu.",
     "Ping Interval (seconds)": "Thời gian Ping (giây)",
+    "Pitch": "Cao độ",
     "Pitch (Hz)": "Cao độ (Hz)",
     "Place this content at the beginning of config.toml. Merge it carefully if the file already contains these sections.": "Đặt nội dung này ở đầu config.toml. Hợp nhất cẩn thận nếu các mục này đã tồn tại.",
     "Plan": "Gói",
@@ -4894,6 +4896,7 @@
     "Unknown version": "Phiên bản không xác định",
     "Unlimited": "Không giới hạn",
     "Unlimited Quota": "Hạn mức không giới hạn",
+    "UnrealSpeech": "UnrealSpeech",
     "Unsaved changes": "Thay đổi chưa được lưu",
     "Unset price": "Chưa đặt giá",
     "Unset price models": "Mô hình chưa thiết lập giá",
@@ -5316,6 +5319,12 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Async": "Bất đồng bộ",
+    "Spanish": "Tiếng Tây Ban Nha",
+    "French": "Tiếng Pháp",
+    "Hindi": "Tiếng Hindi",
+    "Italian": "Tiếng Ý",
+    "Portuguese": "Tiếng Bồ Đào Nha"
   }
 }

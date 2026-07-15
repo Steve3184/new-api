@@ -735,6 +735,96 @@ pipeline prices should include both draft and automatic texture generation.
 - `web/default/src/features/pricing/constants.ts`
 - `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
+## UnrealSpeech provider
+
+Channel type `60` adds native UnrealSpeech V8 support with default base URL
+`https://api.v8.unrealspeech.com` and model name `unreal-speech-v8`. The classic
+frontend remains unchanged; channel creation and Playground controls are added
+to `web/default` only.
+
+### API contract
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v1/audio/speech` | OpenAI-compatible binary speech response using UnrealSpeech `/speech` or `/stream` |
+| `GET /v1/audio/speech/websocket?model=...` | Transparent WebSocket proxy for audio and timestamp frames |
+| `POST /v1/audio/speech/tasks` | Submit a persistent long-text synthesis task |
+| `GET /v1/audio/speech/tasks/:task_id` | Read the normalized public task state |
+| `GET /v1/audio/speech/tasks/:task_id/content` | Authenticated audio content proxy |
+| `POST /pg/audio/speech/tasks` | Session-authenticated Playground async submission |
+| `GET /pg/audio/speech/tasks/:task_id` | Playground task polling |
+| `GET /pg/audio/speech/tasks/:task_id/content` | Playground result download proxy |
+
+For synchronous requests, `speech: true` selects upstream `/speech` and is the
+default; `stream: true` selects upstream `/stream`. Both flags cannot be true.
+The `/speech` adapter follows the returned temporary object URL server-side and
+streams the audio bytes to the caller, so upstream S3 URLs are not exposed.
+The content proxy only bypasses DNS-level SSRF rejection for HTTPS AWS S3
+service hosts on port 443. This supports environments where an outbound proxy
+maps public hosts into `198.18.0.0/15`; all other result URLs keep the normal
+SSRF-protected fetch path.
+
+UnrealSpeech fields accept the official capitalization (`Text`, `VoiceId`,
+`Bitrate`, `Speed`, `Pitch`, `Codec`, `Temperature`, `TimestampType`) and their
+lowercase equivalents. `input` and `voice` remain available for OpenAI request
+compatibility. UnrealSpeech `Speed` keeps the native `-1` to `1` range.
+
+Long text uses the existing task table and polling scheduler. Public task IDs
+remain `task_*`; upstream IDs, selected multi-key credentials, and result URLs
+stay in private task fields. Completed task responses expose only the gateway
+`content_url`. Content fetches enforce token/session authentication, task
+ownership, provider type, completion state, and SSRF policy.
+
+### Billing
+
+Every Unicode character is one input token (`TokenTypeTextNumber`). Synchronous
+speech, asynchronous tasks, and WebSocket JSON payloads all use the existing
+metered input-token billing path. UnrealSpeech handlers do not add a second
+audio-output charge. The default `unreal-speech-v8` model ratio is `8.17`
+(approximately `$0.01634` per 1,000 characters before group multipliers), and
+operators can override it through the existing model pricing settings. Async
+failures use the existing task refund lifecycle.
+
+### Playground
+
+`PlaygroundSettings.speech_model_types` accepts `unrealspeech`. The speech tab
+then exposes the UnrealSpeech voice list, `/speech` versus `/stream`, bitrate,
+native speed, pitch, and the supported output formats. Voice labels include the
+language in parentheses. An `async` mode submits and polls the persistent task
+API with progress feedback. At more than 1,000 Unicode characters the `stream`
+option is disabled; at more than 5,000 characters the Playground selects
+`async` and disables both synchronous modes. The default remains the existing
+`openai` speech model type, so old settings are unchanged.
+
+### Files
+
+- `common/api_type.go`
+- `constant/api_type.go`
+- `constant/channel.go`
+- `controller/audio_speech_proxy.go`
+- `controller/channel-test.go`
+- `controller/relay.go`
+- `dto/audio.go`
+- `middleware/distributor.go`
+- `model/task.go`
+- `relay/channel/adapter.go`
+- `relay/channel/task/taskcommon/helpers.go`
+- `relay/channel/task/unrealspeech/`
+- `relay/channel/unrealspeech/`
+- `relay/common/relay_info.go`
+- `relay/constant/relay_mode.go`
+- `relay/relay_adaptor.go`
+- `relay/relay_task.go`
+- `router/relay-router.go`
+- `router/video-router.go`
+- `setting/playground_setting/`
+- `types/relay_format.go`
+- `web/default/src/features/channels/`
+- `web/default/src/features/playground/`
+- `web/default/src/features/system-settings/models/playground-settings-card.tsx`
+- `web/default/src/features/system-settings/models/playground-settings.ts`
+- `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.

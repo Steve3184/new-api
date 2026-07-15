@@ -643,6 +643,7 @@
     "Binding your {{provider}} account": "正在绑定您的 {{provider}} 账号",
     "Binding...": "绑定中...",
     "Bindings": "绑定",
+    "Bitrate": "比特率",
     "Blacklist": "黑名单",
     "Blacklist (Block listed domains)": "黑名单（已阻止的域）",
     "Blacklist (Block listed IPs)": "黑名单（已阻止的 IP）",
@@ -3432,6 +3433,7 @@
     "Pick a date": "选择日期",
     "Pick or create both a store and a product before saving.": "保存前请同时选择或创建店铺和产品。",
     "Ping Interval (seconds)": "Ping 间隔（秒）",
+    "Pitch": "音高",
     "Pitch (Hz)": "音高 (Hz)",
     "Place this content at the beginning of config.toml. Merge it carefully if the file already contains these sections.": "请将此内容放在 config.toml 文件开头。如果文件中已有这些区段，请谨慎合并。",
     "Plan": "套餐",
@@ -4894,6 +4896,7 @@
     "Unknown version": "未知版本",
     "Unlimited": "无限制",
     "Unlimited Quota": "无限配额",
+    "UnrealSpeech": "UnrealSpeech",
     "Unsaved changes": "未保存的更改",
     "Unset price": "未设置价格",
     "Unset price models": "未设置价格模型",
@@ -5316,6 +5319,12 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Async": "异步",
+    "Spanish": "西班牙语",
+    "French": "法语",
+    "Hindi": "印地语",
+    "Italian": "意大利语",
+    "Portuguese": "葡萄牙语"
   }
 }

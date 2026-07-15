@@ -354,6 +354,15 @@ func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 	return info
 }
 
+func GenRelayInfoUnrealSpeechWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
+	info := genBaseRelayInfo(c, nil)
+	info.RelayFormat = types.RelayFormatUnrealSpeechWebSocket
+	info.RelayMode = relayconstant.RelayModeAudioSpeechWebSocket
+	info.ClientWs = ws
+	info.IsStream = true
+	return info
+}
+
 func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatClaude
@@ -552,6 +561,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoImage(c, request)
 	case types.RelayFormatOpenAIRealtime:
 		info = GenRelayInfoWs(c, ws)
+	case types.RelayFormatUnrealSpeechWebSocket:
+		info = GenRelayInfoUnrealSpeechWs(c, ws)
 	case types.RelayFormatClaude:
 		info = GenRelayInfoClaude(c, request)
 	case types.RelayFormatRerank:

@@ -103,6 +103,7 @@ export function getChannelTypeIcon(type: number): string {
     54: 'Doubao', // DoubaoVideo
     56: 'Replicate', // Replicate
     59: 'Meshy', // Meshy2API
+    60: 'OpenAI', // UnrealSpeech
 
     // Tools & Platforms
     37: 'Dify', // Dify

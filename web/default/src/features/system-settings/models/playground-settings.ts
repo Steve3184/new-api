@@ -15,7 +15,10 @@ export const playgroundSettingsSchema = z.object({
     speech: z.array(z.string()),
     three_d: z.array(z.string()),
   }),
-  speech_model_types: z.record(z.string(), z.enum(['openai', 'azure'])),
+  speech_model_types: z.record(
+    z.string(),
+    z.enum(['openai', 'azure', 'unrealspeech'])
+  ),
 })
 
 export type PlaygroundSettingsValue = z.infer<typeof playgroundSettingsSchema>

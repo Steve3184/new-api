@@ -11,6 +11,7 @@ const (
 	RelayFormatOpenAIAudio                           = "openai_audio"
 	RelayFormatOpenAIImage                           = "openai_image"
 	RelayFormatOpenAIRealtime                        = "openai_realtime"
+	RelayFormatUnrealSpeechWebSocket                 = "unrealspeech_websocket"
 	RelayFormatRerank                                = "rerank"
 	RelayFormatEmbedding                             = "embedding"
 

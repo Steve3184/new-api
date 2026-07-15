@@ -203,6 +203,10 @@ export function PlaygroundSettingsCard(props: PlaygroundSettingsCardProps) {
                               items={[
                                 { value: 'openai', label: 'OpenAI' },
                                 { value: 'azure', label: 'Azure' },
+                                {
+                                  value: 'unrealspeech',
+                                  label: 'UnrealSpeech',
+                                },
                               ]}
                               value={modelType}
                               onValueChange={(value) => {
@@ -211,7 +215,10 @@ export function PlaygroundSettingsCard(props: PlaygroundSettingsCardProps) {
                                   'speech_model_types',
                                   {
                                     ...form.getValues('speech_model_types'),
-                                    [modelName]: value as 'openai' | 'azure',
+                                    [modelName]: value as
+                                      | 'openai'
+                                      | 'azure'
+                                      | 'unrealspeech',
                                   },
                                   { shouldDirty: true }
                                 )
@@ -224,6 +231,9 @@ export function PlaygroundSettingsCard(props: PlaygroundSettingsCardProps) {
                                 <SelectGroup>
                                   <SelectItem value='openai'>OpenAI</SelectItem>
                                   <SelectItem value='azure'>Azure</SelectItem>
+                                  <SelectItem value='unrealspeech'>
+                                    UnrealSpeech
+                                  </SelectItem>
                                 </SelectGroup>
                               </SelectContent>
                             </Select>

@@ -162,7 +162,7 @@ export interface GroupOption {
 }
 
 export type PlaygroundFeature = 'chat' | 'image' | 'speech' | 'three_d'
-export type SpeechModelType = 'openai' | 'azure'
+export type SpeechModelType = 'openai' | 'azure' | 'unrealspeech'
 
 export interface PlaygroundPublicSettings {
   enabled_features: PlaygroundFeature[]
@@ -198,6 +198,20 @@ export interface SpeechGenerationRequest {
   speed: number
   volume?: number
   pitch?: number
+  stream?: boolean
+  speech?: boolean
+  bitrate?: string
+}
+
+export interface SpeechGenerationTaskResponse {
+  id: string
+  object: 'audio.speech'
+  model: string
+  status: 'queued' | 'in_progress' | 'completed' | 'failed'
+  progress: number
+  created_at: number
+  content_url?: string
+  error?: { message: string; code: string }
 }
 
 export interface ThreeDGenerationRequest {

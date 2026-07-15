@@ -27,6 +27,7 @@ import type {
   ImageGenerationRequest,
   ImageGenerationResponse,
   SpeechGenerationRequest,
+  SpeechGenerationTaskResponse,
   ThreeDGenerationRequest,
   ThreeDGenerationResponse,
 } from './types'
@@ -113,6 +114,40 @@ export async function generateSpeech(
   signal?: AbortSignal
 ): Promise<Blob> {
   const res = await api.post(API_ENDPOINTS.SPEECH, payload, {
+    signal,
+    responseType: 'blob',
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data as Blob
+}
+
+export async function generateSpeechTask(
+  payload: SpeechGenerationRequest,
+  signal?: AbortSignal
+): Promise<SpeechGenerationTaskResponse> {
+  const res = await api.post(API_ENDPOINTS.SPEECH_TASKS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getSpeechTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<SpeechGenerationTaskResponse> {
+  const res = await api.get(`${API_ENDPOINTS.SPEECH_TASKS}/${taskId}`, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getSpeechTaskContent(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const res = await api.get(`${API_ENDPOINTS.SPEECH_TASKS}/${taskId}/content`, {
     signal,
     responseType: 'blob',
     skipErrorHandler: true,

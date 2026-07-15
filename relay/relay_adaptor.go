@@ -40,9 +40,11 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/meshy"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
+	taskunrealspeech "github.com/QuantumNous/new-api/relay/channel/task/unrealspeech"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
 	taskVidu "github.com/QuantumNous/new-api/relay/channel/task/vidu"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
+	"github.com/QuantumNous/new-api/relay/channel/unrealspeech"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
@@ -124,6 +126,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &codex.Adaptor{}
 	case constant.APITypeAdvancedCustom:
 		return &advancedcustom.Adaptor{}
+	case constant.APITypeUnrealSpeech:
+		return &unrealspeech.Adaptor{}
 	}
 	return nil
 }
@@ -165,6 +169,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &hailuo.TaskAdaptor{}
 		case constant.ChannelTypeMeshy2API:
 			return &meshy.TaskAdaptor{}
+		case constant.ChannelTypeUnrealSpeech:
+			return &taskunrealspeech.TaskAdaptor{}
 		}
 	}
 	return nil

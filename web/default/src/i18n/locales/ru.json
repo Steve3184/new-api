@@ -643,6 +643,7 @@
     "Binding your {{provider}} account": "Привязка вашего аккаунта {{provider}}",
     "Binding...": "Привязка...",
     "Bindings": "Привязки",
+    "Bitrate": "Битрейт",
     "Blacklist": "Чёрный список",
     "Blacklist (Block listed domains)": "Черный список (Блокировка доменов из списка)",
     "Blacklist (Block listed IPs)": "Черный список (Блокировка IP из списка)",
@@ -3432,6 +3433,7 @@
     "Pick a date": "Выберите дату",
     "Pick or create both a store and a product before saving.": "Перед сохранением выберите или создайте и магазин, и продукт.",
     "Ping Interval (seconds)": "Интервал Ping (секунды)",
+    "Pitch": "Высота тона",
     "Pitch (Hz)": "Высота тона (Гц)",
     "Place this content at the beginning of config.toml. Merge it carefully if the file already contains these sections.": "Поместите содержимое в начало config.toml. Если разделы уже есть, аккуратно объедините их.",
     "Plan": "План",
@@ -4894,6 +4896,7 @@
     "Unknown version": "Неизвестная версия",
     "Unlimited": "Без ограничений",
     "Unlimited Quota": "Неограниченная квота",
+    "UnrealSpeech": "UnrealSpeech",
     "Unsaved changes": "Несохранённые изменения",
     "Unset price": "Цена не задана",
     "Unset price models": "Модели с неустановленной ценой",
@@ -5316,6 +5319,12 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Async": "Асинхронный",
+    "Spanish": "Испанский",
+    "French": "Французский",
+    "Hindi": "Хинди",
+    "Italian": "Итальянский",
+    "Portuguese": "Португальский"
   }
 }

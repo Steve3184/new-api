@@ -252,7 +252,23 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	shouldSelectChannel := true
 	var err error
 	relayPath := canonicalRelayPath(c.Request.URL.Path)
-	if strings.Contains(c.Request.URL.Path, "/mj/") {
+	if relayPath == "/v1/audio/speech/websocket" {
+		modelRequest.Model = strings.TrimSpace(c.Query("model"))
+		c.Set("relay_mode", relayconstant.RelayModeAudioSpeechWebSocket)
+	} else if relayPath == "/v1/audio/speech/tasks" || strings.HasPrefix(relayPath, "/v1/audio/speech/tasks/") {
+		if c.Request.Method == http.MethodPost {
+			req, requestErr := getModelFromRequest(c)
+			if requestErr != nil {
+				return nil, false, requestErr
+			}
+			modelRequest = *req
+			c.Set("relay_mode", relayconstant.RelayModeAudioSpeechTaskSubmit)
+		} else {
+			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
+			c.Set("relay_mode", relayconstant.RelayModeAudioSpeechTaskFetchByID)
+		}
+	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
 			relayMode == relayconstant.RelayModeMidjourneyTaskFetchByCondition ||
@@ -389,7 +405,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			}
 		}
 	}
-	if strings.HasPrefix(relayPath, "/v1/audio") {
+	if strings.HasPrefix(relayPath, "/v1/audio") &&
+		relayPath != "/v1/audio/speech/websocket" &&
+		relayPath != "/v1/audio/speech/tasks" &&
+		!strings.HasPrefix(relayPath, "/v1/audio/speech/tasks/") {
 		relayMode := relayconstant.RelayModeAudioSpeech
 		if strings.HasPrefix(relayPath, "/v1/audio/speech") {
 

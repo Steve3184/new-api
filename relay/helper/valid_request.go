@@ -48,7 +48,7 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateRerankRequest(c)
 	case types.RelayFormatOpenAIAudio:
 		request, err = GetAndValidAudioRequest(c, relayMode)
-	case types.RelayFormatOpenAIRealtime:
+	case types.RelayFormatOpenAIRealtime, types.RelayFormatUnrealSpeechWebSocket:
 		request = &dto.BaseRequest{}
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
@@ -62,6 +62,7 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 	if err != nil {
 		return nil, err
 	}
+	audioRequest.NormalizeUnrealSpeechAliases()
 	switch relayMode {
 	case relayconstant.RelayModeAudioSpeech:
 		if audioRequest.Model == "" {
@@ -71,12 +72,23 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 			if audioRequest.Speed == nil {
 				return nil, errors.New("speed is required")
 			}
-			if math.IsNaN(*audioRequest.Speed) || math.IsInf(*audioRequest.Speed, 0) || *audioRequest.Speed < 0.25 || *audioRequest.Speed > 4 {
+			modelType := playground_setting.GetSpeechModelType(audioRequest.Model)
+			if modelType == playground_setting.SpeechModelTypeUnreal {
+				if math.IsNaN(*audioRequest.Speed) || math.IsInf(*audioRequest.Speed, 0) || *audioRequest.Speed < -1 || *audioRequest.Speed > 1 {
+					return nil, errors.New("UnrealSpeech speed must be between -1 and 1")
+				}
+			} else if math.IsNaN(*audioRequest.Speed) || math.IsInf(*audioRequest.Speed, 0) || *audioRequest.Speed < 0.25 || *audioRequest.Speed > 4 {
 				return nil, errors.New("speed must be between 0.25 and 4")
 			}
 		}
-		if strings.HasPrefix(c.Request.URL.Path, "/pg/") && playground_setting.GetSpeechModelType(audioRequest.Model) != playground_setting.SpeechModelTypeAzure && (audioRequest.Volume != nil || audioRequest.Pitch != nil) {
-			return nil, errors.New("volume and pitch are only supported by Azure playground speech models")
+		if strings.HasPrefix(c.Request.URL.Path, "/pg/") {
+			modelType := playground_setting.GetSpeechModelType(audioRequest.Model)
+			if modelType != playground_setting.SpeechModelTypeAzure && audioRequest.Volume != nil {
+				return nil, errors.New("volume is only supported by Azure playground speech models")
+			}
+			if modelType != playground_setting.SpeechModelTypeAzure && modelType != playground_setting.SpeechModelTypeUnreal && audioRequest.Pitch != nil {
+				return nil, errors.New("pitch is only supported by Azure and UnrealSpeech playground speech models")
+			}
 		}
 	default:
 		if audioRequest.Model == "" {

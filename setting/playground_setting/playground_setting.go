@@ -22,6 +22,7 @@ const (
 const (
 	SpeechModelTypeOpenAI = "openai"
 	SpeechModelTypeAzure  = "azure"
+	SpeechModelTypeUnreal = "unrealspeech"
 )
 
 type ModelAllowlist struct {
@@ -183,6 +184,8 @@ func normalize(value *Settings) error {
 			modelTypes[modelName] = SpeechModelTypeOpenAI
 		case SpeechModelTypeAzure:
 			modelTypes[modelName] = SpeechModelTypeAzure
+		case SpeechModelTypeUnreal:
+			modelTypes[modelName] = SpeechModelTypeUnreal
 		default:
 			return fmt.Errorf("unsupported speech model type %q for model %s", modelType, modelName)
 		}

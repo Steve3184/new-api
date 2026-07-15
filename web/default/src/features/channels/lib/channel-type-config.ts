@@ -171,6 +171,13 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Meshy 3D model names',
     },
   },
+  60: {
+    id: 60,
+    name: CHANNEL_TYPES[60],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.v8.unrealspeech.com',
+    supportedModels: ['unreal-speech-v8'],
+  },
 }
 
 /**

@@ -643,6 +643,7 @@
     "Binding your {{provider}} account": "{{provider}} アカウントをバインド中",
     "Binding...": "連携中...",
     "Bindings": "バインド",
+    "Bitrate": "ビットレート",
     "Blacklist": "ブラックリスト",
     "Blacklist (Block listed domains)": "ブラックリスト (ブロックされたドメイン)",
     "Blacklist (Block listed IPs)": "ブラックリスト (ブロックされたIPアドレス)",
@@ -3432,6 +3433,7 @@
     "Pick a date": "日付を選択",
     "Pick or create both a store and a product before saving.": "保存する前に、ストアと商品の両方を選択または作成してください。",
     "Ping Interval (seconds)": "Ping間隔（秒）",
+    "Pitch": "ピッチ",
     "Pitch (Hz)": "ピッチ (Hz)",
     "Place this content at the beginning of config.toml. Merge it carefully if the file already contains these sections.": "この内容を config.toml の先頭に配置してください。同じセクションがある場合は慎重にマージしてください。",
     "Plan": "プラン",
@@ -4894,6 +4896,7 @@
     "Unknown version": "不明なバージョン",
     "Unlimited": "無制限",
     "Unlimited Quota": "無制限のクォータ",
+    "UnrealSpeech": "UnrealSpeech",
     "Unsaved changes": "未保存の変更",
     "Unset price": "価格未設定",
     "Unset price models": "価格が未設定のモデル",
@@ -5316,6 +5319,12 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Async": "非同期",
+    "Spanish": "スペイン語",
+    "French": "フランス語",
+    "Hindi": "ヒンディー語",
+    "Italian": "イタリア語",
+    "Portuguese": "ポルトガル語"
   }
 }

@@ -643,6 +643,7 @@
     "Binding your {{provider}} account": "Liaison de votre compte {{provider}}",
     "Binding...": "Liaison en cours...",
     "Bindings": "Liages",
+    "Bitrate": "Débit binaire",
     "Blacklist": "Liste noire",
     "Blacklist (Block listed domains)": "Liste noire (Bloquer les domaines listés)",
     "Blacklist (Block listed IPs)": "Liste noire (Bloquer les adresses IP listées)",
@@ -3432,6 +3433,7 @@
     "Pick a date": "Choisir une date",
     "Pick or create both a store and a product before saving.": "Choisissez ou créez à la fois une boutique et un produit avant d’enregistrer.",
     "Ping Interval (seconds)": "Intervalle de ping (secondes)",
+    "Pitch": "Hauteur",
     "Pitch (Hz)": "Hauteur (Hz)",
     "Place this content at the beginning of config.toml. Merge it carefully if the file already contains these sections.": "Placez ce contenu au debut de config.toml. Fusionnez-le prudemment si ces sections existent deja.",
     "Plan": "Plan",
@@ -4894,6 +4896,7 @@
     "Unknown version": "Version inconnue",
     "Unlimited": "Illimité",
     "Unlimited Quota": "Quota illimité",
+    "UnrealSpeech": "UnrealSpeech",
     "Unsaved changes": "Modifications non enregistrées",
     "Unset price": "Prix non défini",
     "Unset price models": "Modèles sans prix",
@@ -5316,6 +5319,12 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Async": "Asynchrone",
+    "Spanish": "Espagnol",
+    "French": "Français",
+    "Hindi": "Hindi",
+    "Italian": "Italien",
+    "Portuguese": "Portugais"
   }
 }

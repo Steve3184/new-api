@@ -70,6 +70,10 @@ func BuildThreeDProxyURL(taskID string) string {
 	return fmt.Sprintf("%s/v1/3d/%s/content", system_setting.ServerAddress, taskID)
 }
 
+func BuildAudioSpeechProxyURL(taskID string) string {
+	return fmt.Sprintf("%s/v1/audio/speech/tasks/%s/content", system_setting.ServerAddress, taskID)
+}
+
 // Status-to-progress mapping constants for polling updates.
 const (
 	ProgressSubmitted  = "10%"

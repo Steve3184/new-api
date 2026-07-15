@@ -70,7 +70,10 @@ func SetRelayRouter(router *gin.Engine) {
 		playgroundRelayRouter.POST("/images/generations", controller.PlaygroundImage)
 		playgroundRelayRouter.POST("/images/edits", controller.PlaygroundImage)
 		playgroundRelayRouter.POST("/audio/speech", controller.PlaygroundSpeech)
+		playgroundRelayRouter.POST("/audio/speech/tasks", controller.PlaygroundSpeechTask)
 		playgroundRelayRouter.POST("/3d", controller.PlaygroundThreeD)
+		playgroundRouter.GET("/audio/speech/tasks/:task_id", controller.PlaygroundSpeechTaskFetch)
+		playgroundRouter.GET("/audio/speech/tasks/:task_id/content", controller.PlaygroundSpeechContent)
 		playgroundRouter.GET("/3d/:task_id", controller.PlaygroundThreeDFetch)
 	}
 	relayV1Router := router.Group("/v1")
@@ -84,6 +87,9 @@ func SetRelayRouter(router *gin.Engine) {
 		wsRouter.Use(middleware.Distribute())
 		wsRouter.GET("/realtime", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIRealtime)
+		})
+		wsRouter.GET("/audio/speech/websocket", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatUnrealSpeechWebSocket)
 		})
 	}
 	{

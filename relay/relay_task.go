@@ -13,12 +13,14 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -202,9 +204,37 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		info.PublicTaskID = model.GenerateTaskID()
 	}
 
-	// 4. 价格计算：基础模型价格
+	// 4. 价格计算：默认任务按次计费；声明 TokenBilledTaskAdaptor 的任务
+	//    使用与同步 relay 相同的输入 token 计费路径。
 	info.OriginModelName = modelName
-	priceData, err := helper.ModelPriceHelperPerCall(c, info)
+	var priceData types.PriceData
+	var err error
+	if tokenBilled, ok := adaptor.(channel.TokenBilledTaskAdaptor); ok {
+		meta := tokenBilled.GetTokenCountMeta(c, info)
+		tokens, countErr := service.EstimateRequestToken(c, meta, info)
+		if countErr != nil {
+			return nil, service.TaskErrorWrapper(countErr, "count_token_failed", http.StatusBadRequest)
+		}
+		info.SetEstimatePromptTokens(tokens)
+		priceData, err = helper.ModelPriceHelper(c, info, tokens, meta)
+		if err == nil {
+			switch {
+			case priceData.UsePrice:
+				priceData.Quota = priceData.QuotaToPreConsume
+			case info.TieredBillingSnapshot != nil:
+				_, priceData.Quota, _ = service.TryTieredSettle(info, billingexpr.TokenParams{
+					P:   float64(tokens),
+					Len: float64(tokens),
+				})
+			default:
+				quota, clamp := common.QuotaFromFloatChecked(float64(tokens) * priceData.ModelRatio * priceData.GroupRatioInfo.GroupRatio)
+				priceData.Quota = quota
+				noteTaskQuotaClamp(info, clamp)
+			}
+		}
+	} else {
+		priceData, err = helper.ModelPriceHelperPerCall(c, info)
+	}
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
 	}
@@ -313,10 +343,11 @@ func noteTaskQuotaClamp(info *relaycommon.RelayInfo, clamp *common.QuotaClamp) {
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
-	relayconstant.RelayModeSunoFetchByID:   sunoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeSunoFetch:       sunoFetchRespBodyBuilder,
-	relayconstant.RelayModeVideoFetchByID:  videoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeThreeDFetchByID: videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeSunoFetchByID:            sunoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeSunoFetch:                sunoFetchRespBodyBuilder,
+	relayconstant.RelayModeVideoFetchByID:           videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeThreeDFetchByID:          videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeAudioSpeechTaskFetchByID: audioSpeechFetchByIDRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
@@ -467,6 +498,30 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+func audioSpeechFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
+	taskID := c.Param("task_id")
+	originTask, exists, err := model.GetByTaskId(c.GetInt("id"), taskID)
+	if err != nil {
+		return nil, service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
+	}
+	if !exists || originTask == nil {
+		return nil, service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusNotFound)
+	}
+	adaptor := GetTaskAdaptor(originTask.Platform)
+	if adaptor == nil {
+		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
+	}
+	converter, ok := adaptor.(channel.OpenAIAudioTaskConverter)
+	if !ok {
+		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
+	}
+	responseBody, err := converter.ConvertToOpenAIAudioTask(originTask)
+	if err != nil {
+		return nil, service.TaskErrorWrapper(err, "convert_to_audio_speech_task_failed", http.StatusInternalServerError)
+	}
+	return responseBody, nil
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。

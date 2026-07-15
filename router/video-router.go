@@ -8,6 +8,22 @@ import (
 )
 
 func SetVideoRouter(router *gin.Engine) {
+	audioSpeechContentRouter := router.Group("/v1")
+	audioSpeechContentRouter.Use(middleware.RouteTag("relay"))
+	audioSpeechContentRouter.Use(middleware.TokenOrUserAuth())
+	{
+		audioSpeechContentRouter.GET("/audio/speech/tasks/:task_id/content", controller.AudioSpeechProxy)
+	}
+
+	audioSpeechTaskRouter := router.Group("/v1")
+	audioSpeechTaskRouter.Use(middleware.RouteTag("relay"))
+	audioSpeechTaskRouter.Use(middleware.SystemPerformanceCheck())
+	audioSpeechTaskRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		audioSpeechTaskRouter.POST("/audio/speech/tasks", controller.RelayTask)
+		audioSpeechTaskRouter.GET("/audio/speech/tasks/:task_id", controller.RelayTaskFetch)
+	}
+
 	threeDContentRouter := router.Group("/v1")
 	threeDContentRouter.Use(middleware.RouteTag("relay"))
 	threeDContentRouter.Use(middleware.TokenOrUserAuth())

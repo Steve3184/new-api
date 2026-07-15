@@ -112,11 +112,12 @@ var defaultModelRatio = map[string]float64{
 	"text-curie-001":                            1,
 	"text-davinci-edit-001":                     10,
 	"code-davinci-edit-001":                     10,
-	"whisper-1":                                 15,  // $0.006 / minute -> $0.006 / 150 words -> $0.006 / 200 tokens -> $0.03 / 1k tokens
-	"tts-1":                                     7.5, // 1k characters -> $0.015
-	"tts-1-1106":                                7.5, // 1k characters -> $0.015
-	"tts-1-hd":                                  15,  // 1k characters -> $0.03
-	"tts-1-hd-1106":                             15,  // 1k characters -> $0.03
+	"whisper-1":                                 15,   // $0.006 / minute -> $0.006 / 150 words -> $0.006 / 200 tokens -> $0.03 / 1k tokens
+	"tts-1":                                     7.5,  // 1k characters -> $0.015
+	"tts-1-1106":                                7.5,  // 1k characters -> $0.015
+	"tts-1-hd":                                  15,   // 1k characters -> $0.03
+	"tts-1-hd-1106":                             15,   // 1k characters -> $0.03
+	"unreal-speech-v8":                          8.17, // about $0.01634 / 1k characters
 	"davinci":                                   10,
 	"curie":                                     10,
 	"text-embedding-3-small":                    0.01,
