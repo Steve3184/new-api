@@ -1,6 +1,6 @@
 /* Copyright (C) 2023-2026 QuantumNous */
 import { Box, Download, Loader2, Upload, WandSparkles, X } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -56,7 +56,13 @@ type ThreeDPlaygroundProps = {
 
 export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
   const { t } = useTranslation()
-  const { model, setModel } = useGenerationModel(props.models)
+  const { model, setModel, group } = useGenerationModel({
+    models: props.models,
+    groups: props.groups,
+    group: props.group,
+    groupModels: props.groupModels,
+    onGroupChange: props.onGroupChange,
+  })
   const [prompt, setPrompt] = useState('')
   const [sourceTaskId, setSourceTaskId] = useState('')
   const [inputReference, setInputReference] = useState('')
@@ -67,6 +73,14 @@ export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
   const pollAbortRef = useRef<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isTextureModel = model.endsWith('-texture')
+  const artStyleOptions = useMemo(
+    () =>
+      ART_STYLES.map((style) => ({
+        value: style,
+        label: t(style[0].toUpperCase() + style.slice(1)),
+      })),
+    [t]
+  )
 
   useEffect(
     () => () => {
@@ -125,7 +139,7 @@ export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
     try {
       const next = await generateThreeD({
         model,
-        group: props.group,
+        group,
         ...(isTextureModel
           ? { source_task_id: sourceTaskId.trim() }
           : {
@@ -152,12 +166,12 @@ export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
     : Boolean(prompt.trim() || inputReference)
 
   return (
-    <div className='mx-auto grid size-full min-h-0 max-w-[100rem] grid-rows-[max-content_minmax(30rem,1fr)] overflow-y-auto lg:grid-cols-[minmax(19rem,24rem)_1fr] lg:grid-rows-1 lg:overflow-hidden'>
+    <div className='grid size-full min-h-0 grid-rows-[max-content_minmax(30rem,1fr)] overflow-y-auto lg:grid-cols-[minmax(19rem,24rem)_1fr] lg:grid-rows-1 lg:overflow-hidden'>
       <section className='border-b p-4 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0'>
         <div className='space-y-5'>
           <GenerationControls
             groups={props.groups}
-            group={props.group}
+            group={group}
             onGroupChange={props.onGroupChange}
             models={props.models}
             model={model}
@@ -235,6 +249,7 @@ export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
               <Field>
                 <FieldLabel>{t('Art style')}</FieldLabel>
                 <Select
+                  items={artStyleOptions}
                   value={artStyle}
                   onValueChange={(value) => value && setArtStyle(value)}
                 >
@@ -243,9 +258,9 @@ export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      {ART_STYLES.map((style) => (
-                        <SelectItem key={style} value={style}>
-                          {t(style[0].toUpperCase() + style.slice(1))}
+                      {artStyleOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectGroup>

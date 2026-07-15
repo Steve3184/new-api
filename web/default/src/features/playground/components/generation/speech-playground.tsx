@@ -38,7 +38,9 @@ const OPENAI_VOICE_OPTIONS = OPENAI_SPEECH_VOICES.map((voice) => ({
   label: voice,
   value: voice,
 }))
-const FORMAT_OPTIONS = ['mp3', 'wav', 'opus', 'aac', 'flac', 'pcm']
+const FORMAT_OPTIONS = ['mp3', 'wav', 'opus', 'aac', 'flac', 'pcm'].map(
+  (value) => ({ label: value.toUpperCase(), value })
+)
 
 type SpeechPlaygroundProps = {
   models: ModelOption[]
@@ -51,10 +53,17 @@ type SpeechPlaygroundProps = {
 
 export function SpeechPlayground(props: SpeechPlaygroundProps) {
   const { t } = useTranslation()
-  const { model, setModel } = useGenerationModel(props.models)
+  const { model, setModel, group } = useGenerationModel({
+    models: props.models,
+    groups: props.groups,
+    group: props.group,
+    groupModels: props.groupModels,
+    onGroupChange: props.onGroupChange,
+  })
   const modelType = props.modelTypes[model] ?? 'openai'
   const [input, setInput] = useState('')
-  const [voice, setVoice] = useState('alloy')
+  const [openAIVoice, setOpenAIVoice] = useState('alloy')
+  const [azureVoice, setAzureVoice] = useState('zh-CN-XiaoxiaoNeural')
   const [format, setFormat] = useState('mp3')
   const [speed, setSpeed] = useState(1)
   const [volume, setVolume] = useState(1)
@@ -63,10 +72,6 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
   const [pitchEnabled, setPitchEnabled] = useState(false)
   const [audioURL, setAudioURL] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-
-  useEffect(() => {
-    setVoice(modelType === 'azure' ? 'zh-CN-XiaoxiaoNeural' : 'alloy')
-  }, [modelType])
 
   useEffect(
     () => () => {
@@ -81,7 +86,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
     try {
       const blob = await generateSpeech({
         model,
-        group: props.group,
+        group,
         input: input.trim(),
         voice,
         response_format: format,
@@ -102,14 +107,16 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
 
   const voiceOptions =
     modelType === 'azure' ? AZURE_TTS_VOICE_OPTIONS : OPENAI_VOICE_OPTIONS
+  const voice = modelType === 'azure' ? azureVoice : openAIVoice
+  const setVoice = modelType === 'azure' ? setAzureVoice : setOpenAIVoice
 
   return (
-    <div className='mx-auto grid size-full min-h-0 max-w-7xl grid-rows-[max-content_minmax(12rem,auto)] overflow-y-auto lg:grid-cols-[minmax(30rem,3fr)_minmax(18rem,2fr)] lg:grid-rows-1 lg:overflow-hidden'>
-      <section className='border-b p-4 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0'>
-        <div className='space-y-5'>
+    <div className='flex size-full min-h-0 flex-col overflow-hidden'>
+      <section className='min-h-0 flex-1 overflow-y-auto border-b p-4 sm:p-6'>
+        <div className='mx-auto flex h-full w-full max-w-6xl flex-col gap-5'>
           <GenerationControls
             groups={props.groups}
-            group={props.group}
+            group={group}
             onGroupChange={props.onGroupChange}
             models={props.models}
             model={model}
@@ -118,140 +125,149 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
             groupModels={props.groupModels}
           />
 
-          <Field>
-            <FieldLabel htmlFor='playground-speech-input'>
-              {t('Text')}
-            </FieldLabel>
-            <Textarea
-              id='playground-speech-input'
-              rows={14}
-              className='min-h-64 lg:min-h-[22rem]'
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder={t('Enter text to synthesize')}
-              disabled={isGenerating}
-            />
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor='playground-speech-voice'>
-              {t('Voice')}
-            </FieldLabel>
-            <ComboboxInput
-              id='playground-speech-voice'
-              options={voiceOptions}
-              value={voice}
-              onValueChange={setVoice}
-              allowCustomValue={modelType !== 'azure'}
-              placeholder={t('Select voice')}
-              emptyText='No voices found'
-              disabled={isGenerating}
-            />
-          </Field>
-
-          <FieldGroup className='grid grid-cols-2 gap-4'>
-            <Field>
-              <FieldLabel>{t('Format')}</FieldLabel>
-              <Select
-                value={format}
-                onValueChange={(value) => value && setFormat(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {FORMAT_OPTIONS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value.toUpperCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor='playground-speech-speed'>
-                {t('Speed')}
+          <div className='grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]'>
+            <Field className='flex min-h-64 flex-col lg:min-h-0'>
+              <FieldLabel htmlFor='playground-speech-input'>
+                {t('Text')}
               </FieldLabel>
-              <Input
-                id='playground-speech-speed'
-                type='number'
-                min={0.25}
-                max={4}
-                step={0.05}
-                value={speed}
-                onChange={(event) => setSpeed(Number(event.target.value) || 1)}
+              <Textarea
+                id='playground-speech-input'
+                rows={14}
+                className='min-h-64 flex-1 resize-none lg:min-h-0'
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder={t('Enter text to synthesize')}
+                disabled={isGenerating}
               />
             </Field>
-          </FieldGroup>
 
-          {modelType === 'azure' && (
-            <FieldGroup className='grid grid-cols-2 gap-4'>
+            <div className='flex flex-col gap-5 lg:min-h-0 lg:overflow-y-auto'>
               <Field>
-                <div className='flex min-h-7 items-center justify-between gap-3'>
-                  <FieldLabel htmlFor='playground-speech-volume'>
-                    {t('Volume')}
-                  </FieldLabel>
-                  <Switch
-                    checked={volumeEnabled}
-                    onCheckedChange={setVolumeEnabled}
-                    aria-label={t('Enable volume')}
-                  />
-                </div>
-                <Input
-                  id='playground-speech-volume'
-                  type='number'
-                  min={0}
-                  step={0.05}
-                  value={volume}
-                  disabled={!volumeEnabled || isGenerating}
-                  onChange={(event) => setVolume(Number(event.target.value))}
+                <FieldLabel htmlFor='playground-speech-voice'>
+                  {t('Voice')}
+                </FieldLabel>
+                <ComboboxInput
+                  id='playground-speech-voice'
+                  options={voiceOptions}
+                  value={voice}
+                  onValueChange={setVoice}
+                  allowCustomValue={modelType !== 'azure'}
+                  placeholder={t('Select voice')}
+                  emptyText='No voices found'
+                  disabled={isGenerating}
                 />
               </Field>
-              <Field>
-                <div className='flex min-h-7 items-center justify-between gap-3'>
-                  <FieldLabel htmlFor='playground-speech-pitch'>
-                    {t('Pitch (Hz)')}
-                  </FieldLabel>
-                  <Switch
-                    checked={pitchEnabled}
-                    onCheckedChange={setPitchEnabled}
-                    aria-label={t('Enable pitch')}
-                  />
-                </div>
-                <Input
-                  id='playground-speech-pitch'
-                  type='number'
-                  step={1}
-                  value={pitch}
-                  disabled={!pitchEnabled || isGenerating}
-                  onChange={(event) =>
-                    setPitch(Number.parseInt(event.target.value, 10) || 0)
-                  }
-                />
-              </Field>
-            </FieldGroup>
-          )}
 
-          <Button
-            className='w-full'
-            disabled={!model || !input.trim() || !voice || isGenerating}
-            onClick={handleGenerate}
-          >
-            {isGenerating ? (
-              <Loader2 className='animate-spin' data-icon='inline-start' />
-            ) : (
-              <WandSparkles data-icon='inline-start' />
-            )}
-            {isGenerating ? t('Generating') : t('Generate speech')}
-          </Button>
+              <FieldGroup className='grid grid-cols-2 gap-4'>
+                <Field>
+                  <FieldLabel>{t('Format')}</FieldLabel>
+                  <Select
+                    items={FORMAT_OPTIONS}
+                    value={format}
+                    onValueChange={(value) => value && setFormat(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {FORMAT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor='playground-speech-speed'>
+                    {t('Speed')}
+                  </FieldLabel>
+                  <Input
+                    id='playground-speech-speed'
+                    type='number'
+                    min={0.25}
+                    max={4}
+                    step={0.05}
+                    value={speed}
+                    onChange={(event) =>
+                      setSpeed(Number(event.target.value) || 1)
+                    }
+                  />
+                </Field>
+              </FieldGroup>
+
+              {modelType === 'azure' && (
+                <FieldGroup className='grid grid-cols-2 gap-4'>
+                  <Field>
+                    <div className='flex min-h-7 items-center justify-between gap-3'>
+                      <FieldLabel htmlFor='playground-speech-volume'>
+                        {t('Volume')}
+                      </FieldLabel>
+                      <Switch
+                        checked={volumeEnabled}
+                        onCheckedChange={setVolumeEnabled}
+                        aria-label={t('Enable volume')}
+                      />
+                    </div>
+                    <Input
+                      id='playground-speech-volume'
+                      type='number'
+                      min={0}
+                      step={0.05}
+                      value={volume}
+                      disabled={!volumeEnabled || isGenerating}
+                      onChange={(event) =>
+                        setVolume(Number(event.target.value))
+                      }
+                    />
+                  </Field>
+                  <Field>
+                    <div className='flex min-h-7 items-center justify-between gap-3'>
+                      <FieldLabel htmlFor='playground-speech-pitch'>
+                        {t('Pitch (Hz)')}
+                      </FieldLabel>
+                      <Switch
+                        checked={pitchEnabled}
+                        onCheckedChange={setPitchEnabled}
+                        aria-label={t('Enable pitch')}
+                      />
+                    </div>
+                    <Input
+                      id='playground-speech-pitch'
+                      type='number'
+                      step={1}
+                      value={pitch}
+                      disabled={!pitchEnabled || isGenerating}
+                      onChange={(event) =>
+                        setPitch(Number.parseInt(event.target.value, 10) || 0)
+                      }
+                    />
+                  </Field>
+                </FieldGroup>
+              )}
+
+              <Button
+                className='mt-auto w-full'
+                disabled={!model || !input.trim() || !voice || isGenerating}
+                onClick={handleGenerate}
+              >
+                {isGenerating ? (
+                  <Loader2 className='animate-spin' data-icon='inline-start' />
+                ) : (
+                  <WandSparkles data-icon='inline-start' />
+                )}
+                {isGenerating ? t('Generating') : t('Generate speech')}
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className='min-h-48 p-4 sm:p-6'>
+      <section className='h-40 shrink-0 p-4 sm:h-48 sm:p-6'>
         {!audioURL ? (
-          <Empty className='h-full min-h-40'>
+          <Empty className='h-full min-h-0'>
             <EmptyHeader>
               <EmptyMedia variant='icon'>
                 <Volume2 />
@@ -263,11 +279,11 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
             </EmptyHeader>
           </Empty>
         ) : (
-          <div className='mx-auto flex h-full max-w-2xl flex-col justify-center gap-5'>
-            <div className='bg-muted/20 rounded-md border p-5'>
+          <div className='mx-auto flex h-full w-full max-w-4xl flex-col justify-center gap-3 sm:flex-row sm:items-center'>
+            <div className='bg-muted/20 min-w-0 flex-1 rounded-md border p-3'>
               <audio src={audioURL} controls autoPlay className='w-full' />
             </div>
-            <div className='flex justify-end'>
+            <div className='flex shrink-0 justify-end'>
               <a href={audioURL} download={`playground-speech.${format}`}>
                 <Button variant='outline'>
                   <Download data-icon='inline-start' />

@@ -3,11 +3,12 @@ import {
   Download,
   ImageIcon,
   Loader2,
+  Pencil,
   Upload,
   WandSparkles,
   X,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -42,6 +43,7 @@ import { GenerationControls } from './generation-controls'
 import {
   getGenerationErrorMessage,
   imageResponseSource,
+  workspaceImageToFile,
 } from './generation-utils'
 import { useGenerationModel } from './use-generation-model'
 
@@ -68,7 +70,13 @@ type ImagePlaygroundProps = {
 
 export function ImagePlayground(props: ImagePlaygroundProps) {
   const { t } = useTranslation()
-  const { model, setModel } = useGenerationModel(props.models)
+  const { model, setModel, group } = useGenerationModel({
+    models: props.models,
+    groups: props.groups,
+    group: props.group,
+    groupModels: props.groupModels,
+    onGroupChange: props.onGroupChange,
+  })
   const [mode, setMode] = useState<'generate' | 'edit'>('generate')
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState('1024x1024')
@@ -80,6 +88,15 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const controlsRef = useRef<HTMLElement>(null)
+  const qualityOptions = useMemo(
+    () =>
+      QUALITY_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(option.labelKey),
+      })),
+    [t]
+  )
 
   const handleFile = (file: File | null) => {
     if (sourcePreview) URL.revokeObjectURL(sourcePreview)
@@ -102,7 +119,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
       if (mode === 'edit' && sourceFile) {
         const form = new FormData()
         form.set('model', model)
-        form.set('group', props.group)
+        form.set('group', group)
         form.set('prompt', prompt.trim())
         form.set('size', size)
         if (quality !== 'default') form.set('quality', quality)
@@ -115,7 +132,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
           await generateImage(
             {
               model,
-              group: props.group,
+              group,
               prompt: prompt.trim(),
               size,
               quality: quality === 'default' ? undefined : quality,
@@ -138,9 +155,29 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
     }
   }
 
+  const handleWorkspaceEdit = async (source: string, index: number) => {
+    try {
+      handleFile(
+        await workspaceImageToFile(
+          source,
+          `playground-${result?.created ?? Date.now()}-${index + 1}`
+        )
+      )
+      setMode('edit')
+      window.requestAnimationFrame(() => {
+        controlsRef.current?.scrollIntoView({ block: 'start' })
+      })
+    } catch {
+      toast.error(t('File read failed'))
+    }
+  }
+
   return (
-    <div className='mx-auto grid size-full min-h-0 max-w-7xl grid-rows-[max-content_minmax(28rem,1fr)] overflow-y-auto lg:grid-cols-[minmax(19rem,24rem)_1fr] lg:grid-rows-1 lg:overflow-hidden'>
-      <section className='border-b p-4 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0'>
+    <div className='grid size-full min-h-0 grid-rows-[max-content_minmax(28rem,1fr)] overflow-y-auto lg:grid-cols-[minmax(19rem,24rem)_1fr] lg:grid-rows-1 lg:overflow-hidden'>
+      <section
+        ref={controlsRef}
+        className='border-b p-4 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0'
+      >
         <div className='space-y-5'>
           <ToggleGroup
             value={[mode]}
@@ -160,7 +197,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
 
           <GenerationControls
             groups={props.groups}
-            group={props.group}
+            group={group}
             onGroupChange={props.onGroupChange}
             models={props.models}
             model={model}
@@ -255,10 +292,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
             <Field>
               <FieldLabel>{t('Quality')}</FieldLabel>
               <Select
-                items={QUALITY_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.labelKey),
-                }))}
+                items={qualityOptions}
                 value={quality}
                 onValueChange={(value) => value && setQuality(value)}
               >
@@ -267,9 +301,9 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {QUALITY_OPTIONS.map((option) => (
+                    {qualityOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {t(option.labelKey)}
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -341,20 +375,31 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                     className='aspect-square size-full object-contain'
                     loading='lazy'
                   />
-                  <a
-                    href={source}
-                    download={`playground-${result.created}-${index + 1}.png`}
-                    className='absolute top-2 right-2'
-                  >
+                  <div className='absolute top-2 right-2 flex gap-2'>
                     <Button
                       type='button'
                       variant='secondary'
                       size='icon'
-                      aria-label={t('Download')}
+                      aria-label={t('Edit image')}
+                      disabled={!source}
+                      onClick={() => void handleWorkspaceEdit(source, index)}
                     >
-                      <Download />
+                      <Pencil />
                     </Button>
-                  </a>
+                    <a
+                      href={source}
+                      download={`playground-${result.created}-${index + 1}.png`}
+                    >
+                      <Button
+                        type='button'
+                        variant='secondary'
+                        size='icon'
+                        aria-label={t('Download')}
+                      >
+                        <Download />
+                      </Button>
+                    </a>
+                  </div>
                   {image.revised_prompt && (
                     <figcaption className='text-muted-foreground border-t px-3 py-2 text-xs'>
                       {image.revised_prompt}

@@ -249,9 +249,11 @@ All generation tabs use the same combined model/group picker as chat. The
 frontend loads model availability for every usable group in parallel, builds a
 union model list, and filters the group column for the selected model. A group
 that does not provide the selected model is not shown; if a model change makes
-the current group invalid, the first eligible group is selected automatically.
-Only the combined picker is rendered, rather than separate model and group
-fields.
+the current group invalid, the first eligible group is derived immediately and
+used by the request. The selection no longer relies on effect-driven state
+correction when a generation tab mounts. The group column keeps short rows at
+their natural height when only a few groups are eligible. Only the combined
+picker is rendered, rather than separate model and group fields.
 
 Session-authenticated Playground relay routes are additive equivalents of the
 existing token-authenticated APIs:
@@ -275,15 +277,23 @@ catalog. VolcEngine image edits convert the first multipart upload to the data
 URI accepted by the Seedream generations endpoint, and the channel catalog
 includes Seedream 4.0 plus generic Seedream 5.0 aliases.
 
+The image and 3D desktop layouts use the full Playground width: their fixed
+control columns align with the left edge and the remaining width belongs to the
+result workspace. Every generated image also has an edit action that converts
+that workspace result into the multipart source file, switches to edit mode,
+and returns the user to the controls.
+
 Speech always sends the required `speed` float (`1.0` baseline). Azure-typed
 models additionally expose optional `volume` (`1.0` baseline) and integer
 `pitch` in Hz (`0` baseline); those fields are omitted for OpenAI-typed models.
 The Azure voice selector vendors the 322 names from
 `s3aidocs/docs/.vitepress/dist/azure-tts-voice-list.txt`. Volume and pitch each
 have an explicit opt-in switch, so their baseline values are not sent unless
-the user enables that parameter. The speech layout gives most desktop width to
-the editor, uses a fixed larger text area, and keeps the audio result panel
-compact on mobile.
+the user enables that parameter. The speech layout centers a flexible upper
+editor where the text area consumes the remaining desktop height and the
+parameter column keeps its natural width. The upper editor scrolls when space
+is constrained. Its compact audio workspace has a fixed reserved height at the
+bottom on both desktop and mobile instead of becoming a second desktop column.
 
 The 3D tab supports text/image input, Meshy art styles, draft-to-texture source
 task IDs, progress polling, GLB download, and a lazily loaded Three.js viewer.
@@ -293,6 +303,11 @@ response is still being inserted locally. Transient task lookup errors are
 retried, and GLB/GLTF load failures now produce an explicit UI state instead of
 a blank canvas. On small screens, generation forms and result workspaces use a
 single vertical scroll area; desktop keeps the split workspace.
+
+For session-authenticated `/pg` submissions, distributor parsing preserves the
+requested `group` alongside `model` for JSON and multipart bodies. Channel
+selection therefore uses the group shown in the combined picker rather than
+falling back to the user's default group.
 
 Dynamic billing expressions add `req`, fixed at `1,000,000` in the v1
 expression environment. Its coefficient is therefore a per-request USD price
@@ -311,6 +326,7 @@ Files:
 - `controller/relay.go`
 - `router/relay-router.go`
 - `middleware/distributor.go`
+- `middleware/distributor_playground_test.go`
 - `relay/constant/relay_mode.go`
 - `relay/relay_task.go`
 - `relay/helper/valid_request.go`

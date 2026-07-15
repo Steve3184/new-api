@@ -17,6 +17,25 @@ export function filterGenerationGroups(
   })
 }
 
+export function resolveGenerationGroup(
+  groups: GroupOption[],
+  groupModels: Record<string, string[]>,
+  models: ModelOption[],
+  selectedModel: string,
+  selectedGroup: string
+): string {
+  const eligibleGroups = filterGenerationGroups(
+    groups,
+    groupModels,
+    models,
+    selectedModel
+  )
+  if (eligibleGroups.some((group) => group.value === selectedGroup)) {
+    return selectedGroup
+  }
+  return eligibleGroups[0]?.value ?? selectedGroup
+}
+
 export function filterGenerationModels(
   models: ModelOption[],
   allowedModels: string[]
@@ -32,6 +51,18 @@ export function imageResponseSource(image: {
 }): string {
   if (image.url) return image.url
   return image.b64_json ? `data:image/png;base64,${image.b64_json}` : ''
+}
+
+export async function workspaceImageToFile(
+  source: string,
+  baseName: string
+): Promise<File> {
+  const response = await fetch(source)
+  if (!response.ok) throw new Error('File read failed')
+  const blob = await response.blob()
+  const mimeType = blob.type || 'image/png'
+  const extension = mimeType.split('/')[1]?.split('+')[0] || 'png'
+  return new File([blob], `${baseName}.${extension}`, { type: mimeType })
 }
 
 export async function getGenerationErrorMessage(

@@ -1,5 +1,5 @@
 /* Copyright (C) 2023-2026 QuantumNous */
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 
 import { ModelGroupSelector } from '@/components/model-group-selector'
 
@@ -17,41 +17,28 @@ type GenerationControlsProps = {
   disabled?: boolean
 }
 
-export function GenerationControls({
-  groups,
-  group,
-  onGroupChange,
-  models,
-  model,
-  onModelChange,
-  groupModels,
-  disabled,
-}: GenerationControlsProps) {
+export function GenerationControls(props: GenerationControlsProps) {
   const eligibleGroups = useMemo(
-    () => filterGenerationGroups(groups, groupModels, models, model),
-    [groupModels, groups, model, models]
+    () =>
+      filterGenerationGroups(
+        props.groups,
+        props.groupModels,
+        props.models,
+        props.model
+      ),
+    [props.groupModels, props.groups, props.model, props.models]
   )
-
-  useEffect(() => {
-    if (
-      eligibleGroups.length === 0 ||
-      eligibleGroups.some((option) => option.value === group)
-    ) {
-      return
-    }
-    onGroupChange(eligibleGroups[0].value)
-  }, [eligibleGroups, group, onGroupChange])
 
   return (
     <ModelGroupSelector
-      selectedModel={model}
-      models={models}
-      onModelChange={onModelChange}
-      selectedGroup={group}
+      selectedModel={props.model}
+      models={props.models}
+      onModelChange={props.onModelChange}
+      selectedGroup={props.group}
       groups={eligibleGroups}
-      onGroupChange={onGroupChange}
+      onGroupChange={props.onGroupChange}
       className='h-10 w-full max-w-none justify-start font-mono'
-      disabled={disabled || models.length === 0}
+      disabled={props.disabled || props.models.length === 0}
     />
   )
 }

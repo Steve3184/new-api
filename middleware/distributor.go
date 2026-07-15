@@ -302,7 +302,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			if err != nil {
 				return nil, false, err
 			}
-			modelRequest.Model = req.Model
+			modelRequest = *req
 		} else {
 			relayMode = relayconstant.RelayModeThreeDFetchByID
 			shouldSelectChannel = false
@@ -361,7 +361,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if err != nil {
 			return nil, false, err
 		}
-		modelRequest.Model = req.Model
+		modelRequest = *req
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") {
 		//wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01
@@ -385,7 +385,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
 			req, err := getModelFromRequest(c)
 			if err == nil && req.Model != "" {
-				modelRequest.Model = req.Model
+				modelRequest = *req
 			}
 		}
 	}

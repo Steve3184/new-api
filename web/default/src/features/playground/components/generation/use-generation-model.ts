@@ -1,15 +1,48 @@
 /* Copyright (C) 2023-2026 QuantumNous */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
-import type { ModelOption } from '../../types'
+import type { GroupOption, ModelOption } from '../../types'
+import {
+  filterGenerationGroups,
+  resolveGenerationGroup,
+} from './generation-utils'
 
-export function useGenerationModel(models: ModelOption[]) {
-  const [model, setModel] = useState('')
+type GenerationModelOptions = {
+  models: ModelOption[]
+  groups: GroupOption[]
+  group: string
+  groupModels: Record<string, string[]>
+  onGroupChange: (value: string) => void
+}
 
-  useEffect(() => {
-    if (models.some((option) => option.value === model)) return
-    setModel(models[0]?.value ?? '')
-  }, [model, models])
+export function useGenerationModel(options: GenerationModelOptions) {
+  const [selectedModel, setSelectedModel] = useState('')
+  const model = options.models.some((option) => option.value === selectedModel)
+    ? selectedModel
+    : (options.models[0]?.value ?? '')
+  const group = resolveGenerationGroup(
+    options.groups,
+    options.groupModels,
+    options.models,
+    model,
+    options.group
+  )
 
-  return { model, setModel }
+  const setModel = (value: string) => {
+    setSelectedModel(value)
+    const nextGroups = filterGenerationGroups(
+      options.groups,
+      options.groupModels,
+      options.models,
+      value
+    )
+    if (
+      nextGroups.length > 0 &&
+      !nextGroups.some((option) => option.value === options.group)
+    ) {
+      options.onGroupChange(nextGroups[0].value)
+    }
+  }
+
+  return { model, setModel, group }
 }
