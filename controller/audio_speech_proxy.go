@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -23,6 +24,14 @@ func audioSpeechProxyError(c *gin.Context, status int, errType, message string) 
 }
 
 func AudioSpeechProxy(c *gin.Context) {
+	proxyAudioSpeechArtifact(c, false)
+}
+
+func AudioSpeechTimestampsProxy(c *gin.Context) {
+	proxyAudioSpeechArtifact(c, true)
+}
+
+func proxyAudioSpeechArtifact(c *gin.Context, timestamps bool) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
 		audioSpeechProxyError(c, http.StatusBadRequest, "invalid_request_error", "task_id is required")
@@ -51,29 +60,41 @@ func AudioSpeechProxy(c *gin.Context) {
 		audioSpeechProxyError(c, http.StatusBadRequest, "invalid_request_error", "Task is not an UnrealSpeech task")
 		return
 	}
-	audioURL := task.GetResultURL()
-	if audioURL == "" {
-		audioSpeechProxyError(c, http.StatusBadGateway, "upstream_error", "Speech task has no audio result")
+	artifactName := "audio"
+	artifactURL := task.GetResultURL()
+	defaultContentType := "audio/mpeg"
+	if timestamps {
+		artifactName = "timestamps"
+		defaultContentType = "application/json; charset=utf-8"
+		var envelope provider.SynthesisTaskEnvelope
+		if err := common.Unmarshal(task.Data, &envelope); err != nil {
+			audioSpeechProxyError(c, http.StatusBadGateway, "upstream_error", "Speech task has invalid timestamp data")
+			return
+		}
+		artifactURL = provider.FirstURI(envelope.SynthesisTask.TimestampsURI)
+	}
+	if artifactURL == "" {
+		audioSpeechProxyError(c, http.StatusNotFound, "upstream_error", fmt.Sprintf("Speech task has no %s result", artifactName))
 		return
 	}
-	response, err := provider.FetchAudio(c.Request.Context(), audioURL, channel.GetSetting().Proxy)
+	response, err := provider.FetchArtifact(c.Request.Context(), artifactURL, channel.GetSetting().Proxy, defaultContentType)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to fetch speech content for task %s: %s", taskID, err.Error()))
-		audioSpeechProxyError(c, http.StatusBadGateway, "upstream_error", "Failed to fetch speech content")
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to fetch speech %s for task %s: %s", artifactName, taskID, err.Error()))
+		audioSpeechProxyError(c, http.StatusBadGateway, "upstream_error", fmt.Sprintf("Failed to fetch speech %s", artifactName))
 		return
 	}
 	defer response.Body.Close()
-	for _, header := range []string{"Content-Type", "Content-Length", "ETag", "Last-Modified"} {
+	for _, header := range []string{"Content-Type", "Content-Length", "Content-Encoding", "ETag", "Last-Modified"} {
 		if value := response.Header.Get(header); value != "" {
 			c.Header(header, value)
 		}
 	}
-	if c.Writer.Header().Get("Content-Type") == "" {
-		c.Header("Content-Type", "audio/mpeg")
+	if timestamps || c.Writer.Header().Get("Content-Type") == "" {
+		c.Header("Content-Type", defaultContentType)
 	}
 	c.Header("Cache-Control", "private, max-age=86400")
 	c.Status(http.StatusOK)
 	if _, err := io.Copy(c.Writer, response.Body); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream speech content for task %s: %s", taskID, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream speech %s for task %s: %s", artifactName, taskID, err.Error()))
 	}
 }

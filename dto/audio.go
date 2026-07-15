@@ -82,14 +82,15 @@ type AudioSpeechTaskError struct {
 }
 
 type AudioSpeechTaskResponse struct {
-	ID         string                `json:"id"`
-	Object     string                `json:"object"`
-	CreatedAt  int64                 `json:"created_at"`
-	Status     string                `json:"status"`
-	Model      string                `json:"model"`
-	Progress   int                   `json:"progress"`
-	ContentURL string                `json:"content_url,omitempty"`
-	Error      *AudioSpeechTaskError `json:"error,omitempty"`
+	ID            string                `json:"id"`
+	Object        string                `json:"object"`
+	CreatedAt     int64                 `json:"created_at"`
+	Status        string                `json:"status"`
+	Model         string                `json:"model"`
+	Progress      int                   `json:"progress"`
+	ContentURL    string                `json:"content_url,omitempty"`
+	TimestampsURL string                `json:"timestamps_url,omitempty"`
+	Error         *AudioSpeechTaskError `json:"error,omitempty"`
 }
 
 type WhisperVerboseJSONResponse struct {

@@ -103,6 +103,14 @@ func PlaygroundSpeechContent(c *gin.Context) {
 	AudioSpeechProxy(c)
 }
 
+func PlaygroundSpeechTimestamps(c *gin.Context) {
+	if !playground_setting.IsFeatureEnabled(playground_setting.FeatureSpeech) {
+		c.JSON(403, gin.H{"error": gin.H{"message": "playground feature is disabled", "type": "access_denied"}})
+		return
+	}
+	AudioSpeechTimestampsProxy(c)
+}
+
 func PlaygroundThreeD(c *gin.Context) {
 	Playground(c, playground_setting.FeatureThreeD, types.RelayFormatTask, RelayTask)
 }

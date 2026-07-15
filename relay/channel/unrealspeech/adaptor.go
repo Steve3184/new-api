@@ -172,11 +172,15 @@ func writeAudioResponse(c *gin.Context, response *http.Response, info *relaycomm
 }
 
 func FetchAudio(ctx context.Context, audioURL, proxy string) (*http.Response, error) {
-	parsed, err := url.Parse(audioURL)
+	return FetchArtifact(ctx, audioURL, proxy, "audio/mpeg")
+}
+
+func FetchArtifact(ctx context.Context, artifactURL, proxy, defaultContentType string) (*http.Response, error) {
+	parsed, err := url.Parse(artifactURL)
 	if err != nil {
 		return nil, err
 	}
-	trustedS3URL := isTrustedS3AudioURL(parsed)
+	trustedS3URL := isTrustedS3ArtifactURL(parsed)
 
 	var client *http.Client
 	if trustedS3URL {
@@ -185,13 +189,13 @@ func FetchAudio(ctx context.Context, audioURL, proxy string) (*http.Response, er
 			return nil, err
 		}
 	} else if proxy == "" {
-		if err := service.ValidateSSRFProtectedFetchURL(audioURL); err != nil {
+		if err := service.ValidateSSRFProtectedFetchURL(artifactURL); err != nil {
 			return nil, err
 		}
 		client = service.GetSSRFProtectedHTTPClient()
 	} else {
 		fetchSetting := system_setting.GetFetchSetting()
-		if err := common.ValidateURLWithFetchSetting(audioURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
+		if err := common.ValidateURLWithFetchSetting(artifactURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
 			return nil, err
 		}
 		client, err = service.GetHttpClientWithProxy(proxy)
@@ -213,16 +217,16 @@ func FetchAudio(ctx context.Context, audioURL, proxy string) (*http.Response, er
 	if response.StatusCode != http.StatusOK {
 		_ = response.Body.Close()
 		cancel()
-		return nil, fmt.Errorf("audio host returned status %d", response.StatusCode)
+		return nil, fmt.Errorf("artifact host returned status %d", response.StatusCode)
 	}
 	response.Body = &cancelReadCloser{ReadCloser: response.Body, cancel: cancel}
-	if response.Header.Get("Content-Type") == "" {
-		response.Header.Set("Content-Type", "audio/mpeg")
+	if response.Header.Get("Content-Type") == "" && defaultContentType != "" {
+		response.Header.Set("Content-Type", defaultContentType)
 	}
 	return response, nil
 }
 
-func isTrustedS3AudioURL(parsed *url.URL) bool {
+func isTrustedS3ArtifactURL(parsed *url.URL) bool {
 	if parsed == nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.User != nil {
 		return false
 	}

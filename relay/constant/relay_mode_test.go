@@ -16,6 +16,7 @@ func TestUnrealSpeechRelayModesTakePriorityOverSpeechPrefix(t *testing.T) {
 		{path: "/v1/audio/speech/tasks", mode: RelayModeAudioSpeechTaskSubmit},
 		{path: "/v1/audio/speech/tasks/task_public", mode: RelayModeAudioSpeechTaskFetchByID},
 		{path: "/v1/audio/speech/tasks/task_public/content", mode: RelayModeAudioSpeechTaskFetchByID},
+		{path: "/v1/audio/speech/tasks/task_public/timestamps", mode: RelayModeAudioSpeechTaskFetchByID},
 	}
 	for _, test := range tests {
 		t.Run(test.path, func(t *testing.T) {

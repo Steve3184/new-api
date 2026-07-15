@@ -86,7 +86,7 @@ func TestFirstURIAcceptsStringAndArray(t *testing.T) {
 	assert.Equal(t, "https://example.com/a.mp3", FirstURI([]byte(`["https://example.com/a.mp3"]`)))
 }
 
-func TestTrustedS3AudioURLOnlyAllowsHTTPSAWSHosts(t *testing.T) {
+func TestTrustedS3ArtifactURLOnlyAllowsHTTPSAWSHosts(t *testing.T) {
 	tests := []struct {
 		raw     string
 		trusted bool
@@ -103,7 +103,7 @@ func TestTrustedS3AudioURLOnlyAllowsHTTPSAWSHosts(t *testing.T) {
 		t.Run(test.raw, func(t *testing.T) {
 			parsed, err := url.Parse(test.raw)
 			require.NoError(t, err)
-			assert.Equal(t, test.trusted, isTrustedS3AudioURL(parsed))
+			assert.Equal(t, test.trusted, isTrustedS3ArtifactURL(parsed))
 		})
 	}
 }

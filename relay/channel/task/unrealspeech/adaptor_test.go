@@ -84,15 +84,23 @@ func TestPublicTaskResponseHidesUpstreamIdentifiersAndURL(t *testing.T) {
 			ResultURL:      "https://audio.example.com/private.mp3",
 		},
 	}
-	task.SetData(map[string]any{"TaskId": "upstream-private", "OutputUri": "https://audio.example.com/private.mp3"})
+	task.SetData(map[string]any{
+		"SynthesisTask": map[string]any{
+			"TaskId":        "upstream-private",
+			"OutputUri":     "https://audio.example.com/private.mp3",
+			"TimestampsUri": "https://audio.example.com/private-timestamps.json",
+		},
+	})
 
 	body, err := (&TaskAdaptor{}).ConvertToOpenAIAudioTask(task)
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "https://gateway.example.com/v1/audio/speech/tasks/task_public/content")
+	assert.Contains(t, string(body), "https://gateway.example.com/v1/audio/speech/tasks/task_public/timestamps")
 	assert.NotContains(t, string(body), "upstream-private")
 	assert.NotContains(t, string(body), "audio.example.com")
 
 	var response map[string]any
 	require.NoError(t, common.Unmarshal(body, &response))
 	assert.Equal(t, "completed", response["status"])
+	assert.Equal(t, "https://gateway.example.com/v1/audio/speech/tasks/task_public/timestamps", response["timestamps_url"])
 }

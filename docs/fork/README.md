@@ -751,9 +751,11 @@ to `web/default` only.
 | `POST /v1/audio/speech/tasks` | Submit a persistent long-text synthesis task |
 | `GET /v1/audio/speech/tasks/:task_id` | Read the normalized public task state |
 | `GET /v1/audio/speech/tasks/:task_id/content` | Authenticated audio content proxy |
+| `GET /v1/audio/speech/tasks/:task_id/timestamps` | Authenticated timestamp JSON proxy |
 | `POST /pg/audio/speech/tasks` | Session-authenticated Playground async submission |
 | `GET /pg/audio/speech/tasks/:task_id` | Playground task polling |
 | `GET /pg/audio/speech/tasks/:task_id/content` | Playground result download proxy |
+| `GET /pg/audio/speech/tasks/:task_id/timestamps` | Playground timestamp JSON proxy |
 
 For synchronous requests, `speech: true` selects upstream `/speech` and is the
 default; `stream: true` selects upstream `/stream`. Both flags cannot be true.
@@ -774,6 +776,10 @@ remain `task_*`; upstream IDs, selected multi-key credentials, and result URLs
 stay in private task fields. Completed task responses expose only the gateway
 `content_url`. Content fetches enforce token/session authentication, task
 ownership, provider type, completion state, and SSRF policy.
+When the completed upstream task includes `TimestampsUri`, the normalized
+response also exposes a gateway `timestamps_url`. The route proxies the JSON
+artifact with the same ownership, provider, completion, and SSRF checks, so the
+temporary upstream S3 URL remains private.
 
 ### Billing
 

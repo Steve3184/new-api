@@ -13,6 +13,7 @@ func SetVideoRouter(router *gin.Engine) {
 	audioSpeechContentRouter.Use(middleware.TokenOrUserAuth())
 	{
 		audioSpeechContentRouter.GET("/audio/speech/tasks/:task_id/content", controller.AudioSpeechProxy)
+		audioSpeechContentRouter.GET("/audio/speech/tasks/:task_id/timestamps", controller.AudioSpeechTimestampsProxy)
 	}
 
 	audioSpeechTaskRouter := router.Group("/v1")

@@ -183,7 +183,14 @@ func (a *TaskAdaptor) ConvertToOpenAIAudioTask(task *model.Task) ([]byte, error)
 	if createdAt == 0 {
 		createdAt = task.SubmitTime
 	}
-	return common.Marshal(newPublicResponse(task.TaskID, task.Properties.OriginModelName, createdAt, task.Status, task.Progress, task.FailReason))
+	response := newPublicResponse(task.TaskID, task.Properties.OriginModelName, createdAt, task.Status, task.Progress, task.FailReason)
+	if task.Status == model.TaskStatusSuccess {
+		var envelope provider.SynthesisTaskEnvelope
+		if common.Unmarshal(task.Data, &envelope) == nil && provider.FirstURI(envelope.SynthesisTask.TimestampsURI) != "" {
+			response.TimestampsURL = taskcommon.BuildAudioSpeechTimestampsProxyURL(task.TaskID)
+		}
+	}
+	return common.Marshal(response)
 }
 
 func newPublicResponse(taskID, modelName string, createdAt int64, status model.TaskStatus, progress, failReason string) dto.AudioSpeechTaskResponse {

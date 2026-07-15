@@ -211,6 +211,7 @@ export interface SpeechGenerationTaskResponse {
   progress: number
   created_at: number
   content_url?: string
+  timestamps_url?: string
   error?: { message: string; code: string }
 }
 
