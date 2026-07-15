@@ -287,9 +287,10 @@ Speech always sends the required `speed` float (`1.0` baseline). Azure-typed
 models additionally expose optional `volume` (`1.0` baseline) and integer
 `pitch` in Hz (`0` baseline); those fields are omitted for OpenAI-typed models.
 The Azure voice selector vendors the 322 names from
-`s3aidocs/docs/.vitepress/dist/azure-tts-voice-list.txt`. Volume and pitch each
-have an explicit opt-in switch, so their baseline values are not sent unless
-the user enables that parameter. The speech layout centers a flexible upper
+`s3aidocs/docs/.vitepress/dist/azure-tts-voice-list.txt` as 322 distinct,
+searchable combobox options. Volume and pitch each have an explicit opt-in
+switch, so their baseline values are not sent unless the user enables that
+parameter. The speech layout centers a flexible upper
 editor where the text area consumes the remaining desktop height and the
 parameter column keeps its natural width. The upper editor scrolls when space
 is constrained. Its compact audio workspace has a fixed reserved height at the

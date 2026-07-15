@@ -112,7 +112,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
 
   return (
     <div className='flex size-full min-h-0 flex-col overflow-hidden'>
-      <section className='min-h-0 flex-1 overflow-y-auto border-b p-4 sm:p-6'>
+      <section className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto border-b p-4 sm:p-6'>
         <div className='mx-auto flex h-full w-full max-w-6xl flex-col gap-5'>
           <GenerationControls
             groups={props.groups}
@@ -133,7 +133,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
               <Textarea
                 id='playground-speech-input'
                 rows={14}
-                className='min-h-64 flex-1 resize-none lg:min-h-0'
+                className='max-h-none min-h-64 flex-1 resize-none lg:min-h-0'
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={t('Enter text to synthesize')}
@@ -141,7 +141,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
               />
             </Field>
 
-            <div className='flex flex-col gap-5 lg:min-h-0 lg:overflow-y-auto'>
+            <div className='flex flex-col gap-5 lg:min-h-0'>
               <Field>
                 <FieldLabel htmlFor='playground-speech-voice'>
                   {t('Voice')}
@@ -249,7 +249,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
               )}
 
               <Button
-                className='mt-auto w-full'
+                className='w-full'
                 disabled={!model || !input.trim() || !voice || isGenerating}
                 onClick={handleGenerate}
               >

@@ -327,7 +327,7 @@ zu-ZA-ThandoNeural
 zu-ZA-ThembaNeural
 `
   .trim()
-  .split('\\n')
+  .split('\n')
 
 export const AZURE_TTS_VOICE_OPTIONS = AZURE_TTS_VOICES.map((voice) => ({
   label: voice,
