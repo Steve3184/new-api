@@ -161,15 +161,33 @@ func TestRequestProbeHelpers(t *testing.T) {
 	}
 }
 
-func TestPerRequestVariableSupportsImageSizePricing(t *testing.T) {
-	cost, trace, err := billingexpr.RunExprWithRequest(
-		`param("size") == "4096x4096" ? tier("4k", req * 0.12) : tier("base", req * 0.03)`,
-		billingexpr.TokenParams{},
-		billingexpr.RequestInput{Body: []byte(`{"size":"4096x4096"}`)},
-	)
-	require.NoError(t, err)
-	assert.InDelta(t, 120_000, cost, 1e-6)
-	assert.Equal(t, "4k", trace.MatchedTier)
+func TestPerRequestVariableSupportsImageResolutionPricing(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantCost float64
+		wantTier string
+	}{
+		{name: "one kilopixel square", body: `{"size":"1024x1024"}`, wantCost: 30_000, wantTier: "base"},
+		{name: "portrait normalizes by longest edge", body: `{"size":"1024x1536"}`, wantCost: 60_000, wantTier: "2k"},
+		{name: "two kilopixel label", body: `{"size":"2k"}`, wantCost: 60_000, wantTier: "2k"},
+		{name: "four kilopixel square", body: `{"size":"4096x4096"}`, wantCost: 120_000, wantTier: "4k"},
+		{name: "explicit quality overrides dimensions", body: `{"size":"1024x1024","quality":"4K"}`, wantCost: 120_000, wantTier: "4k"},
+		{name: "missing resolution uses base price", body: `{}`, wantCost: 30_000, wantTier: "base"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cost, trace, err := billingexpr.RunExprWithRequest(
+				`image_resolution() == "4K" ? tier("4k", req * 0.12) : image_resolution() == "2K" ? tier("2k", req * 0.06) : tier("base", req * 0.03)`,
+				billingexpr.TokenParams{},
+				billingexpr.RequestInput{Body: []byte(tt.body)},
+			)
+			require.NoError(t, err)
+			assert.InDelta(t, tt.wantCost, cost, 1e-6)
+			assert.Equal(t, tt.wantTier, trace.MatchedTier)
+		})
+	}
 }
 
 func TestHeaderProbeHelper(t *testing.T) {

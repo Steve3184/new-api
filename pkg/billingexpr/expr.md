@@ -79,6 +79,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
 | `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
 | `header` | `header(key) → string` | Reads a request header value |
+| `image_resolution` | `image_resolution() → string` | Normalizes the requested image size to `1K`, `2K`, `4K`, or `8K`; an explicit K-valued `quality` takes precedence over `size` |
 | `has` | `has(source, substr) → bool` | Substring check |
 | `hour` | `hour(tz) → int` | Current hour in timezone (0-23) |
 | `minute` | `minute(tz) → int` | Current minute (0-59) |
@@ -105,8 +106,8 @@ len <= 200000
 # Image model (no separate cache/audio pricing — those tokens stay in p/c)
 tier("base", p * 2 + c * 8 + img * 2.5)
 
-# Per-request image pricing with size-based request rules
-(tier("base", req * 0.04)) * (param("size") == "2048x2048" ? 2 : 1) * (param("size") == "4096x4096" ? 4 : 1)
+# Per-request image pricing with normalized resolution rules
+(tier("base", req * 0.04)) * (image_resolution() == "2K" ? 2 : 1) * (image_resolution() == "4K" ? 4 : 1)
 
 # Multimodal with audio
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
@@ -121,6 +122,11 @@ Request-conditional multipliers are multiplied with the base expression:
 ```
 
 These are parsed and applied separately by the request rule system.
+
+`image_resolution()` reads the frozen request body used by both pre-consume
+and settlement. Values such as `2K` and `2048x2048` normalize to `2K`;
+dimensions are classified by their longest edge. Missing or unsupported sizes
+return an empty string, so the base request price remains the fallback.
 
 ---
 

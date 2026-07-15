@@ -56,6 +56,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   BILLING_EXTRA_VARS,
   COMMON_TIMEZONES,
+  IMAGE_RESOLUTIONS,
   MATCH_CONTAINS,
   MATCH_EQ,
   MATCH_EXISTS,
@@ -65,18 +66,21 @@ import {
   MATCH_LTE,
   MATCH_RANGE,
   SOURCE_HEADER,
+  SOURCE_IMAGE_RESOLUTION,
   SOURCE_PARAM,
   SOURCE_TIME,
   TIME_FUNCS,
   buildRequestRuleExpr,
   combineBillingExpr,
   createEmptyCondition,
+  createEmptyImageResolutionCondition,
   createEmptyRuleGroup,
   createEmptyTimeCondition,
   getRequestRuleMatchOptions,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
   type ParamHeaderCondition,
+  type ImageResolutionCondition,
   type RequestCondition,
   type RequestRuleGroup,
   type TimeCondition,
@@ -111,6 +115,10 @@ const MEDIA_PRICE_VARS = BILLING_EXTRA_VARS.filter(
 const REQUEST_PRICE_VAR = BILLING_EXTRA_VARS.find(
   (variable) => variable.group === 'request'
 )
+const IMAGE_RESOLUTION_OPTIONS = IMAGE_RESOLUTIONS.map((resolution) => ({
+  value: resolution,
+  label: resolution,
+}))
 
 const CONDITION_INPUT_OPTIONS: {
   value: TierConditionInput['var']
@@ -183,6 +191,33 @@ const PRESET_GROUPS: PresetGroup[] = [
         key: 'gpt-image-1-mini',
         label: 'GPT Image 1 Mini',
         expr: 'tier("base", p * 2 + c * 8 + img * 2.5)',
+      },
+      {
+        key: 'image-resolution-pricing',
+        label: 'Image 1K / 2K / 4K',
+        expr: 'tier("base", p * 0 + c * 0 + req * 0.04)',
+        requestRules: [
+          {
+            conditions: [
+              {
+                source: SOURCE_IMAGE_RESOLUTION as 'image_resolution',
+                mode: MATCH_EQ,
+                value: '2K',
+              },
+            ],
+            multiplier: '2',
+          },
+          {
+            conditions: [
+              {
+                source: SOURCE_IMAGE_RESOLUTION as 'image_resolution',
+                mode: MATCH_EQ,
+                value: '4K',
+              },
+            ],
+            multiplier: '4',
+          },
+        ],
       },
       {
         key: 'gemini-2.5-flash',
@@ -335,8 +370,9 @@ function formatTokenHint(n: number | string | null | undefined): string {
 
 function formatNumberDraft(value: number | string): string {
   if (value === '') return ''
-  if (typeof value === 'number')
+  if (typeof value === 'number') {
     return Number.isFinite(value) ? String(value) : '0'
+  }
   return value
 }
 
@@ -439,12 +475,10 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
   return (
     <div className='flex items-center gap-2'>
       <Select
-        items={[
-          ...CONDITION_INPUT_OPTIONS.map((option) => ({
-            value: option.value,
-            label: t(option.labelKey),
-          })),
-        ]}
+        items={CONDITION_INPUT_OPTIONS.map((option) => ({
+          value: option.value,
+          label: t(option.labelKey),
+        }))}
         value={condition.var}
         onValueChange={(value) =>
           onChange({ ...condition, var: value as TierConditionInput['var'] })
@@ -671,6 +705,7 @@ function VisualTierCard({
         ) : (
           tier.conditions.map((condition, conditionIndex) => (
             <ConditionRow
+              // eslint-disable-next-line react/no-array-index-key -- conditions have no persisted IDs and must retain focus while edited
               key={conditionIndex}
               condition={condition}
               onChange={(next) => handleConditionChange(conditionIndex, next)}
@@ -863,6 +898,7 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
       </p>
       {config.tiers.map((tier, index) => (
         <VisualTierCard
+          // eslint-disable-next-line react/no-array-index-key -- tiers have no persisted IDs and must retain focus while edited
           key={index}
           tier={tier}
           index={index}
@@ -904,13 +940,14 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
             {t('Variables')}: <code>len</code>, <code>p</code>, <code>c</code>,{' '}
             <code>cr</code>, <code>cc</code>, <code>cc1h</code>,{' '}
             <code>img</code>, <code>img_o</code>, <code>ai</code>,{' '}
-            <code>ao</code>
+            <code>ao</code>, <code>req</code>
           </div>
           <div>
             {t('Functions')}: <code>tier(name, value)</code>, <code>max</code>,{' '}
             <code>min</code>, <code>ceil</code>, <code>floor</code>,{' '}
             <code>abs</code>, <code>header(name)</code>,{' '}
-            <code>param(path)</code>, <code>has(source, text)</code>
+            <code>param(path)</code>, <code>image_resolution()</code>,{' '}
+            <code>has(source, text)</code>
           </div>
         </AlertDescription>
       </Alert>
@@ -981,15 +1018,17 @@ function RuleConditionRow({
         return timeFunc
     }
   }
-  const sourceLabel =
-    condition.source === SOURCE_PARAM
-      ? t('Body param')
-      : condition.source === SOURCE_HEADER
-        ? t('Header')
-        : t('Time')
+  const getSourceLabel = () => {
+    if (condition.source === SOURCE_PARAM) return t('Body param')
+    if (condition.source === SOURCE_HEADER) return t('Header')
+    if (condition.source === SOURCE_IMAGE_RESOLUTION) return t('Image size')
+    return t('Time')
+  }
 
   const handleSourceChange = (source: string) => {
-    if (source === SOURCE_TIME) {
+    if (source === SOURCE_IMAGE_RESOLUTION) {
+      onChange(createEmptyImageResolutionCondition())
+    } else if (source === SOURCE_TIME) {
       onChange(createEmptyTimeCondition())
     } else if (source === SOURCE_HEADER || source === SOURCE_PARAM) {
       onChange({
@@ -1006,12 +1045,10 @@ function RuleConditionRow({
   const renderTimeCondition = (timeCond: TimeCondition) => (
     <>
       <Select
-        items={[
-          ...TIME_FUNCS.map((fn) => ({
-            value: fn,
-            label: getTimeFuncLabel(fn),
-          })),
-        ]}
+        items={TIME_FUNCS.map((fn) => ({
+          value: fn,
+          label: getTimeFuncLabel(fn),
+        }))}
         value={timeCond.timeFunc}
         onValueChange={(value) =>
           onChange({ ...timeCond, timeFunc: value as TimeFunc })
@@ -1031,12 +1068,10 @@ function RuleConditionRow({
         </SelectContent>
       </Select>
       <Select
-        items={[
-          ...COMMON_TIMEZONES.map((tz) => ({
-            value: tz.value,
-            label: tz.label,
-          })),
-        ]}
+        items={COMMON_TIMEZONES.map((tz) => ({
+          value: tz.value,
+          label: tz.label,
+        }))}
         value={timeCond.timezone}
         onValueChange={(value) =>
           value !== null && onChange({ ...timeCond, timezone: value })
@@ -1059,12 +1094,10 @@ function RuleConditionRow({
         </SelectContent>
       </Select>
       <Select
-        items={[
-          ...matchOptions.map((option) => ({
-            value: option.value,
-            label: getMatchLabel(option.value),
-          })),
-        ]}
+        items={matchOptions.map((option) => ({
+          value: option.value,
+          label: getMatchLabel(option.value),
+        }))}
         value={timeCond.mode}
         onValueChange={(v) => v !== null && handleModeChange(v)}
       >
@@ -1125,12 +1158,10 @@ function RuleConditionRow({
         className='w-44'
       />
       <Select
-        items={[
-          ...matchOptions.map((option) => ({
-            value: option.value,
-            label: getMatchLabel(option.value),
-          })),
-        ]}
+        items={matchOptions.map((option) => ({
+          value: option.value,
+          label: getMatchLabel(option.value),
+        }))}
         value={phCond.mode}
         onValueChange={(v) => v !== null && handleModeChange(v)}
       >
@@ -1160,31 +1191,72 @@ function RuleConditionRow({
     </>
   )
 
+  const renderImageResolutionCondition = (
+    resolutionCond: ImageResolutionCondition
+  ) => (
+    <Select
+      items={IMAGE_RESOLUTION_OPTIONS}
+      value={resolutionCond.value}
+      onValueChange={(value) =>
+        value !== null &&
+        onChange({
+          ...resolutionCond,
+          value: value as ImageResolutionCondition['value'],
+        })
+      }
+    >
+      <SelectTrigger className='w-28' size='sm'>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false}>
+        <SelectGroup>
+          {IMAGE_RESOLUTIONS.map((resolution) => (
+            <SelectItem key={resolution} value={resolution}>
+              {resolution}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+
+  const renderConditionFields = () => {
+    if (condition.source === SOURCE_IMAGE_RESOLUTION) {
+      return renderImageResolutionCondition(condition)
+    }
+    if (condition.source === SOURCE_TIME) {
+      return renderTimeCondition(condition)
+    }
+    return renderParamHeaderCondition(condition)
+  }
+
   return (
     <div className='flex flex-wrap items-center gap-2'>
       <Select
         items={[
           { value: SOURCE_PARAM, label: t('Body param') },
           { value: SOURCE_HEADER, label: t('Header') },
+          { value: SOURCE_IMAGE_RESOLUTION, label: t('Image size') },
           { value: SOURCE_TIME, label: t('Time') },
         ]}
         value={condition.source}
         onValueChange={(v) => v !== null && handleSourceChange(v)}
       >
-        <SelectTrigger className='w-28' size='sm'>
-          <SelectValue>{sourceLabel}</SelectValue>
+        <SelectTrigger className='w-32' size='sm'>
+          <SelectValue>{getSourceLabel()}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
           <SelectGroup>
             <SelectItem value={SOURCE_PARAM}>{t('Body param')}</SelectItem>
             <SelectItem value={SOURCE_HEADER}>{t('Header')}</SelectItem>
+            <SelectItem value={SOURCE_IMAGE_RESOLUTION}>
+              {t('Image size')}
+            </SelectItem>
             <SelectItem value={SOURCE_TIME}>{t('Time')}</SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>
-      {condition.source === SOURCE_TIME
-        ? renderTimeCondition(condition as TimeCondition)
-        : renderParamHeaderCondition(condition as ParamHeaderCondition)}
+      {renderConditionFields()}
       <Button
         variant='ghost'
         size='icon'
@@ -1255,6 +1327,7 @@ function RuleGroupCard({
       <div className='space-y-2'>
         {group.conditions.map((condition, conditionIndex) => (
           <RuleConditionRow
+            // eslint-disable-next-line react/no-array-index-key -- conditions have no persisted IDs and must retain focus while edited
             key={conditionIndex}
             condition={condition}
             onChange={(next) => handleConditionChange(conditionIndex, next)}
@@ -1509,6 +1582,9 @@ Output side:
 - img_o — image output token count
 - ao — audio output token count
 
+Request side:
+- req — one request, fixed at 1,000,000 units so its coefficient is USD per request
+
 ### p/c Auto-exclusion
 
 p and c are fallback variables representing all tokens not separately priced in the expression. If the expression uses a sub-category variable (e.g., cr), those tokens are deducted from p to avoid double-billing. Unused sub-category tokens remain in p/c at base price.
@@ -1522,6 +1598,7 @@ Important: len is NOT affected by auto-exclusion. Tier conditions should use len
 - ceil(x), floor(x), abs(x) — ceiling, floor, absolute value
 - header(name) — reads a request header
 - param(path) — reads a request body JSON path (gjson syntax)
+- image_resolution() — normalizes requested image quality/size to "1K", "2K", "4K", or "8K"
 - has(source, substr) — substring check
 - hour(tz), minute(tz), weekday(tz), month(tz), day(tz) — time functions, tz is a timezone like "Asia/Shanghai"
 
@@ -1544,6 +1621,9 @@ len <= 200000
 
 Image model:
 tier("base", p * 2 + c * 8 + img * 2.5)
+
+Per-request image resolution pricing:
+(tier("base", req * 0.04)) * (image_resolution() == "2K" ? 2 : 1) * (image_resolution() == "4K" ? 4 : 1)
 
 Multimodal with audio:
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
@@ -1576,7 +1656,7 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
 
   const prompt = useMemo(() => {
     if (modelName) {
-      return LLM_PROMPT_TEMPLATE + `\n\nCurrent model: ${modelName}`
+      return `${LLM_PROMPT_TEMPLATE}\n\nCurrent model: ${modelName}`
     }
     return LLM_PROMPT_TEMPLATE
   }, [modelName])
@@ -1761,6 +1841,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
 
   const applyPreset = useCallback(
     (preset: Preset) => {
+      initRef.current = true
       const presetGroups = preset.requestRules || []
       const ruleExpr = buildRequestRuleExpr(presetGroups)
       const combined = combineBillingExpr(preset.expr, ruleExpr) || preset.expr
@@ -1774,9 +1855,10 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
         setVisualConfig(null)
       }
       setRequestRuleGroups(presetGroups)
+      onBillingExprChange(preset.expr)
       onRequestRuleExprChange(ruleExpr)
     },
-    [onRequestRuleExprChange]
+    [onBillingExprChange, onRequestRuleExprChange]
   )
 
   const handleRuleGroupsChange = useCallback((next: RequestRuleGroup[]) => {
@@ -1851,6 +1933,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
               <>
                 {requestRuleGroups.map((group, groupIndex) => (
                   <RuleGroupCard
+                    // eslint-disable-next-line react/no-array-index-key -- rule groups have no persisted IDs and must retain focus while edited
                     key={groupIndex}
                     group={group}
                     index={groupIndex}

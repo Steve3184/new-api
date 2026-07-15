@@ -311,10 +311,13 @@ falling back to the user's default group.
 
 Dynamic billing expressions add `req`, fixed at `1,000,000` in the v1
 expression environment. Its coefficient is therefore a per-request USD price
-while preserving the existing `$ / 1M` quota conversion. Request rules can
-then apply size multipliers through `param("size")`. Non-JSON image edits also
-freeze a normalized request body for pre-consume and settlement, so multipart
-`size` values participate in the same pricing rule.
+while preserving the existing `$ / 1M` quota conversion. The additive
+`image_resolution()` helper normalizes explicit `1K`/`2K`/`4K` quality values
+and dimension strings such as `2048x2048` into stable resolution tiers. The
+default frontend request-rule editor exposes this as an image-size condition
+and includes a per-request 1K/2K/4K preset with editable multipliers. Non-JSON
+image edits also freeze a normalized request body for pre-consume and
+settlement, so multipart `size` values participate in the same pricing rule.
 
 Files:
 

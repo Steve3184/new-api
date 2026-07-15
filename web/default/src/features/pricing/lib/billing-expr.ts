@@ -181,6 +181,10 @@ const BILLING_VAR_REGEX = new RegExp(
 export const SOURCE_PARAM = 'param'
 export const SOURCE_HEADER = 'header'
 export const SOURCE_TIME = 'time'
+export const SOURCE_IMAGE_RESOLUTION = 'image_resolution'
+
+export const IMAGE_RESOLUTIONS = ['1K', '2K', '4K', '8K'] as const
+export type ImageResolution = (typeof IMAGE_RESOLUTIONS)[number]
 
 export const MATCH_EQ = 'eq'
 export const MATCH_CONTAINS = 'contains'
@@ -230,7 +234,16 @@ export type TimeCondition = {
   rangeEnd: string
 }
 
-export type RequestCondition = TimeCondition | ParamHeaderCondition
+export type ImageResolutionCondition = {
+  source: 'image_resolution'
+  mode: 'eq'
+  value: ImageResolution
+}
+
+export type RequestCondition =
+  | TimeCondition
+  | ParamHeaderCondition
+  | ImageResolutionCondition
 
 export type RequestRuleGroup = {
   conditions: RequestCondition[]
@@ -316,9 +329,9 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
 export function normalizeTierLabel(label: string | undefined): string {
   if (!label) return ''
   return label
-    .replace(/<[=＝]?|≤|＜[=＝]?/g, '<')
-    .replace(/>[=＝]?|≥|＞[=＝]?/g, '>')
-    .replace(/\s+/g, '')
+    .replaceAll(/<[=＝]?|≤|＜[=＝]?/g, '<')
+    .replaceAll(/>[=＝]?|≥|＞[=＝]?/g, '>')
+    .replaceAll(/\s+/g, '')
     .toLowerCase()
 }
 
@@ -428,6 +441,17 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
   const tc = tryParseTimeCondition(expr)
   if (tc) return tc
 
+  const resolutionMatch = expr.match(
+    /^image_resolution\(\) == "(1K|2K|4K|8K)"$/
+  )
+  if (resolutionMatch) {
+    return {
+      source: SOURCE_IMAGE_RESOLUTION,
+      mode: MATCH_EQ,
+      value: resolutionMatch[1] as ImageResolution,
+    }
+  }
+
   let m = expr.match(/^header\("([^"]+)"\) != ""$/)
   if (m) return { source: 'header', path: m[1], mode: MATCH_EXISTS, value: '' }
 
@@ -435,24 +459,26 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
   if (m) return { source: 'param', path: m[1], mode: MATCH_EXISTS, value: '' }
 
   m = expr.match(/^has\(header\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/)
-  if (m)
+  if (m) {
     return {
       source: 'header',
       path: m[1],
       mode: MATCH_CONTAINS,
       value: JSON.parse(m[2]) as string,
     }
+  }
 
   m = expr.match(
     /^param\("([^"]+)"\) != nil && has\(param\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/
   )
-  if (m && m[1] === m[2])
+  if (m && m[1] === m[2]) {
     return {
       source: 'param',
       path: m[1],
       mode: MATCH_CONTAINS,
       value: JSON.parse(m[3]) as string,
     }
+  }
 
   m = expr.match(
     /^param\("([^"]+)"\) != nil && param\("([^"]+)"\) (>|>=|<|<=) ([\d.eE+-]+)$/
@@ -602,6 +628,14 @@ export function createEmptyTimeCondition(): TimeCondition {
   }
 }
 
+export function createEmptyImageResolutionCondition(): ImageResolutionCondition {
+  return {
+    source: SOURCE_IMAGE_RESOLUTION,
+    mode: MATCH_EQ,
+    value: '1K',
+  }
+}
+
 export function createEmptyRuleGroup(): RequestRuleGroup {
   return { conditions: [createEmptyCondition()], multiplier: '' }
 }
@@ -617,6 +651,9 @@ export function createEmptyTimeRuleGroup(): RequestRuleGroup {
 export type MatchOption = { value: string; labelKey: string }
 
 export function getRequestRuleMatchOptions(source: string): MatchOption[] {
+  if (source === SOURCE_IMAGE_RESOLUTION) {
+    return [{ value: MATCH_EQ, labelKey: 'Equals' }]
+  }
   if (source === SOURCE_TIME) {
     return [
       { value: MATCH_EQ, labelKey: 'Equals' },
@@ -651,12 +688,26 @@ function isTimeFunc(value: unknown): value is TimeFunc {
 export function normalizeCondition(
   cond: Partial<RequestCondition> | null | undefined
 ): RequestCondition {
-  const source =
-    cond?.source === 'time'
-      ? 'time'
-      : cond?.source === 'header'
-        ? 'header'
-        : 'param'
+  if (cond?.source === SOURCE_IMAGE_RESOLUTION) {
+    const resolutionCond = cond as Partial<ImageResolutionCondition>
+    const value = IMAGE_RESOLUTIONS.includes(
+      resolutionCond.value as ImageResolution
+    )
+      ? (resolutionCond.value as ImageResolution)
+      : '1K'
+    return {
+      source: SOURCE_IMAGE_RESOLUTION,
+      mode: MATCH_EQ,
+      value,
+    }
+  }
+
+  let source: 'time' | 'header' | 'param' = 'param'
+  if (cond?.source === 'time') {
+    source = 'time'
+  } else if (cond?.source === 'header') {
+    source = 'header'
+  }
 
   if (source === 'time') {
     const timeCond = cond as Partial<TimeCondition> | null | undefined
@@ -729,6 +780,10 @@ function buildTimeConditionExpr(cond: TimeCondition): string {
 }
 
 function buildRequestConditionExpr(cond: RequestCondition): string {
+  if (cond.source === SOURCE_IMAGE_RESOLUTION) {
+    const normalized = normalizeCondition(cond) as ImageResolutionCondition
+    return `image_resolution() == ${JSON.stringify(normalized.value)}`
+  }
   if (cond.source === 'time') return buildTimeConditionExpr(cond)
   const normalized = normalizeCondition(cond) as ParamHeaderCondition
   const path = normalized.path.trim()
