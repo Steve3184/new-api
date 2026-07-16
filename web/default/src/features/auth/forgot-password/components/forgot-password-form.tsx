@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import type { z } from 'zod'
 
 import { Cap } from '@/components/cap'
+import { HCaptcha } from '@/components/hcaptcha'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import {
@@ -55,8 +56,10 @@ export function ForgotPasswordForm({
   const {
     isCaptchaEnabled,
     isTurnstileEnabled,
+    isHCaptchaEnabled,
     isCapEnabled,
     turnstileSiteKey,
+    hCaptchaSiteKey,
     capApiEndpoint,
     captchaToken,
     setCaptchaToken,
@@ -134,6 +137,16 @@ export function ForgotPasswordForm({
         {isTurnstileEnabled && (
           <div className='mt-2'>
             <Turnstile siteKey={turnstileSiteKey} onVerify={setCaptchaToken} />
+          </div>
+        )}
+        {isHCaptchaEnabled && (
+          <div className='mt-2'>
+            <HCaptcha
+              siteKey={hCaptchaSiteKey}
+              onVerify={setCaptchaToken}
+              onExpire={() => setCaptchaToken('')}
+              onError={() => setCaptchaToken('')}
+            />
           </div>
         )}
         {isCapEnabled && (

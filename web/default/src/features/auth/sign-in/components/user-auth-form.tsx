@@ -27,6 +27,7 @@ import type { z } from 'zod'
 
 import { Cap } from '@/components/cap'
 import { Dialog } from '@/components/dialog'
+import { HCaptcha } from '@/components/hcaptcha'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
@@ -82,8 +83,10 @@ export function UserAuthForm({
       true) !== false
   const {
     isTurnstileEnabled,
+    isHCaptchaEnabled,
     isCapEnabled,
     turnstileSiteKey,
+    hCaptchaSiteKey,
     capApiEndpoint,
     captchaToken,
     setCaptchaToken,
@@ -146,12 +149,20 @@ export function UserAuthForm({
 
     setIsLoading(true)
     try {
+      let captchaPayload: {
+        turnstile?: string
+        hcaptcha?: string
+        cap_token?: string
+      } = { turnstile: captchaToken }
+      if (isCapEnabled) {
+        captchaPayload = { cap_token: captchaToken }
+      } else if (isHCaptchaEnabled) {
+        captchaPayload = { hcaptcha: captchaToken }
+      }
       const res = await login({
         username: data.username,
         password: data.password,
-        ...(isCapEnabled
-          ? { cap_token: captchaToken }
-          : { turnstile: captchaToken }),
+        ...captchaPayload,
       })
 
       if (res.success) {
@@ -373,6 +384,16 @@ export function UserAuthForm({
                 <Turnstile
                   siteKey={turnstileSiteKey}
                   onVerify={setCaptchaToken}
+                />
+              </div>
+            )}
+            {isHCaptchaEnabled && (
+              <div className='mt-2'>
+                <HCaptcha
+                  siteKey={hCaptchaSiteKey}
+                  onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken('')}
+                  onError={() => setCaptchaToken('')}
                 />
               </div>
             )}

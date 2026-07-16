@@ -52,10 +52,13 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const botProtectionSchema = z
   .object({
-    CaptchaType: z.enum(['turnstile', 'cap']),
+    CaptchaType: z.enum(['turnstile', 'hcaptcha', 'cap']),
     TurnstileCheckEnabled: z.boolean(),
     TurnstileSiteKey: z.string().optional(),
     TurnstileSecretKey: z.string().optional(),
+    HCaptchaEnabled: z.boolean(),
+    HCaptchaSiteKey: z.string().optional(),
+    HCaptchaSecretKey: z.string().optional(),
     CapEnabled: z.boolean(),
     CapServerURL: z.string().optional(),
     CapAdminAPIKey: z.string().optional(),
@@ -106,6 +109,23 @@ const botProtectionSchema = z
       }
     }
 
+    if (values.CaptchaType === 'hcaptcha' && values.HCaptchaEnabled) {
+      if (!values.HCaptchaSiteKey?.trim()) {
+        context.addIssue({
+          code: 'custom',
+          path: ['HCaptchaSiteKey'],
+          message: 'hCaptcha site key is required',
+        })
+      }
+      if (!values.HCaptchaSecretKey?.trim()) {
+        context.addIssue({
+          code: 'custom',
+          path: ['HCaptchaSecretKey'],
+          message: 'hCaptcha secret key is required',
+        })
+      }
+    }
+
     if (values.ForceCheckinCaptcha) {
       if (values.CaptchaType === 'cap') {
         if (!values.CapEnabled) {
@@ -127,6 +147,28 @@ const botProtectionSchema = z
             code: 'custom',
             path: ['CapCheckinSecretKey'],
             message: 'Check-in secret key is required',
+          })
+        }
+      } else if (values.CaptchaType === 'hcaptcha') {
+        if (!values.HCaptchaEnabled) {
+          context.addIssue({
+            code: 'custom',
+            path: ['HCaptchaEnabled'],
+            message: 'Enable hCaptcha before requiring it for check-in',
+          })
+        }
+        if (!values.HCaptchaSiteKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['HCaptchaSiteKey'],
+            message: 'hCaptcha site key is required',
+          })
+        }
+        if (!values.HCaptchaSecretKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['HCaptchaSecretKey'],
+            message: 'hCaptcha secret key is required',
           })
         }
       } else if (!values.TurnstileCheckEnabled) {
@@ -161,6 +203,8 @@ type BotProtectionSectionProps = {
 const SAVE_ORDER: Array<keyof BotProtectionFormValues> = [
   'TurnstileSiteKey',
   'TurnstileSecretKey',
+  'HCaptchaSiteKey',
+  'HCaptchaSecretKey',
   'CapServerURL',
   'CapAdminAPIKey',
   'CapSiteKey',
@@ -170,6 +214,7 @@ const SAVE_ORDER: Array<keyof BotProtectionFormValues> = [
   'LoginCaptchaDifficulty',
   'CheckinCaptchaDifficulty',
   'TurnstileCheckEnabled',
+  'HCaptchaEnabled',
   'CapEnabled',
   'CaptchaType',
   'ForceCheckinCaptcha',
@@ -190,7 +235,9 @@ function SensitiveInput({
       {...props}
       value={isConfigured ? '' : props.value}
       placeholder={
-        isConfigured ? t('Already configured — enter a new value to change') : placeholder
+        isConfigured
+          ? t('Already configured — enter a new value to change')
+          : placeholder
       }
     />
   )
@@ -242,6 +289,7 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
                       Cloudflare Turnstile
                     </SelectItem>
                     <SelectItem value='cap'>Cap (PoW)</SelectItem>
+                    <SelectItem value='hcaptcha'>hCaptcha</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormDescription>
@@ -306,6 +354,67 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
                       <SensitiveInput
                         type='password'
                         placeholder={t('Your Turnstile secret key')}
+                        autoComplete='new-password'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <div className='space-y-5 border-t pt-5'>
+            <h3 className='text-sm font-semibold'>hCaptcha</h3>
+            <FormField
+              control={form.control}
+              name='HCaptchaEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Enable hCaptcha')}</FormLabel>
+                    <FormDescription>
+                      {t('Protect login and registration with hCaptcha')}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+            <div className='grid gap-4 md:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='HCaptchaSiteKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Site Key')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('Your hCaptcha site key')}
+                        autoComplete='off'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='HCaptchaSecretKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Secret Key')}</FormLabel>
+                    <FormControl>
+                      <SensitiveInput
+                        type='password'
+                        placeholder={t('Your hCaptcha secret key')}
                         autoComplete='new-password'
                         {...field}
                       />

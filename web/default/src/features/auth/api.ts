@@ -37,9 +37,12 @@ import type {
 
 // User login with username and password
 export async function login(payload: LoginPayload) {
-  const params = payload.cap_token
-    ? { cap_token: payload.cap_token }
-    : { turnstile: payload.turnstile ?? '' }
+  let params: Record<string, string> = { turnstile: payload.turnstile ?? '' }
+  if (payload.cap_token) {
+    params = { cap_token: payload.cap_token }
+  } else if (payload.hcaptcha) {
+    params = { hcaptcha: payload.hcaptcha }
+  }
   const res = await api.post<LoginResponse>(
     '/api/user/login',
     { username: payload.username, password: payload.password },
@@ -107,10 +110,20 @@ export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  const captchaParams = payload.cap_token
-    ? { cap_token: payload.cap_token }
-    : { turnstile: payload.turnstile ?? '' }
-  const { cap_token: _capToken, turnstile: _turnstile, ...body } = payload
+  let captchaParams: Record<string, string> = {
+    turnstile: payload.turnstile ?? '',
+  }
+  if (payload.cap_token) {
+    captchaParams = { cap_token: payload.cap_token }
+  } else if (payload.hcaptcha) {
+    captchaParams = { hcaptcha: payload.hcaptcha }
+  }
+  const {
+    cap_token: _capToken,
+    hcaptcha: _hcaptcha,
+    turnstile: _turnstile,
+    ...body
+  } = payload
   const res = await api.post(`/api/user/register`, body, {
     params: captchaParams,
   })

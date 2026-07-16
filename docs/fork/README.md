@@ -32,9 +32,13 @@ upstream conflict resolution auditable.
 - SQLite, MySQL, and PostgreSQL behavior is unchanged.
 - The default captcha provider remains Turnstile, so existing deployments keep
   their previous behavior until Cap is explicitly configured and selected.
+- hCaptcha is available as an additive provider and is disabled by default.
+- Check-in balance gating is disabled when `checkin_setting.min_user_quota` is
+  `0`; when set, the user balance must be strictly greater than the configured
+  NewAPI quota value.
 - No files under `web/classic` are modified.
 
-## Cap captcha integration
+## Cap and hCaptcha integration
 
 Cap uses a self-hosted Cap Standalone instance. Configure two Cap site keys when
 login/registration and check-in use different PoW difficulties. The public
@@ -45,7 +49,9 @@ New options:
 
 | Option | Purpose |
 | --- | --- |
-| `CaptchaType` | Active provider: `turnstile` or `cap` |
+| `CaptchaType` | Active provider: `turnstile`, `hcaptcha`, or `cap` |
+| `HCaptchaEnabled` | Enables hCaptcha |
+| `HCaptchaSiteKey` / `HCaptchaSecretKey` | hCaptcha site verification key pair |
 | `CapEnabled` | Enables Cap |
 | `CapServerURL` | Public Cap Standalone base URL |
 | `CapAdminAPIKey` | Cap API key used to update site-key difficulty |
@@ -54,6 +60,7 @@ New options:
 | `LoginCaptchaDifficulty` | Login/registration difficulty, range 1-8 |
 | `CheckinCaptchaDifficulty` | Check-in difficulty, range 1-8 |
 | `ForceCheckinCaptcha` | Requires a fresh captcha for every check-in |
+| `checkin_setting.min_user_quota` | Optional strict minimum user balance for check-in; `0` disables the gate |
 
 Difficulty is not sent as a browser-controlled widget attribute. When a Cap
 setting changes, the backend updates Cap Standalone through
@@ -61,13 +68,20 @@ setting changes, the backend updates Cap Standalone through
 flows must use different Cap site keys.
 
 `GetOptions` returns `"***"` for sensitive fields (`CapSecretKey`,
-`CapAdminAPIKey`, `CapCheckinSecretKey`, `TurnstileSecretKey`) that are already
+`CapAdminAPIKey`, `CapCheckinSecretKey`, `HCaptchaSecretKey`,
+`TurnstileSecretKey`) that are already
 set, rather than omitting them. This lets the settings form distinguish
 "already configured" from "never set" so it can skip the required-field
 validation and avoid blocking saves when only a boolean toggle like `CapEnabled`
 changes. The frontend renders these fields empty with an explanatory placeholder
 via a local `SensitiveInput` wrapper; `UpdateOption` rejects the `"***"`
 sentinel if it somehow arrives, preventing accidental overwrites.
+
+hCaptcha uses the official browser SDK at
+`https://js.hcaptcha.com/1/api.js?render=explicit` and server-side verification
+at `https://api.hcaptcha.com/siteverify`. The browser sends the verification
+token as the `hcaptcha` query parameter; the backend also accepts hCaptcha's
+standard `h-captcha-response` name for compatibility.
 
 The widget dependency is loaded from the pinned CDN release
 `cap-widget@0.1.50`; review and update that version deliberately during
@@ -81,12 +95,15 @@ Files:
 - `controller/option.go`
 - `middleware/cap-check.go`
 - `middleware/cap-check_test.go`
+- `middleware/hcaptcha-check.go`
+- `middleware/hcaptcha-check_test.go`
 - `middleware/captcha-check.go`
 - `middleware/turnstile-check.go`
 - `router/api-router.go`
 - `service/cap.go`
 - `service/cap_test.go`
 - `web/default/src/components/cap.tsx`
+- `web/default/src/components/hcaptcha.tsx`
 - `web/default/src/features/auth/api.ts`
 - `web/default/src/features/auth/types.ts`
 - `web/default/src/features/auth/hooks/use-captcha.ts`
@@ -102,6 +119,19 @@ Files:
 - `web/default/src/features/system-settings/auth/section-registry.tsx`
 - `web/default/src/features/system-settings/hooks/use-update-option.ts`
 - `web/default/src/features/system-settings/types.ts`
+
+Check-in balance gating is implemented in:
+
+- `setting/operation_setting/checkin_setting.go`
+- `controller/checkin.go`
+- `controller/checkin_test.go`
+- `controller/misc.go`
+- `web/default/src/features/profile/index.tsx`
+- `web/default/src/features/profile/types.ts`
+- `web/default/src/features/system-settings/general/checkin-settings-section.tsx`
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/hooks/use-update-option.ts`
 
 ## Payment announcement
 
@@ -842,23 +872,25 @@ option is disabled; at more than 5,000 characters the Playground selects
 5. Run `go test ./common ./model ./middleware ./service ./controller ./router`.
 6. From `web/default`, run `bun run i18n:sync`, `bun run typecheck`, targeted
    lint for changed files, and `bun run build`.
-7. Test Turnstile and Cap separately, including token reuse rejection and a
-   forced check-in after an earlier login captcha.
-8. Test wallet Markdown, internal/absolute custom-tab URLs with both open modes,
+7. Test Turnstile, hCaptcha, and Cap separately, including token reuse
+   rejection and a forced check-in after an earlier login captcha.
+8. Test `checkin_setting.min_user_quota` with balances equal to and greater
+   than the threshold; the equal case must remain rejected.
+9. Test wallet Markdown, internal/absolute custom-tab URLs with both open modes,
    vendor CRUD, and Model Square pricing with and without a selected group.
-9. Test Playground history editing with an IME and verify file, image, camera,
+10. Test Playground history editing with an IME and verify file, image, camera,
    screen-capture, and attachment-only submissions.
-10. Verify that only usage-log rows retain the fixed height and that user search
+11. Verify that only usage-log rows retain the fixed height and that user search
     commits after the debounce without delaying visible typing.
-11. Test notice popup behavior on `/` and `/dashboard/overview`, including X
+12. Test notice popup behavior on `/` and `/dashboard/overview`, including X
     dismissal, **Close Today** persistence, empty notices, and both option
     combinations.
-12. If upstream changes stream event parsing, re-audit TTFT so lifecycle events
+13. If upstream changes stream event parsing, re-audit TTFT so lifecycle events
     are not accidentally treated as model tokens without an explicit metric
     decision.
-13. On the API key page, verify the Terminal action remains visible beside copy,
+14. On the API key page, verify the Terminal action remains visible beside copy,
     each tool config uses the selected key/group/model, and all copy actions
     include the full resolved key and normalized site URL.
-14. In group pricing, verify model selectors are not clipped by the table,
+15. In group pricing, verify model selectors are not clipped by the table,
     request only group-available models, and the optional auto-group description
     is returned only when automatic grouping is usable.

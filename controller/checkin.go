@@ -35,10 +35,11 @@ func GetCheckinStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"enabled":   setting.Enabled,
-			"min_quota": setting.MinQuota,
-			"max_quota": setting.MaxQuota,
-			"stats":     stats,
+			"enabled":        setting.Enabled,
+			"min_quota":      setting.MinQuota,
+			"max_quota":      setting.MaxQuota,
+			"min_user_quota": setting.MinUserQuota,
+			"stats":          stats,
 		},
 	})
 }
@@ -52,6 +53,17 @@ func DoCheckin(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+	if setting.MinUserQuota > 0 {
+		userQuota, err := model.GetUserQuota(userId, true)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if userQuota <= setting.MinUserQuota {
+			common.ApiErrorMsg(c, fmt.Sprintf("用户余额必须大于 %d 才能签到", setting.MinUserQuota))
+			return
+		}
+	}
 
 	checkin, err := model.UserCheckin(userId)
 	if err != nil {

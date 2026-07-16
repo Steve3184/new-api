@@ -40,6 +40,11 @@ export function Profile() {
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
 
   const checkinEnabled = status?.checkin_enabled === true
+  const minCheckinQuota = status?.checkin_min_user_quota ?? 0
+  const canCheckin =
+    checkinEnabled &&
+    profile !== null &&
+    (minCheckinQuota <= 0 || profile.quota > minCheckinQuota)
   const canConfigureSidebar = permissions?.sidebar_settings !== false
 
   return (
@@ -66,7 +71,7 @@ export function Profile() {
               </div>
 
               <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
-                {checkinEnabled && (
+                {canCheckin && (
                   <CheckinCalendarCard checkinEnabled={checkinEnabled} />
                 )}
                 {canConfigureSidebar && <SidebarModulesCard />}

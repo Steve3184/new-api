@@ -8,13 +8,15 @@ import (
 )
 
 // CaptchaCheck routes to the appropriate captcha middleware depending on
-// the operator's configured CaptchaType ("turnstile" or "cap").
+// the operator's configured CaptchaType.
 // For the check-in route, call CaptchaCheckCheckin instead.
 func CaptchaCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		switch common.CaptchaType {
 		case "cap":
 			CapCheck()(c)
+		case "hcaptcha":
+			HCaptchaCheck()(c)
 		default:
 			// "turnstile" or any unrecognised value falls back to Turnstile
 			TurnstileCheck()(c)
@@ -38,6 +40,13 @@ func CaptchaCheckCheckin() gin.HandlerFunc {
 				return
 			}
 			CapCheckCheckin()(c)
+		case "hcaptcha":
+			if !common.HCaptchaEnabled {
+				c.JSON(http.StatusOK, gin.H{"success": false, "message": "hCaptcha is not enabled"})
+				c.Abort()
+				return
+			}
+			HCaptchaCheckFresh()(c)
 		default:
 			if !common.TurnstileCheckEnabled {
 				c.JSON(http.StatusOK, gin.H{"success": false, "message": "Turnstile is not enabled"})

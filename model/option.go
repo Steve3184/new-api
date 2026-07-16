@@ -45,6 +45,9 @@ func InitOptionMap() {
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
+	common.OptionMap["HCaptchaEnabled"] = strconv.FormatBool(common.HCaptchaEnabled)
+	common.OptionMap["HCaptchaSiteKey"] = common.HCaptchaSiteKey
+	common.OptionMap["HCaptchaSecretKey"] = common.HCaptchaSecretKey
 	common.OptionMap["CapEnabled"] = strconv.FormatBool(common.CapEnabled)
 	common.OptionMap["CapServerURL"] = common.CapServerURL
 	common.OptionMap["CapAdminAPIKey"] = common.CapAdminAPIKey
@@ -315,6 +318,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TelegramOAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
 			common.TurnstileCheckEnabled = boolValue
+		case "HCaptchaEnabled":
+			common.HCaptchaEnabled = boolValue
 		case "CapEnabled":
 			common.CapEnabled = boolValue
 		case "ForceCheckinCaptcha":
@@ -529,6 +534,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
+	case "HCaptchaSiteKey":
+		common.HCaptchaSiteKey = value
+	case "HCaptchaSecretKey":
+		common.HCaptchaSecretKey = value
 	case "CapSiteKey":
 		common.CapSiteKey = value
 	case "CapSecretKey":

@@ -31,6 +31,7 @@ import { toast } from 'sonner'
 
 import { Cap } from '@/components/cap'
 import { Dialog } from '@/components/dialog'
+import { HCaptcha } from '@/components/hcaptcha'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -71,8 +72,10 @@ export function CheckinCalendarCard({
   const {
     isCaptchaEnabled,
     isTurnstileEnabled,
+    isHCaptchaEnabled,
     isCapEnabled,
     turnstileSiteKey,
+    hCaptchaSiteKey,
     capApiEndpoint,
     setCaptchaToken,
     tokenQueryParam,
@@ -177,6 +180,10 @@ export function CheckinCalendarCard({
       toast.error(t('Captcha is enabled but site key is empty.'))
       return
     }
+    if (isHCaptchaEnabled && !hCaptchaSiteKey) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
     if (isCapEnabled && !capApiEndpoint) {
       toast.error(t('Captcha is enabled but site key is empty.'))
       return
@@ -187,7 +194,9 @@ export function CheckinCalendarCard({
     doCheckin,
     isCapEnabled,
     isCaptchaEnabled,
+    isHCaptchaEnabled,
     isTurnstileEnabled,
+    hCaptchaSiteKey,
     t,
     turnstileSiteKey,
   ])
@@ -298,6 +307,23 @@ export function CheckinCalendarCard({
               }}
               onExpire={() => {
                 setCaptchaWidgetKey((v) => v + 1)
+              }}
+            />
+          )}
+          {isHCaptchaEnabled && (
+            <HCaptcha
+              key={captchaWidgetKey}
+              siteKey={hCaptchaSiteKey}
+              onVerify={(token) => {
+                doCheckin(token)
+              }}
+              onExpire={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+                setCaptchaToken('')
+              }}
+              onError={() => {
+                setCaptchaWidgetKey((v) => v + 1)
+                setCaptchaToken('')
               }}
             />
           )}

@@ -159,7 +159,10 @@ export type AuthSettings = {
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
-  CaptchaType: 'turnstile' | 'cap'
+  CaptchaType: 'turnstile' | 'hcaptcha' | 'cap'
+  HCaptchaEnabled: boolean
+  HCaptchaSiteKey: string
+  HCaptchaSecretKey: string
   CapEnabled: boolean
   CapServerURL: string
   CapAdminAPIKey: string
@@ -347,6 +350,7 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'checkin_setting.min_user_quota': number
   PaymentAnnouncement: string
 }
 

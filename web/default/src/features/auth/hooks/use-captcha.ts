@@ -27,7 +27,12 @@ type CaptchaPurpose = 'auth' | 'checkin'
 export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
   const { status } = useStatus()
   const [captchaToken, setCaptchaToken] = useState('')
-  const captchaType = status?.captcha_type === 'cap' ? 'cap' : 'turnstile'
+  let captchaType: 'turnstile' | 'hcaptcha' | 'cap' = 'turnstile'
+  if (status?.captcha_type === 'cap') {
+    captchaType = 'cap'
+  } else if (status?.captcha_type === 'hcaptcha') {
+    captchaType = 'hcaptcha'
+  }
   const isRequired =
     purpose === 'auth' || Boolean(status?.force_checkin_captcha)
 
@@ -38,6 +43,13 @@ export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
     status?.turnstile_site_key
   )
 
+  const isHCaptchaEnabled = Boolean(
+    isRequired &&
+    captchaType === 'hcaptcha' &&
+    status?.hcaptcha_check &&
+    status?.hcaptcha_site_key
+  )
+
   const capApiEndpoint =
     purpose === 'checkin'
       ? status?.cap_checkin_api_endpoint || ''
@@ -45,7 +57,15 @@ export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
   const isCapEnabled = Boolean(
     isRequired && captchaType === 'cap' && status?.cap_enabled && capApiEndpoint
   )
-  const isCaptchaEnabled = isTurnstileEnabled || isCapEnabled
+  const isCaptchaEnabled =
+    isTurnstileEnabled || isHCaptchaEnabled || isCapEnabled
+
+  let tokenQueryParam = 'turnstile'
+  if (isCapEnabled) {
+    tokenQueryParam = 'cap_token'
+  } else if (isHCaptchaEnabled) {
+    tokenQueryParam = 'hcaptcha'
+  }
 
   const validateCaptcha = (): boolean => {
     if (isCaptchaEnabled && !captchaToken) {
@@ -61,12 +81,14 @@ export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
     captchaType,
     isCaptchaEnabled,
     isTurnstileEnabled,
+    isHCaptchaEnabled,
     isCapEnabled,
     turnstileSiteKey: status?.turnstile_site_key || '',
+    hCaptchaSiteKey: status?.hcaptcha_site_key || '',
     capApiEndpoint,
     captchaToken,
     setCaptchaToken,
     validateCaptcha,
-    tokenQueryParam: isCapEnabled ? 'cap_token' : 'turnstile',
+    tokenQueryParam,
   }
 }

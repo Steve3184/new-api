@@ -73,6 +73,8 @@ func GetStatus(c *gin.Context) {
 		"server_address":              system_setting.ServerAddress,
 		"turnstile_check":             common.TurnstileCheckEnabled,
 		"turnstile_site_key":          common.TurnstileSiteKey,
+		"hcaptcha_check":              common.HCaptchaEnabled,
+		"hcaptcha_site_key":           common.HCaptchaSiteKey,
 		"cap_enabled":                 common.CapEnabled,
 		"cap_api_endpoint":            buildCapEndpoint(common.CapServerURL, common.CapSiteKey),
 		"cap_checkin_api_endpoint":    buildCapEndpoint(common.CapServerURL, common.CapCheckinSiteKey),
@@ -134,6 +136,7 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"checkin_min_user_quota":      operation_setting.GetCheckinSetting().MinUserQuota,
 	}
 
 	// 根据启用状态注入可选内容

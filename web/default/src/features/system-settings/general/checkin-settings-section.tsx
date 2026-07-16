@@ -47,6 +47,7 @@ const schema = z.object({
   enabled: z.boolean(),
   minQuota: z.coerce.number().int().min(0),
   maxQuota: z.coerce.number().int().min(0),
+  minUserQuota: z.coerce.number().int().min(0),
 })
 
 type Values = z.infer<typeof schema>
@@ -58,6 +59,7 @@ export function CheckinSettingsSection({
     enabled: boolean
     minQuota: number
     maxQuota: number
+    minUserQuota: number
   }
 }) {
   const { t } = useTranslation()
@@ -69,6 +71,7 @@ export function CheckinSettingsSection({
       enabled: defaultValues.enabled,
       minQuota: defaultValues.minQuota,
       maxQuota: defaultValues.maxQuota,
+      minUserQuota: defaultValues.minUserQuota,
     },
   })
 
@@ -96,6 +99,13 @@ export function CheckinSettingsSection({
       updates.push({
         key: 'checkin_setting.max_quota',
         value: String(values.maxQuota),
+      })
+    }
+
+    if (values.minUserQuota !== defaultValues.minUserQuota) {
+      updates.push({
+        key: 'checkin_setting.min_user_quota',
+        value: String(values.minUserQuota),
       })
     }
 
@@ -146,7 +156,7 @@ export function CheckinSettingsSection({
           />
 
           {enabled && (
-            <div className='grid gap-6 sm:grid-cols-2'>
+            <div className='grid gap-6 md:grid-cols-3'>
               <FormField
                 control={form.control}
                 name='minQuota'
@@ -185,6 +195,27 @@ export function CheckinSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Maximum quota amount awarded for check-in')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='minUserQuota'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Check-in balance threshold (quota)')}
+                    </FormLabel>
+                    <FormControl>
+                      <Input type='number' min={0} placeholder='0' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Set to 0 to disable. Eligible users must have a balance greater than this quota value.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

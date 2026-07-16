@@ -216,8 +216,14 @@ func UpdateOption(c *gin.Context) {
 	}
 	switch option.Key {
 	case "CaptchaType":
-		if option.Value != "turnstile" && option.Value != "cap" {
-			common.ApiErrorMsg(c, "CaptchaType must be turnstile or cap")
+		if option.Value != "turnstile" && option.Value != "hcaptcha" && option.Value != "cap" {
+			common.ApiErrorMsg(c, "CaptchaType must be turnstile, hcaptcha, or cap")
+			return
+		}
+	case "checkin_setting.min_user_quota":
+		quota, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || quota < 0 {
+			common.ApiErrorMsg(c, "Check-in minimum user quota must be a non-negative integer")
 			return
 		}
 	case "CapServerURL":
@@ -336,6 +342,11 @@ func UpdateOption(c *gin.Context) {
 
 			return
 		}
+	case "HCaptchaEnabled":
+		if option.Value == "true" && (common.HCaptchaSiteKey == "" || common.HCaptchaSecretKey == "") {
+			common.ApiErrorMsg(c, "Configure the hCaptcha site key and secret before enabling hCaptcha")
+			return
+		}
 	case "CapEnabled":
 		if option.Value == "true" && (common.CapServerURL == "" || common.CapSiteKey == "" || common.CapSecretKey == "" || common.CapAdminAPIKey == "") {
 			common.ApiErrorMsg(c, "Configure the Cap server, API key, login site key, and secret before enabling Cap")
@@ -347,7 +358,11 @@ func UpdateOption(c *gin.Context) {
 				common.ApiErrorMsg(c, "Configure and enable the Cap check-in site key before forcing check-in captcha")
 				return
 			}
-			if common.CaptchaType != "cap" && !common.TurnstileCheckEnabled {
+			if common.CaptchaType == "hcaptcha" && (!common.HCaptchaEnabled || common.HCaptchaSiteKey == "" || common.HCaptchaSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable hCaptcha before forcing check-in captcha")
+				return
+			}
+			if common.CaptchaType == "turnstile" && !common.TurnstileCheckEnabled {
 				common.ApiErrorMsg(c, "Enable Turnstile before forcing check-in captcha")
 				return
 			}

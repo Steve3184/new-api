@@ -221,6 +221,8 @@ export interface CheckinStats {
 export interface CheckinStatusResponse {
   /** Whether check-in feature is enabled */
   enabled: boolean
+  /** Minimum user quota required for check-in; zero disables the gate */
+  min_user_quota: number
   /** Check-in statistics */
   stats: CheckinStats
 }
