@@ -74,6 +74,7 @@ type GroupFormValues = {
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
   GroupDefaultModel: string
+  GroupRetryTimes: string
 }
 
 type GroupRatioFormProps = {
@@ -109,6 +110,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const watchedUserUsableGroups = form.watch('UserUsableGroups')
   const watchedTopupGroupRatio = form.watch('TopupGroupRatio')
   const watchedDefaultModels = form.watch('GroupDefaultModel')
+  const watchedGroupRetryTimes = form.watch('GroupRetryTimes')
   const watchedAutoGroups = form.watch('AutoGroups')
   const hasAutoGroups = useMemo(
     () =>
@@ -135,17 +137,23 @@ export const GroupRatioForm = memo(function GroupRatioForm({
       watchedDefaultModels,
       { fallback: {}, silent: true }
     )
+    const retryTimesMap = safeJsonParse<Record<string, number>>(
+      watchedGroupRetryTimes,
+      { fallback: {}, silent: true }
+    )
     return [
       ...new Set([
         ...Object.keys(ratioMap),
         ...Object.keys(usableMap),
         ...Object.keys(topupMap),
         ...Object.keys(defaultModelMap),
+        ...Object.keys(retryTimesMap),
       ]),
     ].sort()
   }, [
     watchedDefaultModels,
     watchedGroupRatio,
+    watchedGroupRetryTimes,
     watchedTopupGroupRatio,
     watchedUserUsableGroups,
   ])
@@ -194,6 +202,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
               groupSpecialUsableGroup={form.watch('GroupSpecialUsableGroup')}
+              groupRetryTimes={form.watch('GroupRetryTimes')}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
               }
@@ -276,6 +285,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON map of group → ratio applied when the user selects the group explicitly.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupRetryTimes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group retry times')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={6} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Optional JSON map of group to retry count (0-10). Omitted groups inherit the global retry setting.'
                     )}
                   </FormDescription>
                   <FormMessage />

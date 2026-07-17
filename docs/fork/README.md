@@ -38,6 +38,46 @@ upstream conflict resolution auditable.
   NewAPI quota value.
 - No files under `web/classic` are modified.
 
+## Per-group retry and channel recovery controls
+
+`GroupRetryTimes` is an additive JSON option that overrides the global
+`RetryTimes` value for individual groups. Values are integers from `0` through
+`10`; an omitted group inherits the global setting, while an explicit `0`
+disables retries for that group. The override is applied to synchronous relays,
+asynchronous task submissions, channel-priority fallback, and each concrete
+group selected by an `auto` token. The default frontend exposes the override in
+the group-pricing table and in its JSON editor.
+
+The scheduled channel-test mode `passive_recovery` only selects channels whose
+status is `ChannelStatusAutoDisabled`. Manually disabled and currently enabled
+channels are excluded, and failures during this mode cannot disable additional
+channels. Successful probes re-enable an auto-disabled channel only when the
+global automatic-enable option is active.
+
+Each channel already has an **Auto Ban** switch in the advanced settings. Setting
+`auto_ban` to `0` prevents automatic disabling from both real relay failures and
+scheduled full-test failures; manual channel state changes remain available.
+
+Files:
+
+- `setting/ratio_setting/group_retry.go`
+- `setting/ratio_setting/group_retry_test.go`
+- `model/option.go`
+- `controller/option.go`
+- `controller/relay.go`
+- `controller/relay_retry_test.go`
+- `service/channel_select.go`
+- `controller/channel-test.go`
+- `controller/channel_test_internal_test.go`
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/models/group-ratio-form.tsx`
+- `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+- `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/features/channels/components/drawers/channel-mutate-drawer.tsx`
+- `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
 ## Cap and hCaptcha integration
 
 Cap uses a self-hosted Cap Standalone instance. Configure two Cap site keys when
@@ -894,3 +934,9 @@ option is disabled; at more than 5,000 characters the Playground selects
 15. In group pricing, verify model selectors are not clipped by the table,
     request only group-available models, and the optional auto-group description
     is returned only when automatic grouping is usable.
+16. Verify a group with `GroupRetryTimes: 0` does not retry, omitted groups use
+    global `RetryTimes`, and auto-group routing applies the override of the
+    concrete selected group.
+17. Verify passive recovery probes only auto-disabled channels and that turning
+    off a channel's **Auto Ban** switch prevents both relay-triggered and
+    scheduled-test automatic disabling.

@@ -134,6 +134,21 @@ const createGroupSchema = (t: Translate) =>
     DefaultUseAutoGroup: z.boolean(),
     GroupSpecialUsableGroup: createJsonStringField(t),
     GroupDefaultModel: createJsonStringField(t),
+    GroupRetryTimes: createJsonStringField(t, {
+      predicate: (parsed) =>
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed) &&
+        Object.entries(parsed).every(
+          ([group, value]) =>
+            group.trim() !== '' &&
+            typeof value === 'number' &&
+            Number.isInteger(value) &&
+            value >= 0 &&
+            value <= 10
+        ),
+      predicateMessage: 'Expected retry counts from 0 to 10 by group',
+    }),
   })
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
@@ -212,6 +227,7 @@ export function RatioSettingsCard({
       groupDefaults.GroupSpecialUsableGroup
     ),
     GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
+    GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
   })
   const modelSchema = useMemo(() => createModelSchema(t), [t])
   const groupSchema = useMemo(() => createGroupSchema(t), [t])
@@ -251,6 +267,7 @@ export function RatioSettingsCard({
         groupDefaults.GroupSpecialUsableGroup
       ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
+      GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
     },
   })
 
@@ -302,6 +319,7 @@ export function RatioSettingsCard({
         groupDefaults.GroupSpecialUsableGroup
       ),
       GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
+      GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
     }
 
     groupForm.reset({
@@ -316,6 +334,7 @@ export function RatioSettingsCard({
         groupDefaults.GroupSpecialUsableGroup
       ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
+      GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
     })
   }, [groupDefaults, groupForm])
 
@@ -376,6 +395,7 @@ export function RatioSettingsCard({
           values.GroupSpecialUsableGroup
         ),
         GroupDefaultModel: normalizeJsonString(values.GroupDefaultModel),
+        GroupRetryTimes: normalizeJsonString(values.GroupRetryTimes),
       }
 
       // Map form field names to API keys (most are 1:1, except GroupSpecialUsableGroup)

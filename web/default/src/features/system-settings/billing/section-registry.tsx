@@ -51,6 +51,7 @@ const getGroupDefaults = (settings: BillingSettings) => ({
   GroupSpecialUsableGroup:
     settings['group_ratio_setting.group_special_usable_group'],
   GroupDefaultModel: settings.GroupDefaultModel,
+  GroupRetryTimes: settings.GroupRetryTimes,
 })
 
 const BILLING_SECTIONS = [
