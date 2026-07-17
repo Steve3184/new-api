@@ -1613,6 +1613,7 @@
     "Enable asynchronous 3D generation in Playground.": "在 Playground 中启用异步 3D 生成。",
     "Enable Cap": "启用 Cap",
     "Enable Cap before requiring it for check-in": "强制签到验证前请先启用 Cap",
+    "Enable Cap before requiring it for redemption": "启用 Cap 后才能要求兑换时验证",
     "Enable check-in feature": "启用签到功能",
     "Enable conversational chat in Playground.": "在 Playground 中启用对话聊天。",
     "Enable Data Dashboard": "启用数据仪表板",
@@ -1625,6 +1626,7 @@
     "Enable GitHub OAuth": "启用 GitHub OAuth",
     "Enable Groups": "启用分组",
     "Enable hCaptcha": "启用 hCaptcha",
+    "Enable hCaptcha before requiring it for redemption": "启用 hCaptcha 后才能要求兑换时验证",
     "Enable if this is an OpenRouter enterprise account with special response format": "如果这是具有特殊响应格式的 OpenRouter 企业账户，则启用",
     "Enable image generation and editing in Playground.": "在 Playground 中启用图片生成与编辑。",
     "Enable io.net deployments": "启用 io.net 部署",
@@ -1651,6 +1653,7 @@
     "Enable this key?": "启用此密钥？",
     "Enable Turnstile": "启用 Turnstile",
     "Enable Turnstile before requiring it for check-in": "强制签到验证前请先启用 Turnstile",
+    "Enable Turnstile before requiring it for redemption": "启用 Turnstile 后才能要求兑换时验证",
     "Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.": "在您的个人资料中启用双重身份验证或 Passkey 以解锁敏感操作。",
     "Enable unlimited quota for this API key": "为此 API 密钥启用无限配额",
     "Enable violation deduction": "启用违规扣费",
@@ -3895,7 +3898,9 @@
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "请求将被转发到此 Worker。末尾的斜杠会自动移除。",
     "Requests:": "请求：",
     "Require a new human verification every time a user checks in.": "每次签到都要求重新进行人机验证。",
+    "Require a new human verification every time a user redeems a code.": "用户每次兑换兑换码时都要求重新进行人机验证。",
     "Require captcha for check-in": "签到时强制进行人机验证",
+    "Require captcha for redemption": "兑换码兑换时强制人机验证",
     "Require email verification for new accounts": "要求新账户验证邮箱",
     "Require job success before follow-up actions": "在后续操作前要求任务成功",
     "Require login to view models": "要求登录才能查看模型",
@@ -5335,6 +5340,8 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Turnstile site key is required": "Turnstile 站点密钥为必填项",
+    "Turnstile secret key is required": "Turnstile 密钥为必填项"
   }
 }

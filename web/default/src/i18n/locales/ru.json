@@ -1613,6 +1613,7 @@
     "Enable asynchronous 3D generation in Playground.": "Включить асинхронную 3D-генерацию в Playground.",
     "Enable Cap": "Включить Cap",
     "Enable Cap before requiring it for check-in": "Включите Cap перед обязательной проверкой при отметке",
+    "Enable Cap before requiring it for redemption": "Включите Cap, прежде чем требовать его при активации кода",
     "Enable check-in feature": "Включить функцию прибытия",
     "Enable conversational chat in Playground.": "Включить чат в Playground.",
     "Enable Data Dashboard": "Включить панель данных",
@@ -1625,6 +1626,7 @@
     "Enable GitHub OAuth": "Включить GitHub OAuth",
     "Enable Groups": "Включить группы",
     "Enable hCaptcha": "Включить hCaptcha",
+    "Enable hCaptcha before requiring it for redemption": "Включите hCaptcha, прежде чем требовать её при активации кода",
     "Enable if this is an OpenRouter enterprise account with special response format": "Включите, если это корпоративный аккаунт OpenRouter со специальным форматом ответа",
     "Enable image generation and editing in Playground.": "Включить создание и редактирование изображений в Playground.",
     "Enable io.net deployments": "Включить развертывания io.net",
@@ -1651,6 +1653,7 @@
     "Enable this key?": "Включить этот ключ?",
     "Enable Turnstile": "Включить Turnstile",
     "Enable Turnstile before requiring it for check-in": "Включите Turnstile перед обязательной проверкой при отметке",
+    "Enable Turnstile before requiring it for redemption": "Включите Turnstile, прежде чем требовать его при активации кода",
     "Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.": "Включите двухфакторную аутентификацию или Passkey в своем профиле, чтобы разблокировать конфиденциальные операции.",
     "Enable unlimited quota for this API key": "Включить неограниченную квоту для этого ключа API",
     "Enable violation deduction": "Включить вычет за нарушения",
@@ -3895,7 +3898,9 @@
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "Запросы будут перенаправлены этому воркеру. Конечные слеши удаляются автоматически.",
     "Requests:": "Запросы:",
     "Require a new human verification every time a user checks in.": "Требовать новую проверку человека при каждой отметке.",
+    "Require a new human verification every time a user redeems a code.": "Требовать новую проверку при каждой активации кода пользователем.",
     "Require captcha for check-in": "Требовать captcha при отметке",
+    "Require captcha for redemption": "Требовать CAPTCHA при активации кода",
     "Require email verification for new accounts": "Требовать подтверждение электронной почты для новых учетных записей",
     "Require job success before follow-up actions": "Требовать успеха задания перед последующими действиями",
     "Require login to view models": "Требовать вход для просмотра моделей",
@@ -5335,6 +5340,8 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Turnstile site key is required": "Требуется ключ сайта Turnstile",
+    "Turnstile secret key is required": "Требуется секретный ключ Turnstile"
   }
 }

@@ -1613,6 +1613,7 @@
     "Enable asynchronous 3D generation in Playground.": "Bật tạo 3D bất đồng bộ trong Playground.",
     "Enable Cap": "Bật Cap",
     "Enable Cap before requiring it for check-in": "Hãy bật Cap trước khi bắt buộc xác minh khi điểm danh",
+    "Enable Cap before requiring it for redemption": "Bật Cap trước khi yêu cầu xác minh lúc đổi mã",
     "Enable check-in feature": "Bật tính năng điểm danh",
     "Enable conversational chat in Playground.": "Bật chat trong Playground.",
     "Enable Data Dashboard": "Kích hoạt Trang tổng quan Dữ liệu",
@@ -1625,6 +1626,7 @@
     "Enable GitHub OAuth": "Kích hoạt GitHub OAuth",
     "Enable Groups": "Bật Nhóm",
     "Enable hCaptcha": "Bật hCaptcha",
+    "Enable hCaptcha before requiring it for redemption": "Bật hCaptcha trước khi yêu cầu xác minh lúc đổi mã",
     "Enable if this is an OpenRouter enterprise account with special response format": "Bật nếu đây là tài khoản doanh nghiệp OpenRouter với định dạng phản hồi đặc biệt",
     "Enable image generation and editing in Playground.": "Bật tạo và chỉnh sửa ảnh trong Playground.",
     "Enable io.net deployments": "Bật triển khai io.net",
@@ -1651,6 +1653,7 @@
     "Enable this key?": "Kích hoạt khóa này?",
     "Enable Turnstile": "Bật Turnstile",
     "Enable Turnstile before requiring it for check-in": "Hãy bật Turnstile trước khi bắt buộc xác minh khi điểm danh",
+    "Enable Turnstile before requiring it for redemption": "Bật Turnstile trước khi yêu cầu xác minh lúc đổi mã",
     "Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.": "Bật Xác thực hai yếu tố hoặc Passkey trong hồ sơ của bạn để mở khóa các thao tác nhạy cảm.",
     "Enable unlimited quota for this API key": "Kích hoạt hạn mức không giới hạn cho khóa API này",
     "Enable violation deduction": "Bật trừ tiền vi phạm",
@@ -3895,7 +3898,9 @@
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "Các yêu cầu sẽ được chuyển tiếp đến worker này. Dấu gạch chéo ở cuối được tự động loại bỏ.",
     "Requests:": "Yêu cầu:",
     "Require a new human verification every time a user checks in.": "Yêu cầu xác minh người dùng mới mỗi lần điểm danh.",
+    "Require a new human verification every time a user redeems a code.": "Yêu cầu xác minh người dùng mới mỗi khi đổi mã.",
     "Require captcha for check-in": "Bắt buộc captcha khi điểm danh",
+    "Require captcha for redemption": "Yêu cầu CAPTCHA khi đổi mã",
     "Require email verification for new accounts": "Yêu cầu xác minh email cho tài khoản mới",
     "Require job success before follow-up actions": "Yêu cầu công việc thành công trước các hành động tiếp theo",
     "Require login to view models": "Yêu cầu đăng nhập để xem các mô hình",
@@ -5335,6 +5340,8 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Turnstile site key is required": "Bắt buộc có khóa trang Turnstile",
+    "Turnstile secret key is required": "Bắt buộc có khóa bí mật Turnstile"
   }
 }

@@ -22,7 +22,7 @@ import { toast } from 'sonner'
 
 import { useStatus } from '@/hooks/use-status'
 
-type CaptchaPurpose = 'auth' | 'checkin'
+type CaptchaPurpose = 'auth' | 'checkin' | 'redemption'
 
 export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
   const { status } = useStatus()
@@ -33,8 +33,12 @@ export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
   } else if (status?.captcha_type === 'hcaptcha') {
     captchaType = 'hcaptcha'
   }
-  const isRequired =
-    purpose === 'auth' || Boolean(status?.force_checkin_captcha)
+  let isRequired = purpose === 'auth'
+  if (purpose === 'checkin') {
+    isRequired = Boolean(status?.force_checkin_captcha)
+  } else if (purpose === 'redemption') {
+    isRequired = Boolean(status?.force_redemption_captcha)
+  }
 
   const isTurnstileEnabled = Boolean(
     isRequired &&
@@ -79,6 +83,7 @@ export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
 
   return {
     captchaType,
+    isRequired,
     isCaptchaEnabled,
     isTurnstileEnabled,
     isHCaptchaEnabled,

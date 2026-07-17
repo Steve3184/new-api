@@ -74,6 +74,7 @@ const defaultAuthSettings: AuthSettings = {
   LoginCaptchaDifficulty: 4,
   CheckinCaptchaDifficulty: 4,
   ForceCheckinCaptcha: false,
+  ForceRedemptionCaptcha: false,
   'passkey.enabled': false,
   'passkey.rp_display_name': '',
   'passkey.rp_id': '',

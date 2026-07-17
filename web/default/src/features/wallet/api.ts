@@ -64,9 +64,14 @@ export async function getTopupInfo(): Promise<TopupInfoResponse> {
  * Redeem a topup code
  */
 export async function redeemTopupCode(
-  request: RedemptionRequest
+  request: RedemptionRequest,
+  captchaToken?: string,
+  captchaParamName: string = 'turnstile'
 ): Promise<RedemptionResponse> {
-  const res = await api.post('/api/user/topup', request)
+  const url = captchaToken
+    ? `/api/user/topup?${captchaParamName}=${encodeURIComponent(captchaToken)}`
+    : '/api/user/topup'
+  const res = await api.post(url, request)
   return res.data
 }
 

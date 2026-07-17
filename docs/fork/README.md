@@ -100,12 +100,21 @@ New options:
 | `LoginCaptchaDifficulty` | Login/registration difficulty, range 1-8 |
 | `CheckinCaptchaDifficulty` | Check-in difficulty, range 1-8 |
 | `ForceCheckinCaptcha` | Requires a fresh captcha for every check-in |
+| `ForceRedemptionCaptcha` | Requires a fresh captcha for every redemption; disabled by default |
 | `checkin_setting.min_user_quota` | Optional strict minimum user balance for check-in; `0` disables the gate |
 
 Difficulty is not sent as a browser-controlled widget attribute. When a Cap
 setting changes, the backend updates Cap Standalone through
 `PUT /server/keys/:siteKey/config`. If the two difficulties differ, the two
 flows must use different Cap site keys.
+
+When `ForceRedemptionCaptcha` is enabled, `POST /api/user/topup` requires a
+fresh token from the configured provider before a redemption code is checked.
+Turnstile and hCaptcha verification bypass their login-session cache for this
+route. Cap redemption uses the login/registration site key because it does not
+have a separate redemption difficulty setting. The default frontend opens a
+security-check dialog from the wallet redemption action and forwards the token
+using the provider's existing query parameter.
 
 `GetOptions` returns `"***"` for sensitive fields (`CapSecretKey`,
 `CapAdminAPIKey`, `CapCheckinSecretKey`, `HCaptchaSecretKey`,
@@ -138,6 +147,7 @@ Files:
 - `middleware/hcaptcha-check.go`
 - `middleware/hcaptcha-check_test.go`
 - `middleware/captcha-check.go`
+- `middleware/captcha-check_test.go`
 - `middleware/turnstile-check.go`
 - `router/api-router.go`
 - `service/cap.go`
@@ -154,6 +164,9 @@ Files:
 - `web/default/src/features/profile/api.ts`
 - `web/default/src/features/profile/components/checkin-calendar-card.tsx`
 - `web/default/src/features/profile/index.tsx`
+- `web/default/src/features/wallet/api.ts`
+- `web/default/src/features/wallet/hooks/use-redemption.ts`
+- `web/default/src/features/wallet/index.tsx`
 - `web/default/src/features/system-settings/auth/bot-protection-section.tsx`
 - `web/default/src/features/system-settings/auth/index.tsx`
 - `web/default/src/features/system-settings/auth/section-registry.tsx`

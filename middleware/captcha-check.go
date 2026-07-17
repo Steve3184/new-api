@@ -9,7 +9,7 @@ import (
 
 // CaptchaCheck routes to the appropriate captcha middleware depending on
 // the operator's configured CaptchaType.
-// For the check-in route, call CaptchaCheckCheckin instead.
+// For routes that require a fresh captcha, use their purpose-specific wrapper.
 func CaptchaCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		switch common.CaptchaType {
@@ -27,8 +27,22 @@ func CaptchaCheck() gin.HandlerFunc {
 // CaptchaCheckCheckin is like CaptchaCheck but only enforces the captcha when
 // ForceCheckinCaptcha is true; otherwise it passes through unconditionally.
 func CaptchaCheckCheckin() gin.HandlerFunc {
+	return captchaCheckFresh(func() bool {
+		return common.ForceCheckinCaptcha
+	}, CapCheckCheckin)
+}
+
+// CaptchaCheckRedemption requires a fresh captcha for each redemption when the
+// operator enables ForceRedemptionCaptcha.
+func CaptchaCheckRedemption() gin.HandlerFunc {
+	return captchaCheckFresh(func() bool {
+		return common.ForceRedemptionCaptcha
+	}, CapCheck)
+}
+
+func captchaCheckFresh(required func() bool, capMiddleware func() gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !common.ForceCheckinCaptcha {
+		if !required() {
 			c.Next()
 			return
 		}
@@ -39,7 +53,7 @@ func CaptchaCheckCheckin() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
-			CapCheckCheckin()(c)
+			capMiddleware()(c)
 		case "hcaptcha":
 			if !common.HCaptchaEnabled {
 				c.JSON(http.StatusOK, gin.H{"success": false, "message": "hCaptcha is not enabled"})

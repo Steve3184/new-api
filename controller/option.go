@@ -367,6 +367,21 @@ func UpdateOption(c *gin.Context) {
 				return
 			}
 		}
+	case "ForceRedemptionCaptcha":
+		if option.Value == "true" {
+			if common.CaptchaType == "cap" && (!common.CapEnabled || common.CapSiteKey == "" || common.CapSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable the Cap login site key before forcing redemption captcha")
+				return
+			}
+			if common.CaptchaType == "hcaptcha" && (!common.HCaptchaEnabled || common.HCaptchaSiteKey == "" || common.HCaptchaSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable hCaptcha before forcing redemption captcha")
+				return
+			}
+			if common.CaptchaType == "turnstile" && (!common.TurnstileCheckEnabled || common.TurnstileSiteKey == "" || common.TurnstileSecretKey == "") {
+				common.ApiErrorMsg(c, "Configure and enable Turnstile before forcing redemption captcha")
+				return
+			}
+		}
 	case "TelegramOAuthEnabled":
 		if option.Value == "true" && common.TelegramBotToken == "" {
 			c.JSON(http.StatusOK, gin.H{

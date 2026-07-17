@@ -82,6 +82,7 @@ func GetStatus(c *gin.Context) {
 		"login_captcha_difficulty":    common.LoginCaptchaDifficulty,
 		"checkin_captcha_difficulty":  common.CheckinCaptchaDifficulty,
 		"force_checkin_captcha":       common.ForceCheckinCaptcha,
+		"force_redemption_captcha":    common.ForceRedemptionCaptcha,
 		"custom_tabs":                 common.CustomTabs,
 		"playground":                  playground_setting.Get(),
 		"notice_popup_enabled":        common.NoticePopupEnabled,

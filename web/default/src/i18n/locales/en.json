@@ -1613,6 +1613,7 @@
     "Enable asynchronous 3D generation in Playground.": "Enable asynchronous 3D generation in Playground.",
     "Enable Cap": "Enable Cap",
     "Enable Cap before requiring it for check-in": "Enable Cap before requiring it for check-in",
+    "Enable Cap before requiring it for redemption": "Enable Cap before requiring it for redemption",
     "Enable check-in feature": "Enable check-in feature",
     "Enable conversational chat in Playground.": "Enable conversational chat in Playground.",
     "Enable Data Dashboard": "Enable Data Dashboard",
@@ -1625,6 +1626,7 @@
     "Enable GitHub OAuth": "Enable GitHub OAuth",
     "Enable Groups": "Enable Groups",
     "Enable hCaptcha": "Enable hCaptcha",
+    "Enable hCaptcha before requiring it for redemption": "Enable hCaptcha before requiring it for redemption",
     "Enable if this is an OpenRouter enterprise account with special response format": "Enable if this is an OpenRouter enterprise account with special response format",
     "Enable image generation and editing in Playground.": "Enable image generation and editing in Playground.",
     "Enable io.net deployments": "Enable io.net deployments",
@@ -1651,6 +1653,7 @@
     "Enable this key?": "Enable this key?",
     "Enable Turnstile": "Enable Turnstile",
     "Enable Turnstile before requiring it for check-in": "Enable Turnstile before requiring it for check-in",
+    "Enable Turnstile before requiring it for redemption": "Enable Turnstile before requiring it for redemption",
     "Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.": "Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.",
     "Enable unlimited quota for this API key": "Enable unlimited quota for this API key",
     "Enable violation deduction": "Enable violation deduction",
@@ -3895,7 +3898,9 @@
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "Requests will be forwarded to this worker. Trailing slashes are removed automatically.",
     "Requests:": "Requests:",
     "Require a new human verification every time a user checks in.": "Require a new human verification every time a user checks in.",
+    "Require a new human verification every time a user redeems a code.": "Require a new human verification every time a user redeems a code.",
     "Require captcha for check-in": "Require captcha for check-in",
+    "Require captcha for redemption": "Require captcha for redemption",
     "Require email verification for new accounts": "Require email verification for new accounts",
     "Require job success before follow-up actions": "Require job success before follow-up actions",
     "Require login to view models": "Require login to view models",
@@ -5335,6 +5340,8 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Turnstile site key is required": "Turnstile site key is required",
+    "Turnstile secret key is required": "Turnstile secret key is required"
   }
 }

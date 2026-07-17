@@ -123,6 +123,7 @@ const AUTH_SECTIONS = [
           LoginCaptchaDifficulty: settings.LoginCaptchaDifficulty,
           CheckinCaptchaDifficulty: settings.CheckinCaptchaDifficulty,
           ForceCheckinCaptcha: settings.ForceCheckinCaptcha,
+          ForceRedemptionCaptcha: settings.ForceRedemptionCaptcha,
         }}
       />
     ),

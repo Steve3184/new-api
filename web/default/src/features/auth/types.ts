@@ -124,6 +124,7 @@ export interface SystemStatus {
     cap_api_endpoint?: string
     cap_checkin_api_endpoint?: string
     force_checkin_captcha?: boolean
+    force_redemption_captcha?: boolean
     login_captcha_difficulty?: number
     checkin_captcha_difficulty?: number
     checkin_min_user_quota?: number
@@ -180,6 +181,7 @@ export interface SystemStatus {
   cap_api_endpoint?: string
   cap_checkin_api_endpoint?: string
   force_checkin_captcha?: boolean
+  force_redemption_captcha?: boolean
   login_captcha_difficulty?: number
   checkin_captcha_difficulty?: number
   checkin_min_user_quota?: number

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import i18next from 'i18next'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -69,6 +70,7 @@ const botProtectionSchema = z
     LoginCaptchaDifficulty: z.number().int().min(1).max(8),
     CheckinCaptchaDifficulty: z.number().int().min(1).max(8),
     ForceCheckinCaptcha: z.boolean(),
+    ForceRedemptionCaptcha: z.boolean(),
   })
   .superRefine((values, context) => {
     if (values.CaptchaType === 'cap' && values.CapEnabled) {
@@ -180,6 +182,48 @@ const botProtectionSchema = z
       }
     }
 
+    if (values.ForceRedemptionCaptcha) {
+      if (values.CaptchaType === 'cap' && !values.CapEnabled) {
+        context.addIssue({
+          code: 'custom',
+          path: ['CapEnabled'],
+          message: i18next.t('Enable Cap before requiring it for redemption'),
+        })
+      } else if (values.CaptchaType === 'hcaptcha' && !values.HCaptchaEnabled) {
+        context.addIssue({
+          code: 'custom',
+          path: ['HCaptchaEnabled'],
+          message: i18next.t(
+            'Enable hCaptcha before requiring it for redemption'
+          ),
+        })
+      } else if (values.CaptchaType === 'turnstile') {
+        if (!values.TurnstileCheckEnabled) {
+          context.addIssue({
+            code: 'custom',
+            path: ['TurnstileCheckEnabled'],
+            message: i18next.t(
+              'Enable Turnstile before requiring it for redemption'
+            ),
+          })
+        }
+        if (!values.TurnstileSiteKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['TurnstileSiteKey'],
+            message: i18next.t('Turnstile site key is required'),
+          })
+        }
+        if (!values.TurnstileSecretKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['TurnstileSecretKey'],
+            message: i18next.t('Turnstile secret key is required'),
+          })
+        }
+      }
+    }
+
     if (
       values.CapSiteKey &&
       values.CapSiteKey === values.CapCheckinSiteKey &&
@@ -218,6 +262,7 @@ const SAVE_ORDER: Array<keyof BotProtectionFormValues> = [
   'CapEnabled',
   'CaptchaType',
   'ForceCheckinCaptcha',
+  'ForceRedemptionCaptcha',
 ]
 
 // Password input that hides the "***" sentinel emitted by the server for
@@ -630,6 +675,29 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
                   <FormDescription>
                     {t(
                       'Require a new human verification every time a user checks in.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ForceRedemptionCaptcha'
+            render={({ field }) => (
+              <SettingsSwitchItem className='border-t pt-5'>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Require captcha for redemption')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Require a new human verification every time a user redeems a code.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>

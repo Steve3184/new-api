@@ -1613,6 +1613,7 @@
     "Enable asynchronous 3D generation in Playground.": "Playground で非同期 3D 生成を有効にします。",
     "Enable Cap": "Cap を有効化",
     "Enable Cap before requiring it for check-in": "チェックインで必須にする前に Cap を有効にしてください",
+    "Enable Cap before requiring it for redemption": "コード交換で必須にする前に Cap を有効にしてください",
     "Enable check-in feature": "チェックイン機能を有効にする",
     "Enable conversational chat in Playground.": "Playground でチャットを有効にします。",
     "Enable Data Dashboard": "データダッシュボードを有効にする",
@@ -1625,6 +1626,7 @@
     "Enable GitHub OAuth": "GitHub OAuthを有効にする",
     "Enable Groups": "グループを有効にする",
     "Enable hCaptcha": "hCaptcha を有効化",
+    "Enable hCaptcha before requiring it for redemption": "コード交換で必須にする前に hCaptcha を有効にしてください",
     "Enable if this is an OpenRouter enterprise account with special response format": "特別な応答形式を持つOpenRouterエンタープライズアカウントである場合に有効にします",
     "Enable image generation and editing in Playground.": "Playground で画像生成と編集を有効にします。",
     "Enable io.net deployments": "io.net デプロイを有効化",
@@ -1651,6 +1653,7 @@
     "Enable this key?": "このキーを有効にしますか？",
     "Enable Turnstile": "Turnstileを有効にする",
     "Enable Turnstile before requiring it for check-in": "チェックインで必須にする前に Turnstile を有効にしてください",
+    "Enable Turnstile before requiring it for redemption": "コード交換で必須にする前に Turnstile を有効にしてください",
     "Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.": "機密性の高い操作を解除するには、プロフィールで二要素認証またはPasskeyを有効にしてください。",
     "Enable unlimited quota for this API key": "このAPIキーの無制限のクォータを有効にする",
     "Enable violation deduction": "違反料金控除を有効にする",
@@ -3895,7 +3898,9 @@
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "リクエストはこのワーカーに転送されます。末尾のスラッシュは自動的に削除されます。",
     "Requests:": "リクエスト:",
     "Require a new human verification every time a user checks in.": "チェックインのたびに新しい人間認証を要求します。",
+    "Require a new human verification every time a user redeems a code.": "ユーザーがコードを交換するたびに新しい人間確認を要求します。",
     "Require captcha for check-in": "チェックイン時に captcha を必須にする",
+    "Require captcha for redemption": "コード交換で CAPTCHA を必須にする",
     "Require email verification for new accounts": "新しいアカウントにメール認証を要求する",
     "Require job success before follow-up actions": "フォローアップ アクション前にジョブの成功を要求",
     "Require login to view models": "モデルを表示するにはログインを要求する",
@@ -5335,6 +5340,8 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Turnstile site key is required": "Turnstile サイトキーは必須です",
+    "Turnstile secret key is required": "Turnstile シークレットキーは必須です"
   }
 }

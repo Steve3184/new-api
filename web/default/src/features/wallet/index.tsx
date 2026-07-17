@@ -18,8 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { Cap } from '@/components/cap'
+import { Dialog } from '@/components/dialog'
+import { HCaptcha } from '@/components/hcaptcha'
 import { SectionPageLayout } from '@/components/layout'
+import { Turnstile } from '@/components/turnstile'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
@@ -71,6 +77,8 @@ export function Wallet(props: WalletProps) {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
+  const [redemptionCaptchaOpen, setRedemptionCaptchaOpen] = useState(false)
+  const [redemptionCaptchaKey, setRedemptionCaptchaKey] = useState(0)
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
@@ -79,6 +87,18 @@ export function Wallet(props: WalletProps) {
   const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  const {
+    isRequired: isRedemptionCaptchaRequired,
+    isCaptchaEnabled: isRedemptionCaptchaEnabled,
+    isTurnstileEnabled,
+    isHCaptchaEnabled,
+    isCapEnabled,
+    turnstileSiteKey,
+    hCaptchaSiteKey,
+    capApiEndpoint,
+    setCaptchaToken,
+    tokenQueryParam,
+  } = useCaptcha('redemption')
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -198,15 +218,37 @@ export function Wallet(props: WalletProps) {
     }
   }
 
+  const redeem = async (captchaToken?: string) => {
+    const success = await redeemCode(
+      redemptionCode,
+      captchaToken,
+      captchaToken ? tokenQueryParam : 'turnstile'
+    )
+    if (success) {
+      setRedemptionCode('')
+      setRedemptionCaptchaOpen(false)
+      setCaptchaToken('')
+      await fetchUser()
+      return
+    }
+    if (captchaToken) {
+      setRedemptionCaptchaKey((value) => value + 1)
+      setCaptchaToken('')
+    }
+  }
+
   // Handle redemption
   const handleRedeem = async () => {
     if (!redemptionCode) return
-
-    const success = await redeemCode(redemptionCode)
-    if (success) {
-      setRedemptionCode('')
-      await fetchUser()
+    if (!isRedemptionCaptchaRequired) {
+      await redeem()
+      return
     }
+    if (!isRedemptionCaptchaEnabled) {
+      toast.error(t('Captcha is enabled but site key is empty.'))
+      return
+    }
+    setRedemptionCaptchaOpen(true)
   }
 
   // Handle transfer
@@ -261,6 +303,61 @@ export function Wallet(props: WalletProps) {
 
   return (
     <>
+      <Dialog
+        open={redemptionCaptchaOpen}
+        onOpenChange={(open) => {
+          setRedemptionCaptchaOpen(open)
+          if (!open) {
+            setRedemptionCaptchaKey((value) => value + 1)
+            setCaptchaToken('')
+          }
+        }}
+        title={t('Security Check')}
+        contentClassName='sm:max-w-md'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+      >
+        <div className='text-muted-foreground text-sm'>
+          {t('Please complete the security check to continue.')}
+        </div>
+        <div className='flex justify-center py-4'>
+          {isTurnstileEnabled && (
+            <Turnstile
+              key={redemptionCaptchaKey}
+              siteKey={turnstileSiteKey}
+              onVerify={(token) => void redeem(token)}
+              onExpire={() => setRedemptionCaptchaKey((value) => value + 1)}
+            />
+          )}
+          {isHCaptchaEnabled && (
+            <HCaptcha
+              key={redemptionCaptchaKey}
+              siteKey={hCaptchaSiteKey}
+              onVerify={(token) => void redeem(token)}
+              onExpire={() => {
+                setRedemptionCaptchaKey((value) => value + 1)
+                setCaptchaToken('')
+              }}
+              onError={() => {
+                setRedemptionCaptchaKey((value) => value + 1)
+                setCaptchaToken('')
+              }}
+            />
+          )}
+          {isCapEnabled && (
+            <Cap
+              key={redemptionCaptchaKey}
+              apiEndpoint={capApiEndpoint}
+              onVerify={(token) => void redeem(token)}
+              onReset={() => {
+                setRedemptionCaptchaKey((value) => value + 1)
+                setCaptchaToken('')
+              }}
+            />
+          )}
+        </div>
+      </Dialog>
+
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>

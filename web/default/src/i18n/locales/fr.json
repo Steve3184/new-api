@@ -1613,6 +1613,7 @@
     "Enable asynchronous 3D generation in Playground.": "Activer la génération 3D asynchrone dans Playground.",
     "Enable Cap": "Activer Cap",
     "Enable Cap before requiring it for check-in": "Activez Cap avant de l’exiger pour le pointage",
+    "Enable Cap before requiring it for redemption": "Activez Cap avant de l’exiger pour les codes",
     "Enable check-in feature": "Activer la fonction de connexion",
     "Enable conversational chat in Playground.": "Activer le chat dans Playground.",
     "Enable Data Dashboard": "Activer le tableau de bord des données",
@@ -1625,6 +1626,7 @@
     "Enable GitHub OAuth": "Activer GitHub OAuth",
     "Enable Groups": "Activer les groupes",
     "Enable hCaptcha": "Activer hCaptcha",
+    "Enable hCaptcha before requiring it for redemption": "Activez hCaptcha avant de l’exiger pour les codes",
     "Enable if this is an OpenRouter enterprise account with special response format": "Activer si c'est un compte d'entreprise OpenRouter avec un format de réponse spécial",
     "Enable image generation and editing in Playground.": "Activer la génération et la retouche d’images dans Playground.",
     "Enable io.net deployments": "Activer les déploiements io.net",
@@ -1651,6 +1653,7 @@
     "Enable this key?": "Activer cette clé ?",
     "Enable Turnstile": "Activer Turnstile",
     "Enable Turnstile before requiring it for check-in": "Activez Turnstile avant de l’exiger pour le pointage",
+    "Enable Turnstile before requiring it for redemption": "Activez Turnstile avant de l’exiger pour les codes",
     "Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.": "Activez l'authentification à deux facteurs ou Passkey dans votre profil pour déverrouiller les opérations sensibles.",
     "Enable unlimited quota for this API key": "Activer le quota illimité pour cette clé API",
     "Enable violation deduction": "Activer la déduction pour violation",
@@ -3895,7 +3898,9 @@
     "Requests will be forwarded to this worker. Trailing slashes are removed automatically.": "Les requêtes seront transmises à ce worker. Les barres obliques finales sont automatiquement supprimées.",
     "Requests:": "Requêtes :",
     "Require a new human verification every time a user checks in.": "Demander une nouvelle vérification humaine à chaque connexion quotidienne.",
+    "Require a new human verification every time a user redeems a code.": "Exiger une nouvelle vérification humaine à chaque utilisation d’un code.",
     "Require captcha for check-in": "Imposer le captcha lors de la connexion quotidienne",
+    "Require captcha for redemption": "Exiger un captcha pour les codes",
     "Require email verification for new accounts": "Exiger la vérification de l'e-mail pour les nouveaux comptes",
     "Require job success before follow-up actions": "Exiger le succès de la tâche avant les actions de suivi",
     "Require login to view models": "Exiger la connexion pour voir les modèles",
@@ -5335,6 +5340,8 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Turnstile site key is required": "La clé de site Turnstile est requise",
+    "Turnstile secret key is required": "La clé secrète Turnstile est requise"
   }
 }
