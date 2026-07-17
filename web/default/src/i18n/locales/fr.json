@@ -1,4 +1,28 @@
 {
+  "Available Groups": "Groupes disponibles",
+  "Blacklist: selected groups use wallet only": "Liste noire : les groupes sélectionnés utilisent uniquement le portefeuille",
+  "Choose how the announcement center opens from the header": "Choisissez comment le centre d'annonces s'ouvre depuis l'en-tête",
+  "Choose how the selected groups control subscription billing for this plan.": "Choisissez comment les groupes sélectionnés contrôlent la facturation de cette offre.",
+  "Choose where the notice popup appears": "Choisissez où la fenêtre d'annonce apparaît",
+  "Delete subscription plan?": "Supprimer l'offre d'abonnement ?",
+  "Enable wallet-only groups": "Activer les groupes portefeuille uniquement",
+  "Header announcement button behavior": "Comportement du bouton d'annonce de l'en-tête",
+  "Home page and overview dashboard": "Page d'accueil et tableau d'ensemble",
+  "Home page only": "Page d'accueil uniquement",
+  "No group found.": "Aucun groupe trouvé.",
+  "None": "Aucun",
+  "Open a dialog": "Ouvrir une fenêtre",
+  "Overview dashboard only": "Tableau d'ensemble uniquement",
+  "Popup display mode": "Mode d'affichage de la fenêtre",
+  "Redemption type": "Type de code",
+  "Search groups...": "Rechercher des groupes...",
+  "Select groups": "Sélectionner des groupes",
+  "Select multiple groups; these groups will be routed according to the selected mode.": "Sélectionnez plusieurs groupes ; ils seront facturés selon le mode choisi.",
+  "Show below the button": "Afficher sous le bouton",
+  "Subscription #{{id}}": "Abonnement n°{{id}}",
+  "Subscription plan deleted": "Offre d'abonnement supprimée",
+  "Subscription redeemed successfully: {{plan}}": "Abonnement activé avec succès : {{plan}}",
+  "This permanently deletes {{plan}} and is allowed only when it has no active user subscriptions.": "Cette action supprime définitivement {{plan}} et n'est autorisée que sans abonnement utilisateur actif.",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5343,5 +5367,12 @@
     "Zoom": "Zoom",
     "Turnstile site key is required": "La clé de site Turnstile est requise",
     "Turnstile secret key is required": "La clé secrète Turnstile est requise"
-  }
+  },
+  "Unavailable Groups": "Groupes indisponibles",
+  "Wallet balance": "Solde du portefeuille",
+  "Wallet balance code": "Code de solde du portefeuille",
+  "Wallet balance codes add quota; subscription codes grant the selected plan.": "Les codes de solde ajoutent du quota ; les codes d'abonnement accordent l'offre sélectionnée.",
+  "Wallet-only group mode": "Mode des groupes portefeuille uniquement",
+  "Wallet-only groups": "Groupes portefeuille uniquement",
+  "Whitelist: only selected groups use subscriptions": "Liste blanche : seuls les groupes sélectionnés utilisent les abonnements"
 }

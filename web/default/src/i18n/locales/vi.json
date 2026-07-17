@@ -1,4 +1,28 @@
 {
+  "Available Groups": "Nhóm khả dụng",
+  "Blacklist: selected groups use wallet only": "Danh sách đen: nhóm đã chọn chỉ dùng ví",
+  "Choose how the announcement center opens from the header": "Chọn cách mở trung tâm thông báo từ thanh đầu",
+  "Choose how the selected groups control subscription billing for this plan.": "Chọn cách các nhóm đã chọn kiểm soát thanh toán gói đăng ký này.",
+  "Choose where the notice popup appears": "Chọn nơi hiển thị cửa sổ thông báo",
+  "Delete subscription plan?": "Xóa gói đăng ký?",
+  "Enable wallet-only groups": "Bật nhóm chỉ dùng ví",
+  "Header announcement button behavior": "Hành vi nút thông báo trên thanh đầu",
+  "Home page and overview dashboard": "Trang chủ và trang tổng quan",
+  "Home page only": "Chỉ trang chủ",
+  "No group found.": "Không tìm thấy nhóm.",
+  "None": "Không có",
+  "Open a dialog": "Mở hộp thoại",
+  "Overview dashboard only": "Chỉ trang tổng quan",
+  "Popup display mode": "Chế độ hiển thị cửa sổ",
+  "Redemption type": "Loại mã đổi thưởng",
+  "Search groups...": "Tìm nhóm...",
+  "Select groups": "Chọn nhóm",
+  "Select multiple groups; these groups will be routed according to the selected mode.": "Chọn nhiều nhóm; việc thanh toán sẽ được định tuyến theo chế độ đã chọn.",
+  "Show below the button": "Hiển thị bên dưới nút",
+  "Subscription #{{id}}": "Gói đăng ký #{{id}}",
+  "Subscription plan deleted": "Đã xóa gói đăng ký",
+  "Subscription redeemed successfully: {{plan}}": "Đổi gói đăng ký thành công: {{plan}}",
+  "This permanently deletes {{plan}} and is allowed only when it has no active user subscriptions.": "Thao tác này xóa vĩnh viễn {{plan}} và chỉ được phép khi không có đăng ký người dùng đang hoạt động.",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5343,5 +5367,12 @@
     "Zoom": "Zoom",
     "Turnstile site key is required": "Bắt buộc có khóa trang Turnstile",
     "Turnstile secret key is required": "Bắt buộc có khóa bí mật Turnstile"
-  }
+  },
+  "Unavailable Groups": "Nhóm không khả dụng",
+  "Wallet balance": "Số dư ví",
+  "Wallet balance code": "Mã số dư ví",
+  "Wallet balance codes add quota; subscription codes grant the selected plan.": "Mã số dư ví thêm hạn mức; mã đăng ký cấp gói đã chọn.",
+  "Wallet-only group mode": "Chế độ nhóm chỉ dùng ví",
+  "Wallet-only groups": "Nhóm chỉ dùng ví",
+  "Whitelist: only selected groups use subscriptions": "Danh sách trắng: chỉ nhóm đã chọn dùng gói đăng ký"
 }

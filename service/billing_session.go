@@ -398,28 +398,53 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 
+	checkSubscriptionAvailability := func() (bool, bool, *types.NewAPIError) {
+		hasAny, hasEligible, err := model.GetActiveSubscriptionAvailability(relayInfo.UserId)
+		if err != nil {
+			return false, false, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+		}
+		return hasAny, hasEligible, nil
+	}
+
 	switch pref {
 	case "subscription_only":
+		hasAny, hasEligible, apiErr := checkSubscriptionAvailability()
+		if apiErr != nil {
+			return nil, apiErr
+		}
+		if hasAny && !hasEligible {
+			return tryWallet()
+		}
 		return trySubscription()
 	case "wallet_only":
 		return tryWallet()
 	case "wallet_first":
-		session, err := tryWallet()
-		if err != nil {
-			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+		session, walletErr := tryWallet()
+		if walletErr != nil {
+			if walletErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				hasAny, hasEligible, apiErr := checkSubscriptionAvailability()
+				if apiErr != nil {
+					return nil, apiErr
+				}
+				if hasAny && !hasEligible {
+					return nil, walletErr
+				}
 				return trySubscription()
 			}
-			return nil, err
+			return nil, walletErr
 		}
 		return session, nil
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
-		if subCheckErr != nil {
-			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+		hasAny, hasEligibleSubscription, apiErr := checkSubscriptionAvailability()
+		if apiErr != nil {
+			return nil, apiErr
 		}
-		if !hasSub {
+		if hasAny && !hasEligibleSubscription {
+			return tryWallet()
+		}
+		if !hasEligibleSubscription {
 			return tryWallet()
 		}
 		session, apiErr := trySubscription()

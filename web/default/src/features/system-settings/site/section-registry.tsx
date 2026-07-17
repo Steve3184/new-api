@@ -61,7 +61,10 @@ const SITE_SECTIONS = [
         defaultValues={{
           Notice: settings.Notice ?? '',
           NoticePopupEnabled: settings.NoticePopupEnabled,
-          NoticePopupOnDashboardEnabled: settings.NoticePopupOnDashboardEnabled,
+          NoticePopupMode:
+            settings.NoticePopupMode ||
+            (settings.NoticePopupOnDashboardEnabled ? 'both' : 'home'),
+          NoticeHeaderButtonMode: settings.NoticeHeaderButtonMode || 'popover',
         }}
       />
     ),

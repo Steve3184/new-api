@@ -171,11 +171,20 @@ var PaymentAnnouncement = ""
 // CustomTabs stores a JSON array of admin-defined sidebar tab entries
 var CustomTabs = "[]"
 
-// NoticePopupEnabled shows the system notice when users enter the home page.
+// NoticePopupEnabled shows the system notice in the configured placement.
 var NoticePopupEnabled = false
 
-// NoticePopupOnDashboardEnabled also shows the notice on the overview dashboard.
+// NoticePopupMode controls where the system notice popup appears: home,
+// dashboard, or both.
+var NoticePopupMode = "home"
+
+// NoticePopupOnDashboardEnabled is retained for compatibility with older
+// installations that used a separate dashboard switch.
 var NoticePopupOnDashboardEnabled = false
+
+// NoticeHeaderButtonMode controls whether the top-bar notice button opens a
+// popover or a dialog.
+var NoticeHeaderButtonMode = "popover"
 
 var TelegramBotToken = ""
 var TelegramBotName = ""

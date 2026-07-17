@@ -146,7 +146,9 @@ export interface SystemStatus {
     password_register_enabled?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     notice_popup_enabled?: boolean
+    notice_popup_mode?: 'home' | 'dashboard' | 'both'
     notice_popup_on_dashboard?: boolean
+    notice_header_button_mode?: 'popover' | 'dialog'
     playground?: PlaygroundPublicSettings
     [key: string]: unknown
   }
@@ -203,7 +205,9 @@ export interface SystemStatus {
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   notice_popup_enabled?: boolean
+  notice_popup_mode?: 'home' | 'dashboard' | 'both'
   notice_popup_on_dashboard?: boolean
+  notice_header_button_mode?: 'popover' | 'dialog'
   playground?: PlaygroundPublicSettings
   custom_tabs?: string
   [key: string]: unknown

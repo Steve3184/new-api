@@ -219,6 +219,10 @@ export function Wallet(props: WalletProps) {
   }
 
   const redeem = async (captchaToken?: string) => {
+    if (captchaToken) {
+      setRedemptionCaptchaOpen(false)
+      setCaptchaToken('')
+    }
     const success = await redeemCode(
       redemptionCode,
       captchaToken,
@@ -226,7 +230,6 @@ export function Wallet(props: WalletProps) {
     )
     if (success) {
       setRedemptionCode('')
-      setRedemptionCaptchaOpen(false)
       setCaptchaToken('')
       await fetchUser()
       return

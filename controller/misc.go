@@ -86,7 +86,9 @@ func GetStatus(c *gin.Context) {
 		"custom_tabs":                 common.CustomTabs,
 		"playground":                  playground_setting.Get(),
 		"notice_popup_enabled":        common.NoticePopupEnabled,
+		"notice_popup_mode":           common.NoticePopupMode,
 		"notice_popup_on_dashboard":   common.NoticePopupOnDashboardEnabled,
+		"notice_header_button_mode":   common.NoticeHeaderButtonMode,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type

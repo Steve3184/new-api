@@ -1,4 +1,28 @@
 {
+  "Available Groups": "利用可能なグループ",
+  "Blacklist: selected groups use wallet only": "ブラックリスト：選択したグループはウォレットのみを使用",
+  "Choose how the announcement center opens from the header": "ヘッダーからお知らせセンターを開く方法を選択します",
+  "Choose how the selected groups control subscription billing for this plan.": "選択したグループがこのプランのサブスクリプション課金を制御する方法を選びます。",
+  "Choose where the notice popup appears": "お知らせポップアップの表示場所を選択します",
+  "Delete subscription plan?": "サブスクリプションプランを削除しますか？",
+  "Enable wallet-only groups": "ウォレット専用グループを有効にする",
+  "Header announcement button behavior": "ヘッダーのお知らせボタンの動作",
+  "Home page and overview dashboard": "ホームページと概要ダッシュボード",
+  "Home page only": "ホームページのみ",
+  "No group found.": "グループが見つかりません。",
+  "None": "なし",
+  "Open a dialog": "ダイアログを開く",
+  "Overview dashboard only": "概要ダッシュボードのみ",
+  "Popup display mode": "ポップアップ表示モード",
+  "Redemption type": "引き換えコードの種類",
+  "Search groups...": "グループを検索...",
+  "Select groups": "グループを選択",
+  "Select multiple groups; these groups will be routed according to the selected mode.": "複数のグループを選択できます。選択したモードに従って課金されます。",
+  "Show below the button": "ボタンの下に表示",
+  "Subscription #{{id}}": "サブスクリプション #{{id}}",
+  "Subscription plan deleted": "サブスクリプションプランを削除しました",
+  "Subscription redeemed successfully: {{plan}}": "サブスクリプションを引き換えました：{{plan}}",
+  "This permanently deletes {{plan}} and is allowed only when it has no active user subscriptions.": "{{plan}} を完全に削除します。アクティブなユーザーサブスクリプションがない場合のみ削除できます。",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5343,5 +5367,12 @@
     "Zoom": "ズーム",
     "Turnstile site key is required": "Turnstile サイトキーは必須です",
     "Turnstile secret key is required": "Turnstile シークレットキーは必須です"
-  }
+  },
+  "Unavailable Groups": "利用不可のグループ",
+  "Wallet balance": "ウォレット残高",
+  "Wallet balance code": "ウォレット残高コード",
+  "Wallet balance codes add quota; subscription codes grant the selected plan.": "ウォレット残高コードはクォータを追加し、サブスクリプションコードは選択したプランを付与します。",
+  "Wallet-only group mode": "ウォレット専用グループモード",
+  "Wallet-only groups": "ウォレット専用グループ",
+  "Whitelist: only selected groups use subscriptions": "ホワイトリスト：選択したグループのみサブスクリプションを使用"
 }

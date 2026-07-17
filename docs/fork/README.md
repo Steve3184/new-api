@@ -27,8 +27,9 @@ upstream conflict resolution auditable.
 ## Compatibility rules
 
 - Existing option names and response fields are preserved.
-- New settings are stored as additive rows in the existing `options` table; no
-  database migration or database-specific SQL is required.
+- New system settings are stored as additive rows in the existing `options`
+  table. Subscription and redemption additions use the existing cross-database
+  GORM migration path.
 - SQLite, MySQL, and PostgreSQL behavior is unchanged.
 - The default captcha provider remains Turnstile, so existing deployments keep
   their previous behavior until Cap is explicitly configured and selected.
@@ -185,6 +186,62 @@ Check-in balance gating is implemented in:
 - `web/default/src/features/system-settings/billing/index.tsx`
 - `web/default/src/features/system-settings/billing/section-registry.tsx`
 - `web/default/src/features/system-settings/hooks/use-update-option.ts`
+
+## Subscription plans and redemption codes
+
+Redemption codes can now grant either wallet quota or a selected enabled
+subscription plan. When redemption captcha is required, the frontend closes the
+captcha dialog before sending the redemption request. The response remains a
+number for wallet codes for backward compatibility and returns the redeemed
+plan identity for subscription codes.
+
+Subscription plans can be deleted when they have no active user subscriptions;
+expired and cancelled history does not block deletion. Each plan also has an
+optional group billing policy with an enable switch, blacklist/whitelist mode,
+and multi-select group list. Blacklisted groups use wallet balance instead of
+that subscription. In whitelist mode, only selected groups may use the
+subscription and all other groups use wallet balance. These restrictions apply
+to every billing preference, and the purchase cards show **Unavailable Groups**
+or **Available Groups** so users can verify eligibility before buying.
+
+Wallet plan prices use the configured billing display currency instead of a
+hard-coded dollar sign.
+
+Files:
+
+- `model/redemption.go`
+- `model/subscription.go`
+- `model/main.go`
+- `controller/redemption.go`
+- `controller/subscription.go`
+- `controller/user.go`
+- `router/api-router.go`
+- `service/billing_session.go`
+- `web/default/src/features/redemption-codes/`
+- `web/default/src/features/subscriptions/`
+- `web/default/src/features/wallet/`
+
+## Notice display controls
+
+`NoticePopupMode` replaces the separate dashboard-popup switch in the default
+frontend and supports `home`, `dashboard`, or `both`. The legacy
+`NoticePopupOnDashboardEnabled` option and status field remain available for
+older installations; a legacy enabled value maps to `both` until the new option
+is explicitly saved.
+
+`NoticeHeaderButtonMode` controls whether the top-bar announcement button opens
+the existing popover below the button or a larger dialog. Both modes share the
+same notice timeline, unread state, and read tracking.
+
+Files:
+
+- `common/constants.go`
+- `model/option.go`
+- `controller/misc.go`
+- `web/default/src/components/notice-popup.tsx`
+- `web/default/src/components/notification-popover.tsx`
+- `web/default/src/hooks/use-notifications.ts`
+- `web/default/src/features/system-settings/maintenance/notice-section.tsx`
 
 ## Payment announcement
 
@@ -607,7 +664,9 @@ edge.
 initially selected in the dialog. The group-pricing settings page exposes a
 portal-based searchable selector for each group; each selector queries that
 group's available models and still permits a custom model ID. Review models are
-not persisted separately.
+not persisted separately. Deleted groups are excluded from the editor and
+discarded from `GroupDefaultModel` whenever the setting is saved, with backend
+filtering as a final compatibility guard.
 
 `AutoGroupDescription` is an optional string option shown in group settings only
 when `AutoGroups` is non-empty. `/api/user/self/groups` exposes the virtual

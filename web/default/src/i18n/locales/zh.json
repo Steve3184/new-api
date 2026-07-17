@@ -1,4 +1,28 @@
 {
+  "Available Groups": "可用分组",
+  "Blacklist: selected groups use wallet only": "黑名单：所选分组仅使用钱包余额",
+  "Choose how the announcement center opens from the header": "选择从顶栏打开公告中心的方式",
+  "Choose how the selected groups control subscription billing for this plan.": "选择所选分组如何控制此套餐的订阅计费。",
+  "Choose where the notice popup appears": "选择公告弹窗的显示位置",
+  "Delete subscription plan?": "删除订阅套餐？",
+  "Enable wallet-only groups": "启用仅钱包分组",
+  "Header announcement button behavior": "顶栏公告按钮行为",
+  "Home page and overview dashboard": "主页和后台概览页",
+  "Home page only": "仅主页",
+  "No group found.": "未找到分组。",
+  "None": "无",
+  "Open a dialog": "打开弹窗",
+  "Overview dashboard only": "仅后台概览页",
+  "Popup display mode": "弹窗显示模式",
+  "Redemption type": "兑换码类型",
+  "Search groups...": "搜索分组...",
+  "Select groups": "选择分组",
+  "Select multiple groups; these groups will be routed according to the selected mode.": "可选择多个分组；这些分组将按照所选模式进行计费。",
+  "Show below the button": "在按钮下方显示",
+  "Subscription #{{id}}": "订阅 #{{id}}",
+  "Subscription plan deleted": "订阅套餐已删除",
+  "Subscription redeemed successfully: {{plan}}": "订阅兑换成功：{{plan}}",
+  "This permanently deletes {{plan}} and is allowed only when it has no active user subscriptions.": "这将永久删除 {{plan}}，仅当该套餐没有活跃用户订阅时才允许删除。",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5343,5 +5367,12 @@
     "Zoom": "缩放",
     "Turnstile site key is required": "Turnstile 站点密钥为必填项",
     "Turnstile secret key is required": "Turnstile 密钥为必填项"
-  }
+  },
+  "Unavailable Groups": "不可用分组",
+  "Wallet balance": "钱包余额",
+  "Wallet balance code": "钱包余额兑换码",
+  "Wallet balance codes add quota; subscription codes grant the selected plan.": "钱包余额兑换码增加额度；订阅兑换码授予所选套餐。",
+  "Wallet-only group mode": "仅钱包分组模式",
+  "Wallet-only groups": "仅钱包分组",
+  "Whitelist: only selected groups use subscriptions": "白名单：仅所选分组使用订阅"
 }

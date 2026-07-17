@@ -42,6 +42,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -50,11 +57,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { getAdminPlans } from '@/features/subscriptions/api'
+import type { PlanRecord } from '@/features/subscriptions/types'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { addTimeToDate } from '@/lib/time'
 
-import { createRedemption, updateRedemption, getRedemption } from '../api'
+import { createRedemption, getRedemption, updateRedemption } from '../api'
 import { SUCCESS_MESSAGES } from '../constants'
 import {
   getRedemptionFormSchema,
@@ -63,7 +72,7 @@ import {
   transformFormDataToPayload,
   transformRedemptionToFormDefaults,
 } from '../lib'
-import { type Redemption } from '../types'
+import type { Redemption } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
 type RedemptionsMutateDrawerProps = {
@@ -81,6 +90,7 @@ export function RedemptionsMutateDrawer({
   const isUpdate = !!currentRow
   const { triggerRefresh } = useRedemptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [subscriptionPlans, setSubscriptionPlans] = useState<PlanRecord[]>([])
 
   const form = useForm<RedemptionFormValues>({
     resolver: zodResolver(getRedemptionFormSchema(t)),
@@ -91,14 +101,25 @@ export function RedemptionsMutateDrawer({
   useEffect(() => {
     if (open && isUpdate && currentRow) {
       // For update, fetch fresh data
-      getRedemption(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformRedemptionToFormDefaults(result.data))
-        }
-      })
+      getRedemption(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformRedemptionToFormDefaults(result.data))
+          }
+        })
+        .catch(() => {})
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(REDEMPTION_FORM_DEFAULT_VALUES)
+      getAdminPlans()
+        .then((result) => {
+          setSubscriptionPlans(
+            result.success
+              ? (result.data || []).filter(({ plan }) => plan.enabled)
+              : []
+          )
+        })
+        .catch(() => setSubscriptionPlans([]))
     }
   }, [open, isUpdate, currentRow, form])
 
@@ -162,6 +183,7 @@ export function RedemptionsMutateDrawer({
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
+  const subscriptionPlanId = form.watch('subscription_plan_id')
 
   return (
     <Sheet
@@ -223,10 +245,11 @@ export function RedemptionsMutateDrawer({
                       <Input
                         {...field}
                         type='number'
+                        disabled={subscriptionPlanId !== null}
                         step={tokensOnly ? 1 : 0.01}
                         placeholder={quotaPlaceholder}
                         onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
+                          field.onChange(Number.parseFloat(e.target.value) || 0)
                         }
                       />
                     </FormControl>
@@ -241,6 +264,53 @@ export function RedemptionsMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {!isUpdate && (
+                <FormField
+                  control={form.control}
+                  name='subscription_plan_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Redemption type')}</FormLabel>
+                      <Select
+                        value={field.value ? String(field.value) : 'wallet'}
+                        onValueChange={(value) => {
+                          field.onChange(
+                            value === 'wallet' ? null : Number(value)
+                          )
+                          if (value !== 'wallet') {
+                            form.setValue('quota_dollars', 0, {
+                              shouldValidate: true,
+                            })
+                          }
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectItem value='wallet'>
+                            {t('Wallet balance code')}
+                          </SelectItem>
+                          {subscriptionPlans.map(({ plan }) => (
+                            <SelectItem key={plan.id} value={String(plan.id)}>
+                              {plan.title} (#{plan.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t(
+                          'Wallet balance codes add quota; subscription codes grant the selected plan.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}
@@ -314,7 +384,9 @@ export function RedemptionsMutateDrawer({
                           max='100'
                           placeholder={t('Number of codes to create')}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value, 10) || 1)
+                            field.onChange(
+                              Number.parseInt(e.target.value, 10) || 1
+                            )
                           }
                         />
                       </FormControl>

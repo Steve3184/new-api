@@ -107,10 +107,6 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   }, [])
 
   const watchedGroupRatio = form.watch('GroupRatio')
-  const watchedUserUsableGroups = form.watch('UserUsableGroups')
-  const watchedTopupGroupRatio = form.watch('TopupGroupRatio')
-  const watchedDefaultModels = form.watch('GroupDefaultModel')
-  const watchedGroupRetryTimes = form.watch('GroupRetryTimes')
   const watchedAutoGroups = form.watch('AutoGroups')
   const hasAutoGroups = useMemo(
     () =>
@@ -125,38 +121,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
       fallback: {},
       silent: true,
     })
-    const usableMap = safeJsonParse<Record<string, string>>(
-      watchedUserUsableGroups,
-      { fallback: {}, silent: true }
-    )
-    const topupMap = safeJsonParse<Record<string, number>>(
-      watchedTopupGroupRatio,
-      { fallback: {}, silent: true }
-    )
-    const defaultModelMap = safeJsonParse<Record<string, string>>(
-      watchedDefaultModels,
-      { fallback: {}, silent: true }
-    )
-    const retryTimesMap = safeJsonParse<Record<string, number>>(
-      watchedGroupRetryTimes,
-      { fallback: {}, silent: true }
-    )
-    return [
-      ...new Set([
-        ...Object.keys(ratioMap),
-        ...Object.keys(usableMap),
-        ...Object.keys(topupMap),
-        ...Object.keys(defaultModelMap),
-        ...Object.keys(retryTimesMap),
-      ]),
-    ].sort()
-  }, [
-    watchedDefaultModels,
-    watchedGroupRatio,
-    watchedGroupRetryTimes,
-    watchedTopupGroupRatio,
-    watchedUserUsableGroups,
-  ])
+    return Object.keys(ratioMap).sort()
+  }, [watchedGroupRatio])
 
   return (
     <div className='space-y-6'>

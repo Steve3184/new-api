@@ -43,8 +43,10 @@ export function NoticePopup(props: NoticePopupProps) {
   const [open, setOpen] = useState(false)
   const hasOpenedRef = useRef(false)
   const popupEnabled = Boolean(status?.notice_popup_enabled)
-  const placementEnabled =
-    props.placement === 'home' || Boolean(status?.notice_popup_on_dashboard)
+  const popupMode =
+    status?.notice_popup_mode ||
+    (status?.notice_popup_on_dashboard ? 'both' : 'home')
+  const placementEnabled = popupMode === 'both' || popupMode === props.placement
   const enabled = popupEnabled && placementEnabled
   const isClosedToday = closedUntilDate === new Date().toDateString()
   const { data } = useQuery({

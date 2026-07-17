@@ -1,4 +1,28 @@
 {
+  "Available Groups": "Доступные группы",
+  "Blacklist: selected groups use wallet only": "Черный список: выбранные группы используют только кошелек",
+  "Choose how the announcement center opens from the header": "Выберите способ открытия центра объявлений из шапки",
+  "Choose how the selected groups control subscription billing for this plan.": "Выберите, как группы управляют оплатой подписки для этого тарифа.",
+  "Choose where the notice popup appears": "Выберите, где показывать окно объявления",
+  "Delete subscription plan?": "Удалить тариф подписки?",
+  "Enable wallet-only groups": "Включить группы только для кошелька",
+  "Header announcement button behavior": "Поведение кнопки объявлений в шапке",
+  "Home page and overview dashboard": "Главная страница и обзорная панель",
+  "Home page only": "Только главная страница",
+  "No group found.": "Группы не найдены.",
+  "None": "Нет",
+  "Open a dialog": "Открывать диалог",
+  "Overview dashboard only": "Только обзорная панель",
+  "Popup display mode": "Режим отображения окна",
+  "Redemption type": "Тип кода",
+  "Search groups...": "Поиск групп...",
+  "Select groups": "Выбрать группы",
+  "Select multiple groups; these groups will be routed according to the selected mode.": "Выберите несколько групп; оплата будет направляться согласно выбранному режиму.",
+  "Show below the button": "Показывать под кнопкой",
+  "Subscription #{{id}}": "Подписка №{{id}}",
+  "Subscription plan deleted": "Тариф подписки удален",
+  "Subscription redeemed successfully: {{plan}}": "Подписка успешно активирована: {{plan}}",
+  "This permanently deletes {{plan}} and is allowed only when it has no active user subscriptions.": "Тариф {{plan}} будет удален навсегда. Это возможно только без активных подписок пользователей.",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5343,5 +5367,12 @@
     "Zoom": "Zoom",
     "Turnstile site key is required": "Требуется ключ сайта Turnstile",
     "Turnstile secret key is required": "Требуется секретный ключ Turnstile"
-  }
+  },
+  "Unavailable Groups": "Недоступные группы",
+  "Wallet balance": "Баланс кошелька",
+  "Wallet balance code": "Код пополнения кошелька",
+  "Wallet balance codes add quota; subscription codes grant the selected plan.": "Коды кошелька добавляют квоту, а коды подписки предоставляют выбранный тариф.",
+  "Wallet-only group mode": "Режим групп только для кошелька",
+  "Wallet-only groups": "Группы только для кошелька",
+  "Whitelist: only selected groups use subscriptions": "Белый список: только выбранные группы используют подписки"
 }

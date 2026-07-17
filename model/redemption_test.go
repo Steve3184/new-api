@@ -179,3 +179,55 @@ func TestRedeemConcurrentSingleSuccess(t *testing.T) {
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
 	assert.Equal(t, 300, user.Quota, "quota must be credited exactly once")
 }
+
+func TestRedeemGrantsSubscriptionPlan(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	})
+
+	user := &User{
+		Username: "subscription-redeem-user",
+		Password: "password",
+		Status:   common.UserStatusEnabled,
+		Quota:    0,
+	}
+	require.NoError(t, DB.Create(user).Error)
+	plan := &SubscriptionPlan{
+		Id:               9801,
+		Title:            "Redeemed Pro",
+		Enabled:          true,
+		DurationUnit:     SubscriptionDurationMonth,
+		DurationValue:    1,
+		TotalAmount:      5000,
+		QuotaResetPeriod: SubscriptionResetNever,
+		UpgradeGroup:     "vip",
+	}
+	require.NoError(t, DB.Create(plan).Error)
+	redemption := &Redemption{
+		Name:               "subscription-redeem",
+		Key:                "20000000000000000000000000000001",
+		Status:             common.RedemptionCodeStatusEnabled,
+		SubscriptionPlanId: plan.Id,
+		CreatedTime:        common.GetTimestamp(),
+	}
+	require.NoError(t, DB.Create(redemption).Error)
+
+	result, err := RedeemWithResult(redemption.Key, user.Id)
+	require.NoError(t, err)
+	assert.Zero(t, result.Quota)
+	assert.Equal(t, plan.Id, result.SubscriptionPlanId)
+	assert.Equal(t, plan.Title, result.SubscriptionPlanTitle)
+
+	var sub UserSubscription
+	require.NoError(t, DB.Where("user_id = ? AND plan_id = ?", user.Id, plan.Id).First(&sub).Error)
+	assert.Equal(t, "active", sub.Status)
+	assert.Equal(t, "redemption", sub.Source)
+	assert.Equal(t, plan.TotalAmount, sub.AmountTotal)
+
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Zero(t, user.Quota)
+	assert.Equal(t, "vip", user.Group)
+}

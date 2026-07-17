@@ -66,6 +66,11 @@ export async function patchPlanStatus(
   return res.data
 }
 
+export async function deletePlan(id: number): Promise<ApiResponse> {
+  const res = await api.delete(`/api/subscription/admin/plans/${id}`)
+  return res.data
+}
+
 // ============================================================================
 // Admin User Subscription Management
 // ============================================================================

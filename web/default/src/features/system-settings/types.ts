@@ -110,7 +110,9 @@ export type SiteSettings = {
   'theme.frontend': string
   Notice: string
   NoticePopupEnabled: boolean
+  NoticePopupMode: 'home' | 'dashboard' | 'both'
   NoticePopupOnDashboardEnabled: boolean
+  NoticeHeaderButtonMode: 'popover' | 'dialog'
   SystemName: string
   Logo: string
   Footer: string

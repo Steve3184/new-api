@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -64,7 +65,9 @@ func InitOptionMap() {
 	common.OptionMap["CustomTabs"] = common.CustomTabs
 	common.OptionMap["PlaygroundSettings"] = playground_setting.ToJSONString()
 	common.OptionMap["NoticePopupEnabled"] = strconv.FormatBool(common.NoticePopupEnabled)
+	common.OptionMap["NoticePopupMode"] = common.NoticePopupMode
 	common.OptionMap["NoticePopupOnDashboardEnabled"] = strconv.FormatBool(common.NoticePopupOnDashboardEnabled)
+	common.OptionMap["NoticeHeaderButtonMode"] = common.NoticeHeaderButtonMode
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
@@ -212,11 +215,22 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	hasPopupMode := false
+	legacyDashboardPopupEnabled := false
 	for _, option := range options {
+		if option.Key == "NoticePopupMode" {
+			hasPopupMode = true
+		}
+		if option.Key == "NoticePopupOnDashboardEnabled" && option.Value == "true" {
+			legacyDashboardPopupEnabled = true
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
+	}
+	if !hasPopupMode && legacyDashboardPopupEnabled {
+		_ = updateOptionMap("NoticePopupMode", "both")
 	}
 }
 
@@ -566,6 +580,20 @@ func updateOptionMap(key string, value string) (err error) {
 		}
 	case "PaymentAnnouncement":
 		common.PaymentAnnouncement = value
+	case "NoticePopupMode":
+		switch value {
+		case "home", "dashboard", "both":
+			common.NoticePopupMode = value
+		default:
+			return errors.New("invalid NoticePopupMode")
+		}
+	case "NoticeHeaderButtonMode":
+		switch value {
+		case "popover", "dialog":
+			common.NoticeHeaderButtonMode = value
+		default:
+			return errors.New("invalid NoticeHeaderButtonMode")
+		}
 	case "CustomTabs":
 		common.CustomTabs = value
 	case "PlaygroundSettings":

@@ -15,7 +15,22 @@ func GroupDefaultModel2JSONString() string {
 }
 
 func UpdateGroupDefaultModelByJSONString(jsonStr string) error {
-	return types.LoadFromJsonString(groupDefaultModelMap, jsonStr)
+	models := make(map[string]string)
+	if err := common.Unmarshal([]byte(jsonStr), &models); err != nil {
+		return err
+	}
+	validGroups := GetGroupRatioCopy()
+	filtered := make(map[string]string, len(models))
+	for group, model := range models {
+		if _, ok := validGroups[group]; ok {
+			filtered[group] = model
+		}
+	}
+	encoded, err := common.Marshal(filtered)
+	if err != nil {
+		return err
+	}
+	return types.LoadFromJsonString(groupDefaultModelMap, string(encoded))
 }
 
 func GetGroupDefaultModel(group string) string {

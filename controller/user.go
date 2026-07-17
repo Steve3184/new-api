@@ -1309,17 +1309,24 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	quota, err := model.Redeem(req.Key, id)
+	redemptionResult, err := model.RedeemWithResult(req.Key, id)
 	if err != nil {
 		// 不向用户暴露兑换失败的细分原因，避免攻击者根据错误类型判断兑换码状态。
 		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
 		logger.LogError(c, fmt.Sprintf("failed to redeem key %s for user %d: %s", req.Key, id, err.Error()))
 		return
 	}
+	data := interface{}(redemptionResult.Quota)
+	if redemptionResult.SubscriptionPlanId > 0 {
+		data = gin.H{
+			"subscription_plan_id":    redemptionResult.SubscriptionPlanId,
+			"subscription_plan_title": redemptionResult.SubscriptionPlanTitle,
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    quota,
+		"data":    data,
 	})
 }
 

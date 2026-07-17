@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
+import {
+  CalendarClock,
+  Check,
+  ChevronsUpDown,
+  CreditCard,
+  RefreshCw,
+  Settings2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +40,14 @@ import {
 } from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -43,6 +58,11 @@ import {
 } from '@/components/ui/form'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -62,6 +82,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { cn } from '@/lib/utils'
 
 import {
   createPlan,
@@ -85,6 +106,76 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: PlanRecord
+}
+
+function GroupMultiSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+}: {
+  options: string[]
+  value: string[]
+  onChange: (value: string[]) => void
+  placeholder: string
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const selected = new Set(value)
+  const label = value.length > 0 ? value.join(', ') : placeholder
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type='button'
+            variant='outline'
+            role='combobox'
+            aria-expanded={open}
+            className='w-full justify-between font-normal'
+          />
+        }
+      >
+        <span className='truncate text-left'>{label}</span>
+        <ChevronsUpDown className='size-4 shrink-0 opacity-50' />
+      </PopoverTrigger>
+      <PopoverContent className='w-[var(--anchor-width)] p-0' align='start'>
+        <Command>
+          <CommandInput placeholder={t('Search groups...')} />
+          <CommandList>
+            <CommandEmpty>{t('No group found.')}</CommandEmpty>
+            <CommandGroup>
+              {options.map((group) => {
+                const checked = selected.has(group)
+                return (
+                  <CommandItem
+                    key={group}
+                    value={group}
+                    onSelect={() => {
+                      onChange(
+                        checked
+                          ? value.filter((item) => item !== group)
+                          : [...value, group]
+                      )
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        'size-4',
+                        checked ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {group}
+                  </CommandItem>
+                )
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 export function SubscriptionsMutateDrawer({
@@ -145,6 +236,7 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const walletOnlyGroupsEnabled = form.watch('wallet_only_groups_enabled')
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
@@ -578,6 +670,90 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name='wallet_only_groups_enabled'
+                  render={({ field }) => (
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <FormLabel className='!mt-0'>
+                        {t('Enable wallet-only groups')}
+                      </FormLabel>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {walletOnlyGroupsEnabled && (
+                  <div className='space-y-3 rounded-md border p-3'>
+                    <FormField
+                      control={form.control}
+                      name='wallet_only_groups_mode'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Wallet-only group mode')}</FormLabel>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectItem value='blacklist'>
+                                {t(
+                                  'Blacklist: selected groups use wallet only'
+                                )}
+                              </SelectItem>
+                              <SelectItem value='whitelist'>
+                                {t(
+                                  'Whitelist: only selected groups use subscriptions'
+                                )}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'Choose how the selected groups control subscription billing for this plan.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='wallet_only_groups'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Wallet-only groups')}</FormLabel>
+                          <FormControl>
+                            <GroupMultiSelect
+                              options={groupOptions}
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder={t('Select groups')}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Select multiple groups; these groups will be routed according to the selected mode.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             </SideDrawerSection>
 

@@ -27,6 +27,27 @@ type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
+	if plan == nil {
+		return fmt.Errorf("套餐不能为空")
+	}
+	plan.Currency = strings.TrimSpace(plan.Currency)
+	if plan.Currency == "" {
+		plan.Currency = "USD"
+	}
+	plan.WalletOnlyGroupsMode = model.NormalizeWalletOnlyGroupsMode(plan.WalletOnlyGroupsMode)
+	plan.WalletOnlyGroups = model.NormalizeWalletOnlyGroups(plan.WalletOnlyGroups)
+	for _, group := range strings.Split(plan.WalletOnlyGroups, ",") {
+		if group == "" {
+			continue
+		}
+		if _, ok := ratio_setting.GetGroupRatioCopy()[group]; !ok {
+			return fmt.Errorf("钱包专用分组不存在: %s", group)
+		}
+	}
+	return nil
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -164,7 +185,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
+	if err := normalizeSubscriptionPlanInput(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if req.Plan.AllowBalancePay == nil {
 		req.Plan.AllowBalancePay = common.GetPointer(true)
 	}
@@ -244,7 +268,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
+	if err := normalizeSubscriptionPlanInput(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -298,6 +325,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"downgrade_group":            req.Plan.DowngradeGroup,
+			"wallet_only_groups_enabled": req.Plan.WalletOnlyGroupsEnabled,
+			"wallet_only_groups_mode":    req.Plan.WalletOnlyGroupsMode,
+			"wallet_only_groups":         req.Plan.WalletOnlyGroups,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
@@ -345,6 +375,23 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 		return
 	}
 	model.InvalidateSubscriptionPlanCache(id)
+	common.ApiSuccess(c, nil)
+}
+
+func AdminDeleteSubscriptionPlan(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
+	id, _ := strconv.Atoi(c.Param("id"))
+	if id <= 0 {
+		common.ApiErrorMsg(c, "无效的ID")
+		return
+	}
+	if err := model.DeleteSubscriptionPlan(id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, nil)
 }
 

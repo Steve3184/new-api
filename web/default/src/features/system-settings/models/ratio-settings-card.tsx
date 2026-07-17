@@ -31,6 +31,7 @@ import { resetModelRatios } from '../api'
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { safeJsonParse } from '../utils/json-parser'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
 import { ToolPriceSettings } from './tool-price-settings'
@@ -43,6 +44,21 @@ import {
 } from './utils'
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
+
+function filterDefaultModelsByGroups(
+  defaultModels: string,
+  groupValues: string[]
+): string {
+  const modelMap = safeJsonParse<Record<string, string>>(defaultModels, {
+    fallback: {},
+    silent: true,
+  })
+  const validGroups = new Set(groupValues)
+  const filtered = Object.fromEntries(
+    Object.entries(modelMap).filter(([group]) => validGroups.has(group))
+  )
+  return JSON.stringify(filtered, null, 2)
+}
 
 function formatJsonValidationError(
   t: Translate,
@@ -394,7 +410,15 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),
-        GroupDefaultModel: normalizeJsonString(values.GroupDefaultModel),
+        GroupDefaultModel: filterDefaultModelsByGroups(
+          values.GroupDefaultModel,
+          Object.keys(
+            safeJsonParse<Record<string, number>>(values.GroupRatio, {
+              fallback: {},
+              silent: true,
+            })
+          )
+        ),
         GroupRetryTimes: normalizeJsonString(values.GroupRetryTimes),
       }
 
@@ -414,6 +438,7 @@ export function RatioSettingsCard({
         const apiKey = apiKeyMap[key] || key
         await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
+      groupNormalizedDefaults.current = normalized
     },
     [updateOption]
   )

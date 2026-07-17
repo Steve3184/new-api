@@ -1,4 +1,28 @@
 {
+  "Available Groups": "Available Groups",
+  "Blacklist: selected groups use wallet only": "Blacklist: selected groups use wallet only",
+  "Choose how the announcement center opens from the header": "Choose how the announcement center opens from the header",
+  "Choose how the selected groups control subscription billing for this plan.": "Choose how the selected groups control subscription billing for this plan.",
+  "Choose where the notice popup appears": "Choose where the notice popup appears",
+  "Delete subscription plan?": "Delete subscription plan?",
+  "Enable wallet-only groups": "Enable wallet-only groups",
+  "Header announcement button behavior": "Header announcement button behavior",
+  "Home page and overview dashboard": "Home page and overview dashboard",
+  "Home page only": "Home page only",
+  "No group found.": "No group found.",
+  "None": "None",
+  "Open a dialog": "Open a dialog",
+  "Overview dashboard only": "Overview dashboard only",
+  "Popup display mode": "Popup display mode",
+  "Redemption type": "Redemption type",
+  "Search groups...": "Search groups...",
+  "Select groups": "Select groups",
+  "Select multiple groups; these groups will be routed according to the selected mode.": "Select multiple groups; these groups will be routed according to the selected mode.",
+  "Show below the button": "Show below the button",
+  "Subscription #{{id}}": "Subscription #{{id}}",
+  "Subscription plan deleted": "Subscription plan deleted",
+  "Subscription redeemed successfully: {{plan}}": "Subscription redeemed successfully: {{plan}}",
+  "This permanently deletes {{plan}} and is allowed only when it has no active user subscriptions.": "This permanently deletes {{plan}} and is allowed only when it has no active user subscriptions.",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5343,5 +5367,12 @@
     "Zoom": "Zoom",
     "Turnstile site key is required": "Turnstile site key is required",
     "Turnstile secret key is required": "Turnstile secret key is required"
-  }
+  },
+  "Unavailable Groups": "Unavailable Groups",
+  "Wallet balance": "Wallet balance",
+  "Wallet balance code": "Wallet balance code",
+  "Wallet balance codes add quota; subscription codes grant the selected plan.": "Wallet balance codes add quota; subscription codes grant the selected plan.",
+  "Wallet-only group mode": "Wallet-only group mode",
+  "Wallet-only groups": "Wallet-only groups",
+  "Whitelist: only selected groups use subscriptions": "Whitelist: only selected groups use subscriptions"
 }

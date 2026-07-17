@@ -142,6 +142,36 @@ func InvalidateSubscriptionPlanCache(planId int) {
 	_ = infoCache.Purge()
 }
 
+// DeleteSubscriptionPlan removes a plan only when no user currently has an
+// active subscription for it. Expired and cancelled history remains intact.
+func DeleteSubscriptionPlan(planId int) error {
+	if planId <= 0 {
+		return errors.New("invalid plan id")
+	}
+	now := common.GetTimestamp()
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var plan SubscriptionPlan
+		if err := lockForUpdate(tx).Where("id = ?", planId).First(&plan).Error; err != nil {
+			return err
+		}
+		var activeCount int64
+		if err := tx.Model(&UserSubscription{}).
+			Where("plan_id = ? AND status = ? AND end_time > ?", planId, "active", now).
+			Count(&activeCount).Error; err != nil {
+			return err
+		}
+		if activeCount > 0 {
+			return errors.New("cannot delete a plan with active subscriptions")
+		}
+		return tx.Delete(&plan).Error
+	})
+	if err != nil {
+		return err
+	}
+	InvalidateSubscriptionPlanCache(planId)
+	return nil
+}
+
 // Subscription plan
 type SubscriptionPlan struct {
 	Id int `json:"id"`
@@ -178,6 +208,12 @@ type SubscriptionPlan struct {
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Wallet-only group routing. In blacklist mode, listed groups bypass this
+	// subscription; in whitelist mode, only listed groups may use it.
+	WalletOnlyGroupsEnabled bool   `json:"wallet_only_groups_enabled"`
+	WalletOnlyGroupsMode    string `json:"wallet_only_groups_mode" gorm:"type:varchar(16);default:'blacklist'"`
+	WalletOnlyGroups        string `json:"wallet_only_groups" gorm:"type:text"`
+
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
@@ -208,6 +244,50 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 	if p.AllowWalletOverflow == nil {
 		p.AllowWalletOverflow = common.GetPointer(true)
 	}
+	p.WalletOnlyGroupsMode = NormalizeWalletOnlyGroupsMode(p.WalletOnlyGroupsMode)
+	p.WalletOnlyGroups = NormalizeWalletOnlyGroups(p.WalletOnlyGroups)
+}
+
+func NormalizeWalletOnlyGroupsMode(mode string) string {
+	if strings.EqualFold(strings.TrimSpace(mode), "whitelist") {
+		return "whitelist"
+	}
+	return "blacklist"
+}
+
+func NormalizeWalletOnlyGroups(groups string) string {
+	seen := make(map[string]struct{})
+	values := make([]string, 0)
+	for _, value := range strings.Split(groups, ",") {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	return strings.Join(values, ",")
+}
+
+func (p *SubscriptionPlan) IsWalletOnlyForGroup(group string) bool {
+	if p == nil || !p.WalletOnlyGroupsEnabled {
+		return false
+	}
+	group = strings.TrimSpace(group)
+	listed := false
+	for _, value := range strings.Split(p.WalletOnlyGroups, ",") {
+		if strings.TrimSpace(value) == group {
+			listed = true
+			break
+		}
+	}
+	if p.WalletOnlyGroupsMode == "whitelist" {
+		return !listed
+	}
+	return listed
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -262,7 +342,7 @@ type UserSubscription struct {
 	EndTime   int64  `json:"end_time" gorm:"bigint;index;index:idx_user_sub_active,priority:3"`
 	Status    string `json:"status" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:2"` // active/expired/cancelled
 
-	Source string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin
+	Source string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin/redemption
 
 	LastResetTime int64 `json:"last_reset_time" gorm:"type:bigint;default:0"`
 	NextResetTime int64 `json:"next_reset_time" gorm:"type:bigint;default:0;index"`
@@ -502,7 +582,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestamp(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -835,20 +915,42 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(subs), nil
 }
 
-// HasActiveUserSubscription returns whether the user has any active subscription.
-// This is a lightweight existence check to avoid heavy pre-consume transactions.
-func HasActiveUserSubscription(userId int) (bool, error) {
+// GetActiveSubscriptionAvailability reports whether the user has any active
+// subscription and whether at least one can be used by the current group.
+func GetActiveSubscriptionAvailability(userId int) (bool, bool, error) {
 	if userId <= 0 {
-		return false, errors.New("invalid userId")
+		return false, false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
-	var count int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
-		Count(&count).Error; err != nil {
-		return false, err
+	var subs []UserSubscription
+	if err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Find(&subs).Error; err != nil {
+		return false, false, err
 	}
-	return count > 0, nil
+	if len(subs) == 0 {
+		return false, false, nil
+	}
+	group, err := GetUserGroup(userId, false)
+	if err != nil {
+		return false, false, err
+	}
+	for _, sub := range subs {
+		plan, err := GetSubscriptionPlanById(sub.PlanId)
+		if err != nil {
+			return true, false, err
+		}
+		if !plan.IsWalletOnlyForGroup(group) {
+			return true, true, nil
+		}
+	}
+	return true, false, nil
+}
+
+// HasActiveUserSubscription returns whether the user has an active
+// subscription that is eligible for the user's current group.
+func HasActiveUserSubscription(userId int) (bool, error) {
+	_, hasEligible, err := GetActiveSubscriptionAvailability(userId)
+	return hasEligible, err
 }
 
 // UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
@@ -859,14 +961,28 @@ func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
+	var subs []UserSubscription
+	if err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Find(&subs).Error; err != nil {
 		return false, err
 	}
-	return strictCount == 0, nil
+	group, err := GetUserGroup(userId, false)
+	if err != nil {
+		return false, err
+	}
+	for _, sub := range subs {
+		plan, err := GetSubscriptionPlanById(sub.PlanId)
+		if err != nil {
+			return false, err
+		}
+		if plan.IsWalletOnlyForGroup(group) {
+			continue
+		}
+		if !sub.AllowWalletOverflow {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
@@ -1307,6 +1423,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		}
 
 		var subs []UserSubscription
+		userGroup, err := getUserGroupByIdTx(tx, userId)
+		if err != nil {
+			return err
+		}
 		if err := lockForUpdate(tx).
 			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 			Order("end_time asc, id asc").
@@ -1321,6 +1441,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
+			}
+			if plan.IsWalletOnlyForGroup(userGroup) {
+				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err

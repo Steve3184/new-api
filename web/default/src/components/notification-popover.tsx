@@ -20,6 +20,7 @@ import type { TFunction } from 'i18next'
 import { Bell, Megaphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { Dialog } from '@/components/dialog'
 import { RichContent } from '@/components/rich-content'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -61,6 +62,7 @@ interface NotificationPopoverProps {
   notice: string
   announcements: AnnouncementItem[]
   loading: boolean
+  displayMode?: 'popover' | 'dialog'
   className?: string
 }
 
@@ -299,9 +301,85 @@ export function NotificationPopover({
   notice,
   announcements,
   loading,
+  displayMode = 'popover',
   className,
 }: NotificationPopoverProps) {
   const { t } = useTranslation()
+
+  const buttonContent = (
+    <>
+      <Bell className='size-[1.2rem]' />
+      {unreadCount > 0 ? (
+        <Badge
+          variant='destructive'
+          className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1 text-[10px] font-semibold tabular-nums'
+        >
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </Badge>
+      ) : null}
+    </>
+  )
+
+  const tabsContent = (
+    <Tabs
+      value={activeTab}
+      onValueChange={onTabChange as (value: string) => void}
+    >
+      <TabsList className='grid w-full grid-cols-2'>
+        <TabsTrigger value='notice' className='gap-1.5'>
+          <Bell className='size-3.5' />
+          {t('Notice')}
+        </TabsTrigger>
+        <TabsTrigger value='announcements' className='gap-1.5'>
+          <Megaphone className='size-3.5' />
+          {t('Timeline')}
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value='notice' className='mt-2'>
+        <NoticeContent notice={notice} loading={loading} t={t} />
+      </TabsContent>
+
+      <TabsContent value='announcements' className='mt-2'>
+        <AnnouncementsContent
+          announcements={announcements}
+          loading={loading}
+          t={t}
+        />
+      </TabsContent>
+    </Tabs>
+  )
+
+  if (displayMode === 'dialog') {
+    return (
+      <>
+        <Button
+          variant='ghost'
+          size='icon'
+          className={cn('relative size-9', className)}
+          aria-label={t('Notifications')}
+          onClick={() => onOpenChange(true)}
+        >
+          {buttonContent}
+        </Button>
+        <Dialog
+          open={open}
+          onOpenChange={onOpenChange}
+          title={t('System Announcements')}
+          description={t('Latest platform updates and notices')}
+          contentClassName='sm:max-w-3xl'
+          contentHeight='min(65vh, 36rem)'
+          footer={
+            <Button onClick={() => onOpenChange(false)}>{t('Close')}</Button>
+          }
+          showCloseButton
+        >
+          {tabsContent}
+        </Dialog>
+      </>
+    )
+  }
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
@@ -314,15 +392,7 @@ export function NotificationPopover({
           />
         }
       >
-        <Bell className='size-[1.2rem]' />
-        {unreadCount > 0 ? (
-          <Badge
-            variant='destructive'
-            className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1 text-[10px] font-semibold tabular-nums'
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </Badge>
-        ) : null}
+        {buttonContent}
       </PopoverTrigger>
 
       <PopoverContent
@@ -337,33 +407,7 @@ export function NotificationPopover({
           </p>
         </PopoverHeader>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={onTabChange as (value: string) => void}
-        >
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='notice' className='gap-1.5'>
-              <Bell className='size-3.5' />
-              {t('Notice')}
-            </TabsTrigger>
-            <TabsTrigger value='announcements' className='gap-1.5'>
-              <Megaphone className='size-3.5' />
-              {t('Timeline')}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value='notice' className='mt-2'>
-            <NoticeContent notice={notice} loading={loading} t={t} />
-          </TabsContent>
-
-          <TabsContent value='announcements' className='mt-2'>
-            <AnnouncementsContent
-              announcements={announcements}
-              loading={loading}
-              t={t}
-            />
-          </TabsContent>
-        </Tabs>
+        {tabsContent}
 
         <div className='flex justify-end'>
           <Button size='sm' onClick={() => onOpenChange(false)}>

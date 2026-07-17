@@ -85,6 +85,21 @@ func AddRedemption(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionCountMax)
 		return
 	}
+	if redemption.SubscriptionPlanId > 0 {
+		plan, planErr := model.GetSubscriptionPlanById(redemption.SubscriptionPlanId)
+		if planErr != nil {
+			common.ApiErrorMsg(c, "订阅套餐不存在")
+			return
+		}
+		if !plan.Enabled {
+			common.ApiErrorMsg(c, "订阅套餐已禁用")
+			return
+		}
+		redemption.Quota = 0
+	} else if redemption.Quota < 0 {
+		common.ApiErrorMsg(c, "额度不能为负数")
+		return
+	}
 	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
@@ -93,12 +108,13 @@ func AddRedemption(c *gin.Context) {
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+			UserId:             c.GetInt("id"),
+			Name:               redemption.Name,
+			Key:                key,
+			CreatedTime:        common.GetTimestamp(),
+			Quota:              redemption.Quota,
+			SubscriptionPlanId: redemption.SubscriptionPlanId,
+			ExpiredTime:        redemption.ExpiredTime,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -113,9 +129,10 @@ func AddRedemption(c *gin.Context) {
 		keys = append(keys, key)
 	}
 	recordManageAudit(c, "redemption.create", map[string]interface{}{
-		"name":  redemption.Name,
-		"count": redemption.Count,
-		"quota": logger.LogQuota(redemption.Quota),
+		"name":                 redemption.Name,
+		"count":                redemption.Count,
+		"quota":                logger.LogQuota(redemption.Quota),
+		"subscription_plan_id": redemption.SubscriptionPlanId,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

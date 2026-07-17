@@ -37,6 +37,11 @@ export const subscriptionPlanSchema = z.object({
   sort_order: z.number(),
   allow_balance_pay: z.boolean().optional().default(true),
   allow_wallet_overflow: z.boolean().optional().default(true),
+  wallet_only_groups_enabled: z.boolean().default(false),
+  wallet_only_groups_mode: z
+    .enum(['blacklist', 'whitelist'])
+    .default('blacklist'),
+  wallet_only_groups: z.string().optional().default(''),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
   upgrade_group: z.string().optional(),
@@ -152,4 +157,5 @@ export type SubscriptionsDialogType =
   | 'create'
   | 'update'
   | 'toggle-status'
+  | 'delete'
   | 'reset-subscriptions'

@@ -56,6 +56,7 @@ import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -528,11 +529,30 @@ export function SubscriptionPlansCard({
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
-              const price = Number(plan.price_amount || 0).toFixed(2)
+              const price = formatBillingCurrencyFromUSD(
+                Number(plan.price_amount || 0),
+                { digitsLarge: 2, digitsSmall: 2, abbreviate: false }
+              )
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              const configuredGroups = (plan.wallet_only_groups || '')
+                .split(',')
+                .map((group) => group.trim())
+                .filter(Boolean)
+              let groupAvailability: string | null = null
+              if (plan.wallet_only_groups_enabled) {
+                const groupLabel =
+                  plan.wallet_only_groups_mode === 'whitelist'
+                    ? t('Available Groups')
+                    : t('Unavailable Groups')
+                const groupList =
+                  configuredGroups.length > 0
+                    ? configuredGroups.join(', ')
+                    : t('None')
+                groupAvailability = `${groupLabel}: ${groupList}`
+              }
 
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -546,6 +566,7 @@ export function SubscriptionPlansCard({
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
                   : null,
+                groupAvailability,
               ].filter(Boolean) as string[]
 
               return (
@@ -580,7 +601,7 @@ export function SubscriptionPlansCard({
 
                     <div className='py-2'>
                       <span className='text-primary text-2xl font-bold'>
-                        ${price}
+                        {price}
                       </span>
                     </div>
 

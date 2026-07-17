@@ -137,6 +137,7 @@ export function AppHeader({
                 notice={notifications.notice}
                 announcements={notifications.announcements}
                 loading={notifications.loading}
+                displayMode={notifications.noticeButtonMode}
               />
             )}
             <LanguageSwitcher />
