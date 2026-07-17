@@ -140,6 +140,17 @@ type customTabOption struct {
 	External bool   `json:"external"`
 }
 
+func isValidCustomTabURL(value string) bool {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "/") {
+		return true
+	}
+	parsedURL, err := url.ParseRequestURI(value)
+	return err == nil &&
+		(parsedURL.Scheme == "http" || parsedURL.Scheme == "https") &&
+		parsedURL.Host != ""
+}
+
 func syncCapDifficultyForOption(c *gin.Context, key, value string) error {
 	switch key {
 	case "CapServerURL", "CapAdminAPIKey", "CapSiteKey", "CapCheckinSiteKey", "LoginCaptchaDifficulty", "CheckinCaptchaDifficulty":
@@ -257,14 +268,8 @@ func UpdateOption(c *gin.Context) {
 				common.ApiErrorMsg(c, "Invalid custom tab entry")
 				return
 			}
-			if tab.External {
-				parsedURL, parseErr := url.ParseRequestURI(tab.URL)
-				if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
-					common.ApiErrorMsg(c, "External custom tab URLs must use HTTP or HTTPS")
-					return
-				}
-			} else if !strings.HasPrefix(tab.URL, "/") {
-				common.ApiErrorMsg(c, "Internal custom tab URLs must start with /")
+			if !isValidCustomTabURL(tab.URL) {
+				common.ApiErrorMsg(c, "Custom tab URLs must start with / or use HTTP or HTTPS")
 				return
 			}
 		}

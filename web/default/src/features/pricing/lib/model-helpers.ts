@@ -53,8 +53,9 @@ export function getConfiguredGroupRatio(
 /**
  * Resolve the group ratio used by model square summary prices.
  *
- * When no specific group is selected, return ratio 1 (base price).
- * When a group filter is active, return that group's ratio.
+ * When no specific group is selected, return the lowest ratio among the
+ * model's enabled groups. When a group filter is active, return that group's
+ * ratio.
  */
 export function getDisplayGroupRatio(
   model: PricingModel,
@@ -73,7 +74,13 @@ export function getDisplayGroupRatio(
     return getConfiguredGroupRatio(groupRatio, selectedGroup)
   }
 
-  return 1
+  const enabledAllGroups = modelEnableGroups.includes('all')
+  const availableRatios = Object.entries(groupRatio)
+    .filter(([group]) => enabledAllGroups || modelEnableGroups.includes(group))
+    .map(([, ratio]) => ratio)
+    .filter((ratio) => typeof ratio === 'number' && Number.isFinite(ratio))
+
+  return availableRatios.length > 0 ? Math.min(...availableRatios) : 1
 }
 
 /**
