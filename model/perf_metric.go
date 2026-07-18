@@ -22,6 +22,8 @@ type PerfMetric struct {
 	GenerationMs     int64  `json:"-" gorm:"default:0"`
 	CacheHitCount    int64  `json:"-" gorm:"default:0"`
 	CacheSampleCount int64  `json:"-" gorm:"default:0"`
+	CachedTokens     int64  `json:"-" gorm:"default:0"`
+	InputTokens      int64  `json:"-" gorm:"default:0"`
 }
 
 func (PerfMetric) TableName() string {
@@ -48,6 +50,8 @@ func UpsertPerfMetric(metric *PerfMetric) error {
 			"generation_ms":      gorm.Expr("perf_metrics.generation_ms + ?", metric.GenerationMs),
 			"cache_hit_count":    gorm.Expr("perf_metrics.cache_hit_count + ?", metric.CacheHitCount),
 			"cache_sample_count": gorm.Expr("perf_metrics.cache_sample_count + ?", metric.CacheSampleCount),
+			"cached_tokens":      gorm.Expr("perf_metrics.cached_tokens + ?", metric.CachedTokens),
+			"input_tokens":       gorm.Expr("perf_metrics.input_tokens + ?", metric.InputTokens),
 		}),
 	}).Create(metric).Error
 }
@@ -92,19 +96,21 @@ type PerfGroupSummaryBucket struct {
 	TtftCount        int64  `json:"ttft_count"`
 	CacheHitCount    int64  `json:"cache_hit_count"`
 	CacheSampleCount int64  `json:"cache_sample_count"`
+	CachedTokens     int64  `json:"cached_tokens"`
+	InputTokens      int64  `json:"input_tokens"`
 }
 
-type PerfGroupCacheSummaryBucket struct {
-	Group            string `json:"group"`
-	BucketTs         int64  `json:"bucket_ts"`
-	CacheHitCount    int64  `json:"cache_hit_count"`
-	CacheSampleCount int64  `json:"cache_sample_count"`
+type PerfGroupCacheTokenSummaryBucket struct {
+	Group        string `json:"group"`
+	BucketTs     int64  `json:"bucket_ts"`
+	CachedTokens int64  `json:"cached_tokens"`
+	InputTokens  int64  `json:"input_tokens"`
 }
 
 func GetPerfGroupSummaryBucketsAll(startTs int64, endTs int64, groups []string) ([]PerfGroupSummaryBucket, error) {
 	var summaries []PerfGroupSummaryBucket
 	query := DB.Model(&PerfMetric{}).
-		Select(commonGroupCol+", bucket_ts, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(ttft_sum_ms) as ttft_sum_ms, SUM(ttft_count) as ttft_count, SUM(cache_hit_count) as cache_hit_count, SUM(cache_sample_count) as cache_sample_count").
+		Select(commonGroupCol+", bucket_ts, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(ttft_sum_ms) as ttft_sum_ms, SUM(ttft_count) as ttft_count, SUM(cache_hit_count) as cache_hit_count, SUM(cache_sample_count) as cache_sample_count, SUM(cached_tokens) as cached_tokens, SUM(input_tokens) as input_tokens").
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
 	if groups != nil {
 		if len(groups) == 0 {
@@ -120,10 +126,10 @@ func GetPerfGroupSummaryBucketsAll(startTs int64, endTs int64, groups []string) 
 	return summaries, err
 }
 
-func GetPerfGroupCacheSummaryBuckets(startTs int64, endTs int64, groups []string, excludedModels []string) ([]PerfGroupCacheSummaryBucket, error) {
-	var summaries []PerfGroupCacheSummaryBucket
+func GetPerfGroupCacheTokenSummaryBuckets(startTs int64, endTs int64, groups []string, excludedModels []string) ([]PerfGroupCacheTokenSummaryBucket, error) {
+	var summaries []PerfGroupCacheTokenSummaryBucket
 	query := DB.Model(&PerfMetric{}).
-		Select(commonGroupCol+", bucket_ts, SUM(cache_hit_count) as cache_hit_count, SUM(cache_sample_count) as cache_sample_count").
+		Select(commonGroupCol+", bucket_ts, SUM(cached_tokens) as cached_tokens, SUM(input_tokens) as input_tokens").
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
 	if groups != nil {
 		if len(groups) == 0 {
@@ -136,7 +142,7 @@ func GetPerfGroupCacheSummaryBuckets(startTs int64, endTs int64, groups []string
 	}
 	err := query.
 		Group(commonGroupCol + ", bucket_ts").
-		Having("SUM(cache_sample_count) > 0").
+		Having("SUM(input_tokens) > 0").
 		Order("bucket_ts ASC").
 		Find(&summaries).Error
 	return summaries, err

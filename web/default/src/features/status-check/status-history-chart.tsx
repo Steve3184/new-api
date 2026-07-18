@@ -37,7 +37,7 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
     () =>
       props.points
         .filter((point) =>
-          isLatency ? point.ttft_sample_count > 0 : point.cache_sample_count > 0
+          isLatency ? point.ttft_sample_count > 0 : point.cache_input_tokens > 0
         )
         .map((point) => ({
           time: dayjs.unix(point.ts).format('HH:mm'),

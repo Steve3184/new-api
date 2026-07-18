@@ -87,11 +87,15 @@ average time to first token, and upstream cache hit rate. Clicking a card opens
 a right-side detail panel with hourly first-token latency and cache hit-rate
 line charts. Each chart includes a left-side Y axis with `ms` or percentage
 tick labels and an hourly X axis. The chart bundle is loaded only when the
-detail panel is opened. The page reads the existing relay performance
-aggregates through `GET /api/status-check`; it does not send probes or model
-requests. Synchronous requests contribute to request, availability, and cache
-statistics but never to the first-token metric, which is only recorded for
-streaming responses.
+detail panel is opened. The page refreshes `GET /api/status-check` every 30
+seconds; it only reads existing relay performance aggregates and does not send
+probes or model requests. Availability lines use a fixed 3-pixel width and
+4-pixel gap, while their count adapts to the card's available width. The card
+grid uses an explicit single-column track on mobile, and its contents can
+shrink without widening the page.
+Synchronous requests contribute to request, availability, and cache statistics
+but never to the first-token metric, which is only recorded for streaming
+responses.
 
 `StatusCheckGroups` is an additive JSON-array option. Configure it under
 **System Settings → Console Content → Status Check**. An empty array displays
@@ -109,10 +113,17 @@ The status entry is part of the existing `SidebarModulesAdmin` and per-user
 configurations default it to visible, while administrators and eligible users
 can hide it with the normal sidebar module controls.
 
-The `perf_metrics` table gains additive `cache_hit_count` and
-`cache_sample_count` columns through the existing GORM migration path. Cache
-hit rate uses responses with usage data as its denominator after applying the
-configured model exclusion list.
+The `perf_metrics` table retains the additive request-level `cache_hit_count`
+and `cache_sample_count` columns for compatibility and gains additive
+`cached_tokens` and `input_tokens` columns through the existing GORM migration
+path. The displayed cache hit rate is token-weighted:
+`SUM(cached_tokens) / SUM(input_tokens) * 100`, after applying the configured
+model exclusion list. Requests with valid input usage but no cached tokens add
+zero to the numerator and their input tokens to the denominator. Missing or
+non-positive input usage is omitted. Negative cached values are normalized to
+zero, cached tokens are capped at the request's input tokens, and the final
+aggregate is clamped to the `0%` to `100%` range as a second defense against
+invalid historical data.
 
 `ChannelAutoStatusEmailEnabled` is a backward-compatible routing reliability
 option that defaults to `true`. Disabling it suppresses email to the root

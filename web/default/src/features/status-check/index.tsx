@@ -18,27 +18,33 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getStatusCheck } from '@/features/performance-metrics/api'
 import {
   formatLatency,
-  getSuccessRateDotClass,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { StatusGroup } from '@/features/performance-metrics/types'
 import { cn } from '@/lib/utils'
 
+import { AvailabilityBars } from './availability-bars'
 import { StatusHistoryDrawer } from './status-history-drawer'
 
 const STATUS_WINDOW_HOURS = 24
+const STATUS_REFRESH_INTERVAL_MS = 30 * 1000
 
 export function StatusCheck() {
   const { t } = useTranslation()
-  const [selectedGroup, setSelectedGroup] = useState<StatusGroup | null>(null)
+  const [selectedGroupName, setSelectedGroupName] = useState<string | null>(
+    null
+  )
   const query = useQuery({
     queryKey: ['status-check', STATUS_WINDOW_HOURS],
     queryFn: getStatusCheck,
-    staleTime: 60 * 1000,
+    staleTime: STATUS_REFRESH_INTERVAL_MS,
+    refetchInterval: STATUS_REFRESH_INTERVAL_MS,
     refetchOnWindowFocus: false,
     retry: false,
   })
   const groups = query.data?.data.groups ?? []
+  const selectedGroup =
+    groups.find((group) => group.group === selectedGroupName) ?? null
 
   return (
     <>
@@ -56,7 +62,7 @@ export function StatusCheck() {
           </Button>
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='space-y-4'>
+          <div className='min-w-0 space-y-4'>
             <div className='text-muted-foreground flex items-center gap-2 text-sm'>
               <HeartPulse className='size-4' />
               <span>{t('Passive relay metrics from the last 24 hours')}</span>
@@ -64,7 +70,7 @@ export function StatusCheck() {
             <StatusGroupsContent
               loading={query.isLoading}
               groups={groups}
-              onSelectGroup={setSelectedGroup}
+              onSelectGroup={(group) => setSelectedGroupName(group.group)}
             />
             {query.isError && (
               <p className='text-destructive text-sm'>{t('Request failed')}</p>
@@ -76,7 +82,7 @@ export function StatusCheck() {
         group={selectedGroup}
         open={selectedGroup !== null}
         onOpenChange={(open) => {
-          if (!open) setSelectedGroup(null)
+          if (!open) setSelectedGroupName(null)
         }}
       />
     </>
@@ -91,7 +97,7 @@ function StatusGroupsContent(props: {
   const { t } = useTranslation()
   if (props.loading) {
     return (
-      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+      <div className='grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
         {[0, 1, 2].map((item) => (
           <Card key={item}>
             <CardHeader>
@@ -116,7 +122,7 @@ function StatusGroupsContent(props: {
     )
   }
   return (
-    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+    <div className='grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
       {props.groups.map((group) => (
         <StatusGroupCard
           key={group.group}
@@ -131,20 +137,19 @@ function StatusGroupsContent(props: {
 function StatusGroupCard(props: { group: StatusGroup; onClick: () => void }) {
   const { t } = useTranslation()
   const hasData = props.group.request_count > 0
-  const bars = props.group.availability_24h
   return (
     <button
       type='button'
-      className='focus-visible:outline-primary w-full rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2'
+      className='focus-visible:outline-primary w-full max-w-full min-w-0 overflow-hidden rounded-lg text-left focus-visible:outline-2 focus-visible:outline-offset-2'
       onClick={props.onClick}
       aria-label={t('View {{group}} status history', {
         group: props.group.group,
       })}
     >
-      <Card className='hover:border-primary/50 focus-within:border-primary overflow-hidden transition-colors'>
-        <CardHeader className='border-b pb-3'>
-          <div className='flex items-center justify-between gap-3'>
-            <CardTitle className='truncate text-base'>
+      <Card className='hover:border-primary/50 focus-within:border-primary max-w-full min-w-0 overflow-hidden transition-colors'>
+        <CardHeader className='min-w-0 border-b pb-3'>
+          <div className='flex min-w-0 items-center justify-between gap-3'>
+            <CardTitle className='min-w-0 truncate text-base'>
               {props.group.group}
             </CardTitle>
             <span
@@ -159,30 +164,8 @@ function StatusGroupCard(props: { group: StatusGroup; onClick: () => void }) {
             </span>
           </div>
         </CardHeader>
-        <CardContent className='space-y-3 pt-2'>
-          <div
-            className='flex h-14 items-end gap-1'
-            aria-label={t('Availability')}
-          >
-            {Array.from({ length: 24 }, (_, index) => {
-              const rate = bars[index - (24 - bars.length)]
-              const hasRate = typeof rate === 'number'
-              const height = hasRate
-                ? Math.max(5, Math.round((rate / 100) * 54))
-                : 5
-              return (
-                <span
-                  key={index}
-                  className={cn(
-                    'w-full rounded-t-sm transition-colors',
-                    hasRate ? getSuccessRateDotClass(rate) : 'bg-muted'
-                  )}
-                  style={{ height: `${height}px` }}
-                  title={hasRate ? `${rate.toFixed(2)}%` : t('No data')}
-                />
-              )
-            })}
-          </div>
+        <CardContent className='min-w-0 space-y-3 overflow-hidden pt-2'>
+          <AvailabilityBars rates={props.group.availability_24h} />
           <div className='grid grid-cols-2 gap-3'>
             <Metric
               label={t('First-token latency')}
@@ -191,7 +174,7 @@ function StatusGroupCard(props: { group: StatusGroup; onClick: () => void }) {
             <Metric
               label={t('Cache hit rate')}
               value={
-                props.group.cache_sample_count > 0
+                props.group.cache_input_tokens > 0
                   ? `${props.group.cache_hit_rate.toFixed(2)}%`
                   : '—'
               }
@@ -205,9 +188,11 @@ function StatusGroupCard(props: { group: StatusGroup; onClick: () => void }) {
 
 function Metric(props: { label: string; value: string }) {
   return (
-    <div className='bg-muted/40 rounded-lg px-3 py-2'>
-      <div className='text-muted-foreground text-xs'>{props.label}</div>
-      <div className='mt-1 font-mono text-sm font-semibold tabular-nums'>
+    <div className='bg-muted/40 min-w-0 rounded-lg px-3 py-2'>
+      <div className='text-muted-foreground truncate text-xs'>
+        {props.label}
+      </div>
+      <div className='mt-1 truncate font-mono text-sm font-semibold tabular-nums'>
         {props.value}
       </div>
     </div>

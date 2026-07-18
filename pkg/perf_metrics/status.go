@@ -23,9 +23,9 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 	if err != nil {
 		return StatusResult{}, err
 	}
-	var cacheRows []model.PerfGroupCacheSummaryBucket
+	var cacheRows []model.PerfGroupCacheTokenSummaryBucket
 	if len(cacheExcludedModels) > 0 {
-		cacheRows, err = model.GetPerfGroupCacheSummaryBuckets(startTs, endTs, groups, cacheExcludedModels)
+		cacheRows, err = model.GetPerfGroupCacheTokenSummaryBuckets(startTs, endTs, groups, cacheExcludedModels)
 		if err != nil {
 			return StatusResult{}, err
 		}
@@ -54,10 +54,14 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 			ttftCount:        row.TtftCount,
 			cacheHitCount:    row.CacheHitCount,
 			cacheSampleCount: row.CacheSampleCount,
+			cachedTokens:     row.CachedTokens,
+			inputTokens:      row.InputTokens,
 		}
 		if len(excludedModels) > 0 {
 			value.cacheHitCount = 0
 			value.cacheSampleCount = 0
+			value.cachedTokens = 0
+			value.inputTokens = 0
 		}
 		buckets[row.Group][row.BucketTs] = value
 	}
@@ -66,8 +70,8 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 			buckets[row.Group] = make(map[int64]counters)
 		}
 		value := buckets[row.Group][row.BucketTs]
-		value.cacheHitCount = row.CacheHitCount
-		value.cacheSampleCount = row.CacheSampleCount
+		value.cachedTokens = row.CachedTokens
+		value.inputTokens = row.InputTokens
 		buckets[row.Group][row.BucketTs] = value
 	}
 
@@ -89,6 +93,8 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		if _, excluded := excludedModels[bucket.model]; excluded {
 			hot.cacheHitCount = 0
 			hot.cacheSampleCount = 0
+			hot.cachedTokens = 0
+			hot.inputTokens = 0
 		}
 		mergeStatusCounters(&current, hot)
 		buckets[bucket.group][bucket.bucketTs] = current
@@ -110,16 +116,14 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		for _, ts := range timestamps {
 			value := groupBuckets[ts]
 			rates = append(rates, math.Round(successRate(value)*100)/100)
-			cacheRate := 0.0
-			if value.cacheSampleCount > 0 {
-				cacheRate = float64(value.cacheHitCount) / float64(value.cacheSampleCount) * 100
-			}
+			cacheRate := cacheTokenRate(value)
 			history = append(history, StatusHistoryPoint{
 				Ts:               ts,
 				AvgTtftMs:        avg(value.ttftSumMs, value.ttftCount),
 				TtftSampleCount:  value.ttftCount,
 				CacheHitRate:     math.Round(cacheRate*100) / 100,
 				CacheSampleCount: value.cacheSampleCount,
+				CacheInputTokens: value.inputTokens,
 			})
 		}
 		if len(rates) > 24 {
@@ -128,16 +132,14 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		if len(history) > 24 {
 			history = history[len(history)-24:]
 		}
-		cacheRate := 0.0
-		if total.cacheSampleCount > 0 {
-			cacheRate = float64(total.cacheHitCount) / float64(total.cacheSampleCount) * 100
-		}
+		cacheRate := cacheTokenRate(total)
 		result = append(result, StatusGroup{
 			Group:            group,
 			Availability:     math.Round(successRate(total)*100) / 100,
 			AvgTtftMs:        avg(total.ttftSumMs, total.ttftCount),
 			CacheHitRate:     math.Round(cacheRate*100) / 100,
 			CacheSampleCount: total.cacheSampleCount,
+			CacheInputTokens: total.inputTokens,
 			RequestCount:     total.requestCount,
 			Availability24:   rates,
 			History24:        history,
@@ -154,4 +156,16 @@ func mergeStatusCounters(target *counters, value counters) {
 	target.ttftCount += value.ttftCount
 	target.cacheHitCount += value.cacheHitCount
 	target.cacheSampleCount += value.cacheSampleCount
+	target.cachedTokens += value.cachedTokens
+	target.inputTokens += value.inputTokens
+}
+
+func cacheTokenRate(value counters) float64 {
+	if value.inputTokens <= 0 || value.cachedTokens <= 0 {
+		return 0
+	}
+	if value.cachedTokens >= value.inputTokens {
+		return 100
+	}
+	return float64(value.cachedTokens) / float64(value.inputTokens) * 100
 }

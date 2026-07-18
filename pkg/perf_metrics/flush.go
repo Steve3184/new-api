@@ -51,6 +51,8 @@ func flushCompletedBuckets() {
 			GenerationMs:     drained.generationMs,
 			CacheHitCount:    drained.cacheHitCount,
 			CacheSampleCount: drained.cacheSampleCount,
+			CachedTokens:     drained.cachedTokens,
+			InputTokens:      drained.inputTokens,
 		})
 		if err != nil {
 			bucket.addCounters(drained)
@@ -90,6 +92,8 @@ func redisCounters(values map[string]string) counters {
 		generationMs:     parseRedisInt(values["gen_ms"]),
 		cacheHitCount:    parseRedisInt(values["cache"]),
 		cacheSampleCount: parseRedisInt(values["cache_n"]),
+		cachedTokens:     parseRedisInt(values["cache_tok"]),
+		inputTokens:      parseRedisInt(values["input_tok"]),
 	}
 }
 

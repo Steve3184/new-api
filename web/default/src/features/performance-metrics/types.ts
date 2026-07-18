@@ -66,6 +66,7 @@ export type StatusGroup = {
   avg_ttft_ms: number
   cache_hit_rate: number
   cache_sample_count: number
+  cache_input_tokens: number
   request_count: number
   availability_24h: number[]
   history_24h: StatusHistoryPoint[]
@@ -77,6 +78,7 @@ export type StatusHistoryPoint = {
   ttft_sample_count: number
   cache_hit_rate: number
   cache_sample_count: number
+  cache_input_tokens: number
 }
 
 export type StatusCheckData = {

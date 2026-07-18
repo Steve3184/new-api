@@ -43,6 +43,7 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 	if generationMs <= 0 {
 		generationMs = latencyMs
 	}
+	cachedTokens, inputTokens := cacheTokenUsage(usage)
 	Record(Sample{
 		Model:        info.OriginModelName,
 		Group:        info.UsingGroup,
@@ -54,7 +55,36 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 		GenerationMs: generationMs,
 		CacheHit:     hasCacheHit(usage),
 		CacheSample:  usage != nil,
+		CachedTokens: cachedTokens,
+		InputTokens:  inputTokens,
 	})
+}
+
+func cacheTokenUsage(usage *dto.Usage) (int64, int64) {
+	if usage == nil {
+		return 0, 0
+	}
+	inputTokens := usage.PromptTokens
+	if inputTokens <= 0 {
+		inputTokens = usage.InputTokens
+	}
+	if inputTokens <= 0 {
+		return 0, 0
+	}
+	cachedTokens := usage.PromptTokensDetails.CachedTokens
+	if cachedTokens <= 0 {
+		cachedTokens = usage.PromptCacheHitTokens
+	}
+	if cachedTokens <= 0 && usage.InputTokensDetails != nil {
+		cachedTokens = usage.InputTokensDetails.CachedTokens
+	}
+	if cachedTokens < 0 {
+		cachedTokens = 0
+	}
+	if cachedTokens > inputTokens {
+		cachedTokens = inputTokens
+	}
+	return int64(cachedTokens), int64(inputTokens)
 }
 
 func hasCacheHit(usage *dto.Usage) bool {
@@ -119,6 +149,8 @@ func Query(params QueryParams) (QueryResult, error) {
 			generationMs:     row.GenerationMs,
 			cacheHitCount:    row.CacheHitCount,
 			cacheSampleCount: row.CacheSampleCount,
+			cachedTokens:     row.CachedTokens,
+			inputTokens:      row.InputTokens,
 		})
 	}
 
@@ -300,6 +332,8 @@ func mergeCounters(merged map[bucketKey]counters, key bucketKey, value counters)
 	current.generationMs += value.generationMs
 	current.cacheHitCount += value.cacheHitCount
 	current.cacheSampleCount += value.cacheSampleCount
+	current.cachedTokens += value.cachedTokens
+	current.inputTokens += value.inputTokens
 	merged[key] = current
 }
 
@@ -423,6 +457,12 @@ func recordRedis(key bucketKey, sample Sample) {
 	}
 	if sample.CacheSample {
 		pipe.HIncrBy(ctx, redisKey, "cache_n", 1)
+	}
+	if sample.InputTokens > 0 {
+		pipe.HIncrBy(ctx, redisKey, "input_tok", sample.InputTokens)
+		if sample.CachedTokens > 0 {
+			pipe.HIncrBy(ctx, redisKey, "cache_tok", sample.CachedTokens)
+		}
 	}
 	pipe.Expire(ctx, redisKey, time.Hour)
 	_, _ = pipe.Exec(ctx)
