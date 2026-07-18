@@ -121,9 +121,10 @@ path. The displayed cache hit rate is token-weighted:
 model exclusion list. Requests with valid input usage but no cached tokens add
 zero to the numerator and their input tokens to the denominator. Missing or
 non-positive input usage is omitted. Negative cached values are normalized to
-zero, cached tokens are capped at the request's input tokens, and the final
-aggregate is clamped to the `0%` to `100%` range as a second defense against
-invalid historical data.
+zero. When cached tokens exceed the reported input tokens, cached tokens are
+added to the denominator as a fallback; the final aggregate is still bounded
+to the `0%` to `100%` range as a second defense against invalid historical
+data.
 
 `ChannelAutoStatusEmailEnabled` is a backward-compatible routing reliability
 option that defaults to `true`. Disabling it suppresses email to the root

@@ -64,27 +64,39 @@ func cacheTokenUsage(usage *dto.Usage) (int64, int64) {
 	if usage == nil {
 		return 0, 0
 	}
-	inputTokens := usage.PromptTokens
+	inputTokens := int64(usage.PromptTokens)
 	if inputTokens <= 0 {
-		inputTokens = usage.InputTokens
+		inputTokens = int64(usage.InputTokens)
 	}
 	if inputTokens <= 0 {
 		return 0, 0
 	}
-	cachedTokens := usage.PromptTokensDetails.CachedTokens
+	cachedTokens := int64(usage.PromptTokensDetails.CachedTokens)
 	if cachedTokens <= 0 {
-		cachedTokens = usage.PromptCacheHitTokens
+		cachedTokens = int64(usage.PromptCacheHitTokens)
 	}
 	if cachedTokens <= 0 && usage.InputTokensDetails != nil {
-		cachedTokens = usage.InputTokensDetails.CachedTokens
+		cachedTokens = int64(usage.InputTokensDetails.CachedTokens)
 	}
 	if cachedTokens < 0 {
 		cachedTokens = 0
 	}
 	if cachedTokens > inputTokens {
-		cachedTokens = inputTokens
+		inputTokens = adjustedCacheInputTokens(inputTokens, cachedTokens)
 	}
-	return int64(cachedTokens), int64(inputTokens)
+	return cachedTokens, inputTokens
+}
+
+const maxPerfMetricInt64 = int64(1<<63 - 1)
+
+func adjustedCacheInputTokens(inputTokens int64, cachedTokens int64) int64 {
+	if cachedTokens <= 0 {
+		return inputTokens
+	}
+	if inputTokens > maxPerfMetricInt64-cachedTokens {
+		return maxPerfMetricInt64
+	}
+	return inputTokens + cachedTokens
 }
 
 func hasCacheHit(usage *dto.Usage) bool {

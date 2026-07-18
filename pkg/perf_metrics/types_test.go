@@ -28,8 +28,8 @@ func TestAtomicBucketTracksCacheTokenTotals(t *testing.T) {
 	assert.Equal(t, int64(3), snapshot.requestCount)
 	assert.Equal(t, int64(2), snapshot.cacheSampleCount)
 	assert.Equal(t, int64(1), snapshot.cacheHitCount)
-	assert.Equal(t, int64(180), snapshot.cachedTokens)
-	assert.Equal(t, int64(200), snapshot.inputTokens)
+	assert.Equal(t, int64(230), snapshot.cachedTokens)
+	assert.Equal(t, int64(350), snapshot.inputTokens)
 }
 
 func TestHasCacheHitSupportsChatAndResponsesUsage(t *testing.T) {
@@ -78,13 +78,13 @@ func TestCacheTokenUsageUsesCanonicalInputTokens(t *testing.T) {
 			wantInput:  120,
 		},
 		{
-			name: "malformed cached tokens are capped",
+			name: "cached tokens adjust the denominator",
 			usage: &dto.Usage{
 				PromptTokens:        100,
 				PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 150},
 			},
-			wantCached: 100,
-			wantInput:  100,
+			wantCached: 150,
+			wantInput:  250,
 		},
 		{
 			name:       "missing input tokens",
@@ -115,6 +115,10 @@ func TestCacheTokenUsageUsesCanonicalInputTokens(t *testing.T) {
 func TestCacheTokenRateClampsInvalidAggregates(t *testing.T) {
 	assert.Equal(t, 0.0, cacheTokenRate(counters{cachedTokens: -10, inputTokens: 100}))
 	assert.Equal(t, 0.0, cacheTokenRate(counters{cachedTokens: 10, inputTokens: -100}))
-	assert.Equal(t, 100.0, cacheTokenRate(counters{cachedTokens: 150, inputTokens: 100}))
+	assert.Equal(t, 60.0, cacheTokenRate(counters{cachedTokens: 150, inputTokens: 100}))
 	assert.Equal(t, 25.0, cacheTokenRate(counters{cachedTokens: 25, inputTokens: 100}))
+}
+
+func TestAdjustedCacheInputTokensSaturatesOnOverflow(t *testing.T) {
+	assert.Equal(t, maxPerfMetricInt64, adjustedCacheInputTokens(maxPerfMetricInt64-10, 20))
 }

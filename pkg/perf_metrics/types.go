@@ -146,11 +146,15 @@ func (b *atomicBucket) add(sample Sample) {
 		b.cacheSampleCount.Add(1)
 	}
 	if sample.InputTokens > 0 {
-		b.inputTokens.Add(sample.InputTokens)
 		cachedTokens := sample.CachedTokens
-		if cachedTokens > sample.InputTokens {
-			cachedTokens = sample.InputTokens
+		if cachedTokens < 0 {
+			cachedTokens = 0
 		}
+		inputTokens := sample.InputTokens
+		if cachedTokens > inputTokens {
+			inputTokens = adjustedCacheInputTokens(inputTokens, cachedTokens)
+		}
+		b.inputTokens.Add(inputTokens)
 		if cachedTokens > 0 {
 			b.cachedTokens.Add(cachedTokens)
 		}

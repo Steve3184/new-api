@@ -164,8 +164,9 @@ func cacheTokenRate(value counters) float64 {
 	if value.inputTokens <= 0 || value.cachedTokens <= 0 {
 		return 0
 	}
-	if value.cachedTokens >= value.inputTokens {
-		return 100
+	inputTokens := value.inputTokens
+	if value.cachedTokens > inputTokens {
+		inputTokens = adjustedCacheInputTokens(inputTokens, value.cachedTokens)
 	}
-	return float64(value.cachedTokens) / float64(value.inputTokens) * 100
+	return float64(value.cachedTokens) / float64(inputTokens) * 100
 }
