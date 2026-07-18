@@ -482,15 +482,25 @@ existing token-authenticated APIs:
 | `POST /pg/3d` | Submit a 3D task |
 | `GET /pg/3d/:task_id` | Poll a user-owned 3D task |
 
-Image controls use the OpenAI Images request shape and include 1K, 2K, and 4K
-size presets. GPT Image and Seedream-compatible channels continue through the
-existing image adaptors. Gemini image models, including Nano Banana aliases,
-are converted to native `generateContent` image requests; uploaded edit images
-become Gemini `inlineData`, and Gemini image parts are converted back to the
-OpenAI Images response shape. `gpt-image-2` is included in the OpenAI model
-catalog. VolcEngine image edits convert the first multipart upload to the data
-URI accepted by the Seedream generations endpoint, and the channel catalog
-includes Seedream 4.0 plus generic Seedream 5.0 aliases.
+Image controls use the OpenAI Images request shape and expose resolution and
+aspect ratio as independent inputs. Resolution presets are 1K, 1.5K, 2K, 2.5K,
+and 4K. Aspect-ratio presets are 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, and 2:3; users
+may also enter a custom ratio as positive whole numbers in `width:height`
+format. The selected resolution represents the nominal longest edge. The
+frontend reduces the ratio and derives a concrete `WxH` value, using dimensions
+aligned to multiples of eight when possible, so both generation and multipart
+editing continue to send the existing `size` field without introducing a new
+request contract. Invalid custom ratios are reported inline and block
+submission.
+
+GPT Image and Seedream-compatible channels continue through the existing image
+adaptors. Gemini image models, including Nano Banana aliases, are converted to
+native `generateContent` image requests; uploaded edit images become Gemini
+`inlineData`, and Gemini image parts are converted back to the OpenAI Images
+response shape. `gpt-image-2` is included in the OpenAI model catalog.
+VolcEngine image edits convert the first multipart upload to the data URI
+accepted by the Seedream generations endpoint, and the channel catalog includes
+Seedream 4.0 plus generic Seedream 5.0 aliases.
 
 The image and 3D desktop layouts use the full Playground width: their fixed
 control columns align with the left edge and the remaining width belongs to the

@@ -20,7 +20,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -43,17 +48,20 @@ import { GenerationControls } from './generation-controls'
 import {
   getGenerationErrorMessage,
   imageResponseSource,
+  imageSizeFromResolution,
+  normalizeImageAspectRatio,
   workspaceImageToFile,
 } from './generation-utils'
 import { useGenerationModel } from './use-generation-model'
 
-const SIZE_OPTIONS = [
-  { value: '1024x1024', label: '1K · 1:1' },
-  { value: '1536x1024', label: '1.5K · 3:2' },
-  { value: '1024x1536', label: '1.5K · 2:3' },
-  { value: '2048x2048', label: '2K · 1:1' },
-  { value: '4096x4096', label: '4K · 1:1' },
+const RESOLUTION_OPTIONS = [
+  { value: '1024', label: '1K' },
+  { value: '1536', label: '1.5K' },
+  { value: '2048', label: '2K' },
+  { value: '2560', label: '2.5K' },
+  { value: '4096', label: '4K' },
 ]
+const ASPECT_RATIO_OPTIONS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3']
 const QUALITY_OPTIONS = [
   { value: 'default', labelKey: 'Auto' },
   { value: 'standard', labelKey: 'Standard' },
@@ -79,7 +87,9 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
   })
   const [mode, setMode] = useState<'generate' | 'edit'>('generate')
   const [prompt, setPrompt] = useState('')
-  const [size, setSize] = useState('1024x1024')
+  const [resolution, setResolution] = useState('1024')
+  const [aspectRatio, setAspectRatio] = useState('1:1')
+  const [customAspectRatio, setCustomAspectRatio] = useState('')
   const [quality, setQuality] = useState('default')
   const [count, setCount] = useState(1)
   const [sourceFile, setSourceFile] = useState<File | null>(null)
@@ -97,6 +107,17 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
       })),
     [t]
   )
+  const normalizedCustomAspectRatio = customAspectRatio.trim()
+    ? normalizeImageAspectRatio(customAspectRatio)
+    : null
+  const hasInvalidCustomAspectRatio =
+    customAspectRatio.trim().length > 0 && !normalizedCustomAspectRatio
+  const effectiveAspectRatio = customAspectRatio.trim()
+    ? normalizedCustomAspectRatio
+    : aspectRatio
+  const size = effectiveAspectRatio
+    ? imageSizeFromResolution(Number(resolution), effectiveAspectRatio)
+    : null
 
   const handleFile = (file: File | null) => {
     if (sourcePreview) URL.revokeObjectURL(sourcePreview)
@@ -105,7 +126,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
   }
 
   const handleGenerate = async () => {
-    if (!model || !prompt.trim()) return
+    if (!model || !prompt.trim() || !size) return
     if (mode === 'edit' && !sourceFile) {
       toast.error(t('Select an image to edit'))
       return
@@ -269,18 +290,19 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
 
           <FieldGroup className='grid grid-cols-2 gap-4'>
             <Field>
-              <FieldLabel>{t('Image size')}</FieldLabel>
+              <FieldLabel>{t('Resolution')}</FieldLabel>
               <Select
-                items={SIZE_OPTIONS}
-                value={size}
-                onValueChange={(value) => value && setSize(value)}
+                items={RESOLUTION_OPTIONS}
+                value={resolution}
+                onValueChange={(value) => value && setResolution(value)}
+                disabled={isGenerating}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {SIZE_OPTIONS.map((option) => (
+                    {RESOLUTION_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -295,6 +317,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                 items={qualityOptions}
                 value={quality}
                 onValueChange={(value) => value && setQuality(value)}
+                disabled={isGenerating}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -311,6 +334,51 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
               </Select>
             </Field>
           </FieldGroup>
+
+          <Field data-invalid={hasInvalidCustomAspectRatio || undefined}>
+            <FieldLabel id='playground-image-aspect-ratio-label'>
+              {t('Aspect ratio')}
+            </FieldLabel>
+            <ToggleGroup
+              value={customAspectRatio.trim() ? [] : [aspectRatio]}
+              onValueChange={(values) => {
+                const next = values[0]
+                if (!next) return
+                setAspectRatio(next)
+                setCustomAspectRatio('')
+              }}
+              variant='outline'
+              spacing={2}
+              className='grid w-full grid-cols-4'
+              aria-labelledby='playground-image-aspect-ratio-label'
+              disabled={isGenerating}
+            >
+              {ASPECT_RATIO_OPTIONS.map((option) => (
+                <ToggleGroupItem key={option} value={option} className='w-full'>
+                  {option}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <FieldLabel htmlFor='playground-image-custom-aspect-ratio'>
+              {t('Custom aspect ratio')}
+            </FieldLabel>
+            <Input
+              id='playground-image-custom-aspect-ratio'
+              value={customAspectRatio}
+              onChange={(event) => setCustomAspectRatio(event.target.value)}
+              placeholder={t('e.g. 5:4')}
+              inputMode='numeric'
+              aria-invalid={hasInvalidCustomAspectRatio || undefined}
+              disabled={isGenerating}
+            />
+            {hasInvalidCustomAspectRatio && (
+              <FieldError>
+                {t(
+                  'Aspect ratio must use positive whole numbers in width:height format.'
+                )}
+              </FieldError>
+            )}
+          </Field>
 
           <Field>
             <FieldLabel htmlFor='playground-image-count'>
@@ -332,7 +400,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
 
           <Button
             className='w-full'
-            disabled={!model || !prompt.trim() || isGenerating}
+            disabled={!model || !prompt.trim() || !size || isGenerating}
             onClick={handleGenerate}
           >
             {isGenerating ? (

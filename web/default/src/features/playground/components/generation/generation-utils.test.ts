@@ -4,6 +4,8 @@ import { describe, test } from 'node:test'
 
 import {
   filterGenerationGroups,
+  imageSizeFromResolution,
+  normalizeImageAspectRatio,
   resolveGenerationGroup,
   workspaceImageToFile,
 } from './generation-utils'
@@ -68,5 +70,24 @@ describe('workspace image editing', () => {
     assert.equal(file.name, 'playground-result.png')
     assert.equal(file.type, 'image/png')
     assert.equal(await file.text(), 'image-data')
+  })
+})
+
+describe('image size controls', () => {
+  test('normalizes valid aspect ratios and rejects malformed values', () => {
+    assert.equal(normalizeImageAspectRatio(' 32 : 18 '), '16:9')
+    assert.equal(normalizeImageAspectRatio('5:4'), '5:4')
+    assert.equal(normalizeImageAspectRatio('0:4'), null)
+    assert.equal(normalizeImageAspectRatio('1.5:1'), null)
+    assert.equal(normalizeImageAspectRatio('square'), null)
+  })
+
+  test('combines resolution and aspect ratio into provider-compatible dimensions', () => {
+    assert.equal(imageSizeFromResolution(1024, '1:1'), '1024x1024')
+    assert.equal(imageSizeFromResolution(1536, '3:2'), '1536x1024')
+    assert.equal(imageSizeFromResolution(2048, '3:2'), '2040x1360')
+    assert.equal(imageSizeFromResolution(2560, '16:9'), '2560x1440')
+    assert.equal(imageSizeFromResolution(4096, '9:16'), '2304x4096')
+    assert.equal(imageSizeFromResolution(2560, '5:4'), '2560x2048')
   })
 })

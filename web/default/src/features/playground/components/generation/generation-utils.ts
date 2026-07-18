@@ -53,6 +53,62 @@ export function imageResponseSource(image: {
   return image.b64_json ? `data:image/png;base64,${image.b64_json}` : ''
 }
 
+export function normalizeImageAspectRatio(value: string): string | null {
+  const match = value.match(/^\s*(\d+)\s*:\s*(\d+)\s*$/)
+  if (!match) return null
+
+  let width = Number(match[1])
+  let height = Number(match[2])
+  if (
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return null
+  }
+
+  let left = width
+  let right = height
+  while (right !== 0) {
+    const remainder = left % right
+    left = right
+    right = remainder
+  }
+  width /= left
+  height /= left
+  return `${width}:${height}`
+}
+
+export function imageSizeFromResolution(
+  resolution: number,
+  aspectRatio: string
+): string | null {
+  const normalizedRatio = normalizeImageAspectRatio(aspectRatio)
+  if (
+    !normalizedRatio ||
+    !Number.isSafeInteger(resolution) ||
+    resolution <= 0
+  ) {
+    return null
+  }
+
+  const [widthUnit, heightUnit] = normalizedRatio.split(':').map(Number)
+  const maxUnit = Math.max(widthUnit, heightUnit)
+  const rawScale = Math.floor(resolution / maxUnit)
+  const alignedScale = Math.floor(rawScale / 8) * 8
+  const scale = alignedScale || rawScale
+
+  if (scale > 0) {
+    return `${widthUnit * scale}x${heightUnit * scale}`
+  }
+
+  if (widthUnit > heightUnit) {
+    return `${resolution}x${Math.max(1, Math.round((resolution * heightUnit) / widthUnit))}`
+  }
+  return `${Math.max(1, Math.round((resolution * widthUnit) / heightUnit))}x${resolution}`
+}
+
 export async function workspaceImageToFile(
   source: string,
   baseName: string
