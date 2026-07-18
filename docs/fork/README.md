@@ -736,9 +736,26 @@ when `AutoGroups` is non-empty. `/api/user/self/groups` exposes the virtual
 `auto` group only when the current user has at least one usable automatic group,
 and uses this description when configured.
 
+The virtual `auto` group does not need to appear in `UserUsableGroups`. When at
+least one configured `AutoGroups` entry is available to the current user,
+`auto` is implicitly authorized for that user. Before routing, configured auto
+groups are intersected with the user's effective usable groups, preserving
+configuration order while removing inaccessible and duplicate entries. The
+resulting usable-group map and filtered auto-group list are cached in the Gin
+request context so token authentication, Playground overrides, channel
+affinity, model listing, and retry selection reuse one calculation instead of
+copying and filtering settings repeatedly.
+
 Files:
 
 - `setting/auto_group.go`
+- `constant/context_key.go`
+- `service/group.go`
+- `service/group_test.go`
+- `service/channel_select.go`
+- `middleware/auth.go`
+- `middleware/distributor.go`
+- `controller/model.go`
 - `setting/ratio_setting/group_model.go`
 - `setting/ratio_setting/group_model_test.go`
 - `model/option.go`
@@ -1075,3 +1092,6 @@ option is disabled; at more than 5,000 characters the Playground selects
 17. Verify passive recovery probes only auto-disabled channels and that turning
     off a channel's **Auto Ban** switch prevents both relay-triggered and
     scheduled-test automatic disabling.
+18. Verify an API key assigned to `auto` is accepted whenever the user retains
+    at least one configured automatic group, inaccessible candidates are never
+    selected, and duplicate auto-group entries are evaluated only once.

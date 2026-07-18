@@ -84,7 +84,7 @@ func Distribute() func(c *gin.Context) {
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/") && modelRequest.Group != "" {
-					if !service.GroupInUserUsableGroups(usingGroup, modelRequest.Group) && modelRequest.Group != usingGroup {
+					if !service.GetRequestUserGroupAccess(c).Allows(modelRequest.Group) && modelRequest.Group != usingGroup {
 						abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 						return
 					}
@@ -98,8 +98,7 @@ func Distribute() func(c *gin.Context) {
 					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
 						channelSupportsRequestPath(preferred, canonicalRelayPath(c.Request.URL.Path), modelRequest.Model) {
 						if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
+							autoGroups := service.GetRequestUserGroupAccess(c).AutoGroups
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
 									selectGroup = g

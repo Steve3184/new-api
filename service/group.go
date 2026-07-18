@@ -3,9 +3,25 @@ package service
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/gin-gonic/gin"
 )
+
+type UserGroupAccess struct {
+	UsableGroups map[string]string
+	AutoGroups   []string
+}
+
+func (access UserGroupAccess) Allows(group string) bool {
+	if group == "auto" {
+		return len(access.AutoGroups) > 0
+	}
+	_, ok := access.UsableGroups[group]
+	return ok
+}
 
 func GetUserUsableGroups(userGroup string) map[string]string {
 	groupsCopy := setting.GetUserUsableGroupsCopy()
@@ -41,16 +57,45 @@ func GroupInUserUsableGroups(userGroup, groupName string) bool {
 	return ok
 }
 
-// GetUserAutoGroup 根据用户分组获取自动分组设置
-func GetUserAutoGroup(userGroup string) []string {
-	groups := GetUserUsableGroups(userGroup)
-	autoGroups := make([]string, 0)
-	for _, group := range setting.GetAutoGroups() {
-		if _, ok := groups[group]; ok {
-			autoGroups = append(autoGroups, group)
+func ResolveUserGroupAccess(userGroup string) UserGroupAccess {
+	usableGroups := GetUserUsableGroups(userGroup)
+	autoGroups := filterAutoGroups(setting.GetAutoGroups(), usableGroups)
+	return UserGroupAccess{
+		UsableGroups: usableGroups,
+		AutoGroups:   autoGroups,
+	}
+}
+
+func filterAutoGroups(configuredGroups []string, usableGroups map[string]string) []string {
+	autoGroups := make([]string, 0, len(configuredGroups))
+	seen := make(map[string]struct{}, len(configuredGroups))
+	for _, group := range configuredGroups {
+		if _, duplicate := seen[group]; duplicate {
+			continue
 		}
+		if _, ok := usableGroups[group]; !ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		autoGroups = append(autoGroups, group)
 	}
 	return autoGroups
+}
+
+func GetRequestUserGroupAccess(c *gin.Context) UserGroupAccess {
+	if cached, ok := common.GetContextKey(c, constant.ContextKeyUserGroupAccess); ok {
+		if access, valid := cached.(UserGroupAccess); valid {
+			return access
+		}
+	}
+	access := ResolveUserGroupAccess(common.GetContextKeyString(c, constant.ContextKeyUserGroup))
+	common.SetContextKey(c, constant.ContextKeyUserGroupAccess, access)
+	return access
+}
+
+// GetUserAutoGroup 根据用户分组获取自动分组设置
+func GetUserAutoGroup(userGroup string) []string {
+	return ResolveUserGroupAccess(userGroup).AutoGroups
 }
 
 // GetUserGroupRatio 获取用户使用某个分组的倍率
