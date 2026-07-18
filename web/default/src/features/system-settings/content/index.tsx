@@ -25,6 +25,12 @@ import {
 } from './section-registry.tsx'
 
 const defaultContentSettings: ContentSettings = {
+  PlaygroundSettings:
+    '{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[]},"speech_model_types":{}}',
+  StatusCheckGroups: '[]',
+  StatusCheckCacheExcludedModels: '[]',
+  GroupRatio: '{}',
+  ModelRatio: '{}',
   'console_setting.api_info': '[]',
   'console_setting.announcements': '[]',
   'console_setting.faq': '[]',

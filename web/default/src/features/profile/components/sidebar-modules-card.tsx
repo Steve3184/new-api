@@ -84,6 +84,11 @@ export function SidebarModulesCard() {
           description: t('System data statistics'),
         },
         {
+          key: 'status',
+          title: t('Status Check'),
+          description: t('Passive availability, latency, and cache metrics.'),
+        },
+        {
           key: 'token',
           title: t('Token Management'),
           description: t('API token management'),

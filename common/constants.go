@@ -171,6 +171,14 @@ var PaymentAnnouncement = ""
 // CustomTabs stores a JSON array of admin-defined sidebar tab entries
 var CustomTabs = "[]"
 
+// StatusCheckGroups stores the group names shown by the passive status page.
+// An empty JSON array shows every active group.
+var StatusCheckGroups = "[]"
+
+// StatusCheckCacheExcludedModels stores model names that should not contribute
+// to the passive status page's cache hit rate.
+var StatusCheckCacheExcludedModels = "[]"
+
 // NoticePopupEnabled shows the system notice in the configured placement.
 var NoticePopupEnabled = false
 
@@ -195,6 +203,7 @@ var QuotaForInvitee = 0
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
+var ChannelAutoStatusEmailEnabled = true
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 

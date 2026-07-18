@@ -21,6 +21,25 @@ func NotifyRootUser(t string, subject string, content string) {
 	}
 }
 
+func NotifyRootUserChannelStatus(t string, subject string, content string) {
+	user := model.GetRootUser().ToBaseUser()
+	userSetting := user.GetSetting()
+	if !shouldSendChannelAutoStatusNotification(userSetting) {
+		return
+	}
+	if err := NotifyUser(user.Id, user.Email, userSetting, dto.NewNotify(t, subject, content, nil)); err != nil {
+		common.SysLog(fmt.Sprintf("failed to notify root user: %s", err.Error()))
+	}
+}
+
+func shouldSendChannelAutoStatusNotification(userSetting dto.UserSetting) bool {
+	notifyType := userSetting.NotifyType
+	if notifyType == "" {
+		notifyType = dto.NotifyTypeEmail
+	}
+	return common.ChannelAutoStatusEmailEnabled || notifyType != dto.NotifyTypeEmail
+}
+
 func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
 	var users []model.User
 	if err := model.DB.

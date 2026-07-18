@@ -2,8 +2,10 @@ package controller
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 
+	"github.com/QuantumNous/new-api/common"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -66,6 +68,51 @@ func GetPerfMetrics(c *gin.Context) {
 	}
 
 	result.Groups = filterActiveGroups(result.Groups)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    result,
+	})
+}
+
+func GetPerfMetricsStatus(c *gin.Context) {
+	hours := 24
+	if rawHours := c.Query("hours"); rawHours != "" {
+		if parsed, err := strconv.Atoi(rawHours); err == nil {
+			hours = parsed
+		}
+	}
+
+	activeRatios := ratio_setting.GetGroupRatioCopy()
+	activeGroups := make([]string, 0, len(activeRatios)+1)
+	var configuredGroups []string
+	_ = common.UnmarshalJsonStr(common.StatusCheckGroups, &configuredGroups)
+	if len(configuredGroups) > 0 {
+		seen := make(map[string]struct{}, len(configuredGroups))
+		for _, group := range configuredGroups {
+			if _, exists := seen[group]; exists {
+				continue
+			}
+			if _, active := activeRatios[group]; !active && group != "auto" {
+				continue
+			}
+			seen[group] = struct{}{}
+			activeGroups = append(activeGroups, group)
+		}
+	} else {
+		activeGroups = append(lo.Keys(activeRatios), "auto")
+		sort.Strings(activeGroups)
+	}
+	var cacheExcludedModels []string
+	_ = common.UnmarshalJsonStr(common.StatusCheckCacheExcludedModels, &cacheExcludedModels)
+	result, err := perfmetrics.QueryStatus(hours, activeGroups, cacheExcludedModels)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

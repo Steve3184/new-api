@@ -24,8 +24,6 @@ import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
-import { parsePlaygroundSettings } from './playground-settings'
-import { PlaygroundSettingsCard } from './playground-settings-card'
 import { RoutingReliabilitySection } from './routing-reliability-section'
 
 function formatJsonForEditor(value: string, fallback: string) {
@@ -78,6 +76,7 @@ const MODELS_SECTIONS = [
           AutomaticDisableChannelEnabled:
             settings.AutomaticDisableChannelEnabled,
           AutomaticEnableChannelEnabled: settings.AutomaticEnableChannelEnabled,
+          ChannelAutoStatusEmailEnabled: settings.ChannelAutoStatusEmailEnabled,
           AutomaticDisableKeywords: settings.AutomaticDisableKeywords,
           AutomaticDisableStatusCodes: settings.AutomaticDisableStatusCodes,
           AutomaticRetryStatusCodes: settings.AutomaticRetryStatusCodes,
@@ -88,15 +87,6 @@ const MODELS_SECTIONS = [
           'monitor_setting.channel_test_mode':
             settings['monitor_setting.channel_test_mode'],
         }}
-      />
-    ),
-  },
-  {
-    id: 'playground',
-    titleKey: 'Playground generation',
-    build: (settings: ModelSettings) => (
-      <PlaygroundSettingsCard
-        defaultValues={parsePlaygroundSettings(settings.PlaygroundSettings)}
       />
     ),
   },

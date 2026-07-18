@@ -53,7 +53,14 @@ const STATUS_RELATED_KEYS = new Set([
   'ForceCheckinCaptcha',
   'checkin_setting.min_user_quota',
   'CustomTabs',
+  'StatusCheckGroups',
+  'StatusCheckCacheExcludedModels',
   'PlaygroundSettings',
+])
+
+const STATUS_CHECK_RELATED_KEYS = new Set([
+  'StatusCheckGroups',
+  'StatusCheckCacheExcludedModels',
 ])
 
 export function useUpdateOption() {
@@ -74,6 +81,10 @@ export function useUpdateOption() {
           } catch {
             /* empty */
           }
+        }
+
+        if (STATUS_CHECK_RELATED_KEYS.has(variables.key)) {
+          queryClient.invalidateQueries({ queryKey: ['status-check'] })
         }
 
         toast.success(i18next.t('Setting updated successfully'))

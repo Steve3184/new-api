@@ -59,3 +59,30 @@ export type PerfSummaryAllData = {
     models: PerfModelSummary[]
   }
 }
+
+export type StatusGroup = {
+  group: string
+  availability: number
+  avg_ttft_ms: number
+  cache_hit_rate: number
+  cache_sample_count: number
+  request_count: number
+  availability_24h: number[]
+  history_24h: StatusHistoryPoint[]
+}
+
+export type StatusHistoryPoint = {
+  ts: number
+  avg_ttft_ms: number
+  ttft_sample_count: number
+  cache_hit_rate: number
+  cache_sample_count: number
+}
+
+export type StatusCheckData = {
+  success: boolean
+  message?: string
+  data: {
+    groups: StatusGroup[]
+  }
+}

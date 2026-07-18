@@ -45,6 +45,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   console: {
     enabled: true,
     detail: true,
+    status: true,
     token: true,
     log: true,
     midjourney: true,
@@ -100,6 +101,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/dashboard/overview': { section: 'console', module: 'detail' },
   '/dashboard/models': { section: 'console', module: 'detail' },
   '/dashboard/users': { section: 'console', module: 'detail' },
+  '/status': { section: 'console', module: 'status' },
   '/keys': { section: 'console', module: 'token' },
   '/usage-logs': { section: 'console', module: 'log' },
   '/usage-logs/common': { section: 'console', module: 'log' },

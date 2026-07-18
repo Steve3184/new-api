@@ -63,6 +63,8 @@ func InitOptionMap() {
 	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
 	common.OptionMap["PaymentAnnouncement"] = common.PaymentAnnouncement
 	common.OptionMap["CustomTabs"] = common.CustomTabs
+	common.OptionMap["StatusCheckGroups"] = common.StatusCheckGroups
+	common.OptionMap["StatusCheckCacheExcludedModels"] = common.StatusCheckCacheExcludedModels
 	common.OptionMap["PlaygroundSettings"] = playground_setting.ToJSONString()
 	common.OptionMap["NoticePopupEnabled"] = strconv.FormatBool(common.NoticePopupEnabled)
 	common.OptionMap["NoticePopupMode"] = common.NoticePopupMode
@@ -71,6 +73,7 @@ func InitOptionMap() {
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
+	common.OptionMap["ChannelAutoStatusEmailEnabled"] = strconv.FormatBool(common.ChannelAutoStatusEmailEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
@@ -356,6 +359,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticDisableChannelEnabled = boolValue
 		case "AutomaticEnableChannelEnabled":
 			common.AutomaticEnableChannelEnabled = boolValue
+		case "ChannelAutoStatusEmailEnabled":
+			common.ChannelAutoStatusEmailEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
@@ -596,6 +601,10 @@ func updateOptionMap(key string, value string) (err error) {
 		}
 	case "CustomTabs":
 		common.CustomTabs = value
+	case "StatusCheckGroups":
+		common.StatusCheckGroups = value
+	case "StatusCheckCacheExcludedModels":
+		common.StatusCheckCacheExcludedModels = value
 	case "PlaygroundSettings":
 		err = playground_setting.UpdateByJSONString(value)
 	case "QuotaForNewUser":

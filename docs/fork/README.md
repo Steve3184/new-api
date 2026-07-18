@@ -79,6 +79,69 @@ Files:
 - `web/default/src/features/channels/components/drawers/channel-mutate-drawer.tsx`
 - `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
+## Passive group status page
+
+The default frontend exposes a **Status Check** sidebar entry at `/status`.
+Each configured group is rendered as a card with 24-hour availability bars,
+average time to first token, and upstream cache hit rate. Clicking a card opens
+a right-side detail panel with hourly first-token latency and cache hit-rate
+line charts. Each chart includes a left-side Y axis with `ms` or percentage
+tick labels and an hourly X axis. The chart bundle is loaded only when the
+detail panel is opened. The page reads the existing relay performance
+aggregates through `GET /api/status-check`; it does not send probes or model
+requests. Synchronous requests contribute to request, availability, and cache
+statistics but never to the first-token metric, which is only recorded for
+streaming responses.
+
+`StatusCheckGroups` is an additive JSON-array option. Configure it under
+**System Settings → Console Content → Status Check**. An empty array displays
+all active groups, while a non-empty array limits the page to the selected
+groups. Removed or inactive groups are ignored at read time.
+
+`StatusCheckCacheExcludedModels` is an additive JSON-array option in the same
+settings section. Requests from listed model names still contribute to
+availability and latency, but their cache samples and hits are omitted from the
+current and hourly cache hit-rate calculations. This lets administrators
+exclude models or providers that do not support cache reporting.
+
+The status entry is part of the existing `SidebarModulesAdmin` and per-user
+`sidebar_modules` console section under the additive `status` key. Existing
+configurations default it to visible, while administrators and eligible users
+can hide it with the normal sidebar module controls.
+
+The `perf_metrics` table gains additive `cache_hit_count` and
+`cache_sample_count` columns through the existing GORM migration path. Cache
+hit rate uses responses with usage data as its denominator after applying the
+configured model exclusion list.
+
+`ChannelAutoStatusEmailEnabled` is a backward-compatible routing reliability
+option that defaults to `true`. Disabling it suppresses email to the root
+administrator when a channel is automatically disabled or re-enabled without
+changing the automatic status transition or non-email notification channels.
+
+The Playground generation configuration now appears under **Console Content**
+instead of **Models & Routing**. Its persisted option remains
+`PlaygroundSettings`; only the settings navigation location changed.
+
+Files:
+
+- `model/perf_metric.go`
+- `pkg/perf_metrics/`
+- `controller/perf_metrics.go`
+- `router/api-router.go`
+- `common/constants.go`
+- `model/option.go`
+- `service/channel.go`
+- `web/default/src/features/status-check/`
+- `web/default/src/routes/_authenticated/status/index.tsx`
+- `web/default/src/features/system-settings/content/status-check-section.tsx`
+- `web/default/src/features/system-settings/maintenance/config.ts`
+- `web/default/src/features/system-settings/maintenance/sidebar-modules-section.tsx`
+- `web/default/src/features/profile/components/sidebar-modules-card.tsx`
+- `web/default/src/features/system-settings/content/section-registry.tsx`
+- `web/default/src/features/system-settings/models/section-registry.tsx`
+- `web/default/src/hooks/use-sidebar-data.ts`
+
 ## Cap and hCaptcha integration
 
 Cap uses a self-hosted Cap Standalone instance. Configure two Cap site keys when

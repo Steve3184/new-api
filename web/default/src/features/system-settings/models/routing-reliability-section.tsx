@@ -72,6 +72,7 @@ const routingReliabilitySchema = z
     ChannelDisableThreshold: numericString,
     AutomaticDisableChannelEnabled: z.boolean(),
     AutomaticEnableChannelEnabled: z.boolean(),
+    ChannelAutoStatusEmailEnabled: z.boolean(),
     AutomaticDisableKeywords: z.string(),
     AutomaticDisableStatusCodes: z.string(),
     AutomaticRetryStatusCodes: z.string(),
@@ -121,6 +122,7 @@ type RoutingReliabilitySectionProps = {
     ChannelDisableThreshold: string
     AutomaticDisableChannelEnabled: boolean
     AutomaticEnableChannelEnabled: boolean
+    ChannelAutoStatusEmailEnabled: boolean
     AutomaticDisableKeywords: string
     AutomaticDisableStatusCodes: string
     AutomaticRetryStatusCodes: string
@@ -139,6 +141,7 @@ type NormalizedRoutingReliabilityValues = {
   ChannelDisableThreshold: string
   AutomaticDisableChannelEnabled: boolean
   AutomaticEnableChannelEnabled: boolean
+  ChannelAutoStatusEmailEnabled: boolean
   AutomaticDisableKeywords: string
   AutomaticDisableStatusCodes: string
   AutomaticRetryStatusCodes: string
@@ -158,6 +161,7 @@ const buildFormDefaults = (
   ChannelDisableThreshold: defaults.ChannelDisableThreshold ?? '',
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
+  ChannelAutoStatusEmailEnabled: defaults.ChannelAutoStatusEmailEnabled,
   AutomaticDisableKeywords: normalizeLineEndings(
     defaults.AutomaticDisableKeywords ?? ''
   ),
@@ -181,6 +185,7 @@ const normalizeDefaults = (
   ChannelDisableThreshold: (defaults.ChannelDisableThreshold ?? '').trim(),
   AutomaticDisableChannelEnabled: defaults.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: defaults.AutomaticEnableChannelEnabled,
+  ChannelAutoStatusEmailEnabled: defaults.ChannelAutoStatusEmailEnabled,
   AutomaticDisableKeywords: normalizeLineEndings(
     defaults.AutomaticDisableKeywords ?? ''
   ),
@@ -206,6 +211,7 @@ const normalizeFormValues = (
   ChannelDisableThreshold: values.ChannelDisableThreshold.trim(),
   AutomaticDisableChannelEnabled: values.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: values.AutomaticEnableChannelEnabled,
+  ChannelAutoStatusEmailEnabled: values.ChannelAutoStatusEmailEnabled,
   AutomaticDisableKeywords: normalizeLineEndings(
     values.AutomaticDisableKeywords
   ),
@@ -494,6 +500,33 @@ export function RoutingReliabilitySection({
                       <FormLabel>{t('Disable on failure')}</FormLabel>
                       <FormDescription>
                         {t('Automatically disable channels when tests fail')}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='ChannelAutoStatusEmailEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t(
+                          'Email the administrator on automatic channel changes'
+                        )}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Send email when a channel is automatically disabled or re-enabled'
+                        )}
                       </FormDescription>
                     </SettingsSwitchContent>
                     <FormControl>

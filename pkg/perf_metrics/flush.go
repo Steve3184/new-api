@@ -39,16 +39,18 @@ func flushCompletedBuckets() {
 		}
 
 		err := model.UpsertPerfMetric(&model.PerfMetric{
-			ModelName:      k.model,
-			Group:          k.group,
-			BucketTs:       k.bucketTs,
-			RequestCount:   drained.requestCount,
-			SuccessCount:   drained.successCount,
-			TotalLatencyMs: drained.totalLatencyMs,
-			TtftSumMs:      drained.ttftSumMs,
-			TtftCount:      drained.ttftCount,
-			OutputTokens:   drained.outputTokens,
-			GenerationMs:   drained.generationMs,
+			ModelName:        k.model,
+			Group:            k.group,
+			BucketTs:         k.bucketTs,
+			RequestCount:     drained.requestCount,
+			SuccessCount:     drained.successCount,
+			TotalLatencyMs:   drained.totalLatencyMs,
+			TtftSumMs:        drained.ttftSumMs,
+			TtftCount:        drained.ttftCount,
+			OutputTokens:     drained.outputTokens,
+			GenerationMs:     drained.generationMs,
+			CacheHitCount:    drained.cacheHitCount,
+			CacheSampleCount: drained.cacheSampleCount,
 		})
 		if err != nil {
 			bucket.addCounters(drained)
@@ -79,13 +81,15 @@ func cleanupExpiredMetrics(retentionDays int) {
 
 func redisCounters(values map[string]string) counters {
 	return counters{
-		requestCount:   parseRedisInt(values["req"]),
-		successCount:   parseRedisInt(values["ok"]),
-		totalLatencyMs: parseRedisInt(values["lat"]),
-		ttftSumMs:      parseRedisInt(values["ttft"]),
-		ttftCount:      parseRedisInt(values["ttft_n"]),
-		outputTokens:   parseRedisInt(values["out"]),
-		generationMs:   parseRedisInt(values["gen_ms"]),
+		requestCount:     parseRedisInt(values["req"]),
+		successCount:     parseRedisInt(values["ok"]),
+		totalLatencyMs:   parseRedisInt(values["lat"]),
+		ttftSumMs:        parseRedisInt(values["ttft"]),
+		ttftCount:        parseRedisInt(values["ttft_n"]),
+		outputTokens:     parseRedisInt(values["out"]),
+		generationMs:     parseRedisInt(values["gen_ms"]),
+		cacheHitCount:    parseRedisInt(values["cache"]),
+		cacheSampleCount: parseRedisInt(values["cache_n"]),
 	}
 }
 

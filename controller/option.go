@@ -273,6 +273,32 @@ func UpdateOption(c *gin.Context) {
 				return
 			}
 		}
+	case "StatusCheckGroups", "StatusCheckCacheExcludedModels":
+		var values []string
+		if err = common.UnmarshalJsonStr(option.Value.(string), &values); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "status check configuration must be a JSON string array",
+			})
+			return
+		}
+		maxEntries := 500
+		if option.Key == "StatusCheckGroups" {
+			maxEntries = 100
+		}
+		if len(values) > maxEntries {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("status check configuration cannot exceed %d entries", maxEntries),
+			})
+			return
+		}
+		for _, value := range values {
+			if strings.TrimSpace(value) == "" || len(value) > 256 {
+				common.ApiErrorMsg(c, "status check entries must be non-empty and at most 256 characters")
+				return
+			}
+		}
 	case "PlaygroundSettings":
 		if err = playground_setting.ValidateJSONString(option.Value.(string)); err != nil {
 			common.ApiErrorMsg(c, err.Error())

@@ -186,6 +186,11 @@ export type AuthSettings = {
 }
 
 export type ContentSettings = {
+  PlaygroundSettings: string
+  StatusCheckGroups: string
+  StatusCheckCacheExcludedModels: string
+  GroupRatio: string
+  ModelRatio: string
   'console_setting.api_info': string
   'console_setting.announcements': string
   'console_setting.faq': string
@@ -208,7 +213,6 @@ export type ContentSettings = {
 }
 
 export type ModelSettings = {
-  PlaygroundSettings: string
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
   'global.chat_completions_to_responses_policy': string
@@ -253,6 +257,7 @@ export type ModelSettings = {
   ChannelDisableThreshold: string
   AutomaticDisableChannelEnabled: boolean
   AutomaticEnableChannelEnabled: boolean
+  ChannelAutoStatusEmailEnabled: boolean
   AutomaticDisableKeywords: string
   AutomaticDisableStatusCodes: string
   AutomaticRetryStatusCodes: string

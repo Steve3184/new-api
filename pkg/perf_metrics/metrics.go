@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
@@ -24,7 +25,7 @@ func Init() {
 	go flushLoop()
 }
 
-func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens int64) {
+func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens int64, usage *dto.Usage) {
 	if info == nil {
 		return
 	}
@@ -51,7 +52,19 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 		Success:      success,
 		OutputTokens: outputTokens,
 		GenerationMs: generationMs,
+		CacheHit:     hasCacheHit(usage),
+		CacheSample:  usage != nil,
 	})
+}
+
+func hasCacheHit(usage *dto.Usage) bool {
+	if usage == nil {
+		return false
+	}
+	if usage.PromptTokensDetails.CachedTokens > 0 || usage.PromptCacheHitTokens > 0 {
+		return true
+	}
+	return usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0
 }
 
 func Record(sample Sample) {
@@ -97,13 +110,15 @@ func Query(params QueryParams) (QueryResult, error) {
 			group:    row.Group,
 			bucketTs: row.BucketTs,
 		}, counters{
-			requestCount:   row.RequestCount,
-			successCount:   row.SuccessCount,
-			totalLatencyMs: row.TotalLatencyMs,
-			ttftSumMs:      row.TtftSumMs,
-			ttftCount:      row.TtftCount,
-			outputTokens:   row.OutputTokens,
-			generationMs:   row.GenerationMs,
+			requestCount:     row.RequestCount,
+			successCount:     row.SuccessCount,
+			totalLatencyMs:   row.TotalLatencyMs,
+			ttftSumMs:        row.TtftSumMs,
+			ttftCount:        row.TtftCount,
+			outputTokens:     row.OutputTokens,
+			generationMs:     row.GenerationMs,
+			cacheHitCount:    row.CacheHitCount,
+			cacheSampleCount: row.CacheSampleCount,
 		})
 	}
 
@@ -283,6 +298,8 @@ func mergeCounters(merged map[bucketKey]counters, key bucketKey, value counters)
 	current.ttftCount += value.ttftCount
 	current.outputTokens += value.outputTokens
 	current.generationMs += value.generationMs
+	current.cacheHitCount += value.cacheHitCount
+	current.cacheSampleCount += value.cacheSampleCount
 	merged[key] = current
 }
 
@@ -400,6 +417,12 @@ func recordRedis(key bucketKey, sample Sample) {
 	if sample.OutputTokens > 0 && sample.GenerationMs > 0 {
 		pipe.HIncrBy(ctx, redisKey, "out", sample.OutputTokens)
 		pipe.HIncrBy(ctx, redisKey, "gen_ms", sample.GenerationMs)
+	}
+	if sample.CacheHit {
+		pipe.HIncrBy(ctx, redisKey, "cache", 1)
+	}
+	if sample.CacheSample {
+		pipe.HIncrBy(ctx, redisKey, "cache_n", 1)
 	}
 	pipe.Expire(ctx, redisKey, time.Hour)
 	_, _ = pipe.Exec(ctx)
