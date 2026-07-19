@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,16 +40,19 @@ var (
 )
 
 const (
-	subscriptionPlanCacheNamespace     = "new-api:subscription_plan:v1"
-	subscriptionPlanInfoCacheNamespace = "new-api:subscription_plan_info:v1"
+	subscriptionPlanCacheNamespace      = "new-api:subscription_plan:v1"
+	subscriptionPlanInfoCacheNamespace  = "new-api:subscription_plan_info:v1"
+	subscriptionRateLimitCacheNamespace = "new-api:subscription_rate_limit:v1"
 )
 
 var (
-	subscriptionPlanCacheOnce     sync.Once
-	subscriptionPlanInfoCacheOnce sync.Once
+	subscriptionPlanCacheOnce      sync.Once
+	subscriptionPlanInfoCacheOnce  sync.Once
+	subscriptionRateLimitCacheOnce sync.Once
 
-	subscriptionPlanCache     *cachex.HybridCache[SubscriptionPlan]
-	subscriptionPlanInfoCache *cachex.HybridCache[SubscriptionPlanInfo]
+	subscriptionPlanCache      *cachex.HybridCache[SubscriptionPlan]
+	subscriptionPlanInfoCache  *cachex.HybridCache[SubscriptionPlanInfo]
+	subscriptionRateLimitCache *cachex.HybridCache[subscriptionRateLimitEntitlements]
 )
 
 func subscriptionPlanCacheTTL() time.Duration {
@@ -63,6 +67,14 @@ func subscriptionPlanInfoCacheTTL() time.Duration {
 	ttlSeconds := common.GetEnvOrDefault("SUBSCRIPTION_PLAN_INFO_CACHE_TTL", 120)
 	if ttlSeconds <= 0 {
 		ttlSeconds = 120
+	}
+	return time.Duration(ttlSeconds) * time.Second
+}
+
+func subscriptionRateLimitCacheTTL() time.Duration {
+	ttlSeconds := common.GetEnvOrDefault("SUBSCRIPTION_RATE_LIMIT_CACHE_TTL", 300)
+	if ttlSeconds <= 0 {
+		ttlSeconds = 300
 	}
 	return time.Duration(ttlSeconds) * time.Second
 }
@@ -125,6 +137,75 @@ func getSubscriptionPlanInfoCache() *cachex.HybridCache[SubscriptionPlanInfo] {
 	return subscriptionPlanInfoCache
 }
 
+const MaxSubscriptionRateLimitRPM = 2147483647
+
+type SubscriptionRateLimitGroup struct {
+	Group string `json:"group"`
+	RPM   int    `json:"rpm"`
+}
+
+func NormalizeSubscriptionRateLimitGroups(raw string) (string, []SubscriptionRateLimitGroup, error) {
+	if strings.TrimSpace(raw) == "" {
+		return "[]", []SubscriptionRateLimitGroup{}, nil
+	}
+	var values []SubscriptionRateLimitGroup
+	if err := common.UnmarshalJsonStr(raw, &values); err != nil {
+		return "", nil, fmt.Errorf("RPM 权益分组必须为 JSON 数组")
+	}
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]SubscriptionRateLimitGroup, 0, len(values))
+	for _, value := range values {
+		value.Group = strings.TrimSpace(value.Group)
+		if value.Group == "" {
+			return "", nil, fmt.Errorf("RPM 权益分组不能为空")
+		}
+		if value.RPM <= 0 || value.RPM > MaxSubscriptionRateLimitRPM {
+			return "", nil, fmt.Errorf("分组 %s 的 RPM 必须介于 1 和 %d 之间", value.Group, MaxSubscriptionRateLimitRPM)
+		}
+		if _, exists := seen[value.Group]; exists {
+			return "", nil, fmt.Errorf("RPM 权益分组不能重复: %s", value.Group)
+		}
+		seen[value.Group] = struct{}{}
+		normalized = append(normalized, value)
+	}
+	sort.Slice(normalized, func(i, j int) bool { return normalized[i].Group < normalized[j].Group })
+	data, err := common.Marshal(normalized)
+	if err != nil {
+		return "", nil, err
+	}
+	return string(data), normalized, nil
+}
+
+type subscriptionRateLimitOverride struct {
+	RPM     int   `json:"rpm"`
+	EndTime int64 `json:"end_time"`
+}
+
+type subscriptionRateLimitEntitlements struct {
+	Overrides map[string]subscriptionRateLimitOverride `json:"overrides"`
+}
+
+func getSubscriptionRateLimitCache() *cachex.HybridCache[subscriptionRateLimitEntitlements] {
+	subscriptionRateLimitCacheOnce.Do(func() {
+		ttl := subscriptionRateLimitCacheTTL()
+		subscriptionRateLimitCache = cachex.NewHybridCache[subscriptionRateLimitEntitlements](cachex.HybridCacheConfig[subscriptionRateLimitEntitlements]{
+			Namespace: cachex.Namespace(subscriptionRateLimitCacheNamespace),
+			Redis:     common.RDB,
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			RedisCodec: cachex.JSONCodec[subscriptionRateLimitEntitlements]{},
+			Memory: func() *hot.HotCache[string, subscriptionRateLimitEntitlements] {
+				return hot.NewHotCache[string, subscriptionRateLimitEntitlements](hot.LRU, subscriptionPlanInfoCacheCapacity()).
+					WithTTL(ttl).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return subscriptionRateLimitCache
+}
+
 func subscriptionPlanCacheKey(id int) string {
 	if id <= 0 {
 		return ""
@@ -140,6 +221,14 @@ func InvalidateSubscriptionPlanCache(planId int) {
 	_, _ = cache.DeleteMany([]string{subscriptionPlanCacheKey(planId)})
 	infoCache := getSubscriptionPlanInfoCache()
 	_ = infoCache.Purge()
+	_ = getSubscriptionRateLimitCache().Purge()
+}
+
+func InvalidateUserSubscriptionRateLimitCache(userId int) {
+	if userId <= 0 {
+		return
+	}
+	_, _ = getSubscriptionRateLimitCache().DeleteMany([]string{strconv.Itoa(userId)})
 }
 
 // DeleteSubscriptionPlan removes a plan only when no user currently has an
@@ -213,6 +302,9 @@ type SubscriptionPlan struct {
 	WalletOnlyGroupsEnabled bool   `json:"wallet_only_groups_enabled"`
 	WalletOnlyGroupsMode    string `json:"wallet_only_groups_mode" gorm:"type:varchar(16);default:'blacklist'"`
 	WalletOnlyGroups        string `json:"wallet_only_groups" gorm:"type:text"`
+
+	// RateLimitGroups stores JSON RPM entitlements for active subscribers.
+	RateLimitGroups string `json:"rate_limit_groups" gorm:"type:text"`
 
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
@@ -288,6 +380,54 @@ func (p *SubscriptionPlan) IsWalletOnlyForGroup(group string) bool {
 		return !listed
 	}
 	return listed
+}
+
+// GetActiveSubscriptionRateLimit returns the highest RPM entitlement from the
+// user's active subscriptions for the effective request group.
+func GetActiveSubscriptionRateLimit(userId int, group string) (int, bool, error) {
+	if userId <= 0 || strings.TrimSpace(group) == "" {
+		return 0, false, nil
+	}
+	cacheKey := strconv.Itoa(userId)
+	now := common.GetTimestamp()
+	cache := getSubscriptionRateLimitCache()
+	if cached, found, err := cache.Get(cacheKey); err == nil && found {
+		if override, ok := cached.Overrides[group]; ok && override.EndTime > now {
+			return override.RPM, true, nil
+		}
+		if _, ok := cached.Overrides[group]; !ok {
+			return 0, false, nil
+		}
+	}
+
+	type rateLimitRow struct {
+		Groups  string `gorm:"column:rate_limit_groups"`
+		EndTime int64  `gorm:"column:end_time"`
+	}
+	var rows []rateLimitRow
+	if err := DB.Table("user_subscriptions AS subscriptions").
+		Select("plans.rate_limit_groups AS rate_limit_groups, subscriptions.end_time AS end_time").
+		Joins("JOIN subscription_plans AS plans ON plans.id = subscriptions.plan_id").
+		Where("subscriptions.user_id = ? AND subscriptions.status = ? AND subscriptions.end_time > ?", userId, "active", now).
+		Find(&rows).Error; err != nil {
+		return 0, false, err
+	}
+	cacheValue := subscriptionRateLimitEntitlements{Overrides: make(map[string]subscriptionRateLimitOverride)}
+	for _, row := range rows {
+		_, groups, err := NormalizeSubscriptionRateLimitGroups(row.Groups)
+		if err != nil {
+			continue
+		}
+		for _, rateLimit := range groups {
+			current, exists := cacheValue.Overrides[rateLimit.Group]
+			if !exists || rateLimit.RPM > current.RPM || (rateLimit.RPM == current.RPM && row.EndTime > current.EndTime) {
+				cacheValue.Overrides[rateLimit.Group] = subscriptionRateLimitOverride{RPM: rateLimit.RPM, EndTime: row.EndTime}
+			}
+		}
+	}
+	_ = cache.SetWithTTL(cacheKey, cacheValue, subscriptionRateLimitCacheTTL())
+	override, found := cacheValue.Overrides[group]
+	return override.RPM, found, nil
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -706,6 +846,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		_ = UpdateUserGroupCache(logUserId, upgradeGroup)
 	}
 	if logUserId > 0 {
+		InvalidateUserSubscriptionRateLimitCache(logUserId)
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
@@ -789,6 +930,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	if err != nil {
 		return "", err
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if strings.TrimSpace(plan.UpgradeGroup) != "" {
 		_ = UpdateUserGroupCache(userId, plan.UpgradeGroup)
 		return fmt.Sprintf("用户分组将升级到 %s", plan.UpgradeGroup), nil
@@ -891,6 +1033,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			common.SysLog("failed to decrease user quota cache after subscription balance purchase: " + err.Error())
 		}
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if upgradeGroup != "" {
 		_ = UpdateUserGroupCache(userId, upgradeGroup)
 	}
@@ -935,6 +1078,9 @@ func GetActiveSubscriptionAvailability(userId int) (bool, bool, error) {
 		return false, false, err
 	}
 	for _, sub := range subs {
+		if sub.AmountTotal < 0 {
+			continue
+		}
 		plan, err := GetSubscriptionPlanById(sub.PlanId)
 		if err != nil {
 			return true, false, err
@@ -971,6 +1117,9 @@ func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
 		return false, err
 	}
 	for _, sub := range subs {
+		if sub.AmountTotal < 0 {
+			continue
+		}
 		plan, err := GetSubscriptionPlanById(sub.PlanId)
 		if err != nil {
 			return false, err
@@ -1053,6 +1202,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 	if cacheGroup != "" && userId > 0 {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if downgradeGroup != "" {
 		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
 	}
@@ -1094,6 +1244,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	if cacheGroup != "" && userId > 0 {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
+	InvalidateUserSubscriptionRateLimitCache(userId)
 	if downgradeGroup != "" {
 		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
 	}
@@ -1438,6 +1589,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		}
 		for _, candidate := range subs {
 			sub := candidate
+			if sub.AmountTotal < 0 {
+				continue
+			}
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err

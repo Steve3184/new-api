@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/common/limiter"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
@@ -188,6 +189,12 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		if found {
 			totalMaxCount = groupTotalCount
 			successMaxCount = groupSuccessCount
+		}
+		if subscriptionRPM, found, err := model.GetActiveSubscriptionRateLimit(c.GetInt("id"), group); err != nil {
+			common.SysError("failed to get subscription rate limit: " + err.Error())
+		} else if found {
+			totalMaxCount = subscriptionRPM
+			successMaxCount = subscriptionRPM
 		}
 
 		// 根据存储类型选择并执行限流处理器

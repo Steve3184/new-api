@@ -231,6 +231,7 @@ func RedeemWithResult(key string, userId int) (result *RedemptionResult, err err
 		return nil, ErrRedeemFailed
 	}
 	if result.SubscriptionPlanId > 0 {
+		InvalidateUserSubscriptionRateLimitCache(userId)
 		if upgradeGroup != "" {
 			_ = UpdateUserGroupCache(userId, upgradeGroup)
 		}

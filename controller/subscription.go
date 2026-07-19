@@ -37,6 +37,19 @@ func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
 	}
 	plan.WalletOnlyGroupsMode = model.NormalizeWalletOnlyGroupsMode(plan.WalletOnlyGroupsMode)
 	plan.WalletOnlyGroups = model.NormalizeWalletOnlyGroups(plan.WalletOnlyGroups)
+	if plan.TotalAmount < 0 {
+		plan.TotalAmount = -1
+	}
+	normalizedRateLimits, rateLimits, err := model.NormalizeSubscriptionRateLimitGroups(plan.RateLimitGroups)
+	if err != nil {
+		return err
+	}
+	plan.RateLimitGroups = normalizedRateLimits
+	for _, rateLimit := range rateLimits {
+		if _, ok := ratio_setting.GetGroupRatioCopy()[rateLimit.Group]; !ok {
+			return fmt.Errorf("RPM 分组不存在: %s", rateLimit.Group)
+		}
+	}
 	for _, group := range strings.Split(plan.WalletOnlyGroups, ",") {
 		if group == "" {
 			continue
@@ -205,10 +218,6 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
-	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
-		return
-	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -282,10 +291,6 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
-	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
-		return
-	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -328,6 +333,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"wallet_only_groups_enabled": req.Plan.WalletOnlyGroupsEnabled,
 			"wallet_only_groups_mode":    req.Plan.WalletOnlyGroupsMode,
 			"wallet_only_groups":         req.Plan.WalletOnlyGroups,
+			"rate_limit_groups":          req.Plan.RateLimitGroups,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),

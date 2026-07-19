@@ -22,8 +22,10 @@ import {
   Check,
   ChevronsUpDown,
   CreditCard,
+  Plus,
   RefreshCw,
   Settings2,
+  Trash2,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
@@ -237,6 +239,8 @@ export function SubscriptionsMutateDrawer({
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
   const walletOnlyGroupsEnabled = form.watch('wallet_only_groups_enabled')
+  const benefitsOnly = form.watch('benefits_only')
+  const rateLimitGroups = form.watch('rate_limit_groups')
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
@@ -451,7 +455,7 @@ export function SubscriptionsMutateDrawer({
                         <Input
                           {...field}
                           type='number'
-                          min={0}
+                          disabled={benefitsOnly}
                           step={tokensOnly ? 1 : 0.01}
                           placeholder={
                             tokensOnly
@@ -469,7 +473,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Total quota included in the plan, usable per billing period. 0 means unlimited.'
+                          'Total quota included in the plan, usable per billing period. 0 means unlimited; a negative value creates a benefits-only plan with no usable quota.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -592,6 +596,180 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='benefits_only'
+                render={({ field }) => (
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <FormLabel className='!mt-0'>
+                      {t('Benefits-only plan')}
+                    </FormLabel>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked)
+                          if (checked) {
+                            form.setValue('total_amount', -1, {
+                              shouldDirty: true,
+                            })
+                          } else if (form.getValues('total_amount') < 0) {
+                            form.setValue('total_amount', 0, {
+                              shouldDirty: true,
+                            })
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Automatically stores the plan quota as -1 so the subscription grants benefits without usable quota.'
+                      )}
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
+
+              <div className='space-y-2'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div>
+                    <FormLabel>{t('RPM entitlement groups')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Each row grants the listed RPM to requests using that group while this subscription is active.'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon-sm'
+                    aria-label={t('Add RPM entitlement group')}
+                    onClick={() =>
+                      form.setValue(
+                        'rate_limit_groups',
+                        [...rateLimitGroups, { group: '', rpm: 1 }],
+                        { shouldDirty: true }
+                      )
+                    }
+                  >
+                    <Plus />
+                  </Button>
+                </div>
+                {rateLimitGroups.length > 0 && (
+                  <div className='overflow-x-auto rounded-md border'>
+                    <table className='w-full text-sm'>
+                      <thead className='bg-muted/40 text-muted-foreground'>
+                        <tr>
+                          <th className='px-3 py-2 text-left font-medium'>
+                            {t('Group')}
+                          </th>
+                          <th className='w-32 px-3 py-2 text-left font-medium'>
+                            {t('RPM')}
+                          </th>
+                          <th className='w-10 px-1 py-2' />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rateLimitGroups.map((entry, index) => (
+                          <tr
+                            key={`${entry.group}-${entry.rpm}`}
+                            className='border-t'
+                          >
+                            <td className='p-2'>
+                              <Select
+                                items={[
+                                  {
+                                    value: '__none__',
+                                    label: t('Select group'),
+                                  },
+                                  ...groupOptions.map((group) => ({
+                                    value: group,
+                                    label: group,
+                                  })),
+                                ]}
+                                value={entry.group || ''}
+                                onValueChange={(value) => {
+                                  const next = [...rateLimitGroups]
+                                  next[index] = {
+                                    ...entry,
+                                    group:
+                                      value === null || value === '__none__'
+                                        ? ''
+                                        : value,
+                                  }
+                                  form.setValue('rate_limit_groups', next, {
+                                    shouldDirty: true,
+                                  })
+                                }}
+                              >
+                                <SelectTrigger className='w-full'>
+                                  <SelectValue
+                                    placeholder={t('Select group')}
+                                  />
+                                </SelectTrigger>
+                                <SelectContent alignItemWithTrigger={false}>
+                                  <SelectGroup>
+                                    <SelectItem value='__none__'>
+                                      {t('Select group')}
+                                    </SelectItem>
+                                    {groupOptions.map((group) => (
+                                      <SelectItem key={group} value={group}>
+                                        {group}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className='p-2'>
+                              <Input
+                                type='number'
+                                min={1}
+                                max={2147483647}
+                                step={1}
+                                value={entry.rpm}
+                                onChange={(event) => {
+                                  const next = [...rateLimitGroups]
+                                  next[index] = {
+                                    ...entry,
+                                    rpm:
+                                      Number.parseInt(event.target.value, 10) ||
+                                      1,
+                                  }
+                                  form.setValue('rate_limit_groups', next, {
+                                    shouldDirty: true,
+                                  })
+                                }}
+                              />
+                            </td>
+                            <td className='p-1'>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='icon-sm'
+                                aria-label={t('Remove RPM entitlement group')}
+                                onClick={() =>
+                                  form.setValue(
+                                    'rate_limit_groups',
+                                    rateLimitGroups.filter(
+                                      (_, i) => i !== index
+                                    ),
+                                    { shouldDirty: true }
+                                  )
+                                }
+                              >
+                                <Trash2 className='text-destructive' />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               <FormField

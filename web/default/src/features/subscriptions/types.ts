@@ -42,6 +42,7 @@ export const subscriptionPlanSchema = z.object({
     .enum(['blacklist', 'whitelist'])
     .default('blacklist'),
   wallet_only_groups: z.string().optional().default(''),
+  rate_limit_groups: z.string().optional().default('[]'),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
   upgrade_group: z.string().optional(),

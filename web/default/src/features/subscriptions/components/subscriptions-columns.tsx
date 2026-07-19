@@ -168,7 +168,11 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           const total = Number(row.original.plan.total_amount || 0)
           return (
             <span className='text-muted-foreground'>
-              {total > 0 ? formatQuota(total) : t('Unlimited')}
+              {total > 0
+                ? formatQuota(total)
+                : total < 0
+                  ? t('Benefits only')
+                  : t('Unlimited')}
             </span>
           )
         },

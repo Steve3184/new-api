@@ -283,6 +283,15 @@ subscription and all other groups use wallet balance. These restrictions apply
 to every billing preference, and the purchase cards show **Unavailable Groups**
 or **Available Groups** so users can verify eligibility before buying.
 
+Plans accept any negative quota value; the backend stores it as `-1`. This
+creates a benefits-only subscription: it has no usable subscription quota and
+does not participate in wallet-overflow decisions, but it can still upgrade a
+user group or grant configured rate-limit entitlements. A plan can configure
+one or more `{group, rpm}` entries. While that plan is active, requests in a
+listed group use the highest matching plan RPM instead of the system default.
+Benefits-only plans omit the **Total Quota** line from the wallet's available
+plan cards and existing-subscription list.
+
 Wallet plan prices use the configured billing display currency instead of a
 hard-coded dollar sign.
 

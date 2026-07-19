@@ -480,31 +480,33 @@ export function SubscriptionPlansCard({
                           {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
-                      <div className='text-muted-foreground mt-1'>
-                        {t('Total Quota')}:{' '}
-                        {totalAmount > 0 ? (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={<span className='cursor-help' />}
-                            >
-                              {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
-                              {t('Remaining')} {remainAmount}
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          t('Unlimited')
-                        )}
-                        {totalAmount > 0 && (
-                          <span className='ml-2'>
-                            {t('Used')} {usagePercent}%
-                          </span>
-                        )}
-                      </div>
+                      {totalAmount >= 0 && (
+                        <div className='text-muted-foreground mt-1'>
+                          {t('Total Quota')}:{' '}
+                          {totalAmount > 0 ? (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={<span className='cursor-help' />}
+                              >
+                                {formatQuota(usedAmount)}/
+                                {formatQuota(totalAmount)} · {t('Remaining')}{' '}
+                                {formatQuota(remainAmount)}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
+                                {t('Remaining')} {remainAmount}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            t('Unlimited')
+                          )}
+                          {totalAmount > 0 && (
+                            <span className='ml-2'>
+                              {t('Used')} {usagePercent}%
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {totalAmount > 0 && isActive && (
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
                       )}
@@ -554,14 +556,20 @@ export function SubscriptionPlansCard({
                 groupAvailability = `${groupLabel}: ${groupList}`
               }
 
+              let totalQuotaBenefit: string | null = null
+              if (totalAmount >= 0) {
+                totalQuotaBenefit =
+                  totalAmount > 0
+                    ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
+                    : `${t('Total Quota')}: ${t('Unlimited')}`
+              }
+
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
                 formatResetPeriod(plan, t) !== t('No Reset')
                   ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
                   : null,
-                totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
-                  : `${t('Total Quota')}: ${t('Unlimited')}`,
+                totalQuotaBenefit,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
