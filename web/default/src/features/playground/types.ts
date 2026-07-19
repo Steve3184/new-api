@@ -177,7 +177,7 @@ export interface ImageGenerationRequest {
   n: number
   size: string
   quality?: string
-  response_format: 'b64_json'
+  response_format: 'url' | 'b64_json'
 }
 
 export interface ImageGenerationResponse {

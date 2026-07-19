@@ -45,6 +45,7 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 	if c.Writer == nil {
 		return
 	}
+	data = RewriteMeshyImageProxyResponseOrOriginal(c, data)
 
 	body := io.NopCloser(bytes.NewBuffer(data))
 

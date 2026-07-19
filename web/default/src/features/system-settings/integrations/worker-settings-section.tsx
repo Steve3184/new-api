@@ -53,6 +53,13 @@ const createWorkerSchema = (t: (key: string) => string) =>
     }, t('Provide a valid URL starting with http:// or https://')),
     WorkerValidKey: z.string(),
     WorkerAllowHttpImageRequestEnabled: z.boolean(),
+    WorkerMeshyImageProxyEnabled: z.boolean(),
+    WorkerMeshyImageProxyBaseURL: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^https?:\/\//.test(trimmed)
+    }, t('Provide a valid URL starting with http:// or https://')),
+    WorkerMeshyImageProxyAPIKey: z.string(),
   })
 
 type WorkerFormValues = z.infer<ReturnType<typeof createWorkerSchema>>
@@ -80,6 +87,14 @@ export function WorkerSettingsSection({
     const sanitizedKey = values.WorkerValidKey.trim()
     const initialUrl = removeTrailingSlash(defaultValues.WorkerUrl)
     const initialKey = defaultValues.WorkerValidKey.trim()
+    const meshyBaseUrl = removeTrailingSlash(
+      values.WorkerMeshyImageProxyBaseURL
+    )
+    const meshyApiKey = values.WorkerMeshyImageProxyAPIKey.trim()
+    const initialMeshyBaseUrl = removeTrailingSlash(
+      defaultValues.WorkerMeshyImageProxyBaseURL
+    )
+    const initialMeshyApiKey = defaultValues.WorkerMeshyImageProxyAPIKey.trim()
 
     const updates: Array<{ key: string; value: string | boolean }> = []
 
@@ -98,6 +113,27 @@ export function WorkerSettingsSection({
       updates.push({
         key: 'WorkerAllowHttpImageRequestEnabled',
         value: values.WorkerAllowHttpImageRequestEnabled,
+      })
+    }
+
+    if (meshyBaseUrl !== initialMeshyBaseUrl) {
+      updates.push({
+        key: 'WorkerMeshyImageProxyBaseURL',
+        value: meshyBaseUrl,
+      })
+    }
+
+    if (meshyApiKey !== initialMeshyApiKey && meshyApiKey !== '***') {
+      updates.push({ key: 'WorkerMeshyImageProxyAPIKey', value: meshyApiKey })
+    }
+
+    if (
+      values.WorkerMeshyImageProxyEnabled !==
+      defaultValues.WorkerMeshyImageProxyEnabled
+    ) {
+      updates.push({
+        key: 'WorkerMeshyImageProxyEnabled',
+        value: values.WorkerMeshyImageProxyEnabled,
       })
     }
 
@@ -186,6 +222,80 @@ export function WorkerSettingsSection({
                   />
                 </FormControl>
               </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='WorkerMeshyImageProxyEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Meshy2API image proxy')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Upload base64 images to Meshy2API and return its temporary CDN URLs.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='WorkerMeshyImageProxyBaseURL'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Meshy2API base URL')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='url'
+                    inputMode='url'
+                    placeholder={t('https://meshy.example.com')}
+                    autoComplete='off'
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'The service must provide /upload-image and return a valid HTTP or HTTPS URL.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='WorkerMeshyImageProxyAPIKey'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Meshy2API bearer API key')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='password'
+                    placeholder={t('Enter new key to update')}
+                    autoComplete='new-password'
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Leave the masked value unchanged to keep the existing key.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
             )}
           />
         </SettingsForm>

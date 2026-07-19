@@ -455,9 +455,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
 	}
 
-	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
-	_, _ = c.Writer.Write(jsonResponse)
+	service.IOCopyBytesGracefully(c, resp, jsonResponse)
 
 	// https://github.com/google-gemini/cookbook/blob/719a27d752aac33f39de18a8d3cb42a70874917e/quickstarts/Counting_Tokens.ipynb
 	// each image has fixed 258 tokens
@@ -507,9 +505,7 @@ func GeminiNativeImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	c.Header("Content-Type", "application/json")
-	c.Status(resp.StatusCode)
-	_, _ = c.Writer.Write(jsonResponse)
+	service.IOCopyBytesGracefully(c, resp, jsonResponse)
 
 	usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
 	return &usage, nil

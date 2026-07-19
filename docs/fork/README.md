@@ -800,6 +800,74 @@ Files:
 - `web/default/src/lib/api.ts`
 - `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
+## Meshy2API image upload proxy
+
+The optional Meshy2API image proxy moves base64 image payloads out of relay
+requests and responses. It is disabled by default and is configured under
+**System Settings -> Operations -> Worker Proxy**.
+
+New options:
+
+| Option | Purpose |
+| --- | --- |
+| `WorkerMeshyImageProxyEnabled` | Enables request and response rewriting; defaults to `false` |
+| `WorkerMeshyImageProxyBaseURL` | Meshy2API service origin that provides `/upload-image` |
+| `WorkerMeshyImageProxyAPIKey` | Bearer key used only by the new-api backend; masked as `***` in system settings |
+
+When enabled, the relay recognizes image data URLs and validated bare base64
+images in OpenAI chat and image requests, Responses API input, Claude image
+sources, and Gemini `inlineData`. Each image is sent as the `file` part of a
+multipart `POST <WorkerMeshyImageProxyBaseURL>/upload-image` request. The
+original image value is then replaced with the temporary signed CDN `url`
+returned by Meshy2API:
+
+```text
+https://api.meshy.ai/misc/cdn-images/uploads/{image_id}?sign={temporary_signature}
+```
+
+The same conversion runs on final image output from OpenAI Images, Responses
+API image-generation calls, Claude image blocks, and Gemini image parts. It is
+applied to both buffered JSON and SSE data chunks. OpenAI partial-image stream
+events are left untouched so previews remain incremental. A client that
+explicitly requests `response_format: "b64_json"` or `"base64"` also keeps the
+original base64 response contract. Non-image base64 strings are ignored.
+
+The upload response URL is validated as HTTP(S) before it is returned to the
+caller. Meshy2API does not expose a working URL-refresh endpoint, so new-api
+does not register a `/v1/images/{image_id}` proxy or attempt to resolve the
+returned `image_id` and `account_id` later. The CDN URL is temporary (currently
+about 24 hours) and callers must consume or persist the image before it expires.
+The Meshy2API key is never included in the returned URL or browser request.
+
+The feature covers `/v1/chat/completions`, `/v1/responses`, `/v1/messages`,
+OpenAI image generation/edit routes, native Gemini generation routes, and their
+`/pg` chat/image equivalents. The default image Playground requests URL output
+so it benefits from the proxy without retaining large base64 results in page
+state. With the feature disabled or incomplete, all relay payloads retain their
+previous behavior. Input upload failures stop the relay before contacting the
+model provider; output upload failures log a warning and preserve the original
+provider response.
+
+Files:
+
+- `common/gin.go`
+- `controller/option.go`
+- `controller/relay.go`
+- `model/option.go`
+- `relay/helper/common.go`
+- `relay/channel/gemini/relay-gemini.go`
+- `relay/channel/jimeng/image.go`
+- `relay/channel/minimax/image.go`
+- `relay/channel/replicate/adaptor.go`
+- `router/relay-router.go`
+- `service/http.go`
+- `service/meshy_image_proxy.go`
+- `service/meshy_image_proxy_test.go`
+- `setting/system_setting/system_setting_old.go`
+- `web/default/src/features/playground/components/generation/image-playground.tsx`
+- `web/default/src/features/system-settings/integrations/worker-settings-section.tsx`
+- `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
 ## Meshy2API native 3D provider
 
 Channel type `59` adds native Meshy2API support. It uses a dedicated task
@@ -1117,3 +1185,7 @@ option is disabled; at more than 5,000 characters the Playground selects
 18. Verify an API key assigned to `auto` is accepted whenever the user retains
     at least one configured automatic group, inaccessible candidates are never
     selected, and duplicate auto-group entries are evaluated only once.
+19. With the Meshy2API image proxy enabled, verify base64 image input is
+    uploaded before relay, final image output returns the temporary signed CDN
+    URL from `/upload-image`, explicit `b64_json` output remains base64, and no
+    Meshy2API key is exposed.

@@ -88,6 +88,9 @@ const OPERATIONS_SECTIONS = [
           WorkerValidKey: settings.WorkerValidKey,
           WorkerAllowHttpImageRequestEnabled:
             settings.WorkerAllowHttpImageRequestEnabled,
+          WorkerMeshyImageProxyEnabled: settings.WorkerMeshyImageProxyEnabled,
+          WorkerMeshyImageProxyBaseURL: settings.WorkerMeshyImageProxyBaseURL,
+          WorkerMeshyImageProxyAPIKey: settings.WorkerMeshyImageProxyAPIKey,
         }}
       />
     ),

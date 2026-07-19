@@ -145,7 +145,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
         form.set('size', size)
         if (quality !== 'default') form.set('quality', quality)
         form.set('n', String(count))
-        form.set('response_format', 'b64_json')
+        form.set('response_format', 'url')
         form.set('image', sourceFile)
         setResult(await editImage(form, controller.signal))
       } else {
@@ -158,7 +158,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
               size,
               quality: quality === 'default' ? undefined : quality,
               n: count,
-              response_format: 'b64_json',
+              response_format: 'url',
             },
             controller.signal
           )

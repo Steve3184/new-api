@@ -245,6 +245,19 @@ func UpdateOption(c *gin.Context) {
 				return
 			}
 		}
+	case "WorkerMeshyImageProxyBaseURL":
+		if option.Value != "" {
+			parsedURL, parseErr := url.ParseRequestURI(strings.TrimSpace(option.Value.(string)))
+			if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+				common.ApiErrorMsg(c, "Meshy image proxy base URL must be a valid HTTP or HTTPS URL")
+				return
+			}
+		}
+	case "WorkerMeshyImageProxyEnabled":
+		if option.Value == "true" && (strings.TrimSpace(system_setting.WorkerMeshyImageProxyBaseURL) == "" || strings.TrimSpace(system_setting.WorkerMeshyImageProxyAPIKey) == "") {
+			common.ApiErrorMsg(c, "Configure the Meshy image proxy base URL and API key before enabling it")
+			return
+		}
 	case "LoginCaptchaDifficulty", "CheckinCaptchaDifficulty":
 		difficulty, parseErr := strconv.Atoi(option.Value.(string))
 		if parseErr != nil || difficulty < 1 || difficulty > 8 {

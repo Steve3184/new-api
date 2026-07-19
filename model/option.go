@@ -103,6 +103,9 @@ func InitOptionMap() {
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
+	common.OptionMap["WorkerMeshyImageProxyEnabled"] = strconv.FormatBool(system_setting.WorkerMeshyImageProxyEnabled)
+	common.OptionMap["WorkerMeshyImageProxyBaseURL"] = system_setting.WorkerMeshyImageProxyBaseURL
+	common.OptionMap["WorkerMeshyImageProxyAPIKey"] = system_setting.WorkerMeshyImageProxyAPIKey
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
@@ -415,6 +418,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SMTPForceAuthLogin = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
+		case "WorkerMeshyImageProxyEnabled":
+			system_setting.WorkerMeshyImageProxyEnabled = boolValue
 		case "DefaultUseAutoGroup":
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
@@ -441,6 +446,10 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.WorkerUrl = value
 	case "WorkerValidKey":
 		system_setting.WorkerValidKey = value
+	case "WorkerMeshyImageProxyBaseURL":
+		system_setting.WorkerMeshyImageProxyBaseURL = value
+	case "WorkerMeshyImageProxyAPIKey":
+		system_setting.WorkerMeshyImageProxyAPIKey = value
 	case "PayAddress":
 		operation_setting.PayAddress = value
 	case "Chats":
