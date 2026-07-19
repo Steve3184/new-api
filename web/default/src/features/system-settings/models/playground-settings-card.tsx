@@ -227,7 +227,7 @@ export function PlaygroundSettingsCard(props: PlaygroundSettingsCardProps) {
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent alignItemWithTrigger={false}>
                                 <SelectGroup>
                                   <SelectItem value='openai'>OpenAI</SelectItem>
                                   <SelectItem value='azure'>Azure</SelectItem>

@@ -321,7 +321,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent alignItemWithTrigger={false}>
                         <SelectGroup>
                           <SelectItem value='speech' disabled={syncDisabled}>
                             {t('Speech')}
@@ -346,7 +346,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent alignItemWithTrigger={false}>
                         <SelectGroup>
                           {UNREAL_BITRATE_OPTIONS.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
@@ -371,7 +371,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
                         {formatOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>

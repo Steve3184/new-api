@@ -176,7 +176,11 @@ func UpdateRedemption(c *gin.Context) {
 		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
-		cleanRedemption.Quota = redemption.Quota
+		if cleanRedemption.SubscriptionPlanId > 0 {
+			cleanRedemption.Quota = 0
+		} else {
+			cleanRedemption.Quota = redemption.Quota
+		}
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {

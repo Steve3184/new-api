@@ -269,6 +269,10 @@ subscription plan. When redemption captcha is required, the frontend closes the
 captcha dialog before sending the redemption request. The response remains a
 number for wallet codes for backward compatibility and returns the redeemed
 plan identity for subscription codes.
+Subscription codes persist a wallet quota of `0` and never credit the user's
+wallet balance. Startup migration normalizes any legacy subscription-code quota
+to `0`, and redemption also clears it in the same transaction as a defense for
+codes created outside the normal admin flow.
 
 Subscription plans can be deleted when they have no active user subscriptions;
 expired and cancelled history does not block deletion. Each plan also has an

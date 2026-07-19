@@ -29,6 +29,7 @@ const defaultContentSettings: ContentSettings = {
     '{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[]},"speech_model_types":{}}',
   StatusCheckGroups: '[]',
   StatusCheckCacheExcludedModels: '[]',
+  StatusCheckAnnouncement: '',
   GroupRatio: '{}',
   ModelRatio: '{}',
   'console_setting.api_info': '[]',

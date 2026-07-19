@@ -20,7 +20,9 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form'
+import { Textarea } from '@/components/ui/textarea'
 
 import { SettingsForm } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
@@ -30,6 +32,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const statusCheckSchema = z.object({
   groups: z.array(z.string()),
   cacheExcludedModels: z.array(z.string()),
+  announcement: z.string().max(50000),
 })
 type StatusCheckValues = z.infer<typeof statusCheckSchema>
 
@@ -71,6 +74,7 @@ function parseAvailableModels(value: string): string[] {
 export function StatusCheckSection(props: {
   defaultValue: string
   cacheExcludedModels: string
+  announcement: string
   groupRatio: string
   modelRatio: string
 }) {
@@ -105,6 +109,7 @@ export function StatusCheckSection(props: {
     defaultValues: {
       groups: defaultGroups,
       cacheExcludedModels: defaultCacheExcludedModels,
+      announcement: props.announcement,
     },
   })
 
@@ -112,8 +117,9 @@ export function StatusCheckSection(props: {
     form.reset({
       groups: defaultGroups,
       cacheExcludedModels: defaultCacheExcludedModels,
+      announcement: props.announcement,
     })
-  }, [defaultCacheExcludedModels, defaultGroups, form])
+  }, [defaultCacheExcludedModels, defaultGroups, form, props.announcement])
 
   const onSubmit = async (values: StatusCheckValues) => {
     const updates = [
@@ -126,6 +132,11 @@ export function StatusCheckSection(props: {
         key: 'StatusCheckCacheExcludedModels',
         value: JSON.stringify(values.cacheExcludedModels),
         initial: JSON.stringify(defaultCacheExcludedModels),
+      },
+      {
+        key: 'StatusCheckAnnouncement',
+        value: values.announcement.trim(),
+        initial: props.announcement.trim(),
       },
     ].filter((item) => item.value !== item.initial)
 
@@ -141,6 +152,24 @@ export function StatusCheckSection(props: {
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
+          />
+          <FormField
+            control={form.control}
+            name='announcement'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Status check announcement')}</FormLabel>
+                <FormControl>
+                  <Textarea rows={4} {...field} />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Markdown content displayed above the status check groups.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
           />
           <FormField
             control={form.control}

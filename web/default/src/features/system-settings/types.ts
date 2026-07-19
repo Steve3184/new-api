@@ -189,6 +189,7 @@ export type ContentSettings = {
   PlaygroundSettings: string
   StatusCheckGroups: string
   StatusCheckCacheExcludedModels: string
+  StatusCheckAnnouncement: string
   GroupRatio: string
   ModelRatio: string
   'console_setting.api_info': string

@@ -184,6 +184,13 @@ export function RedemptionsMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const subscriptionPlanId = form.watch('subscription_plan_id')
+  const redemptionTypeItems = [
+    { value: 'wallet', label: t('Wallet balance code') },
+    ...subscriptionPlans.map(({ plan }) => ({
+      value: String(plan.id),
+      label: `${plan.title} (#${plan.id})`,
+    })),
+  ]
 
   return (
     <Sheet
@@ -273,6 +280,7 @@ export function RedemptionsMutateDrawer({
                     <FormItem>
                       <FormLabel>{t('Redemption type')}</FormLabel>
                       <Select
+                        items={redemptionTypeItems}
                         value={field.value ? String(field.value) : 'wallet'}
                         onValueChange={(value) => {
                           field.onChange(
@@ -286,17 +294,14 @@ export function RedemptionsMutateDrawer({
                         }}
                       >
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className='w-full'>
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent alignItemWithTrigger={false}>
-                          <SelectItem value='wallet'>
-                            {t('Wallet balance code')}
-                          </SelectItem>
-                          {subscriptionPlans.map(({ plan }) => (
-                            <SelectItem key={plan.id} value={String(plan.id)}>
-                              {plan.title} (#{plan.id})
+                          {redemptionTypeItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
                             </SelectItem>
                           ))}
                         </SelectContent>

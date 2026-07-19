@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Markdown } from '@/components/ui/markdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getStatusCheck } from '@/features/performance-metrics/api'
 import {
@@ -21,6 +22,7 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { StatusGroup } from '@/features/performance-metrics/types'
+import { useStatus } from '@/hooks/use-status'
 import { cn } from '@/lib/utils'
 
 import { AvailabilityBars } from './availability-bars'
@@ -31,6 +33,7 @@ const STATUS_REFRESH_INTERVAL_MS = 30 * 1000
 
 export function StatusCheck() {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const [selectedGroupName, setSelectedGroupName] = useState<string | null>(
     null
   )
@@ -45,6 +48,10 @@ export function StatusCheck() {
   const groups = query.data?.data.groups ?? []
   const selectedGroup =
     groups.find((group) => group.group === selectedGroupName) ?? null
+  const announcement =
+    typeof status?.status_check_announcement === 'string'
+      ? status.status_check_announcement
+      : ''
 
   return (
     <>
@@ -63,6 +70,14 @@ export function StatusCheck() {
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='min-w-0 space-y-4'>
+            {announcement && (
+              <Markdown
+                breaks
+                className='bg-muted/30 rounded-md border px-4 py-3 text-sm'
+              >
+                {announcement}
+              </Markdown>
+            )}
             <div className='text-muted-foreground flex items-center gap-2 text-sm'>
               <HeartPulse className='size-4' />
               <span>{t('Passive relay metrics from the last 24 hours')}</span>

@@ -312,6 +312,9 @@ func migrateDB() error {
 			return err
 		}
 	}
+	if err := normalizeSubscriptionRedemptionQuotas(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -383,6 +386,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := normalizeSubscriptionRedemptionQuotas(); err != nil {
+		return err
 	}
 	common.SysLog("database migrated")
 	return nil

@@ -230,4 +230,46 @@ func TestRedeemGrantsSubscriptionPlan(t *testing.T) {
 	require.NoError(t, DB.First(user, user.Id).Error)
 	assert.Zero(t, user.Quota)
 	assert.Equal(t, "vip", user.Group)
+
+	var redeemed Redemption
+	require.NoError(t, DB.First(&redeemed, redemption.Id).Error)
+	assert.Zero(t, redeemed.Quota)
+}
+
+func TestSubscriptionRedemptionPersistsZeroWalletQuota(t *testing.T) {
+	truncateTables(t)
+	plan := &SubscriptionPlan{
+		Id:            9802,
+		Title:         "Subscription only",
+		Enabled:       true,
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	redemption := &Redemption{
+		Name:               "subscription-redemption",
+		Key:                "30000000000000000000000000000001",
+		SubscriptionPlanId: plan.Id,
+		Quota:              100,
+		CreatedTime:        common.GetTimestamp(),
+	}
+	require.NoError(t, redemption.Insert())
+
+	var persisted Redemption
+	require.NoError(t, DB.Where("key = ?", redemption.Key).First(&persisted).Error)
+	assert.Zero(t, persisted.Quota)
+
+	legacy := &Redemption{
+		Name:               "legacy-subscription-redemption",
+		Key:                "40000000000000000000000000000001",
+		SubscriptionPlanId: plan.Id,
+		Quota:              100,
+		CreatedTime:        common.GetTimestamp(),
+	}
+	require.NoError(t, DB.Create(legacy).Error)
+	require.NoError(t, normalizeSubscriptionRedemptionQuotas())
+	persisted = Redemption{}
+	require.NoError(t, DB.Where("key = ?", legacy.Key).First(&persisted).Error)
+	assert.Zero(t, persisted.Quota)
 }

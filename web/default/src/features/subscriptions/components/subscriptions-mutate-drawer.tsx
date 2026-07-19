@@ -698,11 +698,25 @@ export function SubscriptionsMutateDrawer({
                         <FormItem>
                           <FormLabel>{t('Wallet-only group mode')}</FormLabel>
                           <Select
+                            items={[
+                              {
+                                value: 'blacklist',
+                                label: t(
+                                  'Blacklist: selected groups use wallet only'
+                                ),
+                              },
+                              {
+                                value: 'whitelist',
+                                label: t(
+                                  'Whitelist: only selected groups use subscriptions'
+                                ),
+                              },
+                            ]}
                             value={field.value}
                             onValueChange={field.onChange}
                           >
                             <FormControl>
-                              <SelectTrigger>
+                              <SelectTrigger className='w-full'>
                                 <SelectValue />
                               </SelectTrigger>
                             </FormControl>

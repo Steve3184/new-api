@@ -84,6 +84,7 @@ func GetStatus(c *gin.Context) {
 		"force_checkin_captcha":       common.ForceCheckinCaptcha,
 		"force_redemption_captcha":    common.ForceRedemptionCaptcha,
 		"custom_tabs":                 common.CustomTabs,
+		"status_check_announcement":   common.StatusCheckAnnouncement,
 		"playground":                  playground_setting.Get(),
 		"notice_popup_enabled":        common.NoticePopupEnabled,
 		"notice_popup_mode":           common.NoticePopupMode,

@@ -256,7 +256,7 @@ export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
                       {artStyleOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>

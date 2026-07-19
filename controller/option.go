@@ -269,6 +269,11 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorMsg(c, "Payment announcement is too long")
 			return
 		}
+	case "StatusCheckAnnouncement":
+		if len(option.Value.(string)) > 50000 {
+			common.ApiErrorMsg(c, "Status check announcement is too long")
+			return
+		}
 	case "CustomTabs":
 		var tabs []customTabOption
 		if err = common.UnmarshalJsonStr(option.Value.(string), &tabs); err != nil || len(tabs) > 50 {

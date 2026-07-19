@@ -149,6 +149,7 @@ export interface SystemStatus {
     notice_popup_mode?: 'home' | 'dashboard' | 'both'
     notice_popup_on_dashboard?: boolean
     notice_header_button_mode?: 'popover' | 'dialog'
+    status_check_announcement?: string
     playground?: PlaygroundPublicSettings
     [key: string]: unknown
   }
@@ -208,6 +209,7 @@ export interface SystemStatus {
   notice_popup_mode?: 'home' | 'dashboard' | 'both'
   notice_popup_on_dashboard?: boolean
   notice_header_button_mode?: 'popover' | 'dialog'
+  status_check_announcement?: string
   playground?: PlaygroundPublicSettings
   custom_tabs?: string
   [key: string]: unknown

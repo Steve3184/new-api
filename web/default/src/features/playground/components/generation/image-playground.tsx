@@ -361,7 +361,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent alignItemWithTrigger={false}>
                   <SelectGroup>
                     {RESOLUTION_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
@@ -383,7 +383,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent alignItemWithTrigger={false}>
                   <SelectGroup>
                     {qualityOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>

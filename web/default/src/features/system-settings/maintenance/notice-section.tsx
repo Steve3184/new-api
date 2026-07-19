@@ -185,7 +185,7 @@ export function NoticeSection({ defaultValues }: NoticeSectionProps) {
                     <SelectTrigger className='w-full'>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
                         <SelectItem value='home'>
                           {t('Home page only')}
@@ -221,7 +221,7 @@ export function NoticeSection({ defaultValues }: NoticeSectionProps) {
                     <SelectTrigger className='w-full'>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
                         <SelectItem value='popover'>
                           {t('Show below the button')}

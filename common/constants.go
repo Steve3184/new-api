@@ -179,6 +179,10 @@ var StatusCheckGroups = "[]"
 // to the passive status page's cache hit rate.
 var StatusCheckCacheExcludedModels = "[]"
 
+// StatusCheckAnnouncement is optional markdown text shown above the passive
+// status page's group metrics.
+var StatusCheckAnnouncement = ""
+
 // NoticePopupEnabled shows the system notice in the configured placement.
 var NoticePopupEnabled = false
 

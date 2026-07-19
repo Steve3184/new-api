@@ -329,7 +329,7 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent alignItemWithTrigger={false}>
                     <SelectItem value='turnstile'>
                       Cloudflare Turnstile
                     </SelectItem>

@@ -58,6 +58,7 @@ const CONTENT_SECTIONS = [
       <StatusCheckSection
         defaultValue={settings.StatusCheckGroups}
         cacheExcludedModels={settings.StatusCheckCacheExcludedModels}
+        announcement={settings.StatusCheckAnnouncement}
         groupRatio={settings.GroupRatio}
         modelRatio={settings.ModelRatio}
       />

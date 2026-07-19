@@ -34,6 +34,12 @@ type RedemptionResult struct {
 	SubscriptionPlanTitle string
 }
 
+func normalizeSubscriptionRedemptionQuotas() error {
+	return DB.Model(&Redemption{}).
+		Where("subscription_plan_id > ? AND quota <> ?", 0, 0).
+		Update("quota", 0).Error
+}
+
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
 	// 开始事务
 	tx := DB.Begin()
@@ -191,13 +197,17 @@ func RedeemWithResult(key string, userId int) (result *RedemptionResult, err err
 		// Compare-and-swap on status: only the transaction that flips
 		// enabled -> used may credit quota, so a concurrent redeem of the
 		// same code loses here even without a row lock (e.g. on SQLite).
+		updates := map[string]interface{}{
+			"redeemed_time": common.GetTimestamp(),
+			"status":        common.RedemptionCodeStatusUsed,
+			"used_user_id":  userId,
+		}
+		if plan != nil {
+			updates["quota"] = 0
+		}
 		updateResult := tx.Model(&Redemption{}).
 			Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
-			Updates(map[string]interface{}{
-				"redeemed_time": common.GetTimestamp(),
-				"status":        common.RedemptionCodeStatusUsed,
-				"used_user_id":  userId,
-			})
+			Updates(updates)
 		if updateResult.Error != nil {
 			return updateResult.Error
 		}
@@ -232,9 +242,27 @@ func RedeemWithResult(key string, userId int) (result *RedemptionResult, err err
 }
 
 func (redemption *Redemption) Insert() error {
-	var err error
-	err = DB.Create(redemption).Error
-	return err
+	if redemption.SubscriptionPlanId <= 0 {
+		return DB.Create(redemption).Error
+	}
+
+	redemption.Quota = 0
+	status := redemption.Status
+	if status == 0 {
+		status = common.RedemptionCodeStatusEnabled
+	}
+	return DB.Model(&Redemption{}).Create(map[string]interface{}{
+		"user_id":              redemption.UserId,
+		"key":                  redemption.Key,
+		"status":               status,
+		"name":                 redemption.Name,
+		"quota":                0,
+		"subscription_plan_id": redemption.SubscriptionPlanId,
+		"created_time":         redemption.CreatedTime,
+		"redeemed_time":        redemption.RedeemedTime,
+		"used_user_id":         redemption.UsedUserId,
+		"expired_time":         redemption.ExpiredTime,
+	}).Error
 }
 
 func (redemption *Redemption) SelectUpdate() error {
