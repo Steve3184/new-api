@@ -8,7 +8,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -41,6 +41,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { editImage, generateImage } from '../../api'
 import type {
   GroupOption,
+  ImageEditRequest,
   ImageGenerationResponse,
   ModelOption,
 } from '../../types'
@@ -50,7 +51,7 @@ import {
   imageResponseSource,
   imageSizeFromResolution,
   normalizeImageAspectRatio,
-  workspaceImageToFile,
+  readFileAsDataURL,
 } from './generation-utils'
 import { useGenerationModel } from './use-generation-model'
 
@@ -76,9 +77,16 @@ type ImagePlaygroundProps = {
   groupModels: Record<string, string[]>
 }
 
+type ImageReference = {
+  id: string
+  preview: string
+  file?: File
+  imageURL?: string
+}
+
 export function ImagePlayground(props: ImagePlaygroundProps) {
   const { t } = useTranslation()
-  const { model, setModel, group } = useGenerationModel({
+  const { model, setModel, group, setGroup } = useGenerationModel({
     models: props.models,
     groups: props.groups,
     group: props.group,
@@ -92,13 +100,13 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
   const [customAspectRatio, setCustomAspectRatio] = useState('')
   const [quality, setQuality] = useState('default')
   const [count, setCount] = useState(1)
-  const [sourceFile, setSourceFile] = useState<File | null>(null)
-  const [sourcePreview, setSourcePreview] = useState('')
+  const [sourceImages, setSourceImages] = useState<ImageReference[]>([])
   const [result, setResult] = useState<ImageGenerationResponse | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const controlsRef = useRef<HTMLElement>(null)
+  const sourceImagesRef = useRef<ImageReference[]>([])
   const qualityOptions = useMemo(
     () =>
       QUALITY_OPTIONS.map((option) => ({
@@ -119,15 +127,52 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
     ? imageSizeFromResolution(Number(resolution), effectiveAspectRatio)
     : null
 
-  const handleFile = (file: File | null) => {
-    if (sourcePreview) URL.revokeObjectURL(sourcePreview)
-    setSourceFile(file)
-    setSourcePreview(file ? URL.createObjectURL(file) : '')
+  useEffect(
+    () => () => {
+      sourceImagesRef.current.forEach((image) => {
+        if (image.file) URL.revokeObjectURL(image.preview)
+      })
+    },
+    []
+  )
+
+  const addSourceFiles = (files: File[]) => {
+    if (files.length === 0) return
+    const uploads = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      preview: URL.createObjectURL(file),
+    }))
+    setSourceImages((previous) => {
+      const next = [...previous, ...uploads]
+      sourceImagesRef.current = next
+      return next
+    })
+  }
+
+  const removeSourceImage = (id: string) => {
+    setSourceImages((previous) => {
+      const removed = previous.find((image) => image.id === id)
+      if (removed?.file) URL.revokeObjectURL(removed.preview)
+      const next = previous.filter((image) => image.id !== id)
+      sourceImagesRef.current = next
+      return next
+    })
+  }
+
+  const clearSourceImages = () => {
+    setSourceImages((previous) => {
+      previous.forEach((image) => {
+        if (image.file) URL.revokeObjectURL(image.preview)
+      })
+      sourceImagesRef.current = []
+      return []
+    })
   }
 
   const handleGenerate = async () => {
     if (!model || !prompt.trim() || !size) return
-    if (mode === 'edit' && !sourceFile) {
+    if (mode === 'edit' && sourceImages.length === 0) {
       toast.error(t('Select an image to edit'))
       return
     }
@@ -137,17 +182,25 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
     abortRef.current = controller
     setIsGenerating(true)
     try {
-      if (mode === 'edit' && sourceFile) {
-        const form = new FormData()
-        form.set('model', model)
-        form.set('group', group)
-        form.set('prompt', prompt.trim())
-        form.set('size', size)
-        if (quality !== 'default') form.set('quality', quality)
-        form.set('n', String(count))
-        form.set('response_format', 'url')
-        form.set('image', sourceFile)
-        setResult(await editImage(form, controller.signal))
+      if (mode === 'edit') {
+        const images = await Promise.all(
+          sourceImages.map(async (image) => ({
+            image_url: image.file
+              ? await readFileAsDataURL(image.file)
+              : (image.imageURL ?? image.preview),
+          }))
+        )
+        const payload: ImageEditRequest = {
+          model,
+          group,
+          prompt: prompt.trim(),
+          size,
+          quality: quality === 'default' ? undefined : quality,
+          n: count,
+          response_format: 'url',
+          images,
+        }
+        setResult(await editImage(payload, controller.signal))
       } else {
         setResult(
           await generateImage(
@@ -176,21 +229,19 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
     }
   }
 
-  const handleWorkspaceEdit = async (source: string, index: number) => {
-    try {
-      handleFile(
-        await workspaceImageToFile(
-          source,
-          `playground-${result?.created ?? Date.now()}-${index + 1}`
-        )
-      )
-      setMode('edit')
-      window.requestAnimationFrame(() => {
-        controlsRef.current?.scrollIntoView({ block: 'start' })
-      })
-    } catch {
-      toast.error(t('File read failed'))
+  const handleWorkspaceEdit = (source: string, index: number) => {
+    clearSourceImages()
+    const image = {
+      id: `workspace-${result?.created ?? Date.now()}-${index}`,
+      imageURL: source,
+      preview: source,
     }
+    sourceImagesRef.current = [image]
+    setSourceImages([image])
+    setMode('edit')
+    window.requestAnimationFrame(() => {
+      controlsRef.current?.scrollIntoView({ block: 'start' })
+    })
   }
 
   return (
@@ -219,7 +270,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
           <GenerationControls
             groups={props.groups}
             group={group}
-            onGroupChange={props.onGroupChange}
+            onGroupChange={setGroup}
             models={props.models}
             model={model}
             onModelChange={setModel}
@@ -234,39 +285,49 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                 ref={fileInputRef}
                 type='file'
                 accept='image/*'
+                multiple
                 className='sr-only'
-                onChange={(event) =>
-                  handleFile(event.target.files?.[0] ?? null)
-                }
+                disabled={isGenerating}
+                onChange={(event) => {
+                  addSourceFiles([...(event.target.files ?? [])])
+                  event.target.value = ''
+                }}
               />
-              {sourcePreview ? (
-                <div className='bg-muted relative aspect-video overflow-hidden rounded-md border'>
-                  <img
-                    src={sourcePreview}
-                    alt={t('Source image')}
-                    className='size-full object-contain'
-                  />
-                  <Button
-                    type='button'
-                    variant='secondary'
-                    size='icon'
-                    className='absolute top-2 right-2'
-                    onClick={() => handleFile(null)}
-                    aria-label={t('Remove image')}
-                  >
-                    <X />
-                  </Button>
+              {sourceImages.length > 0 && (
+                <div className='grid grid-cols-2 gap-2'>
+                  {sourceImages.map((image) => (
+                    <div
+                      key={image.id}
+                      className='bg-muted relative aspect-video overflow-hidden rounded-md border'
+                    >
+                      <img
+                        src={image.preview}
+                        alt={t('Source image')}
+                        className='size-full object-contain'
+                      />
+                      <Button
+                        type='button'
+                        variant='secondary'
+                        size='icon'
+                        className='absolute top-2 right-2'
+                        onClick={() => removeSourceImage(image.id)}
+                        aria-label={t('Remove image')}
+                      >
+                        <X />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload data-icon='inline-start' />
-                  {t('Choose image')}
-                </Button>
               )}
+              <Button
+                type='button'
+                variant='outline'
+                disabled={isGenerating}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload data-icon='inline-start' />
+                {t('Choose image')}
+              </Button>
             </Field>
           )}
 
@@ -400,7 +461,13 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
 
           <Button
             className='w-full'
-            disabled={!model || !prompt.trim() || !size || isGenerating}
+            disabled={
+              !model ||
+              !prompt.trim() ||
+              !size ||
+              isGenerating ||
+              (mode === 'edit' && sourceImages.length === 0)
+            }
             onClick={handleGenerate}
           >
             {isGenerating ? (
@@ -437,12 +504,14 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                   key={`${result.created}-${source.slice(-96)}`}
                   className='group bg-muted/30 relative overflow-hidden rounded-md border'
                 >
-                  <img
-                    src={source}
-                    alt={image.revised_prompt || t('Generated image')}
-                    className='aspect-square size-full object-contain'
-                    loading='lazy'
-                  />
+                  <div className='flex aspect-square items-center justify-center'>
+                    <img
+                      src={source}
+                      alt={image.revised_prompt || t('Generated image')}
+                      className='h-auto max-h-full w-auto max-w-full object-contain'
+                      loading='lazy'
+                    />
+                  </div>
                   <div className='absolute top-2 right-2 flex gap-2'>
                     <Button
                       type='button'
@@ -450,7 +519,7 @@ export function ImagePlayground(props: ImagePlaygroundProps) {
                       size='icon'
                       aria-label={t('Edit image')}
                       disabled={!source}
-                      onClick={() => void handleWorkspaceEdit(source, index)}
+                      onClick={() => handleWorkspaceEdit(source, index)}
                     >
                       <Pencil />
                     </Button>

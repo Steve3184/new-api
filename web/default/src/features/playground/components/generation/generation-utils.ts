@@ -6,15 +6,24 @@ import type { GroupOption, ModelOption } from '../../types'
 export function filterGenerationGroups(
   groups: GroupOption[],
   groupModels: Record<string, string[]>,
-  models: ModelOption[],
-  selectedModel: string
+  models: ModelOption[]
 ): GroupOption[] {
   const allowedModels = new Set(models.map((model) => model.value))
   return groups.filter((group) => {
     const availableModels = groupModels[group.value] ?? []
-    if (selectedModel) return availableModels.includes(selectedModel)
     return availableModels.some((model) => allowedModels.has(model))
   })
+}
+
+export function filterGroupsForGenerationModel(
+  groups: GroupOption[],
+  groupModels: Record<string, string[]>,
+  selectedModel: string
+): GroupOption[] {
+  if (!selectedModel) return []
+  return groups.filter((group) =>
+    (groupModels[group.value] ?? []).includes(selectedModel)
+  )
 }
 
 export function resolveGenerationGroup(
@@ -24,12 +33,9 @@ export function resolveGenerationGroup(
   selectedModel: string,
   selectedGroup: string
 ): string {
-  const eligibleGroups = filterGenerationGroups(
-    groups,
-    groupModels,
-    models,
-    selectedModel
-  )
+  const eligibleGroups = selectedModel
+    ? filterGroupsForGenerationModel(groups, groupModels, selectedModel)
+    : filterGenerationGroups(groups, groupModels, models)
   if (eligibleGroups.some((group) => group.value === selectedGroup)) {
     return selectedGroup
   }
@@ -107,18 +113,6 @@ export function imageSizeFromResolution(
     return `${resolution}x${Math.max(1, Math.round((resolution * heightUnit) / widthUnit))}`
   }
   return `${Math.max(1, Math.round((resolution * widthUnit) / heightUnit))}x${resolution}`
-}
-
-export async function workspaceImageToFile(
-  source: string,
-  baseName: string
-): Promise<File> {
-  const response = await fetch(source)
-  if (!response.ok) throw new Error('File read failed')
-  const blob = await response.blob()
-  const mimeType = blob.type || 'image/png'
-  const extension = mimeType.split('/')[1]?.split('+')[0] || 'png'
-  return new File([blob], `${baseName}.${extension}`, { type: mimeType })
 }
 
 export async function getGenerationErrorMessage(

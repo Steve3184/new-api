@@ -180,6 +180,12 @@ export interface ImageGenerationRequest {
   response_format: 'url' | 'b64_json'
 }
 
+export interface ImageEditRequest extends ImageGenerationRequest {
+  images: Array<{
+    image_url: string
+  }>
+}
+
 export interface ImageGenerationResponse {
   created: number
   data: Array<{

@@ -3,7 +3,7 @@ import { useState } from 'react'
 
 import type { GroupOption, ModelOption } from '../../types'
 import {
-  filterGenerationGroups,
+  filterGroupsForGenerationModel,
   resolveGenerationGroup,
 } from './generation-utils'
 
@@ -30,10 +30,9 @@ export function useGenerationModel(options: GenerationModelOptions) {
 
   const setModel = (value: string) => {
     setSelectedModel(value)
-    const nextGroups = filterGenerationGroups(
+    const nextGroups = filterGroupsForGenerationModel(
       options.groups,
       options.groupModels,
-      options.models,
       value
     )
     if (
@@ -44,5 +43,17 @@ export function useGenerationModel(options: GenerationModelOptions) {
     }
   }
 
-  return { model, setModel, group }
+  const setGroup = (value: string) => {
+    const groupModels = new Set(options.groupModels[value] ?? [])
+    if (!groupModels.has(model)) {
+      const nextModel = options.models.find((option) =>
+        groupModels.has(option.value)
+      )
+      if (!nextModel) return
+      setSelectedModel(nextModel.value)
+    }
+    options.onGroupChange(value)
+  }
+
+  return { model, setModel, group, setGroup }
 }

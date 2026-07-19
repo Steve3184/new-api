@@ -19,14 +19,8 @@ type GenerationControlsProps = {
 
 export function GenerationControls(props: GenerationControlsProps) {
   const eligibleGroups = useMemo(
-    () =>
-      filterGenerationGroups(
-        props.groups,
-        props.groupModels,
-        props.models,
-        props.model
-      ),
-    [props.groupModels, props.groups, props.model, props.models]
+    () => filterGenerationGroups(props.groups, props.groupModels, props.models),
+    [props.groupModels, props.groups, props.models]
   )
 
   return (

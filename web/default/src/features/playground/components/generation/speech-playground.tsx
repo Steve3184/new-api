@@ -79,7 +79,7 @@ type SpeechPlaygroundProps = {
 
 export function SpeechPlayground(props: SpeechPlaygroundProps) {
   const { t } = useTranslation()
-  const { model, setModel, group } = useGenerationModel({
+  const { model, setModel, group, setGroup } = useGenerationModel({
     models: props.models,
     groups: props.groups,
     group: props.group,
@@ -256,7 +256,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
           <GenerationControls
             groups={props.groups}
             group={group}
-            onGroupChange={props.onGroupChange}
+            onGroupChange={setGroup}
             models={props.models}
             model={model}
             onModelChange={setModel}

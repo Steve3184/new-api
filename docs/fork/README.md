@@ -462,13 +462,15 @@ payload exposes the normalized configuration under `playground`.
 
 All generation tabs use the same combined model/group picker as chat. The
 frontend loads model availability for every usable group in parallel, builds a
-union model list, and filters the group column for the selected model. A group
-that does not provide the selected model is not shown; if a model change makes
-the current group invalid, the first eligible group is derived immediately and
-used by the request. The selection no longer relies on effect-driven state
-correction when a generation tab mounts. The group column keeps short rows at
-their natural height when only a few groups are eligible. Only the combined
-picker is rendered, rather than separate model and group fields.
+union model list, and shows the union of groups that provide any model allowed
+for the active generation tab. This keeps every usable group visible even when
+the initially selected model is only available in one group. Selecting a model
+still moves to a group that provides it when needed; selecting a group whose
+current model is unavailable switches to that group's first allowed model. The
+selection no longer relies on effect-driven state correction when a generation
+tab mounts. The group column keeps short rows at their natural height when only
+a few groups are eligible. Only the combined picker is rendered, rather than
+separate model and group fields.
 
 Session-authenticated Playground relay routes are additive equivalents of the
 existing token-authenticated APIs:
@@ -477,7 +479,7 @@ existing token-authenticated APIs:
 | --- | --- |
 | `POST /pg/chat/completions` | Chat |
 | `POST /pg/images/generations` | Image generation |
-| `POST /pg/images/edits` | Multipart image editing |
+| `POST /pg/images/edits` | JSON image editing |
 | `POST /pg/audio/speech` | Speech generation |
 | `POST /pg/3d` | Submit a 3D task |
 | `GET /pg/3d/:task_id` | Poll a user-owned 3D task |
@@ -488,10 +490,12 @@ and 4K. Aspect-ratio presets are 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, and 2:3; users
 may also enter a custom ratio as positive whole numbers in `width:height`
 format. The selected resolution represents the nominal longest edge. The
 frontend reduces the ratio and derives a concrete `WxH` value, using dimensions
-aligned to multiples of eight when possible, so both generation and multipart
-editing continue to send the existing `size` field without introducing a new
-request contract. Invalid custom ratios are reported inline and block
-submission.
+aligned to multiples of eight when possible, so both generation and editing
+continue to send the existing `size` field without introducing a new request
+contract. Image editing accepts multiple reference images. Local files are
+encoded as data URLs and sent as JSON in the OpenAI-compatible
+`images: [{"image_url":"data:image/...;base64,..."}]` array rather than as a
+multipart form. Invalid custom ratios are reported inline and block submission.
 
 GPT Image and Seedream-compatible channels continue through the existing image
 adaptors. Gemini image models, including Nano Banana aliases, are converted to
@@ -504,9 +508,12 @@ Seedream 4.0 plus generic Seedream 5.0 aliases.
 
 The image and 3D desktop layouts use the full Playground width: their fixed
 control columns align with the left edge and the remaining width belongs to the
-result workspace. Every generated image also has an edit action that converts
-that workspace result into the multipart source file, switches to edit mode,
-and returns the user to the controls.
+result workspace. Generated images retain their natural display size up to the
+available workspace bounds, then scale down proportionally. Every generated
+image also has an edit action that reuses its data URL or returned URL directly
+as an `images[].image_url` reference, switches to edit mode, and returns the
+user to the controls. This avoids browser-side downloads that can fail for
+cross-origin result URLs.
 
 Speech always sends the required `speed` float (`1.0` baseline). Azure-typed
 models additionally expose optional `volume` (`1.0` baseline) and integer

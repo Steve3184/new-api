@@ -56,7 +56,7 @@ type ThreeDPlaygroundProps = {
 
 export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
   const { t } = useTranslation()
-  const { model, setModel, group } = useGenerationModel({
+  const { model, setModel, group, setGroup } = useGenerationModel({
     models: props.models,
     groups: props.groups,
     group: props.group,
@@ -172,7 +172,7 @@ export function ThreeDPlayground(props: ThreeDPlaygroundProps) {
           <GenerationControls
             groups={props.groups}
             group={group}
-            onGroupChange={props.onGroupChange}
+            onGroupChange={setGroup}
             models={props.models}
             model={model}
             onModelChange={setModel}

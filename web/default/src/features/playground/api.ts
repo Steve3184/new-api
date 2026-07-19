@@ -24,6 +24,7 @@ import type {
   ChatCompletionResponse,
   ModelOption,
   GroupOption,
+  ImageEditRequest,
   ImageGenerationRequest,
   ImageGenerationResponse,
   SpeechGenerationRequest,
@@ -99,7 +100,7 @@ export async function generateImage(
 }
 
 export async function editImage(
-  payload: FormData,
+  payload: ImageEditRequest,
   signal?: AbortSignal
 ): Promise<ImageGenerationResponse> {
   const res = await api.post(API_ENDPOINTS.IMAGE_EDITS, payload, {

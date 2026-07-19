@@ -7,7 +7,6 @@ import {
   imageSizeFromResolution,
   normalizeImageAspectRatio,
   resolveGenerationGroup,
-  workspaceImageToFile,
 } from './generation-utils'
 
 const groups = [
@@ -22,26 +21,21 @@ const groupModels = {
 }
 
 describe('generation group filtering', () => {
-  test('shows only groups that provide the selected model', () => {
+  test('shows the union of groups that provide any allowed generation model', () => {
     assert.deepEqual(
-      filterGenerationGroups(
-        groups,
-        groupModels,
-        [{ label: 'GPT Image 2', value: 'gpt-image-2' }],
-        'gpt-image-2'
-      ).map((group) => group.value),
-      ['default', 'image']
+      filterGenerationGroups(groups, groupModels, [
+        { label: 'GPT Image 2', value: 'gpt-image-2' },
+        { label: 'TTS', value: 'tts-1' },
+      ]).map((group) => group.value),
+      ['default', 'image', 'speech']
     )
   })
 
   test('hides groups without any allowed generation model before selection', () => {
     assert.deepEqual(
-      filterGenerationGroups(
-        groups,
-        groupModels,
-        [{ label: 'TTS', value: 'tts-1' }],
-        ''
-      ).map((group) => group.value),
+      filterGenerationGroups(groups, groupModels, [
+        { label: 'TTS', value: 'tts-1' },
+      ]).map((group) => group.value),
       ['default', 'speech']
     )
   })
@@ -57,19 +51,6 @@ describe('generation group filtering', () => {
       ),
       'default'
     )
-  })
-})
-
-describe('workspace image editing', () => {
-  test('converts a generated data URL into an uploadable source file', async () => {
-    const file = await workspaceImageToFile(
-      'data:image/png;base64,aW1hZ2UtZGF0YQ==',
-      'playground-result'
-    )
-
-    assert.equal(file.name, 'playground-result.png')
-    assert.equal(file.type, 'image/png')
-    assert.equal(await file.text(), 'image-data')
   })
 })
 
