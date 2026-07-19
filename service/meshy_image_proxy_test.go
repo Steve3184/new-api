@@ -2,6 +2,8 @@ package service
 
 import (
 	"bytes"
+	"image"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -51,6 +53,12 @@ func configureMeshyImageProxyTest(t *testing.T, resolve func(*http.Request) *htt
 		if !assert.NoError(t, err) || !assert.Equal(t, "image/png", http.DetectContentType(data)) {
 			return meshyProxyJSONResponse(r, http.StatusBadRequest, `{"error":"invalid image"}`), nil
 		}
+		config, _, err := image.DecodeConfig(bytes.NewReader(data))
+		if !assert.NoError(t, err) ||
+			!assert.GreaterOrEqual(t, config.Width, meshyMinimumImageDimension) ||
+			!assert.GreaterOrEqual(t, config.Height, meshyMinimumImageDimension) {
+			return meshyProxyJSONResponse(r, http.StatusBadRequest, `{"error":"image dimensions too small"}`), nil
+		}
 		if resolve != nil {
 			return resolve(r), nil
 		}
@@ -81,6 +89,26 @@ func newMeshyProxyContext(method, path, body string) *gin.Context {
 	c.Request = httptest.NewRequest(method, path, strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	return c
+}
+
+func TestNormalizeMeshyUploadImagePadsOnlyUndersizedEdges(t *testing.T) {
+	var undersized bytes.Buffer
+	require.NoError(t, png.Encode(&undersized, image.NewRGBA(image.Rect(0, 0, 767, 31))))
+
+	normalized, mimeType, err := normalizeMeshyUploadImage(undersized.Bytes(), "image/png")
+	require.NoError(t, err)
+	assert.Equal(t, "image/png", mimeType)
+	config, _, err := image.DecodeConfig(bytes.NewReader(normalized))
+	require.NoError(t, err)
+	assert.Equal(t, 767, config.Width)
+	assert.Equal(t, meshyMinimumImageDimension, config.Height)
+
+	var valid bytes.Buffer
+	require.NoError(t, png.Encode(&valid, image.NewRGBA(image.Rect(0, 0, 767, meshyMinimumImageDimension))))
+	preserved, preservedMimeType, err := normalizeMeshyUploadImage(valid.Bytes(), "image/png")
+	require.NoError(t, err)
+	assert.Equal(t, "image/png", preservedMimeType)
+	assert.Equal(t, valid.Bytes(), preserved)
 }
 
 func TestRewriteMeshyImageProxyRequestSupportsRelayProtocols(t *testing.T) {

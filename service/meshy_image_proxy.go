@@ -1,10 +1,17 @@
 package service
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	_ "image/gif"
+	_ "image/jpeg"
+	"image/png"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -17,11 +24,13 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
+	_ "golang.org/x/image/webp"
 )
 
 const (
 	meshyImageProxySkipResponseKey = "meshy_image_proxy_skip_response"
 	meshyImageProxyCacheKey        = "meshy_image_proxy_upload_cache"
+	meshyMinimumImageDimension     = 32
 )
 
 type meshyImageUploadResponse struct {
@@ -351,18 +360,52 @@ func isImageBase64(value string) bool {
 	return detectBase64ImageMime(value) != ""
 }
 
+func normalizeMeshyUploadImage(data []byte, mimeType string) ([]byte, string, error) {
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || (config.Width >= meshyMinimumImageDimension && config.Height >= meshyMinimumImageDimension) {
+		return data, mimeType, nil
+	}
+
+	source, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", fmt.Errorf("decode undersized Meshy image: %w", err)
+	}
+	width := max(config.Width, meshyMinimumImageDimension)
+	height := max(config.Height, meshyMinimumImageDimension)
+	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	draw.Draw(canvas, canvas.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+	offset := image.Pt((width-config.Width)/2, (height-config.Height)/2)
+	draw.Draw(canvas, image.Rectangle{Min: offset, Max: offset.Add(source.Bounds().Size())}, source, source.Bounds().Min, draw.Src)
+
+	var encoded bytes.Buffer
+	if err = png.Encode(&encoded, canvas); err != nil {
+		return nil, "", fmt.Errorf("encode padded Meshy image: %w", err)
+	}
+	return encoded.Bytes(), "image/png", nil
+}
+
 func uploadMeshyBase64Image(c *gin.Context, value string) (string, error) {
 	base64Data, _ := splitBase64Image(value)
-	mimeType := detectBase64ImageMime(base64Data)
-	if mimeType == "" {
-		return "", errors.New("invalid base64 image data")
-	}
 	hash := sha256.Sum256(common.StringToByteSlice(base64Data))
 	cacheID := fmt.Sprintf("%x", hash[:])
 	if cached, ok := c.Get(meshyImageProxyCacheKey); ok {
 		if values, ok := cached.(map[string]string); ok && values[cacheID] != "" {
 			return values[cacheID], nil
 		}
+	}
+
+	decoder := base64.NewDecoder(base64Encoding(base64Data), strings.NewReader(base64Data))
+	imageData, err := io.ReadAll(decoder)
+	if err != nil {
+		return "", fmt.Errorf("decode base64 image data: %w", err)
+	}
+	mimeType := http.DetectContentType(imageData)
+	if !strings.HasPrefix(mimeType, "image/") {
+		return "", errors.New("invalid base64 image data")
+	}
+	imageData, mimeType, err = normalizeMeshyUploadImage(imageData, mimeType)
+	if err != nil {
+		return "", err
 	}
 
 	extension := ".img"
@@ -374,8 +417,7 @@ func uploadMeshyBase64Image(c *gin.Context, value string) (string, error) {
 	go func() {
 		part, err := multipartWriter.CreateFormFile("file", "image"+extension)
 		if err == nil {
-			decoder := base64.NewDecoder(base64Encoding(base64Data), strings.NewReader(base64Data))
-			_, err = io.Copy(part, decoder)
+			_, err = io.Copy(part, bytes.NewReader(imageData))
 		}
 		if closeErr := multipartWriter.Close(); err == nil {
 			err = closeErr

@@ -825,6 +825,11 @@ returned by Meshy2API:
 https://api.meshy.ai/misc/cdn-images/uploads/{image_id}?sign={temporary_signature}
 ```
 
+Meshy rejects images smaller than `32x32`. Before upload, new-api pads any
+undersized edge to 32 pixels with a white background and centers the original
+pixels without stretching them. Images already at least `32x32` keep their
+original bytes and format.
+
 The same conversion runs on final image output from OpenAI Images, Responses
 API image-generation calls, Claude image blocks, and Gemini image parts. It is
 applied to both buffered JSON and SSE data chunks. OpenAI partial-image stream
