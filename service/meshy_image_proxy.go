@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -55,8 +56,16 @@ func isMeshyImageProxyPath(requestPath string) bool {
 		(strings.Contains(requestPath, ":generateContent") || strings.Contains(requestPath, ":streamGenerateContent"))
 }
 
+func shouldRewriteMeshyImageProxy(c *gin.Context) bool {
+	return MeshyImageProxyEnabled() &&
+		c != nil &&
+		c.Request != nil &&
+		common.GetContextKeyInt(c, constant.ContextKeyChannelType) != constant.ChannelTypeMeshy2API &&
+		isMeshyImageProxyPath(c.Request.URL.Path)
+}
+
 func RewriteMeshyImageProxyRequest(c *gin.Context) error {
-	if !MeshyImageProxyEnabled() || c == nil || c.Request == nil || !isMeshyImageProxyPath(c.Request.URL.Path) {
+	if !shouldRewriteMeshyImageProxy(c) {
 		return nil
 	}
 	if !strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "application/json") {
@@ -94,7 +103,7 @@ func RewriteMeshyImageProxyRequest(c *gin.Context) error {
 }
 
 func RewriteMeshyImageProxyResponse(c *gin.Context, body []byte) ([]byte, error) {
-	if !MeshyImageProxyEnabled() || c == nil || c.Request == nil || !isMeshyImageProxyPath(c.Request.URL.Path) || c.GetBool(meshyImageProxySkipResponseKey) {
+	if !shouldRewriteMeshyImageProxy(c) || c.GetBool(meshyImageProxySkipResponseKey) {
 		return body, nil
 	}
 	var payload any

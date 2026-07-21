@@ -873,6 +873,12 @@ previous behavior. Input upload failures stop the relay before contacting the
 model provider; output upload failures log a warning and preserve the original
 provider response.
 
+The automatic rewrite explicitly excludes requests routed through a
+`ChannelTypeMeshy2API` channel. Its input and output image payloads, including
+base64 values, are relayed unchanged instead of being uploaded to Meshy2API and
+replaced with a temporary CDN URL. This avoids sending a native Meshy2API
+provider request through the Meshy2API upload proxy a second time.
+
 Files:
 
 - `common/gin.go`
@@ -1213,4 +1219,5 @@ option is disabled; at more than 5,000 characters the Playground selects
 19. With the Meshy2API image proxy enabled, verify base64 image input is
     uploaded before relay, final image output returns the temporary signed CDN
     URL from `/upload-image`, explicit `b64_json` output remains base64, and no
-    Meshy2API key is exposed.
+    Meshy2API key is exposed. For a request routed through a Meshy2API channel,
+    verify both input and output payloads remain unchanged and no upload occurs.

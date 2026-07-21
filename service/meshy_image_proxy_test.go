@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
@@ -221,6 +222,28 @@ func TestRewriteMeshyImageProxyResponsePreservesExplicitAndPartialBase64(t *test
 	rewritten, err = RewriteMeshyImageProxyResponse(c, []byte(`{"data":[{"b64_json":"`+testPNGBase64+`"}]}`))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"data":[{"b64_json":"`+testPNGBase64+`"}]}`, string(rewritten))
+	assert.Zero(t, uploadCount.Load())
+}
+
+func TestRewriteMeshyImageProxySkipsMeshy2APIChannel(t *testing.T) {
+	uploadCount := configureMeshyImageProxyTest(t, nil)
+	dataURL := "data:image/png;base64," + testPNGBase64
+
+	c := newMeshyProxyContext(http.MethodPost, "/v1/images/generations", `{"prompt":"test","image":"`+dataURL+`"}`)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeMeshy2API)
+	require.NoError(t, RewriteMeshyImageProxyRequest(c))
+
+	storage, err := common.GetBodyStorage(c)
+	require.NoError(t, err)
+	rewrittenRequest, err := storage.Bytes()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"prompt":"test","image":"`+dataURL+`"}`, string(rewrittenRequest))
+	common.CleanupBodyStorage(c)
+
+	responseBody := []byte(`{"data":[{"b64_json":"` + testPNGBase64 + `"}]}`)
+	rewrittenResponse, err := RewriteMeshyImageProxyResponse(c, responseBody)
+	require.NoError(t, err)
+	assert.Equal(t, responseBody, rewrittenResponse)
 	assert.Zero(t, uploadCount.Load())
 }
 
