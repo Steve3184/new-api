@@ -60,10 +60,17 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
     return []
   }
 
-  return data.data.map((model: string) => ({
-    label: model,
-    value: model,
-  }))
+  return (data.data as string[])
+    .map((model: string) => ({
+      label: model,
+      value: model,
+    }))
+    .sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      })
+    )
 }
 
 /**

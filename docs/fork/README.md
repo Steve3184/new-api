@@ -485,6 +485,38 @@ tab mounts. The group column keeps short rows at their natural height when only
 a few groups are eligible. Only the combined picker is rendered, rather than
 separate model and group fields.
 
+### Model ordering and OpenAI chat relay options
+
+Every Playground model picker sorts its options case-insensitively by model
+name, with numeric segments compared numerically. This applies both to a single
+group's model list and to the deduplicated list used by generation tabs.
+
+OpenAI channel advanced settings provide two additive channel-setting flags for
+Chat Completions compatibility:
+
+| Setting | JSON field | Behavior |
+| --- | --- | --- |
+| **Use Responses API Only** | `use_responses_api` | Sends converted Chat Completions requests to the upstream `/v1/responses` endpoint, then converts the result back to the caller's expected format. |
+| **Fake Non-Stream Support** | `fake_non_stream` | For a downstream non-streaming Chat Completions request, requests an upstream SSE response, buffers its chunks, and returns one standard JSON completion response. |
+
+Both options require request-body conversion, so they do not override the
+global or per-channel pass-through-body settings. The fake non-stream path
+preserves content, reasoning content, tool calls, finish reasons, and usage
+reported by the upstream stream; it estimates usage only when that stream does
+not provide usage data.
+
+Files:
+
+- `dto/channel_settings.go`
+- `relay/chat_completions_via_responses.go`
+- `relay/compatible_handler.go`
+- `relay/channel/openai/relay-openai-buffered.go`
+- `relay/channel/openai/chat_via_responses_test.go`
+- `web/default/src/features/playground/api.ts`
+- `web/default/src/features/playground/hooks/use-generation-options.ts`
+- `web/default/src/features/channels/`
+- `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
 Session-authenticated Playground relay routes are additive equivalents of the
 existing token-authenticated APIs:
 

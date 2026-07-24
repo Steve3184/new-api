@@ -33,7 +33,10 @@ export function useGenerationOptions(groups: GroupOption[]) {
     return {
       groupModels: modelsByGroup,
       models: [...uniqueModels.values()].sort((a, b) =>
-        a.label.localeCompare(b.label)
+        a.label.localeCompare(b.label, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
       ),
       isLoading: query.isLoading,
     }

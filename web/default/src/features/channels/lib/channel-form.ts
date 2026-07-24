@@ -188,6 +188,8 @@ export const channelFormSchema = z
     // Channel extra settings (stored in setting JSON, not sent directly)
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
+    use_responses_api: z.boolean().optional(),
+    fake_non_stream: z.boolean().optional(),
     proxy: z.string().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
@@ -338,6 +340,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Channel extra settings
   force_format: false,
   thinking_to_content: false,
+  use_responses_api: false,
+  fake_non_stream: false,
   proxy: '',
   pass_through_body_enabled: false,
   system_prompt: '',
@@ -376,6 +380,8 @@ export function transformChannelToFormDefaults(
   let extraSettings = {
     force_format: false,
     thinking_to_content: false,
+    use_responses_api: false,
+    fake_non_stream: false,
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
@@ -388,6 +394,8 @@ export function transformChannelToFormDefaults(
       extraSettings = {
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
+        use_responses_api: parsed.use_responses_api || false,
+        fake_non_stream: parsed.fake_non_stream || false,
         proxy: parsed.proxy || '',
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
@@ -505,6 +513,9 @@ function buildSettingJSON(formData: ChannelFormValues): string {
   const settingObj = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
+    use_responses_api:
+      formData.type === 1 && formData.use_responses_api === true,
+    fake_non_stream: formData.type === 1 && formData.fake_non_stream === true,
     proxy: formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
