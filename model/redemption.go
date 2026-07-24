@@ -233,7 +233,7 @@ func RedeemWithResult(key string, userId int) (result *RedemptionResult, err err
 	if result.SubscriptionPlanId > 0 {
 		InvalidateUserSubscriptionRateLimitCache(userId)
 		if upgradeGroup != "" {
-			_ = UpdateUserGroupCache(userId, upgradeGroup)
+			refreshSubscriptionUserGroupCache(userId, "redemption completion")
 		}
 		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码兑换订阅套餐 %s，兑换码ID %d", result.SubscriptionPlanTitle, redemption.Id))
 	} else {

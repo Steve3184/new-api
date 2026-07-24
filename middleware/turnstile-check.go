@@ -5,7 +5,6 @@ import (
 	"net/url"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,13 +22,8 @@ func TurnstileCheckFresh() gin.HandlerFunc {
 
 func turnstileCheck(cacheSession bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		_ = cacheSession
 		if common.TurnstileCheckEnabled {
-			session := sessions.Default(c)
-			turnstileChecked := session.Get("turnstile")
-			if cacheSession && turnstileChecked != nil {
-				c.Next()
-				return
-			}
 			response := c.Query("turnstile")
 			if response == "" {
 				c.JSON(http.StatusOK, gin.H{
@@ -72,17 +66,6 @@ func turnstileCheck(cacheSession bool) gin.HandlerFunc {
 				})
 				c.Abort()
 				return
-			}
-			if cacheSession {
-				session.Set("turnstile", true)
-				err = session.Save()
-				if err != nil {
-					c.JSON(http.StatusOK, gin.H{
-						"message": "无法保存会话信息，请重试",
-						"success": false,
-					})
-					return
-				}
 			}
 		}
 		c.Next()

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,13 +27,8 @@ func HCaptchaCheckFresh() gin.HandlerFunc {
 
 func hCaptchaCheck(cacheSession bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		_ = cacheSession
 		if !common.HCaptchaEnabled {
-			c.Next()
-			return
-		}
-
-		session := sessions.Default(c)
-		if cacheSession && session.Get("hcaptcha") != nil {
 			c.Next()
 			return
 		}
@@ -90,14 +84,6 @@ func hCaptchaCheck(cacheSession bool) gin.HandlerFunc {
 			return
 		}
 
-		if cacheSession {
-			session.Set("hcaptcha", true)
-			if err := session.Save(); err != nil {
-				common.ApiError(c, err)
-				c.Abort()
-				return
-			}
-		}
 		c.Next()
 	}
 }

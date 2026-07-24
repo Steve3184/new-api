@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +46,6 @@ func TestHCaptchaCheckVerifiesToken(t *testing.T) {
 	})
 
 	router := gin.New()
-	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
 	router.GET("/protected", HCaptchaCheckFresh(), func(context *gin.Context) {
 		context.JSON(http.StatusOK, gin.H{"success": true})
 	})
@@ -70,7 +67,6 @@ func TestHCaptchaCheckRejectsMissingToken(t *testing.T) {
 	t.Cleanup(func() { common.HCaptchaEnabled = previousEnabled })
 
 	router := gin.New()
-	router.Use(sessions.Sessions("test", cookie.NewStore([]byte("secret"))))
 	router.GET("/protected", HCaptchaCheckFresh(), func(context *gin.Context) {
 		context.JSON(http.StatusOK, gin.H{"success": true})
 	})
