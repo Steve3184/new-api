@@ -1076,8 +1076,23 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 // GetActiveSubscriptionAvailability reports whether the user has any active
 // subscription and whether at least one can be used by the current group.
 func GetActiveSubscriptionAvailability(userId int) (bool, bool, error) {
+	return GetActiveSubscriptionAvailabilityForGroup(userId, "")
+}
+
+// GetActiveSubscriptionAvailabilityForGroup reports subscription availability
+// for the effective request group. An empty group falls back to the user's
+// persisted group for callers that do not route requests across groups.
+func GetActiveSubscriptionAvailabilityForGroup(userId int, group string) (bool, bool, error) {
 	if userId <= 0 {
 		return false, false, errors.New("invalid userId")
+	}
+	group = strings.TrimSpace(group)
+	if group == "" {
+		var err error
+		group, err = GetUserGroup(userId, false)
+		if err != nil {
+			return false, false, err
+		}
 	}
 	now := common.GetTimestamp()
 	var subs []UserSubscription
@@ -1087,10 +1102,6 @@ func GetActiveSubscriptionAvailability(userId int) (bool, bool, error) {
 	}
 	if len(subs) == 0 {
 		return false, false, nil
-	}
-	group, err := GetUserGroup(userId, false)
-	if err != nil {
-		return false, false, err
 	}
 	for _, sub := range subs {
 		if sub.AmountTotal < 0 {
@@ -1118,17 +1129,27 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 // after the user's subscription quota is exhausted. A single active subscription that
 // disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
 func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
+	return UserActiveSubscriptionsAllowWalletOverflowForGroup(userId, "")
+}
+
+// UserActiveSubscriptionsAllowWalletOverflowForGroup checks wallet fallback
+// only against subscriptions eligible for the effective request group.
+func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, group string) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
+	}
+	group = strings.TrimSpace(group)
+	if group == "" {
+		var err error
+		group, err = GetUserGroup(userId, false)
+		if err != nil {
+			return false, err
+		}
 	}
 	now := common.GetTimestamp()
 	var subs []UserSubscription
 	if err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 		Find(&subs).Error; err != nil {
-		return false, err
-	}
-	group, err := GetUserGroup(userId, false)
-	if err != nil {
 		return false, err
 	}
 	for _, sub := range subs {
@@ -1553,6 +1574,16 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscriptionForGroup(requestId, userId, modelName, quotaType, amount, "")
+}
+
+// PreConsumeUserSubscriptionForGroup pre-consumes from an active subscription
+// that is eligible for the effective request group.
+func PreConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, quotaType int, amount int64, group string) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscriptionForGroup(requestId, userId, modelName, quotaType, amount, group)
+}
+
+func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, quotaType int, amount int64, group string) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1589,9 +1620,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		}
 
 		var subs []UserSubscription
-		userGroup, err := getUserGroupByIdTx(tx, userId)
-		if err != nil {
-			return err
+		effectiveGroup := strings.TrimSpace(group)
+		if effectiveGroup == "" {
+			var err error
+			effectiveGroup, err = getUserGroupByIdTx(tx, userId)
+			if err != nil {
+				return err
+			}
 		}
 		if err := lockForUpdate(tx).
 			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
@@ -1611,7 +1646,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if err != nil {
 				return err
 			}
-			if plan.IsWalletOnlyForGroup(userGroup) {
+			if plan.IsWalletOnlyForGroup(effectiveGroup) {
 				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {

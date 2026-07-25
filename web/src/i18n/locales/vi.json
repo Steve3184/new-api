@@ -3271,6 +3271,7 @@
     "OpenAI Models upstream path must not contain {model}": "Đường dẫn thượng nguồn của Mô hình OpenAI không được chứa {model}",
     "OpenAI Organization": "Tổ chức OpenAI",
     "OpenAI Organization ID (optional)": "ID Tổ chức OpenAI (tùy chọn)",
+    "OpenAI Responses to Anthropic Messages": "OpenAI Responses sang Anthropic Messages",
     "OpenAI Responses to Gemini Generate Content": "OpenAI Responses sang Gemini Generate Content",
     "OpenAI Responses to OpenAI Chat": "OpenAI Responses sang OpenAI Chat",
     "OpenAI, Anthropic, etc.": "OpenAI, Anthropic, v.v.",

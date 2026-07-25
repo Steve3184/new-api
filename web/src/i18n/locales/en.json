@@ -3271,6 +3271,7 @@
     "OpenAI Models upstream path must not contain {model}": "OpenAI Models upstream path must not contain {model}",
     "OpenAI Organization": "OpenAI Organization",
     "OpenAI Organization ID (optional)": "OpenAI Organization ID (optional)",
+    "OpenAI Responses to Anthropic Messages": "OpenAI Responses to Anthropic Messages",
     "OpenAI Responses to Gemini Generate Content": "OpenAI Responses to Gemini Generate Content",
     "OpenAI Responses to OpenAI Chat": "OpenAI Responses to OpenAI Chat",
     "OpenAI, Anthropic, etc.": "OpenAI, Anthropic, etc.",

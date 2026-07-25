@@ -70,10 +70,11 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 			},
 		},
 		{
-			converter: requestConverterResponsesToClaude,
-			from:      types.RelayFormatOpenAIResponses,
-			to:        types.RelayFormatClaude,
-			quality:   RequestConverterQualityFair,
+			converter:      ConverterOpenAIResponsesToClaudeMessages,
+			from:           types.RelayFormatOpenAIResponses,
+			to:             types.RelayFormatClaude,
+			quality:        RequestConverterQualityFair,
+			advancedCustom: true,
 		},
 		{
 			converter:      ConverterOpenAIResponsesToGemini,
@@ -104,6 +105,28 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 			assert.Equal(t, tt.advancedCustom, dto.IsAdvancedCustomConverterAllowed(tt.converter))
 		})
 	}
+}
+
+func TestResponsesToAnthropicLegacyConverterAlias(t *testing.T) {
+	requestSpec, ok := LookupRequestConverter(requestConverterResponsesToClaude)
+	require.True(t, ok)
+	assert.Equal(t, ConverterOpenAIResponsesToClaudeMessages, requestSpec.ID)
+
+	responseSpec, ok := LookupResponseConverter(requestConverterResponsesToClaude)
+	require.True(t, ok)
+	assert.Equal(t, ConverterOpenAIResponsesToClaudeMessages, responseSpec.ID)
+
+	textSpec, ok := LookupTextConverter(requestConverterResponsesToClaude)
+	require.True(t, ok)
+	assert.Equal(t, ConverterOpenAIResponsesToClaudeMessages, textSpec.ID)
+
+	result, err := ConvertRequestByID(nil, &relaycommon.RelayInfo{}, requestConverterResponsesToClaude, &dto.OpenAIResponsesRequest{
+		Model: "claude-test",
+		Input: mustRawMessage(t, "hello"),
+	})
+	require.NoError(t, err)
+	require.IsType(t, &dto.ClaudeRequest{}, result.Value)
+	assert.Equal(t, ConverterOpenAIResponsesToClaudeMessages, result.Converter)
 }
 
 func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
@@ -555,10 +578,10 @@ func TestConvertRequestResponsesToClaudeUsesDirectConverter(t *testing.T) {
 	require.NoError(t, err)
 	claudeReq, ok := result.Value.(*dto.ClaudeRequest)
 	require.True(t, ok)
-	assert.Equal(t, requestConverterResponsesToClaude, result.Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToClaudeMessages, result.Converter)
 	assert.Equal(t, []RequestStep{
 		{
-			Converter: requestConverterResponsesToClaude,
+			Converter: ConverterOpenAIResponsesToClaudeMessages,
 			From:      types.RelayFormatOpenAIResponses,
 			To:        types.RelayFormatClaude,
 		},

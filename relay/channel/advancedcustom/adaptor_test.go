@@ -464,6 +464,92 @@ func TestAdaptorConvertsResponsesRequestToOpenAIChatUpstream(t *testing.T) {
 	assert.Equal(t, "/v1/chat/completions", parsedURL.Path)
 }
 
+func TestAdaptorConvertsResponsesRequestAndResponseForAnthropicUpstream(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1/messages",
+				Converter:    relayconvert.ConverterOpenAIResponsesToClaudeMessages,
+			},
+		},
+	})
+	info.RelayFormat = types.RelayFormatOpenAIResponses
+	info.RelayMode = relayconstant.RelayModeResponses
+	info.RequestURLPath = "/v1/responses"
+	info.OriginModelName = "claude-test"
+	info.UpstreamModelName = "claude-test"
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	maxOutputTokens := uint(256)
+	converted, err := adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model:           "claude-test",
+		Instructions:    mustAdvancedCustomRawMessage(t, "system rules"),
+		Input:           mustAdvancedCustomRawMessage(t, "hello"),
+		MaxOutputTokens: &maxOutputTokens,
+	})
+	require.NoError(t, err)
+
+	claudeRequest, ok := converted.(*dto.ClaudeRequest)
+	require.True(t, ok)
+	assert.Equal(t, "claude-test", claudeRequest.Model)
+	assert.Equal(t, maxOutputTokens, *claudeRequest.MaxTokens)
+	system := claudeRequest.ParseSystem()
+	require.Len(t, system, 1)
+	assert.Equal(t, "system rules", system[0].GetText())
+	require.Len(t, claudeRequest.Messages, 1)
+	messageContent, err := claudeRequest.Messages[0].ParseContent()
+	require.NoError(t, err)
+	require.Len(t, messageContent, 1)
+	assert.Equal(t, "hello", messageContent[0].GetText())
+
+	header := http.Header{}
+	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
+	assert.Equal(t, "2023-06-01", header.Get("anthropic-version"))
+
+	text := "answer"
+	responseBody, err := common.Marshal(dto.ClaudeResponse{
+		Id:         "msg_1",
+		Type:       "message",
+		Role:       "assistant",
+		Model:      "claude-test",
+		StopReason: "tool_use",
+		Content: []dto.ClaudeMediaMessage{
+			{Type: "text", Text: &text},
+			{Type: "tool_use", Id: "toolu_1", Name: "lookup", Input: map[string]any{"q": "x"}},
+		},
+		Usage: &dto.ClaudeUsage{InputTokens: 2, OutputTokens: 3},
+	})
+	require.NoError(t, err)
+
+	usage, newAPIError := adaptor.DoResponse(c, &http.Response{
+		Body: io.NopCloser(bytes.NewReader(responseBody)),
+	}, info)
+	require.Nil(t, newAPIError)
+	responsesUsage, ok := usage.(*dto.Usage)
+	require.True(t, ok)
+	assert.Equal(t, 5, responsesUsage.TotalTokens)
+
+	var response dto.OpenAIResponsesResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, "response", response.Object)
+	require.Len(t, response.Output, 2)
+	assert.Equal(t, "message", response.Output[0].Type)
+	require.Len(t, response.Output[0].Content, 1)
+	assert.Equal(t, "answer", response.Output[0].Content[0].Text)
+	assert.Equal(t, "function_call", response.Output[1].Type)
+	assert.Equal(t, "toolu_1", response.Output[1].CallId)
+	assert.Equal(t, "lookup", response.Output[1].Name)
+	require.NotNil(t, response.Usage)
+	assert.Equal(t, 2, response.Usage.InputTokens)
+	assert.Equal(t, 3, response.Usage.OutputTokens)
+}
+
 func TestAdaptorSelectsDuplicateResponsesRoutesByModel(t *testing.T) {
 	config := &dto.AdvancedCustomConfig{
 		Routes: []dto.AdvancedCustomRoute{

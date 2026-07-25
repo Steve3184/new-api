@@ -59,6 +59,7 @@ type requestConverterRoute struct {
 var (
 	requestConverterMu           sync.RWMutex
 	requestConverters            = make(map[string]RequestConverterSpec)
+	requestConverterAliases      = make(map[string]string)
 	requestConverterRoutes       = make(map[requestConverterRoute]string)
 	requestConverterDirectRoutes = make(map[requestConverterRoute]string)
 )
@@ -72,14 +73,15 @@ const (
 )
 
 const (
-	ConverterNone                        = "none"
-	ConverterClaudeMessagesToOpenAIChat  = "anthropic_messages_to_openai_chat_completions"
-	ConverterOpenAIChatToClaudeMessages  = "openai_chat_completions_to_anthropic_messages"
-	ConverterOpenAIChatToOpenAIResponses = "openai_chat_completions_to_openai_responses"
-	ConverterOpenAIResponsesToOpenAIChat = "openai_responses_to_openai_chat_completions"
-	ConverterOpenAIResponsesToGemini     = "openai_responses_to_gemini_generate_content"
-	ConverterGeminiContentToOpenAIChat   = "gemini_generate_content_to_openai_chat_completions"
-	ConverterOpenAIChatToGeminiContent   = "openai_chat_completions_to_gemini_generate_content"
+	ConverterNone                            = "none"
+	ConverterClaudeMessagesToOpenAIChat      = "anthropic_messages_to_openai_chat_completions"
+	ConverterOpenAIChatToClaudeMessages      = "openai_chat_completions_to_anthropic_messages"
+	ConverterOpenAIChatToOpenAIResponses     = "openai_chat_completions_to_openai_responses"
+	ConverterOpenAIResponsesToOpenAIChat     = "openai_responses_to_openai_chat_completions"
+	ConverterOpenAIResponsesToClaudeMessages = "openai_responses_to_anthropic_messages"
+	ConverterOpenAIResponsesToGemini         = "openai_responses_to_gemini_generate_content"
+	ConverterGeminiContentToOpenAIChat       = "gemini_generate_content_to_openai_chat_completions"
+	ConverterOpenAIChatToGeminiContent       = "openai_chat_completions_to_gemini_generate_content"
 )
 
 func registerBuiltinRequestConverter(spec RequestConverterSpec) {
@@ -137,15 +139,47 @@ func registerBuiltinRequestConverter(spec RequestConverterSpec) {
 	}
 }
 
+func registerRequestConverterAlias(alias string, converter string) {
+	alias = strings.TrimSpace(alias)
+	converter = strings.TrimSpace(converter)
+	if alias == "" {
+		panic("request converter alias is required")
+	}
+	if converter == "" {
+		panic(fmt.Sprintf("request converter alias %q target is required", alias))
+	}
+	if alias == converter {
+		return
+	}
+	if _, exists := requestConverters[alias]; exists {
+		panic(fmt.Sprintf("request converter alias %q conflicts with registered converter", alias))
+	}
+	if _, exists := requestConverters[converter]; !exists {
+		panic(fmt.Sprintf("request converter alias %q references unknown converter %q", alias, converter))
+	}
+	if existing, exists := requestConverterAliases[alias]; exists && existing != converter {
+		panic(fmt.Sprintf("request converter alias %q is already registered for %q", alias, existing))
+	}
+	requestConverterAliases[alias] = converter
+}
+
 func LookupRequestConverter(converter string) (RequestConverterSpec, bool) {
 	requestConverterMu.RLock()
 	defer requestConverterMu.RUnlock()
 
-	spec, ok := requestConverters[strings.TrimSpace(converter)]
+	spec, ok := requestConverters[resolveRequestConverterID(converter)]
 	if !ok {
 		return RequestConverterSpec{}, false
 	}
 	return cloneRequestConverterSpec(spec), true
+}
+
+func resolveRequestConverterID(converter string) string {
+	converter = strings.TrimSpace(converter)
+	if canonical, ok := requestConverterAliases[converter]; ok {
+		return canonical
+	}
+	return converter
 }
 
 func ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, target types.RelayFormat, request any) (*RequestResult, error) {

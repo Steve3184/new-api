@@ -387,6 +387,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 				requestId: relayInfo.RequestId,
 				userId:    relayInfo.UserId,
 				modelName: relayInfo.OriginModelName,
+				group:     relayInfo.UsingGroup,
 				amount:    subConsume,
 			},
 		}
@@ -399,7 +400,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	}
 
 	checkSubscriptionAvailability := func() (bool, bool, *types.NewAPIError) {
-		hasAny, hasEligible, err := model.GetActiveSubscriptionAvailability(relayInfo.UserId)
+		hasAny, hasEligible, err := model.GetActiveSubscriptionAvailabilityForGroup(relayInfo.UserId, relayInfo.UsingGroup)
 		if err != nil {
 			return false, false, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
@@ -451,7 +452,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				// 仅当用户的活跃订阅允许钱包回退时才回退到钱包，否则返回订阅额度不足错误
-				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflow(relayInfo.UserId)
+				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflowForGroup(relayInfo.UserId, relayInfo.UsingGroup)
 				if overflowErr != nil {
 					return nil, types.NewError(overflowErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 				}

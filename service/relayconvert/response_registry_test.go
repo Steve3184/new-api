@@ -71,7 +71,7 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 		},
 		{
 			lookupID: responseConverterResponsesToClaude,
-			id:       requestConverterResponsesToClaude,
+			id:       ConverterOpenAIResponsesToClaudeMessages,
 			from:     types.RelayFormatOpenAIResponses,
 			to:       types.RelayFormatClaude,
 			quality:  ResponseConverterQualityFair,
@@ -198,7 +198,7 @@ func TestConvertResponseMultiHopConverters(t *testing.T) {
 
 	toClaude, err := ConvertResponse(nil, &relaycommon.RelayInfo{}, types.RelayFormatClaude, responses)
 	require.NoError(t, err)
-	assert.Equal(t, requestConverterResponsesToClaude, toClaude.Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToClaudeMessages, toClaude.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toClaude.Quality)
 	assert.Equal(t, []ResponseStep{
 		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
@@ -507,7 +507,7 @@ func TestConvertStreamResponseStatefulMultiHopResponsesToClaude(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, results)
-	assert.Equal(t, requestConverterResponsesToClaude, results[0].Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToClaudeMessages, results[0].Converter)
 	assert.Equal(t, []ResponseStep{
 		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
 		{Converter: ConverterOpenAIChatToClaudeMessages, From: types.RelayFormatOpenAI, To: types.RelayFormatClaude},

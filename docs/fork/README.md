@@ -283,6 +283,13 @@ subscription and all other groups use wallet balance. These restrictions apply
 to every billing preference, and the purchase cards show **Unavailable Groups**
 or **Available Groups** so users can verify eligibility before buying.
 
+The policy is evaluated against the request's effective `UsingGroup`, not only
+the user's persisted group. This keeps subscriptions correct for API keys that
+select another group and for automatic routing: a request that uses a group
+listed by a whitelist can consume subscription quota, while a request routed to
+an ineligible group still uses the wallet. Availability checks, pre-consume,
+and wallet-overflow decisions share that same effective-group rule.
+
 Plans accept any negative quota value; the backend stores it as `-1`. This
 creates a benefits-only subscription: it has no usable subscription quota and
 does not participate in wallet-overflow decisions, but it can still upgrade a
@@ -305,9 +312,34 @@ Files:
 - `controller/user.go`
 - `router/api-router.go`
 - `service/billing_session.go`
+- `service/funding_source.go`
 - `web/default/src/features/redemption-codes/`
 - `web/default/src/features/subscriptions/`
 - `web/default/src/features/wallet/`
+
+## Advanced Custom Responses-to-Anthropic conversion
+
+Advanced Custom channels now expose **OpenAI Responses to Anthropic Messages**.
+The route accepts `/v1/responses`, converts the request to Anthropic Messages,
+and uses `/v1/messages` with `x-api-key` authentication by default. Both
+buffered and streaming Anthropic responses are converted back to the caller's
+OpenAI Responses format. The public converter ID is
+`openai_responses_to_anthropic_messages`; the earlier internal
+`openai_responses_to_claude_messages` ID remains an alias for saved
+configurations.
+
+Files:
+
+- `dto/channel_settings.go`
+- `relay/channel/advancedcustom/adaptor.go`
+- `relay/channel/claude/adaptor.go`
+- `relay/channel/claude/relay-claude.go`
+- `relay/channel/claude/relay_responses.go`
+- `service/relayconvert/request_registry.go`
+- `service/relayconvert/text_converter_registry.go`
+- `web/src/features/channels/lib/advanced-custom.ts`
+- `web/src/features/channels/types.ts`
+- `web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
 ## Notice display controls
 
