@@ -954,6 +954,31 @@ func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
 	}
 }
 
+// NormalizeInputAsList converts the Responses API's scalar input form into a
+// user message item for upstream implementations that only accept input lists.
+func (r *OpenAIResponsesRequest) NormalizeInputAsList() error {
+	if r == nil || common.GetJsonType(r.Input) != "string" {
+		return nil
+	}
+
+	var input string
+	if err := common.Unmarshal(r.Input, &input); err != nil {
+		return fmt.Errorf("invalid responses input string: %w", err)
+	}
+
+	normalized, err := common.Marshal([]map[string]any{
+		{
+			"role":    "user",
+			"content": input,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to normalize responses input: %w", err)
+	}
+	r.Input = normalized
+	return nil
+}
+
 func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 	var toolsMap []map[string]any
 	if len(r.Tools) > 0 {

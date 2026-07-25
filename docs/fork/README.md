@@ -1238,6 +1238,21 @@ option is disabled; at more than 5,000 characters the Playground selects
 - `web/default/src/features/system-settings/models/playground-settings.ts`
 - `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
+## Responses scalar input compatibility
+
+Some OpenAI-compatible upstream Responses API implementations reject the
+official scalar form of `input` with `Input must be a list`. The OpenAI
+Responses adapter now converts a scalar string such as `"hello"` into the
+equivalent user input item before sending the upstream request, while keeping
+existing list input unchanged. This applies to normal converted requests;
+pass-through request mode continues to forward the original body unchanged.
+
+Files:
+
+- `dto/openai_request.go`
+- `relay/channel/openai/adaptor.go`
+- `relay/channel/openai/responses_request_test.go`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.
