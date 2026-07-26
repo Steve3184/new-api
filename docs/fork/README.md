@@ -1268,17 +1268,58 @@ explicitly states that network fees are not included in the displayed
 principal. Once the configured confirmation count is reached, the monitor
 credits quota from the XMR amount actually received at the invoice's stored
 rate. A transfer below the principal remains pending; an overpayment credits
-the additional received XMR at that same stored rate. An invoice expires one
-hour after creation.
+the additional received XMR at that same stored rate. An invoice expires three
+hours after creation.
 
 ### Configuration and network boundary
 
 Configure **System Settings → Billing → Payment Gateway → Monero** with the
 wallet RPC URL, wallet-RPC credentials, network (`mainnet`, `testnet`,
-or `stagenet`), and one or more confirmations. The gateway is unavailable
+or `stagenet`), one or more confirmations, and the maximum subaddress count.
+The gateway is unavailable
 until payment compliance is confirmed and all required Monero settings are
 valid. It verifies that each newly-created subaddress belongs to the configured
 network before persisting an invoice.
+
+`MoneroUSDToCurrencyRate` is an optional Monero-only quote override. It means
+**1 USD = X system-currency units** and is used only when converting the chosen
+wallet top-up amount to the USD value of a new XMR invoice. Set it to `0` to
+retain the normal system display rate. For example, if a custom system currency
+is intentionally configured as `1 unit = 1 CNY` for other payment gateways,
+set this option to the live CNY-per-USD rate (such as `7.25`) when Monero
+invoices should use the real XMR/USD conversion. The selected rate is frozen on
+each invoice, so later configuration changes do not affect payment or credit
+settlement.
+
+### Subaddress capacity and safe audit
+
+`MoneroMaxSubaddresses` defaults to `10000` and counts every address in wallet
+account `0`, including the primary address. Before a new invoice subaddress is
+created, the backend obtains the actual count from `monero-wallet-rpc`; once
+the configured limit has been reached, invoice creation is refused. The
+count-and-create sequence is serialized in-process so concurrent invoice
+requests cannot bypass the limit on one application node.
+
+Monero wallet RPC has no operation to delete an individual subaddress. A
+completed and unlocked address is therefore **not** reused: a late payment or
+overpayment cannot safely be attributed to a new invoice. While Monero payments
+are enabled, the `monero_address_audit` scheduled system task runs every 24
+hours. It considers only matching terminal invoice/top-up records, calls
+`get_balance` with strict balances, and records counts for fully unlocked,
+still locked, and wallet-unreported addresses in the system-task history. It
+does not delete subaddresses, move funds, or modify invoices. When capacity is
+exhausted, use a fresh receiving wallet after operationally reconciling the
+old wallet; do not attempt to recycle invoice subaddresses.
+
+Sensitive values returned by the settings API as `***` are read-only
+placeholders. The default frontend renders the Waffo Pancake private-key and
+Monero wallet-RPC password fields blank until an operator enters a replacement.
+The Waffo Pancake save endpoint also discards that placeholder defensively, so
+an older browser client cannot replace a persisted private key with `***`.
+
+The Monero completion toast uses the existing frontend i18n key
+`Monero payment credited successfully`, which is present in all supported
+locales.
 
 The application does not run or require a local `monerod`. Run
 `monero-wallet-rpc` against a trusted remote daemon (including a
@@ -1323,6 +1364,9 @@ committed.
   Monero invoices can only settle through wallet-RPC confirmation.
 - The monitor uses the existing scheduled-task lease mechanism, so multiple
   application instances do not credit the same invoice twice.
+- The daily subaddress audit uses the same scheduled-task lease mechanism and
+  is read-only; its fully-unlocked result is an operational audit signal, not a
+  cleanup or reuse instruction.
 - `MoneroPayment` is an additive GORM model and migrates on SQLite, MySQL, and
   PostgreSQL through the normal model initialization path.
 - Existing options, `TopUp`, user quota, and top-up log records remain the
@@ -1332,6 +1376,7 @@ Files:
 
 - `setting/payment_monero.go`
 - `model/monero_payment.go`
+- `model/system_task.go`
 - `service/monero.go`
 - `service/monero_test.go`
 - `controller/topup_monero.go`
@@ -1339,8 +1384,10 @@ Files:
 - `router/api-router.go`
 - `model/option.go`
 - `controller/option.go`
+- `service/waffo_pancake.go`
 - `web/src/features/wallet/`
 - `web/src/features/system-settings/integrations/payment-settings-section.tsx`
+- `web/src/features/system-info/components/system-tasks-panel.tsx`
 - `docs/monero-payment.md`
 
 ## Upstream sync checklist

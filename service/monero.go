@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -25,13 +26,17 @@ import (
 )
 
 const (
-	moneroAtomicUnits        = int32(12)
-	moneroInvoiceExpiry      = time.Hour
-	moneroMonitorInterval    = 30 * time.Second
-	defaultMoneroUSDPriceURL = "https://api.coingecko.com/api/v3/simple/price?ids=monero&vs_currencies=usd"
+	moneroAtomicUnits          = int32(12)
+	moneroInvoiceExpiry        = 3 * time.Hour
+	moneroMonitorInterval      = 30 * time.Second
+	moneroAddressAuditInterval = 24 * time.Hour
+	defaultMoneroUSDPriceURL   = "https://api.coingecko.com/api/v3/simple/price?ids=monero&vs_currencies=usd"
 )
 
-var moneroUSDPriceURL = defaultMoneroUSDPriceURL
+var (
+	moneroUSDPriceURL             = defaultMoneroUSDPriceURL
+	moneroSubaddressCreationMutex sync.Mutex
+)
 
 type moneroRPCClient struct {
 	endpoint string
@@ -58,6 +63,25 @@ type moneroRPCResponse struct {
 type moneroAddressResult struct {
 	Address      string      `json:"address"`
 	AddressIndex json.Number `json:"address_index"`
+}
+
+type moneroAddressListResult struct {
+	Addresses []struct {
+		Address string `json:"address"`
+	} `json:"addresses"`
+}
+
+type moneroBalanceResult struct {
+	PerSubaddress []struct {
+		AddressIndex    json.Number `json:"address_index"`
+		Balance         json.Number `json:"balance"`
+		UnlockedBalance json.Number `json:"unlocked_balance"`
+	} `json:"per_subaddress"`
+}
+
+type moneroSubaddressBalance struct {
+	Balance         decimal.Decimal
+	UnlockedBalance decimal.Decimal
 }
 
 type moneroTransferResult struct {
@@ -102,6 +126,16 @@ type MoneroInvoicePaymentStatus struct {
 	TransactionDetected   bool   `json:"transaction_detected"`
 	Confirmations         int    `json:"confirmations"`
 	RequiredConfirmations int    `json:"required_confirmations"`
+}
+
+// MoneroAddressAuditResult is recorded on the scheduled task. It reports
+// which terminal invoice addresses have no locked outputs, but intentionally
+// does not reuse, delete, or move funds from any address.
+type MoneroAddressAuditResult struct {
+	Candidates    int `json:"candidates"`
+	FullyUnlocked int `json:"fully_unlocked"`
+	Locked        int `json:"locked"`
+	NotReported   int `json:"not_reported"`
 }
 
 func isMoneroGatewayConfigured() bool {
@@ -319,6 +353,59 @@ func (client *moneroRPCClient) createAddress(ctx context.Context, label string) 
 	return result.Address, int(addressIndex), nil
 }
 
+func (client *moneroRPCClient) subaddressCount(ctx context.Context) (int, error) {
+	var result moneroAddressListResult
+	if err := client.call(ctx, "get_address", map[string]any{
+		"account_index": 0,
+	}, &result); err != nil {
+		return 0, err
+	}
+	return len(result.Addresses), nil
+}
+
+func (client *moneroRPCClient) createInvoiceAddress(ctx context.Context, label string) (string, int, error) {
+	moneroSubaddressCreationMutex.Lock()
+	defer moneroSubaddressCreationMutex.Unlock()
+
+	limit := setting.MoneroMaxSubaddresses
+	if limit < 1 {
+		return "", 0, errors.New("monero subaddress limit must be positive")
+	}
+	count, err := client.subaddressCount(ctx)
+	if err != nil {
+		return "", 0, err
+	}
+	if count >= limit {
+		return "", 0, fmt.Errorf("monero wallet subaddress limit (%d) has been reached", limit)
+	}
+	return client.createAddress(ctx, label)
+}
+
+func (client *moneroRPCClient) subaddressBalances(ctx context.Context) (map[int]moneroSubaddressBalance, error) {
+	var result moneroBalanceResult
+	if err := client.call(ctx, "get_balance", map[string]any{
+		"account_index":   0,
+		"strict_balances": true,
+	}, &result); err != nil {
+		return nil, err
+	}
+
+	balances := make(map[int]moneroSubaddressBalance, len(result.PerSubaddress))
+	for _, entry := range result.PerSubaddress {
+		addressIndex, indexErr := entry.AddressIndex.Int64()
+		balance, balanceErr := decimal.NewFromString(entry.Balance.String())
+		unlockedBalance, unlockedErr := decimal.NewFromString(entry.UnlockedBalance.String())
+		if indexErr != nil || addressIndex < 0 || addressIndex > math.MaxInt32 || balanceErr != nil || unlockedErr != nil || balance.IsNegative() || unlockedBalance.IsNegative() || unlockedBalance.GreaterThan(balance) {
+			return nil, errors.New("monero wallet RPC returned an invalid subaddress balance")
+		}
+		balances[int(addressIndex)] = moneroSubaddressBalance{
+			Balance:         balance,
+			UnlockedBalance: unlockedBalance,
+		}
+	}
+	return balances, nil
+}
+
 func (client *moneroRPCClient) incomingTransfers(ctx context.Context, addressIndex int) ([]moneroTransferResult, error) {
 	var result moneroTransferResult
 	if err := client.call(ctx, "get_transfers", map[string]any{
@@ -446,9 +533,12 @@ func moneroQuoteUSD(amount int64, group string) (decimal.Decimal, error) {
 	case operation_setting.QuotaDisplayTypeTokens:
 		quote = quote.Div(quotaPerUnit)
 	default:
-		currencyRate := operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
+		currencyRate := setting.MoneroUSDToCurrencyRate
+		if currencyRate == 0 {
+			currencyRate = operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
+		}
 		if math.IsNaN(currencyRate) || math.IsInf(currencyRate, 0) || currencyRate <= 0 {
-			return decimal.Zero, errors.New("USD display exchange rate must be positive")
+			return decimal.Zero, errors.New("monero USD to system currency rate must be positive")
 		}
 		quote = quote.Div(decimal.NewFromFloat(currencyRate))
 	}
@@ -504,7 +594,7 @@ func CreateMoneroInvoice(ctx context.Context, userID int, amount int64) (*Monero
 		return nil, err
 	}
 	tradeNo = "monero-" + tradeNo
-	address, addressIndex, err := rpc.createAddress(ctx, tradeNo)
+	address, addressIndex, err := rpc.createInvoiceAddress(ctx, tradeNo)
 	if err != nil {
 		return nil, err
 	}
@@ -639,6 +729,43 @@ func MonitorMoneroPayments(ctx context.Context) error {
 	return nil
 }
 
+// AuditMoneroTerminalAddresses verifies that terminal invoices do not have
+// locked Monero outputs. Monero wallet RPC cannot delete individual
+// subaddresses, and reusing one would make late payments unsafe to attribute,
+// so this task deliberately has no destructive side effects.
+func AuditMoneroTerminalAddresses(ctx context.Context) (*MoneroAddressAuditResult, error) {
+	payments, err := model.ListTerminalMoneroPaymentAddressAuditCandidates(strings.ToLower(setting.MoneroNetwork))
+	if err != nil {
+		return nil, err
+	}
+	result := &MoneroAddressAuditResult{Candidates: len(payments)}
+	if len(payments) == 0 {
+		return result, nil
+	}
+
+	rpc, err := newMoneroRPCClient()
+	if err != nil {
+		return nil, err
+	}
+	balances, err := rpc.subaddressBalances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, payment := range payments {
+		balance, ok := balances[payment.AddressIndex]
+		if !ok {
+			result.NotReported++
+			continue
+		}
+		if balance.Balance.Equal(balance.UnlockedBalance) {
+			result.FullyUnlocked++
+			continue
+		}
+		result.Locked++
+	}
+	return result, nil
+}
+
 type moneroPaymentMonitorHandler struct{}
 
 func (moneroPaymentMonitorHandler) Type() string {
@@ -667,6 +794,37 @@ func (moneroPaymentMonitorHandler) Run(ctx context.Context, task *model.SystemTa
 	}
 }
 
+type moneroAddressAuditHandler struct{}
+
+func (moneroAddressAuditHandler) Type() string {
+	return model.SystemTaskTypeMoneroAddressAudit
+}
+
+func (moneroAddressAuditHandler) Enabled() bool {
+	return IsMoneroTopUpEnabled()
+}
+
+func (moneroAddressAuditHandler) Interval() time.Duration {
+	return moneroAddressAuditInterval
+}
+
+func (moneroAddressAuditHandler) NewPayload() any {
+	return nil
+}
+
+func (moneroAddressAuditHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	result, err := AuditMoneroTerminalAddresses(ctx)
+	if err != nil {
+		failSystemTask(task, runnerID, err)
+		return
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("Monero terminal subaddress audit candidates=%d fully_unlocked=%d locked=%d not_reported=%d", result.Candidates, result.FullyUnlocked, result.Locked, result.NotReported))
+	if err := model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, result, ""); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Monero address audit finish failed task_id=%s error=%q", task.TaskID, err.Error()))
+	}
+}
+
 func init() {
 	RegisterSystemTaskHandler(moneroPaymentMonitorHandler{})
+	RegisterSystemTaskHandler(moneroAddressAuditHandler{})
 }

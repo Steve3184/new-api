@@ -66,6 +66,26 @@ func ListPendingMoneroPayments(network string) ([]MoneroPayment, error) {
 	return payments, err
 }
 
+// ListTerminalMoneroPaymentAddressAuditCandidates returns only invoices whose
+// Monero payment and associated top-up have both reached a matching terminal
+// state. The address audit must never inspect a pending invoice as eligible.
+func ListTerminalMoneroPaymentAddressAuditCandidates(network string) ([]MoneroPayment, error) {
+	var payments []MoneroPayment
+	err := DB.
+		Joins("JOIN top_ups ON top_ups.id = monero_payments.top_up_id").
+		Where("monero_payments.network = ?", network).
+		Where(
+			"(monero_payments.status = ? AND top_ups.status = ?) OR (monero_payments.status = ? AND top_ups.status = ?)",
+			MoneroPaymentStatusSuccess,
+			common.TopUpStatusSuccess,
+			MoneroPaymentStatusExpired,
+			common.TopUpStatusExpired,
+		).
+		Order("monero_payments.id asc").
+		Find(&payments).Error
+	return payments, err
+}
+
 func GetMoneroPaymentByAddressAndUser(address string, userID int) (*MoneroPayment, error) {
 	payment := &MoneroPayment{}
 	err := DB.

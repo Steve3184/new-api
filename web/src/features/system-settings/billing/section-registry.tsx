@@ -158,9 +158,14 @@ const BILLING_SECTIONS = [
           MoneroEnabled: settings.MoneroEnabled ?? false,
           MoneroWalletRPCURL: settings.MoneroWalletRPCURL ?? '',
           MoneroWalletRPCUsername: settings.MoneroWalletRPCUsername ?? '',
-          MoneroWalletRPCPassword: settings.MoneroWalletRPCPassword ?? '',
+          MoneroWalletRPCPassword:
+            settings.MoneroWalletRPCPassword === '***'
+              ? ''
+              : (settings.MoneroWalletRPCPassword ?? ''),
           MoneroNetwork: settings.MoneroNetwork ?? 'mainnet',
           MoneroConfirmations: settings.MoneroConfirmations ?? 1,
+          MoneroMaxSubaddresses: settings.MoneroMaxSubaddresses ?? 10000,
+          MoneroUSDToCurrencyRate: settings.MoneroUSDToCurrencyRate ?? 0,
           PaymentAnnouncement: settings.PaymentAnnouncement ?? '',
         }}
         waffoDefaultValues={{
@@ -182,7 +187,10 @@ const BILLING_SECTIONS = [
         }}
         waffoPancakeDefaultValues={{
           WaffoPancakeMerchantID: settings.WaffoPancakeMerchantID ?? '',
-          WaffoPancakePrivateKey: settings.WaffoPancakePrivateKey ?? '',
+          WaffoPancakePrivateKey:
+            settings.WaffoPancakePrivateKey === '***'
+              ? ''
+              : (settings.WaffoPancakePrivateKey ?? ''),
           WaffoPancakeReturnURL: settings.WaffoPancakeReturnURL ?? '',
         }}
         waffoPancakeProvisionedStoreID={settings.WaffoPancakeStoreID ?? ''}

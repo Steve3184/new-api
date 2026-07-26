@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -101,7 +102,7 @@ func GetOptions(c *gin.Context) {
 			// the user has not typed a new value.
 			sentinel := ""
 			if value != "" {
-				sentinel = "***"
+				sentinel = common.SensitiveOptionPlaceholder
 			}
 			options = append(options, &model.Option{Key: k, Value: sentinel})
 			continue
@@ -224,7 +225,7 @@ func UpdateOption(c *gin.Context) {
 	// sensitive fields. The frontend skips unchanged password fields, but
 	// guard here as well so a stale client can never accidentally overwrite
 	// a real secret with the placeholder.
-	if option.Value == "***" {
+	if option.Value == common.SensitiveOptionPlaceholder {
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 		return
 	}
@@ -273,6 +274,18 @@ func UpdateOption(c *gin.Context) {
 		confirmations, parseErr := strconv.Atoi(option.Value.(string))
 		if parseErr != nil || confirmations < 1 || confirmations > 60 {
 			common.ApiErrorMsg(c, "Monero confirmations must be between 1 and 60")
+			return
+		}
+	case "MoneroMaxSubaddresses":
+		limit, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || limit < 1 || limit > 1000000 {
+			common.ApiErrorMsg(c, "Monero subaddress limit must be between 1 and 1000000")
+			return
+		}
+	case "MoneroUSDToCurrencyRate":
+		rate, parseErr := strconv.ParseFloat(option.Value.(string), 64)
+		if parseErr != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 {
+			common.ApiErrorMsg(c, "Monero USD to system currency rate must be a non-negative finite number")
 			return
 		}
 	case "WorkerMeshyImageProxyEnabled":

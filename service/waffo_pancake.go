@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	pancake "github.com/waffo-com/waffo-pancake-sdk-go"
@@ -401,7 +402,7 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 		"WaffoPancakeStoreID":    storeID,
 		"WaffoPancakeProductID":  productID,
 	}
-	if pk := strings.TrimSpace(privateKey); pk != "" {
+	if pk := strings.TrimSpace(privateKey); pk != "" && pk != common.SensitiveOptionPlaceholder {
 		values["WaffoPancakePrivateKey"] = pk
 	}
 	if err := model.UpdateOptionsBulk(values); err != nil {

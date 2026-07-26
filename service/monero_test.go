@@ -35,12 +35,16 @@ func setupMoneroServiceTest(t *testing.T) {
 	previousPassword := setting.MoneroWalletRPCPassword
 	previousNetwork := setting.MoneroNetwork
 	previousConfirmations := setting.MoneroConfirmations
+	previousMaxSubaddresses := setting.MoneroMaxSubaddresses
+	previousUSDToCurrencyRate := setting.MoneroUSDToCurrencyRate
 	previousMinTopUp := operation_setting.MinTopUp
 	previousDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	previousCustomCurrencyExchangeRate := operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate
 
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.QuotaPerUnit = 500000
+	setting.MoneroMaxSubaddresses = 10000
 	operation_setting.MinTopUp = 1
 	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
 	*operation_setting.GetPaymentSetting() = operation_setting.PaymentSetting{
@@ -68,13 +72,33 @@ func setupMoneroServiceTest(t *testing.T) {
 		setting.MoneroWalletRPCPassword = previousPassword
 		setting.MoneroNetwork = previousNetwork
 		setting.MoneroConfirmations = previousConfirmations
+		setting.MoneroMaxSubaddresses = previousMaxSubaddresses
+		setting.MoneroUSDToCurrencyRate = previousUSDToCurrencyRate
 		operation_setting.MinTopUp = previousMinTopUp
 		operation_setting.GetGeneralSetting().QuotaDisplayType = previousDisplayType
+		operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate = previousCustomCurrencyExchangeRate
 		sqlDB, sqlErr := db.DB()
 		if sqlErr == nil {
 			_ = sqlDB.Close()
 		}
 	})
+}
+
+func TestMoneroQuoteUSDUsesConfiguredSystemCurrencyRate(t *testing.T) {
+	setupMoneroServiceTest(t)
+
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeCustom
+	operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate = 1
+	setting.MoneroUSDToCurrencyRate = 7.25
+
+	quote, err := moneroQuoteUSD(725, "default")
+	require.NoError(t, err)
+	assert.Equal(t, "100.000000000000", quote.StringFixed(12))
+
+	setting.MoneroUSDToCurrencyRate = 0
+	quote, err = moneroQuoteUSD(725, "default")
+	require.NoError(t, err)
+	assert.Equal(t, "725.000000000000", quote.StringFixed(12))
 }
 
 func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
@@ -106,6 +130,10 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 		require.NoError(t, common.DecodeJson(r.Body, &request))
 		var response any
 		switch request.Method {
+		case "get_address":
+			response = map[string]any{"result": map[string]any{
+				"addresses": []map[string]any{{"address": "9testnetPrimaryAddress"}},
+			}}
 		case "create_address":
 			response = map[string]any{"result": map[string]any{
 				"address":       "9testnetMoneroInvoiceAddress",
@@ -167,8 +195,8 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 	assert.Equal(t, int64(10), invoice.QuotaAmount)
 	assert.Equal(t, "0.100000000000", invoice.AmountXMR)
 	assert.Equal(t, "100000000000", invoice.AmountAtomic)
-	assert.GreaterOrEqual(t, invoice.ExpiresAt, beforeInvoice+int64(time.Hour/time.Second))
-	assert.LessOrEqual(t, invoice.ExpiresAt, afterInvoice+int64(time.Hour/time.Second))
+	assert.GreaterOrEqual(t, invoice.ExpiresAt, beforeInvoice+int64(3*time.Hour/time.Second))
+	assert.LessOrEqual(t, invoice.ExpiresAt, afterInvoice+int64(3*time.Hour/time.Second))
 	paymentStatus, err := GetMoneroInvoicePaymentStatus(context.Background(), 991, invoice.Address)
 	require.NoError(t, err)
 	assert.Equal(t, model.MoneroPaymentStatusPending, paymentStatus.Status)
@@ -210,6 +238,10 @@ func TestMoneroInvoiceSelfTransferCreditsDestination(t *testing.T) {
 		require.NoError(t, common.DecodeJson(r.Body, &request))
 		var response any
 		switch request.Method {
+		case "get_address":
+			response = map[string]any{"result": map[string]any{
+				"addresses": []map[string]any{{"address": "9selfTransferPrimaryAddress"}},
+			}}
 		case "create_address":
 			response = map[string]any{"result": map[string]any{
 				"address":       "9selfTransferMoneroInvoiceAddress",
@@ -270,4 +302,115 @@ func TestMoneroInvoiceSelfTransferCreditsDestination(t *testing.T) {
 	assert.Equal(t, model.MoneroPaymentStatusSuccess, settledPayment.Status)
 	assert.Equal(t, "100000000000", settledPayment.ReceivedAtomic)
 	assert.Equal(t, "self-transfer-transaction-id", settledPayment.TransactionIDs)
+}
+
+func TestCreateMoneroInvoiceStopsAtWalletSubaddressLimit(t *testing.T) {
+	setupMoneroServiceTest(t)
+
+	createAddressCalls := 0
+	rpcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request moneroRPCRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		var response any
+		switch request.Method {
+		case "get_address":
+			response = map[string]any{"result": map[string]any{
+				"addresses": []map[string]any{{"address": "9primaryAddress"}, {"address": "9existingSubaddress"}},
+			}}
+		case "create_address":
+			createAddressCalls++
+			response = map[string]any{"result": map[string]any{
+				"address":       "9unexpectedNewSubaddress",
+				"address_index": 2,
+			}}
+		default:
+			response = map[string]any{"error": map[string]any{"code": -1, "message": "unexpected method"}}
+		}
+		body, err := common.Marshal(response)
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer rpcServer.Close()
+
+	priceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		body, err := common.Marshal(map[string]any{"monero": map[string]any{"usd": 100}})
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer priceServer.Close()
+
+	moneroUSDPriceURL = priceServer.URL
+	setting.MoneroEnabled = true
+	setting.MoneroWalletRPCURL = rpcServer.URL + "/json_rpc"
+	setting.MoneroNetwork = setting.MoneroNetworkTestnet
+	setting.MoneroMaxSubaddresses = 2
+
+	_, err := CreateMoneroInvoice(context.Background(), 991, 10)
+	require.EqualError(t, err, "monero wallet subaddress limit (2) has been reached")
+	assert.Zero(t, createAddressCalls)
+}
+
+func TestAuditMoneroTerminalAddressesReportsOnlyFullyUnlockedAddresses(t *testing.T) {
+	setupMoneroServiceTest(t)
+
+	for _, fixture := range []struct {
+		tradeNo      string
+		addressIndex int
+		status       string
+	}{
+		{tradeNo: "monero-audit-unlocked", addressIndex: 1, status: common.TopUpStatusSuccess},
+		{tradeNo: "monero-audit-locked", addressIndex: 2, status: common.TopUpStatusSuccess},
+		{tradeNo: "monero-audit-unreported", addressIndex: 3, status: common.TopUpStatusExpired},
+	} {
+		topUp := &model.TopUp{
+			UserId:          991,
+			TradeNo:         fixture.tradeNo,
+			PaymentMethod:   model.PaymentMethodMonero,
+			PaymentProvider: model.PaymentProviderMonero,
+			Status:          fixture.status,
+			CreateTime:      common.GetTimestamp(),
+		}
+		require.NoError(t, model.DB.Create(topUp).Error)
+		paymentStatus := model.MoneroPaymentStatusSuccess
+		if fixture.status == common.TopUpStatusExpired {
+			paymentStatus = model.MoneroPaymentStatusExpired
+		}
+		require.NoError(t, model.DB.Create(&model.MoneroPayment{
+			TopUpID:      topUp.Id,
+			Address:      fmt.Sprintf("9auditAddress%d", fixture.addressIndex),
+			AccountIndex: 0,
+			AddressIndex: fixture.addressIndex,
+			Network:      setting.MoneroNetworkTestnet,
+			Status:       paymentStatus,
+			CreateTime:   common.GetTimestamp(),
+		}).Error)
+	}
+
+	rpcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request moneroRPCRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		require.Equal(t, "get_balance", request.Method)
+		body, err := common.Marshal(map[string]any{"result": map[string]any{
+			"per_subaddress": []map[string]any{
+				{"address_index": 1, "balance": 100, "unlocked_balance": 100},
+				{"address_index": 2, "balance": 100, "unlocked_balance": 50},
+			},
+		}})
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer rpcServer.Close()
+
+	setting.MoneroWalletRPCURL = rpcServer.URL + "/json_rpc"
+	setting.MoneroNetwork = setting.MoneroNetworkTestnet
+
+	result, err := AuditMoneroTerminalAddresses(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 3, result.Candidates)
+	assert.Equal(t, 1, result.FullyUnlocked)
+	assert.Equal(t, 1, result.Locked)
+	assert.Equal(t, 1, result.NotReported)
 }

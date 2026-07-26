@@ -363,6 +363,8 @@ export type BillingSettings = {
   MoneroWalletRPCPassword: string
   MoneroNetwork: 'mainnet' | 'testnet' | 'stagenet'
   MoneroConfirmations: number
+  MoneroMaxSubaddresses: number
+  MoneroUSDToCurrencyRate: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

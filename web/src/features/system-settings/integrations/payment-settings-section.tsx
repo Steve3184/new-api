@@ -193,6 +193,8 @@ const paymentSchema = z.object({
   MoneroWalletRPCPassword: z.string(),
   MoneroNetwork: z.enum(['mainnet', 'testnet', 'stagenet']),
   MoneroConfirmations: z.coerce.number().int().min(1).max(60),
+  MoneroMaxSubaddresses: z.coerce.number().int().min(1).max(1000000),
+  MoneroUSDToCurrencyRate: z.coerce.number().finite().min(0),
   PaymentAnnouncement: z.string(),
 })
 
@@ -481,6 +483,8 @@ export function PaymentSettingsSection({
       MoneroWalletRPCPassword: values.MoneroWalletRPCPassword.trim(),
       MoneroNetwork: values.MoneroNetwork,
       MoneroConfirmations: values.MoneroConfirmations,
+      MoneroMaxSubaddresses: values.MoneroMaxSubaddresses,
+      MoneroUSDToCurrencyRate: values.MoneroUSDToCurrencyRate,
       PaymentAnnouncement: values.PaymentAnnouncement.trim(),
     }
 
@@ -537,6 +541,8 @@ export function PaymentSettingsSection({
         initialRef.current.MoneroWalletRPCPassword.trim(),
       MoneroNetwork: initialRef.current.MoneroNetwork,
       MoneroConfirmations: initialRef.current.MoneroConfirmations,
+      MoneroMaxSubaddresses: initialRef.current.MoneroMaxSubaddresses,
+      MoneroUSDToCurrencyRate: initialRef.current.MoneroUSDToCurrencyRate,
       PaymentAnnouncement: initialRef.current.PaymentAnnouncement.trim(),
     }
 
@@ -773,6 +779,18 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'MoneroConfirmations',
         value: sanitized.MoneroConfirmations,
+      })
+    }
+    if (sanitized.MoneroMaxSubaddresses !== initial.MoneroMaxSubaddresses) {
+      updates.push({
+        key: 'MoneroMaxSubaddresses',
+        value: sanitized.MoneroMaxSubaddresses,
+      })
+    }
+    if (sanitized.MoneroUSDToCurrencyRate !== initial.MoneroUSDToCurrencyRate) {
+      updates.push({
+        key: 'MoneroUSDToCurrencyRate',
+        value: sanitized.MoneroUSDToCurrencyRate,
       })
     }
 
@@ -1847,6 +1865,56 @@ export function PaymentSettingsSection({
                         <FormDescription>
                           {t(
                             'Credit payments after this many confirmed blocks.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroMaxSubaddresses'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Maximum Monero subaddresses')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={1}
+                            max={1000000}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Stop creating Monero invoices when the configured wallet reaches this total address count, including its primary address.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroUSDToCurrencyRate'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Monero USD to system currency rate')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step='any'
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Optional override for Monero invoices: one USD equals this many system currency units. Set 0 to use the system rate.'
                           )}
                         </FormDescription>
                         <FormMessage />

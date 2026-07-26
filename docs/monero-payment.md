@@ -7,7 +7,7 @@ when the invoice was created. The system quota conversion is also captured from
 the administrator's existing `QuotaPerUnit` setting, so later rate changes do
 not alter an existing invoice.
 
-Invoices expire one hour after creation. After expiry, the monitor will not
+Invoices expire three hours after creation. After expiry, the monitor will not
 credit a late payment to that invoice.
 
 `new-api` does not need a local `monerod`. Run `monero-wallet-rpc` with a
@@ -31,9 +31,21 @@ monero-wallet-rpc \
 
 In **System Settings → Billing → Payment Gateway → Monero**, configure the
 wallet RPC URL (normally `http://127.0.0.1:18082/json_rpc`), credentials,
-network, and confirmation count. Select **testnet** before enabling the
-gateway. The application verifies the returned subaddress prefix against the
+network, confirmation count, and maximum subaddress count. Select **testnet**
+before enabling the gateway. The application verifies the returned subaddress prefix against the
 selected network and refuses a mismatched wallet.
+
+`MoneroMaxSubaddresses` defaults to `10000` and counts all addresses in wallet
+account `0`, including the primary address. The backend queries wallet RPC
+before creating each invoice subaddress and refuses creation at the configured
+limit.
+
+Individual Monero subaddresses cannot be deleted through wallet RPC. Completed
+addresses are never reused because a late payment could otherwise be credited
+to the wrong invoice. A read-only `monero_address_audit` system task runs every
+24 hours while Monero payments are enabled. It reports terminal invoice
+addresses whose wallet balance is fully unlocked, still locked, or not reported
+by the wallet; it never deletes subaddresses, moves funds, or alters invoices.
 
 The default exchange-rate source is CoinGecko's public Monero/USD endpoint.
 Each invoice stores its USD/XMR rate, XMR atomic amount, confirmation target,

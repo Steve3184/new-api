@@ -112,6 +112,8 @@ const defaultBillingSettings: BillingSettings = {
   MoneroWalletRPCPassword: '',
   MoneroNetwork: 'mainnet',
   MoneroConfirmations: 1,
+  MoneroMaxSubaddresses: 10000,
+  MoneroUSDToCurrencyRate: 0,
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,

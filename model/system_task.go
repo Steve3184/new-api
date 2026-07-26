@@ -22,6 +22,7 @@ const (
 	SystemTaskTypeMidjourneyPoll       = "midjourney_poll"
 	SystemTaskTypeAsyncTaskPoll        = "async_task_poll"
 	SystemTaskTypeMoneroPaymentMonitor = "monero_payment_monitor"
+	SystemTaskTypeMoneroAddressAudit   = "monero_address_audit"
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")

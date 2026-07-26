@@ -153,6 +153,8 @@ func InitOptionMap() {
 	common.OptionMap["MoneroWalletRPCPassword"] = setting.MoneroWalletRPCPassword
 	common.OptionMap["MoneroNetwork"] = setting.MoneroNetwork
 	common.OptionMap["MoneroConfirmations"] = strconv.Itoa(setting.MoneroConfirmations)
+	common.OptionMap["MoneroMaxSubaddresses"] = strconv.Itoa(setting.MoneroMaxSubaddresses)
+	common.OptionMap["MoneroUSDToCurrencyRate"] = strconv.FormatFloat(setting.MoneroUSDToCurrencyRate, 'f', -1, 64)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -559,6 +561,10 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.MoneroNetwork = value
 	case "MoneroConfirmations":
 		setting.MoneroConfirmations, _ = strconv.Atoi(value)
+	case "MoneroMaxSubaddresses":
+		setting.MoneroMaxSubaddresses, _ = strconv.Atoi(value)
+	case "MoneroUSDToCurrencyRate":
+		setting.MoneroUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":
