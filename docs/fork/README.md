@@ -1253,6 +1253,96 @@ Files:
 - `relay/channel/openai/adaptor.go`
 - `relay/channel/openai/responses_request_test.go`
 
+## Monero wallet-RPC top-ups
+
+Monero is an additive wallet top-up gateway. A user enters the desired system
+quota amount, then the backend obtains the live Monero/USD price and creates a
+unique subaddress through `monero-wallet-rpc`. The invoice stores the XMR
+atomic amount, the USD/XMR price, the existing `QuotaPerUnit` conversion, and
+the required confirmation count. This makes the conversion stable even if the
+market or administrator settings change after the user has opened the invoice.
+
+Selecting Monero creates the invoice immediately, and the payment dialog shows
+the requested quota alongside the exact XMR principal and a QR URI. It
+explicitly states that network fees are not included in the displayed
+principal. Once the configured confirmation count is reached, the monitor
+credits quota from the XMR amount actually received at the invoice's stored
+rate. A transfer below the principal remains pending; an overpayment credits
+the additional received XMR at that same stored rate. An invoice expires one
+hour after creation.
+
+### Configuration and network boundary
+
+Configure **System Settings → Billing → Payment Gateway → Monero** with the
+wallet RPC URL, wallet-RPC credentials, network (`mainnet`, `testnet`,
+or `stagenet`), and one or more confirmations. The gateway is unavailable
+until payment compliance is confirmed and all required Monero settings are
+valid. It verifies that each newly-created subaddress belongs to the configured
+network before persisting an invoice.
+
+The application does not run or require a local `monerod`. Run
+`monero-wallet-rpc` against a trusted remote daemon (including a
+Cake Wallet-compatible remote node) and bind wallet RPC only to a private
+address. `monero-wallet-rpc` is still required because it owns the wallet,
+creates subaddresses, and reports incoming transfers.
+
+For a disposable testnet validation wallet:
+
+```bash
+monero-wallet-cli \
+  --testnet \
+  --generate-new-wallet /srv/monero/testnet-wallets/new-api-e2e.wallet \
+  --password '' \
+  --daemon-address YOUR_TRUSTED_TESTNET_NODE:28081 \
+  --trusted-daemon \
+  --mnemonic-language English \
+  --use-english-language-names \
+  --command exit
+
+monero-wallet-rpc \
+  --testnet \
+  --wallet-file /srv/monero/testnet-wallets/new-api-e2e.wallet \
+  --password '' \
+  --daemon-address YOUR_TRUSTED_TESTNET_NODE:28081 \
+  --trusted-daemon \
+  --rpc-bind-ip 127.0.0.1 \
+  --rpc-bind-port 18082 \
+  --rpc-login new-api:USE_A_RANDOM_PASSWORD
+```
+
+Set `MoneroNetwork=testnet`, `MoneroConfirmations=1`, and the matching wallet
+RPC credentials before enabling the gateway. Send testnet XMR to the generated
+subaddress, wait for one confirmation, and verify that the wallet balance and
+top-up record reflect the actual received atomic amount. Testnet wallet files,
+RPC credentials, and daemon addresses are deployment secrets and must not be
+committed.
+
+### Compatibility and files
+
+- Existing payment methods and the manual top-up completion path are unchanged;
+  Monero invoices can only settle through wallet-RPC confirmation.
+- The monitor uses the existing scheduled-task lease mechanism, so multiple
+  application instances do not credit the same invoice twice.
+- `MoneroPayment` is an additive GORM model and migrates on SQLite, MySQL, and
+  PostgreSQL through the normal model initialization path.
+- Existing options, `TopUp`, user quota, and top-up log records remain the
+  source of truth for balance accounting.
+
+Files:
+
+- `setting/payment_monero.go`
+- `model/monero_payment.go`
+- `service/monero.go`
+- `service/monero_test.go`
+- `controller/topup_monero.go`
+- `controller/topup.go`
+- `router/api-router.go`
+- `model/option.go`
+- `controller/option.go`
+- `web/src/features/wallet/`
+- `web/src/features/system-settings/integrations/payment-settings-section.tsx`
+- `docs/monero-payment.md`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.

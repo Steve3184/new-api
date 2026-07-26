@@ -176,6 +176,23 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  MoneroEnabled: z.boolean(),
+  MoneroWalletRPCURL: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    try {
+      const url = new URL(trimmed)
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') && !!url.host
+      )
+    } catch {
+      return false
+    }
+  }, 'Provide a valid Monero wallet RPC URL'),
+  MoneroWalletRPCUsername: z.string(),
+  MoneroWalletRPCPassword: z.string(),
+  MoneroNetwork: z.enum(['mainnet', 'testnet', 'stagenet']),
+  MoneroConfirmations: z.coerce.number().int().min(1).max(60),
   PaymentAnnouncement: z.string(),
 })
 
@@ -458,6 +475,12 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      MoneroEnabled: values.MoneroEnabled,
+      MoneroWalletRPCURL: values.MoneroWalletRPCURL.trim(),
+      MoneroWalletRPCUsername: values.MoneroWalletRPCUsername.trim(),
+      MoneroWalletRPCPassword: values.MoneroWalletRPCPassword.trim(),
+      MoneroNetwork: values.MoneroNetwork,
+      MoneroConfirmations: values.MoneroConfirmations,
       PaymentAnnouncement: values.PaymentAnnouncement.trim(),
     }
 
@@ -506,6 +529,14 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      MoneroEnabled: initialRef.current.MoneroEnabled,
+      MoneroWalletRPCURL: initialRef.current.MoneroWalletRPCURL.trim(),
+      MoneroWalletRPCUsername:
+        initialRef.current.MoneroWalletRPCUsername.trim(),
+      MoneroWalletRPCPassword:
+        initialRef.current.MoneroWalletRPCPassword.trim(),
+      MoneroNetwork: initialRef.current.MoneroNetwork,
+      MoneroConfirmations: initialRef.current.MoneroConfirmations,
       PaymentAnnouncement: initialRef.current.PaymentAnnouncement.trim(),
     }
 
@@ -711,6 +742,40 @@ export function PaymentSettingsSection({
       waffoPancakeSelection.storeID !== waffoPancakeSavedBinding.storeID ||
       waffoPancakeSelection.productID !== waffoPancakeSavedBinding.productID
 
+    if (sanitized.MoneroEnabled !== initial.MoneroEnabled) {
+      updates.push({ key: 'MoneroEnabled', value: sanitized.MoneroEnabled })
+    }
+    if (sanitized.MoneroWalletRPCURL !== initial.MoneroWalletRPCURL) {
+      updates.push({
+        key: 'MoneroWalletRPCURL',
+        value: sanitized.MoneroWalletRPCURL,
+      })
+    }
+    if (sanitized.MoneroWalletRPCUsername !== initial.MoneroWalletRPCUsername) {
+      updates.push({
+        key: 'MoneroWalletRPCUsername',
+        value: sanitized.MoneroWalletRPCUsername,
+      })
+    }
+    if (
+      sanitized.MoneroWalletRPCPassword &&
+      sanitized.MoneroWalletRPCPassword !== initial.MoneroWalletRPCPassword
+    ) {
+      updates.push({
+        key: 'MoneroWalletRPCPassword',
+        value: sanitized.MoneroWalletRPCPassword,
+      })
+    }
+    if (sanitized.MoneroNetwork !== initial.MoneroNetwork) {
+      updates.push({ key: 'MoneroNetwork', value: sanitized.MoneroNetwork })
+    }
+    if (sanitized.MoneroConfirmations !== initial.MoneroConfirmations) {
+      updates.push({
+        key: 'MoneroConfirmations',
+        value: sanitized.MoneroConfirmations,
+      })
+    }
+
     if (sanitized.PaymentAnnouncement !== initial.PaymentAnnouncement) {
       updates.push({
         key: 'PaymentAnnouncement',
@@ -887,13 +952,14 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[50rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
+                <TabsTrigger value='monero'>Monero</TabsTrigger>
               </TabsList>
             </div>
 
@@ -1647,6 +1713,148 @@ export function PaymentSettingsSection({
                 payMethods={waffoPayMethods}
                 onPayMethodsChange={setWaffoPayMethods}
               />
+            </TabsContent>
+
+            <TabsContent value='monero' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>{t('Monero Gateway')}</h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Create a unique subaddress per invoice and credit confirmed on-chain payments.'
+                    )}
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='MoneroEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable Monero payments')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Requires a configured monero-wallet-rpc service and payment compliance confirmation.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='MoneroWalletRPCURL'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Wallet RPC URL')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='http://127.0.0.1:18082/json_rpc'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Use monero-wallet-rpc with a trusted remote daemon such as a Cake Wallet-compatible node; do not expose this RPC endpoint publicly.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='MoneroWalletRPCUsername'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet RPC username')}</FormLabel>
+                        <FormControl>
+                          <Input autoComplete='off' {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroWalletRPCPassword'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet RPC password')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Leave blank unless rotating the secret')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroNetwork'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Monero network')}</FormLabel>
+                        <FormControl>
+                          <select
+                            className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                            {...field}
+                          >
+                            <option value='mainnet'>{t('Mainnet')}</option>
+                            <option value='testnet'>{t('Testnet')}</option>
+                            <option value='stagenet'>{t('Stagenet')}</option>
+                          </select>
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'The selected network must match the monero-wallet-rpc process.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='MoneroConfirmations'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Required confirmations')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={1}
+                            max={60}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Credit payments after this many confirmed blocks.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </SettingsForm>

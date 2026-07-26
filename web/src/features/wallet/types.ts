@@ -65,6 +65,19 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type MoneroPaymentResponse = ApiResponse<MoneroInvoice>
+
+export interface MoneroInvoice {
+  address: string
+  quota_amount: number
+  amount_xmr: string
+  amount_atomic: string
+  quote_usd: string
+  usd_per_xmr: string
+  network: 'mainnet' | 'testnet' | 'stagenet'
+  confirmations: number
+  expires_at: number
+}
 
 /**
  * Creem product configuration
@@ -154,6 +167,8 @@ export interface TopupInfo {
   waffo_min_topup?: number
   /** Whether Waffo Pancake topup is enabled */
   enable_waffo_pancake_topup?: boolean
+  /** Whether Monero wallet-RPC topups are available */
+  enable_monero_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
   /** Whether redemption code usage is enabled */

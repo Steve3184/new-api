@@ -95,12 +95,32 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableMonero := service.IsMoneroTopUpEnabled()
+	if enableMonero {
+		hasMonero := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodMonero {
+				hasMonero = true
+				break
+			}
+		}
+		if !hasMonero {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "Monero",
+				"type":      model.PaymentMethodMonero,
+				"color":     "#FF6600",
+				"min_topup": strconv.Itoa(operation_setting.MinTopUp),
+			})
+		}
+	}
+
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_monero_topup":              enableMonero,
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,

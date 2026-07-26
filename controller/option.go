@@ -88,7 +88,7 @@ func GetOptions(c *gin.Context) {
 		}
 		value := common.Interface2String(v)
 		isPublicSiteKey := strings.HasSuffix(k, "SiteKey")
-		isSensitiveKey := !isPublicSiteKey && (strings.HasSuffix(k, "Token") ||
+		isSensitiveKey := !isPublicSiteKey && (k == "MoneroWalletRPCPassword" || strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
@@ -255,6 +255,25 @@ func UpdateOption(c *gin.Context) {
 				common.ApiErrorMsg(c, "Meshy image proxy base URL must be a valid HTTP or HTTPS URL")
 				return
 			}
+		}
+	case "MoneroWalletRPCURL":
+		if option.Value != "" {
+			parsedURL, parseErr := url.ParseRequestURI(strings.TrimSpace(option.Value.(string)))
+			if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+				common.ApiErrorMsg(c, "Monero wallet RPC URL must be a valid HTTP or HTTPS URL")
+				return
+			}
+		}
+	case "MoneroNetwork":
+		if !setting.IsValidMoneroNetwork(option.Value.(string)) {
+			common.ApiErrorMsg(c, "Monero network must be mainnet, testnet, or stagenet")
+			return
+		}
+	case "MoneroConfirmations":
+		confirmations, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || confirmations < 1 || confirmations > 60 {
+			common.ApiErrorMsg(c, "Monero confirmations must be between 1 and 60")
+			return
 		}
 	case "WorkerMeshyImageProxyEnabled":
 		if option.Value == "true" && (strings.TrimSpace(system_setting.WorkerMeshyImageProxyBaseURL) == "" || strings.TrimSpace(system_setting.WorkerMeshyImageProxyAPIKey) == "") {

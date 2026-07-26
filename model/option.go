@@ -147,6 +147,12 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["MoneroEnabled"] = strconv.FormatBool(setting.MoneroEnabled)
+	common.OptionMap["MoneroWalletRPCURL"] = setting.MoneroWalletRPCURL
+	common.OptionMap["MoneroWalletRPCUsername"] = setting.MoneroWalletRPCUsername
+	common.OptionMap["MoneroWalletRPCPassword"] = setting.MoneroWalletRPCPassword
+	common.OptionMap["MoneroNetwork"] = setting.MoneroNetwork
+	common.OptionMap["MoneroConfirmations"] = strconv.Itoa(setting.MoneroConfirmations)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -541,6 +547,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "MoneroEnabled":
+		setting.MoneroEnabled = value == "true"
+	case "MoneroWalletRPCURL":
+		setting.MoneroWalletRPCURL = value
+	case "MoneroWalletRPCUsername":
+		setting.MoneroWalletRPCUsername = value
+	case "MoneroWalletRPCPassword":
+		setting.MoneroWalletRPCPassword = value
+	case "MoneroNetwork":
+		setting.MoneroNetwork = value
+	case "MoneroConfirmations":
+		setting.MoneroConfirmations, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

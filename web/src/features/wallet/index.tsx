@@ -33,6 +33,7 @@ import { getSelf } from '@/lib/api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
+import { MoneroPaymentDialog } from './components/dialogs/monero-payment-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -47,6 +48,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useMoneroPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -59,6 +61,7 @@ import type {
   PresetAmount,
   CreemProduct,
   WaffoPayMethod,
+  MoneroInvoice,
 } from './types'
 
 interface WalletProps {
@@ -87,6 +90,8 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [moneroInvoice, setMoneroInvoice] = useState<MoneroInvoice | null>(null)
+  const [moneroDialogOpen, setMoneroDialogOpen] = useState(false)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -128,6 +133,7 @@ export function Wallet(props: WalletProps) {
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const { processing: moneroProcessing, createInvoice } = useMoneroPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -200,7 +206,16 @@ export function Wallet(props: WalletProps) {
         return
       }
 
-      // Calculate payment amount and show confirmation dialog
+      // Monero freezes its live XMR quote only when the invoice is created.
+      if (method.type === PAYMENT_TYPES.MONERO) {
+        const invoice = await createInvoice(topupAmount)
+        if (invoice) {
+          setMoneroInvoice(invoice)
+          setMoneroDialogOpen(true)
+        }
+        return
+      }
+
       await calculatePaymentAmount(topupAmount, method.type)
       setConfirmDialogOpen(true)
     } finally {
@@ -426,6 +441,7 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableMoneroTopup={topupInfo?.enable_monero_topup}
                 />
               </div>
 
@@ -458,7 +474,9 @@ export function Wallet(props: WalletProps) {
         paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
-        processing={processing || waffoProcessing || pancakeProcessing}
+        processing={
+          processing || waffoProcessing || pancakeProcessing || moneroProcessing
+        }
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
       />
@@ -482,6 +500,12 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleCreemConfirm}
         product={selectedCreemProduct}
         processing={creemProcessing}
+      />
+
+      <MoneroPaymentDialog
+        open={moneroDialogOpen}
+        onOpenChange={setMoneroDialogOpen}
+        invoice={moneroInvoice}
       />
     </>
   )

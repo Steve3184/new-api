@@ -155,6 +155,12 @@ const BILLING_SECTIONS = [
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          MoneroEnabled: settings.MoneroEnabled ?? false,
+          MoneroWalletRPCURL: settings.MoneroWalletRPCURL ?? '',
+          MoneroWalletRPCUsername: settings.MoneroWalletRPCUsername ?? '',
+          MoneroWalletRPCPassword: settings.MoneroWalletRPCPassword ?? '',
+          MoneroNetwork: settings.MoneroNetwork ?? 'mainnet',
+          MoneroConfirmations: settings.MoneroConfirmations ?? 1,
           PaymentAnnouncement: settings.PaymentAnnouncement ?? '',
         }}
         waffoDefaultValues={{
