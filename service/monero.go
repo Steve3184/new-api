@@ -68,6 +68,15 @@ type moneroTransferResult struct {
 		Locked          bool        `json:"locked"`
 		TxID            string      `json:"txid"`
 	} `json:"in"`
+	Out []struct {
+		Confirmations   json.Number `json:"confirmations"`
+		DoubleSpendSeen bool        `json:"double_spend_seen"`
+		TxID            string      `json:"txid"`
+		Destinations    []struct {
+			Address string      `json:"address"`
+			Amount  json.Number `json:"amount"`
+		} `json:"destinations"`
+	} `json:"out"`
 }
 
 type MoneroInvoice struct {
@@ -310,6 +319,18 @@ func (client *moneroRPCClient) incomingTransfers(ctx context.Context, addressInd
 	return []moneroTransferResult{result}, nil
 }
 
+func (client *moneroRPCClient) outgoingTransfers(ctx context.Context) ([]moneroTransferResult, error) {
+	var result moneroTransferResult
+	if err := client.call(ctx, "get_transfers", map[string]any{
+		"out":           true,
+		"pool":          false,
+		"account_index": 0,
+	}, &result); err != nil {
+		return nil, err
+	}
+	return []moneroTransferResult{result}, nil
+}
+
 func isMoneroAddressForNetwork(address, network string) bool {
 	if address == "" {
 		return false
@@ -488,6 +509,10 @@ func MonitorMoneroPayments(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	outgoingTransferResults, outgoingTransfersErr := rpc.outgoingTransfers(ctx)
+	if outgoingTransfersErr != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Monero outgoing payment scan failed error=%q", outgoingTransfersErr.Error()))
+	}
 	for _, payment := range payments {
 		if payment.ExpiresAt > 0 && payment.ExpiresAt <= now {
 			continue
@@ -499,6 +524,7 @@ func MonitorMoneroPayments(ctx context.Context) error {
 		}
 		received := decimal.Zero
 		transactionIDs := make([]string, 0)
+		incomingTransactionIDs := make(map[string]struct{})
 		for _, transferResult := range transferResults {
 			for _, transfer := range transferResult.In {
 				confirmations, confirmationsErr := transfer.Confirmations.Int64()
@@ -508,6 +534,33 @@ func MonitorMoneroPayments(ctx context.Context) error {
 				}
 				received = received.Add(atomicAmount)
 				if transfer.TxID != "" {
+					transactionIDs = append(transactionIDs, transfer.TxID)
+					incomingTransactionIDs[transfer.TxID] = struct{}{}
+				}
+			}
+		}
+		for _, transferResult := range outgoingTransferResults {
+			for _, transfer := range transferResult.Out {
+				confirmations, confirmationsErr := transfer.Confirmations.Int64()
+				if confirmationsErr != nil || transfer.DoubleSpendSeen || confirmations < int64(setting.MoneroConfirmations) {
+					continue
+				}
+				if _, alreadyReceived := incomingTransactionIDs[transfer.TxID]; transfer.TxID != "" && alreadyReceived {
+					continue
+				}
+				matchedPayment := false
+				for _, destination := range transfer.Destinations {
+					if destination.Address != payment.Address {
+						continue
+					}
+					atomicAmount, amountErr := decimal.NewFromString(destination.Amount.String())
+					if amountErr != nil || !atomicAmount.IsPositive() {
+						continue
+					}
+					received = received.Add(atomicAmount)
+					matchedPayment = true
+				}
+				if matchedPayment && transfer.TxID != "" {
 					transactionIDs = append(transactionIDs, transfer.TxID)
 				}
 			}

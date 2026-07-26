@@ -178,3 +178,80 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 	assert.Equal(t, common.TopUpStatusSuccess, settledTopUp.Status)
 	assert.InDelta(t, 10.0, settledTopUp.Money, 0.000001)
 }
+
+func TestMoneroInvoiceSelfTransferCreditsDestination(t *testing.T) {
+	setupMoneroServiceTest(t)
+
+	transferCalls := 0
+	rpcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			w.Header().Set("WWW-Authenticate", `Digest realm="monero-rpc", nonce="self-transfer-nonce", algorithm=MD5, qop="auth"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		var request moneroRPCRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		var response any
+		switch request.Method {
+		case "create_address":
+			response = map[string]any{"result": map[string]any{
+				"address":       "9selfTransferMoneroInvoiceAddress",
+				"address_index": 42,
+			}}
+		case "get_transfers":
+			transferCalls++
+			if transferCalls == 1 {
+				response = map[string]any{"result": map[string]any{
+					"out": []map[string]any{{
+						"confirmations":     1,
+						"double_spend_seen": false,
+						"txid":              "self-transfer-transaction-id",
+						"destinations": []map[string]any{{
+							"address": "9selfTransferMoneroInvoiceAddress",
+							"amount":  100000000000,
+						}},
+					}},
+				}}
+			} else {
+				response = map[string]any{"result": map[string]any{"in": []map[string]any{}}}
+			}
+		default:
+			response = map[string]any{"error": map[string]any{"code": -1, "message": "unexpected method"}}
+		}
+		body, err := common.Marshal(response)
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer rpcServer.Close()
+
+	priceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		body, err := common.Marshal(map[string]any{"monero": map[string]any{"usd": 100}})
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer priceServer.Close()
+
+	moneroUSDPriceURL = priceServer.URL
+	setting.MoneroEnabled = true
+	setting.MoneroWalletRPCURL = rpcServer.URL + "/json_rpc"
+	setting.MoneroWalletRPCUsername = "rpc-user"
+	setting.MoneroWalletRPCPassword = "rpc-password"
+	setting.MoneroNetwork = setting.MoneroNetworkTestnet
+	setting.MoneroConfirmations = 1
+
+	_, err := CreateMoneroInvoice(context.Background(), 991, 10)
+	require.NoError(t, err)
+	require.NoError(t, MonitorMoneroPayments(context.Background()))
+
+	var creditedUser model.User
+	require.NoError(t, model.DB.First(&creditedUser, 991).Error)
+	assert.Equal(t, 10*500000, creditedUser.Quota)
+	var settledPayment model.MoneroPayment
+	require.NoError(t, model.DB.Where("address = ?", "9selfTransferMoneroInvoiceAddress").First(&settledPayment).Error)
+	assert.Equal(t, model.MoneroPaymentStatusSuccess, settledPayment.Status)
+	assert.Equal(t, "100000000000", settledPayment.ReceivedAtomic)
+	assert.Equal(t, "self-transfer-transaction-id", settledPayment.TransactionIDs)
+}
