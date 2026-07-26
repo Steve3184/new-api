@@ -66,6 +66,18 @@ func ListPendingMoneroPayments(network string) ([]MoneroPayment, error) {
 	return payments, err
 }
 
+func GetMoneroPaymentByAddressAndUser(address string, userID int) (*MoneroPayment, error) {
+	payment := &MoneroPayment{}
+	err := DB.
+		Joins("JOIN top_ups ON top_ups.id = monero_payments.top_up_id").
+		Where("monero_payments.address = ? AND top_ups.user_id = ?", address, userID).
+		First(payment).Error
+	if err != nil {
+		return nil, err
+	}
+	return payment, nil
+}
+
 func ExpirePendingMoneroPayments(now int64) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var payments []MoneroPayment

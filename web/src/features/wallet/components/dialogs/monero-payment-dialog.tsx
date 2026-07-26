@@ -16,34 +16,62 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { Check, Copy } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+import { useMoneroPaymentStatus } from '../../hooks'
+import { getMoneroPaymentStatusMessage } from '../../lib/monero-payment-status'
 import type { MoneroInvoice } from '../../types'
 
 interface MoneroPaymentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   invoice: MoneroInvoice | null
+  onPaymentSuccess: () => void
 }
 
 export function MoneroPaymentDialog({
   open,
   onOpenChange,
   invoice,
+  onPaymentSuccess,
 }: MoneroPaymentDialogProps) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const settledInvoiceAddressRef = useRef<string | null>(null)
+  const { data: paymentStatus } = useMoneroPaymentStatus(invoice?.address, open)
+
+  useEffect(() => {
+    if (
+      !invoice?.address ||
+      paymentStatus?.status !== 'success' ||
+      settledInvoiceAddressRef.current === invoice.address
+    ) {
+      return
+    }
+    settledInvoiceAddressRef.current = invoice.address
+    onOpenChange(false)
+    toast.success(t('Monero payment credited successfully'))
+    onPaymentSuccess()
+  }, [
+    invoice?.address,
+    onOpenChange,
+    onPaymentSuccess,
+    paymentStatus?.status,
+    t,
+  ])
 
   if (!invoice) return null
 
   const paymentURI = `monero:${invoice.address}?tx_amount=${invoice.amount_xmr}`
   const expiresAt = new Date(invoice.expires_at * 1000).toLocaleString()
+  const paymentStatusMessage = getMoneroPaymentStatusMessage(paymentStatus)
 
   const copyAddress = async () => {
     try {
@@ -65,9 +93,11 @@ export function MoneroPaymentDialog({
       contentHeight='auto'
       bodyClassName='space-y-4'
     >
-      <div className='space-y-2 rounded-lg bg-muted/50 p-3 text-sm'>
+      <div className='bg-muted/50 space-y-2 rounded-lg p-3 text-sm'>
         <div className='flex items-center justify-between gap-4'>
-          <span className='text-muted-foreground'>{t('You will receive:')}</span>
+          <span className='text-muted-foreground'>
+            {t('You will receive:')}
+          </span>
           <span className='font-semibold'>{invoice.quota_amount}</span>
         </div>
         <div className='flex items-center justify-between gap-4'>
@@ -80,6 +110,12 @@ export function MoneroPaymentDialog({
           'The displayed XMR amount excludes network fees. Send fees in addition to this amount.'
         )}
       </p>
+
+      <Alert>
+        <AlertDescription>
+          {t(paymentStatusMessage.key, paymentStatusMessage.values)}
+        </AlertDescription>
+      </Alert>
 
       <div className='flex justify-center rounded-lg border bg-white p-4 dark:bg-white'>
         <QRCodeSVG value={paymentURI} size={180} level='M' includeMargin />

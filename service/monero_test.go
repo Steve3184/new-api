@@ -115,14 +115,24 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 			mutex.Lock()
 			currentConfirmations := confirmations
 			mutex.Unlock()
-			response = map[string]any{"result": map[string]any{
-				"in": []map[string]any{{
-					"amount":            100000000000,
-					"confirmations":     currentConfirmations,
-					"double_spend_seen": false,
-					"txid":              "testnet-transaction-id",
-				}},
-			}}
+			if currentConfirmations == 0 {
+				response = map[string]any{"result": map[string]any{
+					"pool": []map[string]any{{
+						"amount":            100000000000,
+						"double_spend_seen": false,
+						"txid":              "testnet-transaction-id",
+					}},
+				}}
+			} else {
+				response = map[string]any{"result": map[string]any{
+					"in": []map[string]any{{
+						"amount":            100000000000,
+						"confirmations":     currentConfirmations,
+						"double_spend_seen": false,
+						"txid":              "testnet-transaction-id",
+					}},
+				}}
+			}
 		default:
 			response = map[string]any{"error": map[string]any{"code": -1, "message": "unexpected method"}}
 		}
@@ -159,6 +169,12 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 	assert.Equal(t, "100000000000", invoice.AmountAtomic)
 	assert.GreaterOrEqual(t, invoice.ExpiresAt, beforeInvoice+int64(time.Hour/time.Second))
 	assert.LessOrEqual(t, invoice.ExpiresAt, afterInvoice+int64(time.Hour/time.Second))
+	paymentStatus, err := GetMoneroInvoicePaymentStatus(context.Background(), 991, invoice.Address)
+	require.NoError(t, err)
+	assert.Equal(t, model.MoneroPaymentStatusPending, paymentStatus.Status)
+	assert.True(t, paymentStatus.TransactionDetected)
+	assert.Equal(t, 0, paymentStatus.Confirmations)
+	assert.Equal(t, 1, paymentStatus.RequiredConfirmations)
 
 	require.NoError(t, MonitorMoneroPayments(context.Background()))
 	var pendingTopUp model.TopUp

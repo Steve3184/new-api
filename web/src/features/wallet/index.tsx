@@ -151,6 +151,10 @@ export function Wallet(props: WalletProps) {
     }
   }, [])
 
+  const handleMoneroPaymentSuccess = useCallback(() => {
+    void fetchUser()
+  }, [fetchUser])
+
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
@@ -506,6 +510,7 @@ export function Wallet(props: WalletProps) {
         open={moneroDialogOpen}
         onOpenChange={setMoneroDialogOpen}
         invoice={moneroInvoice}
+        onPaymentSuccess={handleMoneroPaymentSuccess}
       />
     </>
   )

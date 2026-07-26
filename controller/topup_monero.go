@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service"
@@ -27,4 +28,18 @@ func RequestMoneroPay(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, invoice)
+}
+
+func GetMoneroPaymentStatus(c *gin.Context) {
+	address := strings.TrimSpace(c.Query("address"))
+	if address == "" {
+		common.ApiErrorMsg(c, "monero payment address is required")
+		return
+	}
+	status, err := service.GetMoneroInvoicePaymentStatus(c.Request.Context(), c.GetInt("id"), address)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, status)
 }

@@ -5492,5 +5492,8 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Waiting for transaction...": "Waiting for transaction...",
+  "Transaction detected, waiting for confirmations... (Confirmations: {{count}})": "Transaction detected, waiting for confirmations... (Confirmations: {{count}})",
+  "Monero payment credited successfully": "Monero payment credited successfully"
 }

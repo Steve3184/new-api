@@ -66,6 +66,7 @@ export type WaffoPancakePaymentResponse = ApiResponse<
   | string
 >
 export type MoneroPaymentResponse = ApiResponse<MoneroInvoice>
+export type MoneroPaymentStatusResponse = ApiResponse<MoneroPaymentStatus>
 
 export interface MoneroInvoice {
   address: string
@@ -77,6 +78,13 @@ export interface MoneroInvoice {
   network: 'mainnet' | 'testnet' | 'stagenet'
   confirmations: number
   expires_at: number
+}
+
+export interface MoneroPaymentStatus {
+  status: 'pending' | 'success' | 'expired'
+  transaction_detected: boolean
+  confirmations: number
+  required_confirmations: number
 }
 
 /**

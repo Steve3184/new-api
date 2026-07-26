@@ -5492,5 +5492,8 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム"
-  }
+  },
+  "Waiting for transaction...": "取引を待っています...",
+  "Transaction detected, waiting for confirmations... (Confirmations: {{count}})": "取引を検出しました。確認を待っています...（確認数: {{count}}）",
+  "Monero payment credited successfully": "Monero の入金が完了しました"
 }

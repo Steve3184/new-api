@@ -13,19 +13,17 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
 */
-// ============================================================================
-// Wallet Hooks Exports
-// ============================================================================
+import type { MoneroPaymentStatus } from '../types'
 
-export * from './use-topup-info'
-export * from './use-payment'
-export * from './use-affiliate'
-export * from './use-redemption'
-export * from './use-creem-payment'
-export * from './use-waffo-payment'
-export * from './use-waffo-pancake-payment'
-export * from './use-monero-payment'
-export * from './use-monero-payment-status'
+export function getMoneroPaymentStatusMessage(
+  status: MoneroPaymentStatus | undefined
+) {
+  if (status?.transaction_detected) {
+    return {
+      key: 'Transaction detected, waiting for confirmations... (Confirmations: {{count}})',
+      values: { count: status.confirmations },
+    }
+  }
+  return { key: 'Waiting for transaction...' }
+}

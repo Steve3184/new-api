@@ -5492,5 +5492,8 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Waiting for transaction...": "Ожидание транзакции...",
+  "Transaction detected, waiting for confirmations... (Confirmations: {{count}})": "Транзакция обнаружена, ожидание подтверждений... (Подтверждений: {{count}})",
+  "Monero payment credited successfully": "Платёж Monero успешно зачислен"
 }

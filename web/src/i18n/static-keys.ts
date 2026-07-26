@@ -595,4 +595,9 @@ export const STATIC_I18N_KEYS = [
   'This user account is disabled.',
   'Telegram binding failed. Please try again.',
   'Verification scope is missing',
+
+  // Monero payment status (selected dynamically while polling)
+  'Waiting for transaction...',
+  'Transaction detected, waiting for confirmations... (Confirmations: {{count}})',
+  'Monero payment credited successfully',
 ] as const

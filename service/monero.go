@@ -68,6 +68,12 @@ type moneroTransferResult struct {
 		Locked          bool        `json:"locked"`
 		TxID            string      `json:"txid"`
 	} `json:"in"`
+	Pool []struct {
+		Amount          json.Number `json:"amount"`
+		Confirmations   json.Number `json:"confirmations"`
+		DoubleSpendSeen bool        `json:"double_spend_seen"`
+		TxID            string      `json:"txid"`
+	} `json:"pool"`
 	Out []struct {
 		Confirmations   json.Number `json:"confirmations"`
 		DoubleSpendSeen bool        `json:"double_spend_seen"`
@@ -89,6 +95,13 @@ type MoneroInvoice struct {
 	Network       string `json:"network"`
 	Confirmations int    `json:"confirmations"`
 	ExpiresAt     int64  `json:"expires_at"`
+}
+
+type MoneroInvoicePaymentStatus struct {
+	Status                string `json:"status"`
+	TransactionDetected   bool   `json:"transaction_detected"`
+	Confirmations         int    `json:"confirmations"`
+	RequiredConfirmations int    `json:"required_confirmations"`
 }
 
 func isMoneroGatewayConfigured() bool {
@@ -310,13 +323,58 @@ func (client *moneroRPCClient) incomingTransfers(ctx context.Context, addressInd
 	var result moneroTransferResult
 	if err := client.call(ctx, "get_transfers", map[string]any{
 		"in":              true,
-		"pool":            false,
+		"pool":            true,
 		"account_index":   0,
 		"subaddr_indices": []int{addressIndex},
 	}, &result); err != nil {
 		return nil, err
 	}
 	return []moneroTransferResult{result}, nil
+}
+
+func GetMoneroInvoicePaymentStatus(ctx context.Context, userID int, address string) (*MoneroInvoicePaymentStatus, error) {
+	payment, err := model.GetMoneroPaymentByAddressAndUser(strings.TrimSpace(address), userID)
+	if err != nil {
+		return nil, err
+	}
+	status := &MoneroInvoicePaymentStatus{
+		Status:                payment.Status,
+		RequiredConfirmations: setting.MoneroConfirmations,
+	}
+	if payment.Status != model.MoneroPaymentStatusPending || !isMoneroGatewayConfigured() {
+		return status, nil
+	}
+	rpc, err := newMoneroRPCClient()
+	if err != nil {
+		return nil, err
+	}
+	transferResults, err := rpc.incomingTransfers(ctx, payment.AddressIndex)
+	if err != nil {
+		return nil, err
+	}
+	for _, transferResult := range transferResults {
+		for _, transfer := range transferResult.In {
+			amount, amountErr := decimal.NewFromString(transfer.Amount.String())
+			if amountErr != nil || !amount.IsPositive() || transfer.DoubleSpendSeen {
+				continue
+			}
+			status.TransactionDetected = true
+			if confirmations, confirmationsErr := transfer.Confirmations.Int64(); confirmationsErr == nil && confirmations > int64(status.Confirmations) {
+				if confirmations > math.MaxInt32 {
+					status.Confirmations = math.MaxInt32
+					continue
+				}
+				status.Confirmations = int(confirmations)
+			}
+		}
+		for _, transfer := range transferResult.Pool {
+			amount, amountErr := decimal.NewFromString(transfer.Amount.String())
+			if amountErr == nil && amount.IsPositive() && !transfer.DoubleSpendSeen {
+				status.TransactionDetected = true
+			}
+		}
+	}
+	return status, nil
 }
 
 func (client *moneroRPCClient) outgoingTransfers(ctx context.Context) ([]moneroTransferResult, error) {
