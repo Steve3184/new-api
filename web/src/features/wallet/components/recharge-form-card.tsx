@@ -119,7 +119,10 @@ export function RechargeFormCard({
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
   useEffect(() => {
-    setLocalAmount(topupAmount.toString())
+    // Empty string must survive, otherwise the field can never be cleared
+    setLocalAmount((prev) =>
+      prev === '' && topupAmount === 0 ? prev : topupAmount.toString()
+    )
   }, [topupAmount])
 
   const handleAmountChange = (value: string) => {
@@ -321,7 +324,10 @@ export function RechargeFormCard({
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
                     {topupInfo?.pay_methods?.map((method) => {
-                      const minTopup = method.min_topup || 0
+                      const minTopup = Math.max(
+                        method.min_topup || 0,
+                        getMinTopupAmount(topupInfo)
+                      )
                       const disabled = minTopup > topupAmount
                       const disabledReason = disabled
                         ? t('Minimum topup amount: {{amount}}', {

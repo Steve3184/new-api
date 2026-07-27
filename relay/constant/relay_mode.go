@@ -57,6 +57,8 @@ const (
 	RelayModeGemini
 
 	RelayModeResponsesCompact
+
+	RelayModeAlphaSearch
 )
 
 func Path2RelayMode(path string) int {
@@ -90,6 +92,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeAudioSpeechTaskSubmit
 	} else if strings.HasPrefix(path, "/v1/audio/speech/tasks/") {
 		relayMode = RelayModeAudioSpeechTaskFetchByID
+	} else if strings.HasPrefix(path, "/v1/alpha/search") {
+		relayMode = RelayModeAlphaSearch
 	} else if strings.HasPrefix(path, "/v1/audio/speech") {
 		relayMode = RelayModeAudioSpeech
 	} else if strings.HasPrefix(path, "/v1/audio/transcriptions") {

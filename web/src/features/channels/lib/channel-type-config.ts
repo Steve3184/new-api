@@ -178,6 +178,26 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     defaultBaseUrl: 'https://api.v8.unrealspeech.com',
     supportedModels: ['unreal-speech-v8'],
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'Sub2API',
+    hints: {
+      baseUrl: 'Sub2API gateway base URL',
+      key: 'Sub2API API Key',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
+    icon: 'NewAPI',
+    hints: {
+      baseUrl: 'Base URL is required for this channel type',
+      key: 'Enter API key for this channel',
+      models: 'Models',
+    },
+  },
 }
 
 /**

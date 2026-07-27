@@ -13,14 +13,15 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	provider "github.com/QuantumNous/new-api/relay/channel/unrealspeech"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,7 +39,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.baseURL = strings.TrimRight(info.ChannelBaseUrl, "/")
 }
 
-func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
 	var request dto.AudioRequest
 	if err := common.UnmarshalBodyReusable(c, &request); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
@@ -106,7 +107,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, bod
 	return channel.DoTaskApiRequest(a, c, info, body)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, response *http.Response, info *relaycommon.RelayInfo) (string, []byte, *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, response *http.Response, info *relaycommon.RelayInfo) (string, []byte, *taskdto.TaskError) {
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusBadGateway)

@@ -58,6 +58,8 @@ const (
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeMeshy2API      = 59
 	ChannelTypeUnrealSpeech   = 60
+	ChannelTypeSub2API        = 61
+	ChannelTypeNewAPI         = 62
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -124,6 +126,9 @@ var ChannelBaseURLs = []string{
 	"",                                          //58
 	"",                                          //59
 	"https://api.v8.unrealspeech.com",           //60
+	"",                                          //60
+	"",                                          //61
+	"",                                          //62
 }
 
 var ChannelTypeNames = map[int]string{
@@ -184,6 +189,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeAdvancedCustom: "Advanced Custom",
 	ChannelTypeMeshy2API:      "Meshy2API",
 	ChannelTypeUnrealSpeech:   "UnrealSpeech",
+	ChannelTypeSub2API:        "Sub2API",
+	ChannelTypeNewAPI:         "New API",
 }
 
 func GetChannelTypeName(channelType int) string {

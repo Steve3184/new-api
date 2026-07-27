@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -167,8 +167,10 @@ export function Wallet(props: WalletProps) {
   }, [props.initialShowHistory])
 
   // Initialize topup amount when topup info is loaded
+  const topupAmountInitializedRef = useRef(false)
   useEffect(() => {
-    if (topupInfo && topupAmount === 0) {
+    if (topupInfo && !topupAmountInitializedRef.current) {
+      topupAmountInitializedRef.current = true
       const minTopup = getMinTopupAmount(topupInfo)
       setTopupAmount(minTopup)
 
@@ -176,7 +178,7 @@ export function Wallet(props: WalletProps) {
       const defaultPaymentType = getDefaultPaymentType(topupInfo)
       calculatePaymentAmount(minTopup, defaultPaymentType)
     }
-  }, [topupInfo, topupAmount, calculatePaymentAmount])
+  }, [topupInfo, calculatePaymentAmount])
 
   // Get current payment type (selected or default)
   const getCurrentPaymentType = useCallback(() => {
