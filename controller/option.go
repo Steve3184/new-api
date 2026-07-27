@@ -288,6 +288,12 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorMsg(c, "Monero USD to system currency rate must be a non-negative finite number")
 			return
 		}
+	case "WaffoPancakeUSDToCurrencyRate":
+		rate, parseErr := strconv.ParseFloat(option.Value.(string), 64)
+		if parseErr != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 {
+			common.ApiErrorMsg(c, "Waffo Pancake USD to system currency rate must be a non-negative finite number")
+			return
+		}
 	case "WorkerMeshyImageProxyEnabled":
 		if option.Value == "true" && (strings.TrimSpace(system_setting.WorkerMeshyImageProxyBaseURL) == "" || strings.TrimSpace(system_setting.WorkerMeshyImageProxyAPIKey) == "") {
 			common.ApiErrorMsg(c, "Configure the Meshy image proxy base URL and API key before enabling it")

@@ -143,6 +143,8 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMerchantID"] = setting.WaffoPancakeMerchantID
 	common.OptionMap["WaffoPancakePrivateKey"] = setting.WaffoPancakePrivateKey
 	common.OptionMap["WaffoPancakeReturnURL"] = setting.WaffoPancakeReturnURL
+	common.OptionMap["WaffoPancakeUseConfiguredProductPrice"] = strconv.FormatBool(setting.WaffoPancakeUseConfiguredProductPrice)
+	common.OptionMap["WaffoPancakeUSDToCurrencyRate"] = strconv.FormatFloat(setting.WaffoPancakeUSDToCurrencyRate, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeUnitPrice"] = strconv.FormatFloat(setting.WaffoPancakeUnitPrice, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
@@ -541,6 +543,10 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakePrivateKey = value
 	case "WaffoPancakeReturnURL":
 		setting.WaffoPancakeReturnURL = value
+	case "WaffoPancakeUseConfiguredProductPrice":
+		setting.WaffoPancakeUseConfiguredProductPrice = value == "true"
+	case "WaffoPancakeUSDToCurrencyRate":
+		setting.WaffoPancakeUSDToCurrencyRate, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeStoreID":
 		setting.WaffoPancakeStoreID = value
 	case "WaffoPancakeProductID":

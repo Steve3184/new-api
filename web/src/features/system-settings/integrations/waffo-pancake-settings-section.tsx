@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
+import { SettingsSwitchField } from '../components/settings-form-layout'
 import { removeTrailingSlash } from './utils'
 import {
   type CatalogStore,
@@ -46,6 +47,8 @@ export type WaffoPancakeSettingsValues = {
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string
+  WaffoPancakeUseConfiguredProductPrice: boolean
+  WaffoPancakeUSDToCurrencyRate: number
 }
 
 export interface WaffoPancakeBinding {
@@ -419,6 +422,18 @@ export function WaffoPancakeSettingsSection({
           </ul>
         </div>
 
+        <SettingsSwitchField
+          checked={values.WaffoPancakeUseConfiguredProductPrice}
+          onCheckedChange={(value) =>
+            onValueChange('WaffoPancakeUseConfiguredProductPrice', value)
+          }
+          label={t('Use Waffo Pancake configured product price as base')}
+          description={t(
+            'Use the selected product’s configured unit price and currency. A top-up of 1 charges one product price; a top-up of 2 charges two product prices. This ignores group ratios, discounts, and the USD exchange rate.'
+          )}
+          className='py-0 lg:col-span-2'
+        />
+
         <div className='grid gap-1.5'>
           <Label>{t('Merchant ID')}</Label>
           <Input
@@ -446,6 +461,27 @@ export function WaffoPancakeSettingsSection({
           <p className='text-muted-foreground text-xs'>
             {t(
               'The environment (test vs production) is decided by the key you paste here — use the Test key while integrating, then swap to the Production key when going live.'
+            )}
+          </p>
+        </div>
+
+        <div className='grid gap-1.5'>
+          <Label>{t('Waffo Pancake USD to system currency rate')}</Label>
+          <Input
+            type='number'
+            min={0}
+            step='any'
+            value={values.WaffoPancakeUSDToCurrencyRate}
+            onChange={(event) =>
+              onValueChange(
+                'WaffoPancakeUSDToCurrencyRate',
+                event.target.value === '' ? 0 : event.target.valueAsNumber
+              )
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'One USD equals this many system currency units. For example, set 6.55 so a $1 payment grants 6.55 system currency units. Set 0 to keep the legacy unit-price calculation.'
             )}
           </p>
         </div>

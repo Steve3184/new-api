@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ func TestFormatWaffoPancakeAmount_UsesDisplayPriceString(t *testing.T) {
 
 func TestGetWaffoPancakePayMoney(t *testing.T) {
 	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalUSDToCurrencyRate := setting.WaffoPancakeUSDToCurrencyRate
 	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	originalDiscounts := make(map[int]float64, len(operation_setting.GetPaymentSetting().AmountDiscount))
 	for k, v := range operation_setting.GetPaymentSetting().AmountDiscount {
@@ -38,12 +40,14 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 	t.Cleanup(func() {
 		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		setting.WaffoPancakeUSDToCurrencyRate = originalUSDToCurrencyRate
 		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
 		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
 	})
 
 	setting.WaffoPancakeUnitPrice = 2.5
+	setting.WaffoPancakeUSDToCurrencyRate = 0
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
 		10:                           0.8,
 		int(common.QuotaPerUnit * 3): 0.5,
@@ -86,6 +90,69 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 			operation_setting.GetGeneralSetting().QuotaDisplayType = tc.quotaDisplayType
 			actual := getWaffoPancakePayMoney(tc.amount, tc.group)
 			require.InDelta(t, tc.expected, actual, 0.000001)
+		})
+	}
+}
+
+func TestGetWaffoPancakePayMoney_UsesUSDToSystemCurrencyRate(t *testing.T) {
+	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalUSDToCurrencyRate := setting.WaffoPancakeUSDToCurrencyRate
+	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	originalTopupGroupRatio := common.TopupGroupRatio2JSONString()
+
+	t.Cleanup(func() {
+		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		setting.WaffoPancakeUSDToCurrencyRate = originalUSDToCurrencyRate
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
+		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
+	})
+
+	setting.WaffoPancakeUnitPrice = 2.5
+	setting.WaffoPancakeUSDToCurrencyRate = 6.55
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeCustom
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1}`))
+
+	// 1 USD = 6.55 system currency units, so a 655-unit top-up costs $100.
+	actual := getWaffoPancakePayMoney(655, "default")
+	require.InDelta(t, 100, actual, 0.000001)
+}
+
+func TestGetConfiguredWaffoPancakeProductCheckoutPrice_MultipliesConfiguredUnitPrice(t *testing.T) {
+	configuredPrice := &service.WaffoPancakeConfiguredProductPrice{
+		Currency:    "CNY",
+		Amount:      "1.00",
+		TaxCategory: "saas",
+	}
+
+	testCases := []struct {
+		name            string
+		quantity        int64
+		expectedAmount  string
+		expectedPayment float64
+	}{
+		{
+			name:            "one credit uses one configured product price",
+			quantity:        1,
+			expectedAmount:  "1.00",
+			expectedPayment: 1,
+		},
+		{
+			name:            "two credits use two configured product prices",
+			quantity:        2,
+			expectedAmount:  "2.00",
+			expectedPayment: 2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			price, err := getConfiguredWaffoPancakeProductCheckoutPrice(configuredPrice, tc.quantity)
+
+			require.NoError(t, err)
+			require.InDelta(t, tc.expectedPayment, price.Money, 0.000001)
+			require.Equal(t, "CNY", price.Currency)
+			require.Equal(t, tc.expectedAmount, price.PriceSnapshot.Amount)
+			require.Equal(t, "saas", price.PriceSnapshot.TaxCategory)
 		})
 	}
 }

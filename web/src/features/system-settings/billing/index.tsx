@@ -104,6 +104,8 @@ const defaultBillingSettings: BillingSettings = {
   WaffoPancakeMerchantID: '',
   WaffoPancakePrivateKey: '',
   WaffoPancakeReturnURL: '',
+  WaffoPancakeUseConfiguredProductPrice: false,
+  WaffoPancakeUSDToCurrencyRate: 0,
   WaffoPancakeStoreID: '',
   WaffoPancakeProductID: '',
   MoneroEnabled: false,

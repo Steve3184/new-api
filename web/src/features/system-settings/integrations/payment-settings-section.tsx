@@ -176,6 +176,8 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  WaffoPancakeUseConfiguredProductPrice: z.boolean(),
+  WaffoPancakeUSDToCurrencyRate: z.coerce.number().finite().min(0),
   MoneroEnabled: z.boolean(),
   MoneroWalletRPCURL: z.string().refine((value) => {
     const trimmed = value.trim()
@@ -477,6 +479,9 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeUseConfiguredProductPrice:
+        values.WaffoPancakeUseConfiguredProductPrice,
+      WaffoPancakeUSDToCurrencyRate: values.WaffoPancakeUSDToCurrencyRate,
       MoneroEnabled: values.MoneroEnabled,
       MoneroWalletRPCURL: values.MoneroWalletRPCURL.trim(),
       MoneroWalletRPCUsername: values.MoneroWalletRPCUsername.trim(),
@@ -533,6 +538,10 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeUseConfiguredProductPrice:
+        initialRef.current.WaffoPancakeUseConfiguredProductPrice,
+      WaffoPancakeUSDToCurrencyRate:
+        initialRef.current.WaffoPancakeUSDToCurrencyRate,
       MoneroEnabled: initialRef.current.MoneroEnabled,
       MoneroWalletRPCURL: initialRef.current.MoneroWalletRPCURL.trim(),
       MoneroWalletRPCUsername:
@@ -741,6 +750,26 @@ export function PaymentSettingsSection({
       updates.push({ key: 'WaffoPayMethods', value: sanitized.WaffoPayMethods })
     }
 
+    if (
+      sanitized.WaffoPancakeUseConfiguredProductPrice !==
+      initial.WaffoPancakeUseConfiguredProductPrice
+    ) {
+      updates.push({
+        key: 'WaffoPancakeUseConfiguredProductPrice',
+        value: sanitized.WaffoPancakeUseConfiguredProductPrice,
+      })
+    }
+
+    if (
+      sanitized.WaffoPancakeUSDToCurrencyRate !==
+      initial.WaffoPancakeUSDToCurrencyRate
+    ) {
+      updates.push({
+        key: 'WaffoPancakeUSDToCurrencyRate',
+        value: sanitized.WaffoPancakeUSDToCurrencyRate,
+      })
+    }
+
     const hasWaffoPancakeChanges =
       sanitized.WaffoPancakeMerchantID !== initial.WaffoPancakeMerchantID ||
       sanitized.WaffoPancakePrivateKey.length > 0 ||
@@ -887,6 +916,10 @@ export function PaymentSettingsSection({
     WaffoPancakeMerchantID: currentFormValues.WaffoPancakeMerchantID,
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
+    WaffoPancakeUseConfiguredProductPrice:
+      currentFormValues.WaffoPancakeUseConfiguredProductPrice,
+    WaffoPancakeUSDToCurrencyRate:
+      currentFormValues.WaffoPancakeUSDToCurrencyRate,
   }
 
   return (
