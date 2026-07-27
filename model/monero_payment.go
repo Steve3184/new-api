@@ -34,6 +34,8 @@ type MoneroPayment struct {
 	ReceivedAtomic string `json:"received_atomic" gorm:"type:varchar(32)"`
 	QuoteUSD       string `json:"quote_usd" gorm:"type:varchar(32)"`
 	USDPerXMR      string `json:"usd_per_xmr" gorm:"type:varchar(32)"`
+	// QuotaPerUSD is the invoice-frozen internal quota credited for one USD.
+	// It includes the display-currency rate and any invoice pricing modifiers.
 	QuotaPerUSD    string `json:"quota_per_usd" gorm:"type:varchar(32)"`
 	TransactionIDs string `json:"transaction_ids" gorm:"type:text"`
 	Status         string `json:"status" gorm:"type:varchar(16);index"`

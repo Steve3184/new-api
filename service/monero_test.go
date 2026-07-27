@@ -101,7 +101,7 @@ func TestMoneroQuoteUSDUsesConfiguredSystemCurrencyRate(t *testing.T) {
 	assert.Equal(t, "725.000000000000", quote.StringFixed(12))
 }
 
-func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
+func TestMoneroInvoiceTestnetConfirmationCreditsRequestedAmount(t *testing.T) {
 	setupMoneroServiceTest(t)
 
 	var mutex sync.Mutex
@@ -146,7 +146,7 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 			if currentConfirmations == 0 {
 				response = map[string]any{"result": map[string]any{
 					"pool": []map[string]any{{
-						"amount":            100000000000,
+						"amount":            10000000000,
 						"double_spend_seen": false,
 						"txid":              "testnet-transaction-id",
 					}},
@@ -154,7 +154,7 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 			} else {
 				response = map[string]any{"result": map[string]any{
 					"in": []map[string]any{{
-						"amount":            100000000000,
+						"amount":            10000000000,
 						"confirmations":     currentConfirmations,
 						"double_spend_seen": false,
 						"txid":              "testnet-transaction-id",
@@ -186,6 +186,7 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 	setting.MoneroWalletRPCPassword = "rpc-password"
 	setting.MoneroNetwork = setting.MoneroNetworkTestnet
 	setting.MoneroConfirmations = 1
+	setting.MoneroUSDToCurrencyRate = 10
 
 	beforeInvoice := common.GetTimestamp()
 	invoice, err := CreateMoneroInvoice(context.Background(), 991, 10)
@@ -193,10 +194,13 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "testnet", invoice.Network)
 	assert.Equal(t, int64(10), invoice.QuotaAmount)
-	assert.Equal(t, "0.100000000000", invoice.AmountXMR)
-	assert.Equal(t, "100000000000", invoice.AmountAtomic)
+	assert.Equal(t, "0.010000000000", invoice.AmountXMR)
+	assert.Equal(t, "10000000000", invoice.AmountAtomic)
 	assert.GreaterOrEqual(t, invoice.ExpiresAt, beforeInvoice+int64(3*time.Hour/time.Second))
 	assert.LessOrEqual(t, invoice.ExpiresAt, afterInvoice+int64(3*time.Hour/time.Second))
+	var pendingPayment model.MoneroPayment
+	require.NoError(t, model.DB.Where("address = ?", invoice.Address).First(&pendingPayment).Error)
+	assert.Equal(t, "5000000.000000000000", pendingPayment.QuotaPerUSD)
 	paymentStatus, err := GetMoneroInvoicePaymentStatus(context.Background(), 991, invoice.Address)
 	require.NoError(t, err)
 	assert.Equal(t, model.MoneroPaymentStatusPending, paymentStatus.Status)
@@ -220,7 +224,7 @@ func TestMoneroInvoiceTestnetConfirmationCreditsQuotedUSD(t *testing.T) {
 	var settledTopUp model.TopUp
 	require.NoError(t, model.DB.First(&settledTopUp, pendingTopUp.Id).Error)
 	assert.Equal(t, common.TopUpStatusSuccess, settledTopUp.Status)
-	assert.InDelta(t, 10.0, settledTopUp.Money, 0.000001)
+	assert.InDelta(t, 1.0, settledTopUp.Money, 0.000001)
 }
 
 func TestMoneroInvoiceSelfTransferCreditsDestination(t *testing.T) {

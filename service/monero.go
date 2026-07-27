@@ -585,6 +585,16 @@ func CreateMoneroInvoice(ctx context.Context, userID int, amount int64) (*Monero
 	if !expectedAtomic.IsPositive() || expectedAtomic.GreaterThan(decimal.NewFromUint64(math.MaxUint64)) {
 		return nil, errors.New("monero quote is outside the supported range")
 	}
+	// Freeze the conversion back into internal quota as part of the invoice.
+	// For currency displays, quoteUSD has already incorporated the configured
+	// USD-to-system-currency rate; for token displays, amount is already
+	// internal quota. This guarantees a payment of the quoted amount credits
+	// the amount the user requested, even if rates change before confirmation.
+	quotaPerUSD := decimal.NewFromInt(amount)
+	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
+		quotaPerUSD = quotaPerUSD.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	}
+	quotaPerUSD = quotaPerUSD.Div(quoteUSD)
 	rpc, err := newMoneroRPCClient()
 	if err != nil {
 		return nil, err
@@ -607,7 +617,7 @@ func CreateMoneroInvoice(ctx context.Context, userID int, amount int64) (*Monero
 		ExpectedAtomic: expectedAtomic.StringFixed(0),
 		QuoteUSD:       quoteUSD.StringFixed(12),
 		USDPerXMR:      usdPerXMR.StringFixed(12),
-		QuotaPerUSD:    decimal.NewFromFloat(common.QuotaPerUnit).StringFixed(12),
+		QuotaPerUSD:    quotaPerUSD.StringFixed(12),
 		Status:         model.MoneroPaymentStatusPending,
 		ExpiresAt:      now + int64(moneroInvoiceExpiry/time.Second),
 		CreateTime:     now,

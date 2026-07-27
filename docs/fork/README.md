@@ -1258,18 +1258,20 @@ Files:
 Monero is an additive wallet top-up gateway. A user enters the desired system
 quota amount, then the backend obtains the live Monero/USD price and creates a
 unique subaddress through `monero-wallet-rpc`. The invoice stores the XMR
-atomic amount, the USD/XMR price, the existing `QuotaPerUnit` conversion, and
-the required confirmation count. This makes the conversion stable even if the
-market or administrator settings change after the user has opened the invoice.
+atomic amount, the USD/XMR price, the invoice-specific USD-to-internal-quota
+conversion, and the required confirmation count. This makes the conversion
+stable even if the market or administrator settings change after the user has
+opened the invoice.
 
 Selecting Monero creates the invoice immediately, and the payment dialog shows
 the requested quota alongside the exact XMR principal and a QR URI. It
 explicitly states that network fees are not included in the displayed
 principal. Once the configured confirmation count is reached, the monitor
 credits quota from the XMR amount actually received at the invoice's stored
-rate. A transfer below the principal remains pending; an overpayment credits
-the additional received XMR at that same stored rate. An invoice expires three
-hours after creation.
+rate. Paying the quoted principal credits the requested quota amount; a
+transfer below the principal remains pending, and an overpayment credits the
+additional received XMR proportionally at that same stored rate. An invoice
+expires three hours after creation.
 
 ### Configuration and network boundary
 
@@ -1282,14 +1284,14 @@ valid. It verifies that each newly-created subaddress belongs to the configured
 network before persisting an invoice.
 
 `MoneroUSDToCurrencyRate` is an optional Monero-only quote override. It means
-**1 USD = X system-currency units** and is used only when converting the chosen
-wallet top-up amount to the USD value of a new XMR invoice. Set it to `0` to
-retain the normal system display rate. For example, if a custom system currency
-is intentionally configured as `1 unit = 1 CNY` for other payment gateways,
-set this option to the live CNY-per-USD rate (such as `7.25`) when Monero
-invoices should use the real XMR/USD conversion. The selected rate is frozen on
-each invoice, so later configuration changes do not affect payment or credit
-settlement.
+**1 USD = X system-currency units** and is used when converting the chosen
+wallet top-up amount to the USD value of a new XMR invoice and when freezing
+its quota credit conversion. Set it to `0` to retain the normal system display
+rate. For example, if a custom system currency is intentionally configured as
+`1 unit = 1 CNY` for other payment gateways, set this option to the live
+CNY-per-USD rate (such as `7.25`) when Monero invoices should use the real
+XMR/USD conversion. The selected rate is frozen on each invoice, so later
+configuration changes do not affect payment or credit settlement.
 
 ### Subaddress capacity and safe audit
 
