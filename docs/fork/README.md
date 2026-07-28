@@ -1319,6 +1319,18 @@ Monero wallet-RPC password fields blank until an operator enters a replacement.
 The Waffo Pancake save endpoint also discards that placeholder defensively, so
 an older browser client cannot replace a persisted private key with `***`.
 
+### Waffo Pancake subscription pricing
+
+For a subscription plan with `WaffoPancakeProductId`, Waffo Pancake is the
+source of truth for the checkout price. Configure and publish the product price
+in Waffo Pancake, then select that product in the plan. NewAPI reads the
+configured product price to record the pending order and sends no checkout
+`PriceSnapshot`, so editing the plan's `price_amount` neither changes nor
+synchronizes the Pancake price. The optional create-product action can seed a
+new Pancake product from the plan, but later checkout prices remain controlled
+only in Waffo Pancake. The plan price remains available for other payment
+methods.
+
 The Monero completion toast uses the existing frontend i18n key
 `Monero payment credited successfully`, which is present in all supported
 locales.
