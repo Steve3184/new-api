@@ -1323,10 +1323,10 @@ an older browser client cannot replace a persisted private key with `***`.
 
 For a subscription plan with `WaffoPancakeProductId`, Waffo Pancake is the
 source of truth for the checkout price. Configure and publish the product price
-in Waffo Pancake, then select that product in the plan. NewAPI reads the
-configured product price to record the pending order and sends no checkout
-`PriceSnapshot`, so editing the plan's `price_amount` neither changes nor
-synchronizes the Pancake price. The optional create-product action can seed a
+in Waffo Pancake, then select that product in the plan. NewAPI sends no
+checkout `PriceSnapshot`, so editing the plan's `price_amount` neither changes
+nor synchronizes the Pancake price; the signed completion webhook records the
+actual Pancake payment amount. The optional create-product action can seed a
 new Pancake product from the plan, but later checkout prices remain controlled
 only in Waffo Pancake. The plan price remains available for other payment
 methods.

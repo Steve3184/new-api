@@ -158,6 +158,31 @@ func TestCompleteSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T
 	assert.Nil(t, topUp)
 }
 
+func TestCompleteSubscriptionOrderWithPaymentAmountRecordsVerifiedPayment(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 252, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 351)
+	insertSubscriptionOrderForPaymentGuardTest(t, "waffo-pancake-settled", 252, plan.Id, PaymentProviderWaffoPancake)
+
+	require.NoError(t, CompleteSubscriptionOrderWithPaymentAmount(
+		"waffo-pancake-settled",
+		`{"amount":"12.34"}`,
+		PaymentProviderWaffoPancake,
+		"",
+		12.34,
+	))
+
+	order := GetSubscriptionOrderByTradeNo("waffo-pancake-settled")
+	require.NotNil(t, order)
+	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
+	assert.InDelta(t, 12.34, order.Money, 0.000001)
+
+	topUp := GetTopUpByTradeNo("waffo-pancake-settled")
+	require.NotNil(t, topUp)
+	assert.InDelta(t, 12.34, topUp.Money, 0.000001)
+}
+
 func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) {
 	truncateTables(t)
 

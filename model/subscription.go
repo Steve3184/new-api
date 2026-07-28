@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -787,6 +788,19 @@ func refreshSubscriptionUserGroupCache(userId int, operation string) {
 // expectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
 // actualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
 func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string) error {
+	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, nil)
+}
+
+// CompleteSubscriptionOrderWithPaymentAmount completes an order using the
+// amount verified by its payment provider.
+func CompleteSubscriptionOrderWithPaymentAmount(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount float64) error {
+	if paymentAmount < 0 || math.IsNaN(paymentAmount) || math.IsInf(paymentAmount, 0) {
+		return errors.New("payment amount is invalid")
+	}
+	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, &paymentAmount)
+}
+
+func completeSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount *float64) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -813,7 +827,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -826,6 +840,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		if subscription.PrevUserGroup != "" {
 			upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
+		}
+		if paymentAmount != nil {
+			order.Money = *paymentAmount
 		}
 		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 			return err

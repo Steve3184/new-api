@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
-	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 )
 
@@ -52,25 +50,6 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "Waffo Pancake 未配置或密钥无效")
 		return
 	}
-	pancakePrice, err := service.GetWaffoPancakeConfiguredProductPrice(c.Request.Context(), plan.WaffoPancakeProductId)
-	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 获取订阅商品价格失败 plan_id=%d product_id=%s error=%q", plan.Id, plan.WaffoPancakeProductId, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取 Waffo Pancake 商品价格失败"})
-		return
-	}
-	pancakeMoney, err := decimal.NewFromString(pancakePrice.Amount)
-	if err != nil || !pancakeMoney.IsPositive() {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅商品价格无效 plan_id=%d product_id=%s amount=%q", plan.Id, plan.WaffoPancakeProductId, pancakePrice.Amount))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 商品价格无效"})
-		return
-	}
-	priceAmount := pancakeMoney.InexactFloat64()
-	if math.IsNaN(priceAmount) || math.IsInf(priceAmount, 0) {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅商品价格超出范围 plan_id=%d product_id=%s amount=%q", plan.Id, plan.WaffoPancakeProductId, pancakePrice.Amount))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 商品价格无效"})
-		return
-	}
-
 	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
@@ -101,7 +80,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           priceAmount,
+		Money:           0,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
 		PaymentProvider: model.PaymentProviderWaffoPancake,
@@ -117,7 +96,6 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	expiresInSeconds := 45 * 60
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
 		ProductID:               plan.WaffoPancakeProductId,
-		Currency:                pancakePrice.Currency,
 		BuyerIdentity:           service.WaffoPancakeBuyerIdentityFromUserID(user.Id),
 		BuyerEmail:              getWaffoPancakeBuyerEmail(user),
 		ExpiresInSeconds:        &expiresInSeconds,
@@ -130,7 +108,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建成功 user_id=%d plan_id=%d trade_no=%s session_id=%s money=%.2f currency=%s", userId, plan.Id, tradeNo, session.SessionID, priceAmount, pancakePrice.Currency))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建成功 user_id=%d plan_id=%d trade_no=%s session_id=%s", userId, plan.Id, tradeNo, session.SessionID))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",

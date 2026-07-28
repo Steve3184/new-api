@@ -561,7 +561,19 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		}
 		LockOrder(tradeNo)
 		defer UnlockOrder(tradeNo)
-		if err := model.CompleteSubscriptionOrder(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, ""); err != nil {
+		paymentAmount, err := decimal.NewFromString(strings.TrimSpace(event.Data.Amount))
+		if err != nil || !paymentAmount.IsPositive() {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅回调金额无效 trade_no=%s event_id=%s order_id=%s amount=%q", tradeNo, event.ID, event.Data.OrderID, event.Data.Amount))
+			c.String(http.StatusInternalServerError, "retry")
+			return
+		}
+		settledMoney := paymentAmount.InexactFloat64()
+		if math.IsNaN(settledMoney) || math.IsInf(settledMoney, 0) {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅回调金额超出范围 trade_no=%s event_id=%s order_id=%s amount=%q", tradeNo, event.ID, event.Data.OrderID, event.Data.Amount))
+			c.String(http.StatusInternalServerError, "retry")
+			return
+		}
+		if err := model.CompleteSubscriptionOrderWithPaymentAmount(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, "", settledMoney); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅完成失败 trade_no=%s event_id=%s order_id=%s client_ip=%s error=%q", tradeNo, event.ID, event.Data.OrderID, c.ClientIP(), err.Error()))
 			c.String(http.StatusInternalServerError, "retry")
 			return
