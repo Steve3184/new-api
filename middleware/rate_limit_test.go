@@ -38,8 +38,12 @@ func useRateLimitMiniRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 }
 
 func performRateLimitRequest(router http.Handler, path string, remoteAddr string) *httptest.ResponseRecorder {
+	return performRateLimitMethodRequest(router, http.MethodGet, path, remoteAddr)
+}
+
+func performRateLimitMethodRequest(router http.Handler, method, path, remoteAddr string) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, path, nil)
+	request := httptest.NewRequest(method, path, nil)
 	request.RemoteAddr = remoteAddr
 	router.ServeHTTP(recorder, request)
 	return recorder
@@ -91,6 +95,45 @@ func TestRedisUserRateLimiterUsesSharedFixedWindow(t *testing.T) {
 	key := redisUserRateLimitKey("USER", 42)
 	assert.True(t, redisServer.Exists(key))
 	assert.Equal(t, 23*time.Second, redisServer.TTL(key))
+}
+
+func TestLoginAndRegisterRateLimitsUseIndependentBuckets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+
+	previousEnabled := common.CriticalRateLimitEnable
+	previousLoginLimit := common.LoginRateLimitNum
+	previousLoginDuration := common.LoginRateLimitDuration
+	previousRegisterLimit := common.RegisterRateLimitNum
+	previousRegisterDuration := common.RegisterRateLimitDuration
+	common.CriticalRateLimitEnable = true
+	common.LoginRateLimitNum = 1
+	common.LoginRateLimitDuration = 60
+	common.RegisterRateLimitNum = 1
+	common.RegisterRateLimitDuration = 60
+	t.Cleanup(func() {
+		common.CriticalRateLimitEnable = previousEnabled
+		common.LoginRateLimitNum = previousLoginLimit
+		common.LoginRateLimitDuration = previousLoginDuration
+		common.RegisterRateLimitNum = previousRegisterLimit
+		common.RegisterRateLimitDuration = previousRegisterDuration
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.POST("/login", LoginRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	router.POST("/register", RegisterRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	remoteAddr := "192.0.2.20:12345"
+	assert.Equal(t, http.StatusNoContent, performRateLimitMethodRequest(router, http.MethodPost, "/login", remoteAddr).Code)
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitMethodRequest(router, http.MethodPost, "/login", remoteAddr).Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitMethodRequest(router, http.MethodPost, "/register", remoteAddr).Code)
+	assert.True(t, redisServer.Exists(redisIPRateLimitKey("LG", "192.0.2.20")))
+	assert.True(t, redisServer.Exists(redisIPRateLimitKey("RG", "192.0.2.20")))
 }
 
 func TestRedisEmailVerificationRateLimiterPreservesResponseAndTTL(t *testing.T) {

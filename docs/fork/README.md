@@ -1411,6 +1411,40 @@ Files:
 - `web/src/features/system-info/components/system-tasks-panel.tsx`
 - `docs/monero-payment.md`
 
+## Authentication rate-limit isolation
+
+Login and registration no longer share the general `CT` critical-operation IP
+bucket. Password login, passkey login, and 2FA verification use the dedicated
+`LG` bucket; registration uses the independent `RG` bucket. This prevents
+unrelated critical operations (for example, OAuth, password reset, or payment
+actions) from making a normal user wait before they can sign in or create an
+account.
+
+The default deployment values are intentionally modestly more permissive while
+preserving IP-based brute-force protection and the existing captcha checks:
+
+| Variable | Default | Scope |
+| --- | ---: | --- |
+| `LOGIN_RATE_LIMIT` | `30` | Password, passkey, and 2FA attempts per client IP |
+| `LOGIN_RATE_LIMIT_DURATION` | `600` | Login window in seconds |
+| `REGISTER_RATE_LIMIT` | `20` | Registration attempts per client IP |
+| `REGISTER_RATE_LIMIT_DURATION` | `600` | Registration window in seconds |
+
+`CRITICAL_RATE_LIMIT_ENABLE=false` still disables both dedicated buckets and
+the existing `CT` bucket. Keep it enabled for public deployments. Docker
+Compose operators can override the four values through the service `environment`
+section; the example entries are included in `docker-compose.yml`. The global
+API limit and the two-per-30-second email-verification limit remain unchanged.
+
+Files:
+
+- `common/constants.go`
+- `common/init.go`
+- `middleware/rate-limit.go`
+- `middleware/rate_limit_test.go`
+- `router/api-router.go`
+- `docker-compose.yml`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.

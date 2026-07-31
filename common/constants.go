@@ -266,6 +266,13 @@ var (
 	CriticalRateLimitNum            = 20
 	CriticalRateLimitDuration int64 = 20 * 60
 
+	// Authentication endpoints use dedicated buckets so normal sign-in and
+	// registration traffic cannot be exhausted by other critical operations.
+	LoginRateLimitNum               = 30
+	LoginRateLimitDuration    int64 = 10 * 60
+	RegisterRateLimitNum            = 20
+	RegisterRateLimitDuration int64 = 10 * 60
+
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60
 

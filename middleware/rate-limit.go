@@ -178,6 +178,24 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// LoginRateLimit protects password, passkey, and second-factor login attempts
+// without sharing a bucket with unrelated critical operations.
+func LoginRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.LoginRateLimitNum, common.LoginRateLimitDuration, "LG")
+	}
+	return defNext
+}
+
+// RegisterRateLimit keeps account creation attempts separate from login
+// traffic, while retaining the global critical-rate-limit switch.
+func RegisterRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.RegisterRateLimitNum, common.RegisterRateLimitDuration, "RG")
+	}
+	return defNext
+}
+
 func DownloadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
 }
