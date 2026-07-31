@@ -63,6 +63,7 @@ export type PerfSummaryAllData = {
 export type StatusGroup = {
   group: string
   availability: number
+  avg_latency_ms: number
   avg_ttft_ms: number
   cache_hit_rate: number
   cache_sample_count: number
@@ -74,6 +75,7 @@ export type StatusGroup = {
 
 export type StatusHistoryPoint = {
   ts: number
+  avg_latency_ms: number
   avg_ttft_ms: number
   ttft_sample_count: number
   cache_hit_rate: number

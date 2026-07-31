@@ -83,6 +83,25 @@ func GetPerfMetricsStatus(c *gin.Context) {
 		}
 	}
 
+	activeGroups := statusCheckActiveGroups()
+	var cacheExcludedModels []string
+	_ = common.UnmarshalJsonStr(common.StatusCheckCacheExcludedModels, &cacheExcludedModels)
+	result, err := perfmetrics.QueryStatus(hours, activeGroups, cacheExcludedModels)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    result,
+	})
+}
+
+func statusCheckActiveGroups() []string {
 	activeRatios := ratio_setting.GetGroupRatioCopy()
 	activeGroups := make([]string, 0, len(activeRatios)+1)
 	var configuredGroups []string
@@ -99,25 +118,52 @@ func GetPerfMetricsStatus(c *gin.Context) {
 			seen[group] = struct{}{}
 			activeGroups = append(activeGroups, group)
 		}
-	} else {
-		activeGroups = append(lo.Keys(activeRatios), "auto")
-		sort.Strings(activeGroups)
+		return activeGroups
 	}
-	var cacheExcludedModels []string
-	_ = common.UnmarshalJsonStr(common.StatusCheckCacheExcludedModels, &cacheExcludedModels)
-	result, err := perfmetrics.QueryStatus(hours, activeGroups, cacheExcludedModels)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
+	activeGroups = append(lo.Keys(activeRatios), "auto")
+	sort.Strings(activeGroups)
+	return activeGroups
+}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    result,
-	})
+type statusCheckFlexibleProbeGroup struct {
+	Group  string
+	Config perfmetrics.StatusCheckFlexibleGroupConfig
+}
+
+// statusCheckFlexibleProbeGroups deliberately requires both an explicit status
+// group list and an enabled per-group configuration. An empty visible-group
+// list means "show all" but must never turn every group into a billable active
+// probe target.
+func statusCheckFlexibleProbeGroups() []statusCheckFlexibleProbeGroup {
+	var configuredGroups []string
+	if err := common.UnmarshalJsonStr(common.StatusCheckGroups, &configuredGroups); err != nil || len(configuredGroups) == 0 {
+		return nil
+	}
+	flexibleConfig := perfmetrics.GetStatusCheckFlexibleConfig()
+	activeRatios := ratio_setting.GetGroupRatioCopy()
+	seen := make(map[string]struct{}, len(configuredGroups))
+	groups := make([]statusCheckFlexibleProbeGroup, 0, len(configuredGroups))
+	for _, group := range configuredGroups {
+		if group == "auto" {
+			continue
+		}
+		if _, exists := seen[group]; exists {
+			continue
+		}
+		if _, active := activeRatios[group]; !active {
+			continue
+		}
+		groupConfig, enabled := flexibleConfig.EnabledGroup(group)
+		if !enabled {
+			continue
+		}
+		seen[group] = struct{}{}
+		groups = append(groups, statusCheckFlexibleProbeGroup{
+			Group:  group,
+			Config: groupConfig,
+		})
+	}
+	return groups
 }
 
 func filterActiveGroups(groups []perfmetrics.GroupResult) []perfmetrics.GroupResult {

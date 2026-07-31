@@ -21,6 +21,7 @@ const (
 	SystemTaskTypeModelUpdate          = "model_update"
 	SystemTaskTypeMidjourneyPoll       = "midjourney_poll"
 	SystemTaskTypeAsyncTaskPoll        = "async_task_poll"
+	SystemTaskTypeStatusCheckProbe     = "status_check_probe"
 	SystemTaskTypeMoneroPaymentMonitor = "monero_payment_monitor"
 	SystemTaskTypeMoneroAddressAudit   = "monero_address_audit"
 )

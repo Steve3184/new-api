@@ -20,8 +20,36 @@ import (
 func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(channelTestHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
+	service.RegisterSystemTaskHandler(statusCheckProbeHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+}
+
+// statusCheckProbeHandler runs low-frequency, per-group active checks only
+// when the administrator has enabled flexible status checking.
+type statusCheckProbeHandler struct{}
+
+func (statusCheckProbeHandler) Type() string { return model.SystemTaskTypeStatusCheckProbe }
+
+func (statusCheckProbeHandler) Enabled() bool {
+	return len(statusCheckFlexibleProbeGroups()) > 0
+}
+
+func (statusCheckProbeHandler) Interval() time.Duration {
+	// Per-group idle windows can differ, so the lightweight scheduler wakes once
+	// per minute and only performs a channel test after a group's own window.
+	return time.Minute
+}
+
+func (statusCheckProbeHandler) NewPayload() any { return nil }
+
+func (statusCheckProbeHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := runStatusCheckProbeTask(ctx)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and

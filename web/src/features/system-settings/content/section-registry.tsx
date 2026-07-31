@@ -59,6 +59,7 @@ const CONTENT_SECTIONS = [
         defaultValue={settings.StatusCheckGroups}
         cacheExcludedModels={settings.StatusCheckCacheExcludedModels}
         announcement={settings.StatusCheckAnnouncement}
+        flexibleMode={settings.StatusCheckFlexibleMode}
         groupRatio={settings.GroupRatio}
         modelRatio={settings.ModelRatio}
       />

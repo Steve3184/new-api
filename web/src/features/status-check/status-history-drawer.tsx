@@ -52,14 +52,14 @@ export function StatusHistoryDrawer(props: StatusHistoryDrawerProps) {
         <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>{props.group?.group ?? t('Status Check')}</SheetTitle>
           <SheetDescription>
-            {t('First-token latency and cache hit rate over the last 24 hours')}
+            {t('Average latency and cache hit rate over the last 24 hours')}
           </SheetDescription>
         </SheetHeader>
         <div className={sideDrawerFormClassName()}>
           <SideDrawerSection>
             <SideDrawerSectionHeader
-              title={t('First-token latency')}
-              description={t('Synchronous requests are excluded.')}
+              title={t('Average latency')}
+              description={t('Includes passive requests and flexible active probes.')}
               icon={<TimerReset aria-hidden='true' />}
               iconTone='chart-1'
             />

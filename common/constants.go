@@ -148,17 +148,22 @@ var PaymentAnnouncement = ""
 // CustomTabs stores a JSON array of admin-defined sidebar tab entries
 var CustomTabs = "[]"
 
-// StatusCheckGroups stores the group names shown by the passive status page.
-// An empty JSON array shows every active group.
+// StatusCheckGroups stores the group names shown by the status page. An empty
+// JSON array shows every active group; flexible probes require explicit groups.
 var StatusCheckGroups = "[]"
 
 // StatusCheckCacheExcludedModels stores model names that should not contribute
-// to the passive status page's cache hit rate.
+// to the status page's cache hit rate.
 var StatusCheckCacheExcludedModels = "[]"
 
-// StatusCheckAnnouncement is optional markdown text shown above the passive
-// status page's group metrics.
+// StatusCheckAnnouncement is optional markdown text shown above the status
+// page's group metrics.
 var StatusCheckAnnouncement = ""
+
+// StatusCheckFlexibleMode controls low-frequency active probes for explicitly
+// configured status-check groups. Each group remains disabled until it gets an
+// enabled entry in this map.
+var StatusCheckFlexibleMode = `{"groups":{}}`
 
 // NoticePopupEnabled shows the system notice in the configured placement.
 var NoticePopupEnabled = false

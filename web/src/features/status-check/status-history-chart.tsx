@@ -37,11 +37,11 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
     () =>
       props.points
         .filter((point) =>
-          isLatency ? point.ttft_sample_count > 0 : point.cache_input_tokens > 0
+          isLatency ? point.avg_latency_ms > 0 : point.cache_input_tokens > 0
         )
         .map((point) => ({
           time: dayjs.unix(point.ts).format('HH:mm'),
-          value: isLatency ? point.avg_ttft_ms : point.cache_hit_rate,
+          value: isLatency ? point.avg_latency_ms : point.cache_hit_rate,
         })),
     [isLatency, props.points]
   )
@@ -73,7 +73,7 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
           title: { value: (datum: { time: string }) => datum.time },
           content: [
             {
-              key: isLatency ? t('First-token latency') : t('Cache hit rate'),
+              key: isLatency ? t('Average latency') : t('Cache hit rate'),
               value: (datum: { value: number }) =>
                 isLatency
                   ? `${Math.round(datum.value)} ms`

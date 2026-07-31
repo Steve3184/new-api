@@ -79,23 +79,22 @@ Files:
 - `web/default/src/features/channels/components/drawers/channel-mutate-drawer.tsx`
 - `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
-## Passive group status page
+## Group status page and flexible active probes
 
 The default frontend exposes a **Status Check** sidebar entry at `/status`.
 Each configured group is rendered as a card with 24-hour availability bars,
-average time to first token, and upstream cache hit rate. Clicking a card opens
-a right-side detail panel with hourly first-token latency and cache hit-rate
+average latency, and upstream cache hit rate. Clicking a card opens a
+right-side detail panel with hourly average-latency and cache hit-rate
 line charts. Each chart includes a left-side Y axis with `ms` or percentage
 tick labels and an hourly X axis. The chart bundle is loaded only when the
 detail panel is opened. The page refreshes `GET /api/status-check` every 30
-seconds; it only reads existing relay performance aggregates and does not send
-probes or model requests. Availability lines use a fixed 3-pixel width and
-4-pixel gap, while their count adapts to the card's available width. The card
-grid uses an explicit single-column track on mobile, and its contents can
-shrink without widening the page.
+seconds. Availability lines use a fixed 3-pixel width and 4-pixel gap, while
+their count adapts to the card's available width. The card grid uses an
+explicit single-column track on mobile, and its contents can shrink without
+widening the page.
 Synchronous requests contribute to request, availability, and cache statistics
-but never to the first-token metric, which is only recorded for streaming
-responses.
+but do not produce a first-token timing sample. Average latency includes all
+recorded requests.
 
 `StatusCheckGroups` is an additive JSON-array option. Configure it under
 **System Settings → Console Content → Status Check**. An empty array displays
@@ -107,6 +106,49 @@ settings section. Requests from listed model names still contribute to
 availability and latency, but their cache samples and hits are omitted from the
 current and hourly cache hit-rate calculations. This lets administrators
 exclude models or providers that do not support cache reporting.
+
+`StatusCheckFlexibleMode` is an additive JSON-object option in the same
+settings section. Its default is `{ "groups": {} }`, which creates no active
+probes:
+
+```json
+{
+  "groups": {
+    "default": {
+      "enabled": true,
+      "idle_minutes": 15,
+      "max_consecutive_probes": 40
+    },
+    "vip": {
+      "enabled": false,
+      "idle_minutes": 5,
+      "max_consecutive_probes": 20
+    }
+  }
+}
+```
+
+Each key is a separately configured group. Flexible probing requires a
+non-empty explicit `StatusCheckGroups` list, and only groups that appear in
+both that list and the JSON object with `enabled: true` are eligible. The
+automatic `auto` group is never eligible. For every enabled group, the
+scheduled task waits until that group has had no normal relay request for its
+own `idle_minutes`, then tests one enabled channel in that group. A probe is a
+no-charge channel test: its success result and end-to-end latency contribute to
+the group's availability and average-latency data, while all cache counters and
+cache-token fields remain zero. It never enables, disables, or otherwise
+changes channel state.
+
+The first probe waits for a full idle period after a group is configured. Each
+subsequent automatic probe increments that group's consecutive-probe count. A
+normal relay request resets the streak; once the count reaches
+that group's `max_consecutive_probes`, automatic tests pause until normal
+traffic resumes. The values are validated as `1..1440` idle minutes and
+`1..1000` consecutive probes per group. The scheduler checks eligibility once
+per minute so groups with different idle periods remain independent. Passive
+activity is shared through Redis when available and uses a rate-limited
+database fallback otherwise, so the schedule is safe across multiple master
+nodes.
 
 The status entry is part of the existing `SidebarModulesAdmin` and per-user
 `sidebar_modules` console section under the additive `status` key. Existing
@@ -138,8 +180,11 @@ instead of **Models & Routing**. Its persisted option remains
 Files:
 
 - `model/perf_metric.go`
+- `model/status_check_probe_state.go`
 - `pkg/perf_metrics/`
 - `controller/perf_metrics.go`
+- `controller/status_check_probe_task.go`
+- `controller/system_task_handlers.go`
 - `router/api-router.go`
 - `common/constants.go`
 - `model/option.go`

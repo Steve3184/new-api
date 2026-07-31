@@ -8,8 +8,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
-// QueryStatus aggregates the passive relay metrics by configured group. It
-// never probes an upstream model, so callers can safely use it for a status UI.
+// QueryStatus aggregates configured-group relay metrics and, when enabled,
+// low-frequency flexible active probes. Probe samples have no cache fields.
 func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (StatusResult, error) {
 	if hours <= 0 {
 		hours = 24
@@ -119,6 +119,7 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 			cacheRate := cacheTokenRate(value)
 			history = append(history, StatusHistoryPoint{
 				Ts:               ts,
+				AvgLatencyMs:     avg(value.totalLatencyMs, value.requestCount),
 				AvgTtftMs:        avg(value.ttftSumMs, value.ttftCount),
 				TtftSampleCount:  value.ttftCount,
 				CacheHitRate:     math.Round(cacheRate*100) / 100,
@@ -136,6 +137,7 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		result = append(result, StatusGroup{
 			Group:            group,
 			Availability:     math.Round(successRate(total)*100) / 100,
+			AvgLatencyMs:     avg(total.totalLatencyMs, total.requestCount),
 			AvgTtftMs:        avg(total.ttftSumMs, total.ttftCount),
 			CacheHitRate:     math.Round(cacheRate*100) / 100,
 			CacheSampleCount: total.cacheSampleCount,

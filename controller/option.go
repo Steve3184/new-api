@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
@@ -358,6 +359,14 @@ func UpdateOption(c *gin.Context) {
 				common.ApiErrorMsg(c, "status check entries must be non-empty and at most 256 characters")
 				return
 			}
+		}
+	case "StatusCheckFlexibleMode":
+		if _, err = perfmetrics.ParseStatusCheckFlexibleConfig(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
 		}
 	case "PlaygroundSettings":
 		if err = playground_setting.ValidateJSONString(option.Value.(string)); err != nil {

@@ -365,6 +365,23 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 	return channels, err
 }
 
+// GetEnabledChannelForStatusCheckProbe returns one stable enabled channel for
+// an explicit group. Flexible status probes never revive or disable channels.
+func GetEnabledChannelForStatusCheckProbe(group string) (*Channel, error) {
+	var channel Channel
+	query := ApplyChannelGroupFilter(DB, group).
+		Where("status = ?", common.ChannelStatusEnabled).
+		Order("priority desc").
+		Order("id asc")
+	if err := query.First(&channel).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &channel, nil
+}
+
 func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
 	order := resolveChannelSortOptions(idSort, sortOptions)

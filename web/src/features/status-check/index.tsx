@@ -80,7 +80,9 @@ export function StatusCheck() {
             )}
             <div className='text-muted-foreground flex items-center gap-2 text-sm'>
               <HeartPulse className='size-4' />
-              <span>{t('Passive relay metrics from the last 24 hours')}</span>
+              <span>
+                {t('Relay metrics and flexible probe results from the last 24 hours')}
+              </span>
             </div>
             <StatusGroupsContent
               loading={query.isLoading}
@@ -183,8 +185,8 @@ function StatusGroupCard(props: { group: StatusGroup; onClick: () => void }) {
           <AvailabilityBars rates={props.group.availability_24h} />
           <div className='grid grid-cols-2 gap-3'>
             <Metric
-              label={t('First-token latency')}
-              value={formatLatency(props.group.avg_ttft_ms)}
+              label={t('Average latency')}
+              value={formatLatency(props.group.avg_latency_ms)}
             />
             <Metric
               label={t('Cache hit rate')}

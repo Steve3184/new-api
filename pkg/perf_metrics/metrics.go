@@ -29,6 +29,9 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 	if info == nil {
 		return
 	}
+	if !info.IsChannelTest {
+		NoteStatusCheckPassiveActivity(info.UsingGroup)
+	}
 	now := time.Now()
 	hasTtft := info.IsStream && info.HasSendResponse()
 	ttftMs := int64(0)
@@ -200,6 +203,9 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	totals := map[string]counters{}
 	modelBuckets := map[string]map[int64]counters{}
 	for _, row := range rows {
+		if row.ModelName == StatusCheckProbeModel {
+			continue
+		}
 		value := counters{
 			requestCount:   row.RequestCount,
 			successCount:   row.SuccessCount,
@@ -213,6 +219,9 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 
 	hotBuckets.Range(func(key, value any) bool {
 		k := key.(bucketKey)
+		if k.model == StatusCheckProbeModel {
+			return true
+		}
 		if k.bucketTs < startTs || k.bucketTs > endTs {
 			return true
 		}

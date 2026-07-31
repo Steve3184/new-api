@@ -56,6 +56,7 @@ const STATUS_RELATED_KEYS = new Set([
   'StatusCheckGroups',
   'StatusCheckCacheExcludedModels',
   'StatusCheckAnnouncement',
+  'StatusCheckFlexibleMode',
   'PlaygroundSettings',
   'oidc.display_name',
 ])
@@ -63,6 +64,7 @@ const STATUS_RELATED_KEYS = new Set([
 const STATUS_CHECK_RELATED_KEYS = new Set([
   'StatusCheckGroups',
   'StatusCheckCacheExcludedModels',
+  'StatusCheckFlexibleMode',
 ])
 
 export function useUpdateOption() {

@@ -48,6 +48,7 @@ type GroupResult struct {
 type StatusGroup struct {
 	Group            string               `json:"group"`
 	Availability     float64              `json:"availability"`
+	AvgLatencyMs     int64                `json:"avg_latency_ms"`
 	AvgTtftMs        int64                `json:"avg_ttft_ms"`
 	CacheHitRate     float64              `json:"cache_hit_rate"`
 	CacheSampleCount int64                `json:"cache_sample_count"`
@@ -59,6 +60,7 @@ type StatusGroup struct {
 
 type StatusHistoryPoint struct {
 	Ts               int64   `json:"ts"`
+	AvgLatencyMs     int64   `json:"avg_latency_ms"`
 	AvgTtftMs        int64   `json:"avg_ttft_ms"`
 	TtftSampleCount  int64   `json:"ttft_sample_count"`
 	CacheHitRate     float64 `json:"cache_hit_rate"`
