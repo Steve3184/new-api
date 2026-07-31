@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
@@ -117,7 +118,12 @@ export function CommonLogsFilterBar<TData>(
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const { isAdminView: isAdmin } = useLogsViewScope()
-  const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
+  const {
+    sensitiveVisible,
+    setSensitiveVisible,
+    autoRefreshEnabled,
+    setAutoRefreshEnabled,
+  } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
   const searchState = useMemo<CommonLogDraft>(() => {
@@ -226,6 +232,25 @@ export function CommonLogsFilterBar<TData>(
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
   }, [navigate, queryClient])
 
+  const handleAutoRefreshChange = useCallback(
+    async (enabled: boolean) => {
+      if (!enabled) {
+        setAutoRefreshEnabled(false)
+        return
+      }
+
+      await navigate({
+        to: '/usage-logs/$section',
+        params: { section: 'common' },
+        search: { ...searchParams, page: 1 },
+      })
+      setAutoRefreshEnabled(true)
+      queryClient.invalidateQueries({ queryKey: ['logs'] })
+      queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
+    },
+    [navigate, queryClient, searchParams, setAutoRefreshEnabled]
+  )
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') handleApply()
@@ -266,6 +291,15 @@ export function CommonLogsFilterBar<TData>(
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
+      <label className='text-muted-foreground flex items-center gap-2 text-xs'>
+        <span>{t('Auto refresh')}</span>
+        <Switch
+          size='sm'
+          checked={autoRefreshEnabled}
+          onCheckedChange={handleAutoRefreshChange}
+          aria-label={t('Auto refresh')}
+        />
+      </label>
     </div>
   )
   const sensitiveToggle = (

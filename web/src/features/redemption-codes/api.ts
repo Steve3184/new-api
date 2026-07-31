@@ -93,6 +93,14 @@ export async function deleteRedemption(id: number): Promise<ApiResponse> {
   return res.data
 }
 
+// Batch delete redemption codes
+export async function batchDeleteRedemptions(
+  ids: number[]
+): Promise<ApiResponse<number>> {
+  const res = await api.post('/api/redemption/batch', { ids })
+  return res.data
+}
+
 // Delete invalid redemption codes (used, disabled, expired)
 export async function deleteInvalidRedemptions(): Promise<ApiResponse<number>> {
   const res = await api.delete('/api/redemption/invalid')

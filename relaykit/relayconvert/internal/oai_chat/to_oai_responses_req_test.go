@@ -75,6 +75,27 @@ func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *
 	}
 }
 
+func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheFields(t *testing.T) {
+	req := &dto.GeneralOpenAIRequest{
+		Model:                "gpt-test",
+		PromptCacheKey:       "stable-conversation-key",
+		PromptCacheRetention: json.RawMessage(`"24h"`),
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+
+	got, err := ChatCompletionsRequestToResponsesRequest(req)
+	require.NoError(t, err)
+	assert.JSONEq(t, `"stable-conversation-key"`, string(got.PromptCacheKey))
+	assert.JSONEq(t, `"24h"`, string(got.PromptCacheRetention))
+
+	encoded, err := kitutil.Marshal(got)
+	require.NoError(t, err)
+	assert.Equal(t, "stable-conversation-key", gjson.GetBytes(encoded, "prompt_cache_key").String())
+	assert.Equal(t, "24h", gjson.GetBytes(encoded, "prompt_cache_retention").String())
+}
+
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {
 	_, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
 		Model: "gpt-test",

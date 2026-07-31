@@ -100,6 +100,30 @@ func TestSearchRedemptionsFiltersAndPaginates(t *testing.T) {
 	}
 }
 
+func TestBatchDeleteRedemptionsDeletesOnlyRequestedCodes(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	})
+
+	redemptions := []Redemption{
+		{Id: 101, Name: "batch-one", Key: "00000000000000000000000000000101", Status: common.RedemptionCodeStatusEnabled},
+		{Id: 102, Name: "batch-two", Key: "00000000000000000000000000000102", Status: common.RedemptionCodeStatusEnabled},
+		{Id: 103, Name: "batch-keep", Key: "00000000000000000000000000000103", Status: common.RedemptionCodeStatusEnabled},
+	}
+	require.NoError(t, DB.Create(&redemptions).Error)
+
+	deletedCount, err := BatchDeleteRedemptions([]int{101, 102, 102})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), deletedCount)
+
+	var remaining []Redemption
+	require.NoError(t, DB.Order("id asc").Find(&remaining).Error)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, 103, remaining[0].Id)
+}
+
 func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	t.Helper()
 	require.NoError(t, DB.AutoMigrate(&Redemption{}))

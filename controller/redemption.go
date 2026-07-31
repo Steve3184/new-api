@@ -156,6 +156,50 @@ func DeleteRedemption(c *gin.Context) {
 	return
 }
 
+type RedemptionBatch struct {
+	Ids []int `json:"ids"`
+}
+
+func DeleteRedemptionBatch(c *gin.Context) {
+	redemptionBatch := RedemptionBatch{}
+	if err := c.ShouldBindJSON(&redemptionBatch); err != nil || len(redemptionBatch.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if len(redemptionBatch.Ids) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
+		return
+	}
+
+	ids := make([]int, 0, len(redemptionBatch.Ids))
+	seen := make(map[int]struct{}, len(redemptionBatch.Ids))
+	for _, id := range redemptionBatch.Ids {
+		if id <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	deletedCount, err := model.BatchDeleteRedemptions(ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "redemption.delete_batch", map[string]interface{}{
+		"count": deletedCount,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    deletedCount,
+	})
+}
+
 func UpdateRedemption(c *gin.Context) {
 	statusOnly := c.Query("status_only")
 	redemption := model.Redemption{}

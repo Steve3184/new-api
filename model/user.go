@@ -17,7 +17,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const UserNameMaxLength = 20
+const (
+	UserNameMaxLength         = 20
+	affCodeLength             = 8
+	affCodeAllocationAttempts = 16
+)
 
 var userSortColumns = map[string]string{
 	"id":            "id",
@@ -589,6 +593,108 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 	return nil
 }
 
+func newAffiliateCode() string {
+	return common.GetRandomString(affCodeLength)
+}
+
+func isAffCodeUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	if !strings.Contains(message, "aff_code") {
+		return false
+	}
+	return strings.Contains(message, "duplicate") ||
+		strings.Contains(message, "unique") ||
+		strings.Contains(message, "constraint")
+}
+
+// allocateUniqueAffCode assigns an unused affiliate code and persists it in
+// the supplied transaction. The pre-check avoids common collisions, while the
+// savepoint lets PostgreSQL, MySQL, and SQLite recover from a concurrent
+// unique-index conflict without aborting the surrounding transaction.
+func allocateUniqueAffCode(tx *gorm.DB, user *User, nextCode func() string, persist func(*gorm.DB) error) error {
+	for attempt := 0; attempt < affCodeAllocationAttempts; attempt++ {
+		affCode := nextCode()
+		if affCode == "" {
+			return errors.New("generated affiliate code is empty")
+		}
+
+		var count int64
+		if err := tx.Unscoped().Model(&User{}).Where("aff_code = ?", affCode).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+
+		savepoint := fmt.Sprintf("aff_code_%d", attempt)
+		if err := tx.SavePoint(savepoint).Error; err != nil {
+			return err
+		}
+
+		user.AffCode = affCode
+		err := persist(tx)
+		if err == nil {
+			return nil
+		}
+		if rollbackErr := tx.RollbackTo(savepoint).Error; rollbackErr != nil {
+			return rollbackErr
+		}
+		if !isAffCodeUniqueConstraintError(err) {
+			return err
+		}
+	}
+	return fmt.Errorf("failed to allocate a unique affiliate code after %d attempts", affCodeAllocationAttempts)
+}
+
+func (user *User) insertWithUniqueAffCode(tx *gorm.DB) error {
+	return allocateUniqueAffCode(tx, user, newAffiliateCode, func(tx *gorm.DB) error {
+		return tx.Create(user).Error
+	})
+}
+
+// EnsureUserAffCode assigns an affiliate code to legacy users that do not
+// have one yet. Existing affiliate codes are returned unchanged.
+func EnsureUserAffCode(userId int) (string, error) {
+	var affCode string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		user := User{}
+		if err := lockForUpdate(tx).Select("id", "aff_code").First(&user, userId).Error; err != nil {
+			return err
+		}
+		if user.AffCode != "" {
+			affCode = user.AffCode
+			return nil
+		}
+
+		return allocateUniqueAffCode(tx, &user, newAffiliateCode, func(tx *gorm.DB) error {
+			result := tx.Model(&User{}).
+				Where("id = ? AND aff_code = ?", user.Id, "").
+				Update("aff_code", user.AffCode)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected > 0 {
+				affCode = user.AffCode
+				return nil
+			}
+
+			var current User
+			if err := tx.Select("aff_code").First(&current, user.Id).Error; err != nil {
+				return err
+			}
+			if current.AffCode == "" {
+				return errors.New("affiliate code was not assigned")
+			}
+			affCode = current.AffCode
+			return nil
+		})
+	})
+	return affCode, err
+}
+
 func (user *User) Insert(inviterId int) error {
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
@@ -596,7 +702,6 @@ func (user *User) Insert(inviterId int) error {
 				return err
 			}
 			user.Quota = common.QuotaForNewUser
-			user.AffCode = common.GetRandomString(4)
 
 			// 初始化用户设置，包括默认的边栏配置
 			if user.Setting == "" {
@@ -605,7 +710,7 @@ func (user *User) Insert(inviterId int) error {
 				user.SetSetting(defaultSetting)
 			}
 
-			return tx.Create(user).Error
+			return user.insertWithUniqueAffCode(tx)
 		})
 	}); err != nil {
 		return err
@@ -660,7 +765,6 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			return err
 		}
 		user.Quota = common.QuotaForNewUser
-		user.AffCode = common.GetRandomString(4)
 
 		// 初始化用户设置
 		if user.Setting == "" {
@@ -668,7 +772,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			user.SetSetting(defaultSetting)
 		}
 
-		return tx.Create(user).Error
+		return user.insertWithUniqueAffCode(tx)
 	})
 }
 
