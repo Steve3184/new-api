@@ -57,6 +57,7 @@ const STATUS_RELATED_KEYS = new Set([
   'StatusCheckCacheExcludedModels',
   'StatusCheckAnnouncement',
   'PlaygroundSettings',
+  'oidc.display_name',
 ])
 
 const STATUS_CHECK_RELATED_KEYS = new Set([
