@@ -208,6 +208,13 @@ at `https://api.hcaptcha.com/siteverify`. The browser sends the verification
 token as the `hcaptcha` query parameter; the backend also accepts hCaptcha's
 standard `h-captcha-response` name for compatibility.
 
+Email binding renders the active captcha provider before it sends a verification
+email. For registration, a valid email verification code is accepted as proof
+that the email-verification flow already completed the captcha, so the
+registration request does not require a second human-verification challenge.
+The registration form hides the completed challenge after the email is sent,
+and the redemption security-check dialog includes an explicit Cancel action.
+
 The widget dependency is loaded from the pinned CDN release
 `cap-widget@0.1.50`; review and update that version deliberately during
 upstream syncs instead of following the moving `latest` tag.

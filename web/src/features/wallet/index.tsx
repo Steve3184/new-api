@@ -25,6 +25,7 @@ import { Dialog } from '@/components/dialog'
 import { HCaptcha } from '@/components/hcaptcha'
 import { SectionPageLayout } from '@/components/layout'
 import { Turnstile } from '@/components/turnstile'
+import { Button } from '@/components/ui/button'
 import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -108,6 +109,12 @@ export function Wallet(props: WalletProps) {
     setCaptchaToken,
     tokenQueryParam,
   } = useCaptcha('redemption')
+
+  const closeRedemptionCaptcha = () => {
+    setRedemptionCaptchaOpen(false)
+    setRedemptionCaptchaKey((value) => value + 1)
+    setCaptchaToken('')
+  }
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -351,16 +358,25 @@ export function Wallet(props: WalletProps) {
       <Dialog
         open={redemptionCaptchaOpen}
         onOpenChange={(open) => {
-          setRedemptionCaptchaOpen(open)
-          if (!open) {
-            setRedemptionCaptchaKey((value) => value + 1)
-            setCaptchaToken('')
+          if (open) {
+            setRedemptionCaptchaOpen(true)
+            return
           }
+          closeRedemptionCaptcha()
         }}
         title={t('Security Check')}
         contentClassName='sm:max-w-md'
         contentHeight='auto'
         bodyClassName='space-y-4'
+        footer={
+          <Button
+            type='button'
+            variant='outline'
+            onClick={closeRedemptionCaptcha}
+          >
+            {t('Cancel')}
+          </Button>
+        }
       >
         <div className='text-muted-foreground text-sm'>
           {t('Please complete the security check to continue.')}

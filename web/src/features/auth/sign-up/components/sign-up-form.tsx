@@ -63,6 +63,7 @@ export function SignUpForm({
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
+  const [verificationEmail, setVerificationEmail] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
@@ -116,7 +117,11 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const captchaReady = !isCaptchaEnabled || Boolean(captchaToken)
+  const emailForVerification = (emailValue ?? '').trim().toLowerCase()
+  const emailVerificationReady =
+    emailForVerification !== '' && emailForVerification === verificationEmail
+  const captchaReady =
+    emailVerificationReady || !isCaptchaEnabled || Boolean(captchaToken)
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -165,7 +170,7 @@ export function SignUpForm({
       }
     }
 
-    if (!validateCaptcha()) return
+    if (!emailVerificationReady && !validateCaptcha()) return
 
     setIsLoading(true)
     try {
@@ -203,6 +208,7 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     if (await sendCode(emailValue || '')) {
+      setVerificationEmail(emailForVerification)
       setCaptchaToken('')
       setTurnstileWidgetKey((current) => current + 1)
     }
@@ -375,7 +381,7 @@ export function SignUpForm({
         )}
 
         {/* Captcha */}
-        {isTurnstileEnabled && (
+        {!emailVerificationReady && isTurnstileEnabled && (
           <div className='mt-2'>
             <Turnstile
               key={turnstileWidgetKey}
@@ -384,7 +390,7 @@ export function SignUpForm({
             />
           </div>
         )}
-        {isHCaptchaEnabled && (
+        {!emailVerificationReady && isHCaptchaEnabled && (
           <div className='mt-2'>
             <HCaptcha
               siteKey={hCaptchaSiteKey}
@@ -394,7 +400,7 @@ export function SignUpForm({
             />
           </div>
         )}
-        {isCapEnabled && (
+        {!emailVerificationReady && isCapEnabled && (
           <div className='mt-2'>
             <Cap
               apiEndpoint={capApiEndpoint}

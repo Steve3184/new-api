@@ -100,13 +100,12 @@ export async function generateAccessToken(): Promise<ApiResponse<string>> {
  */
 export async function sendEmailVerification(
   email: string,
-  turnstileToken?: string
+  captchaToken?: string,
+  captchaParamName: string = 'turnstile'
 ): Promise<ApiResponse> {
-  const params = new URLSearchParams({ email })
-  if (turnstileToken) {
-    params.append('turnstile', turnstileToken)
-  }
-  const res = await api.get(`/api/verification?${params}`)
+  const res = await api.get('/api/verification', {
+    params: { email, [captchaParamName]: captchaToken },
+  })
   return res.data
 }
 

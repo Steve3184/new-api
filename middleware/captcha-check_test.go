@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +11,71 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCaptchaCheckRegisterSkipsCaptchaForVerifiedEmailCode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousEmailVerificationEnabled := common.EmailVerificationEnabled
+	previousCaptchaType := common.CaptchaType
+	previousCapEnabled := common.CapEnabled
+	common.EmailVerificationEnabled = true
+	common.CaptchaType = "cap"
+	common.CapEnabled = true
+	const email = "verified@example.com"
+	const code = "123456"
+	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
+	t.Cleanup(func() {
+		common.EmailVerificationEnabled = previousEmailVerificationEnabled
+		common.CaptchaType = previousCaptchaType
+		common.CapEnabled = previousCapEnabled
+		common.DeleteKey(email, common.EmailVerificationPurpose)
+	})
+
+	router := gin.New()
+	router.POST("/register", CaptchaCheckRegister(), func(c *gin.Context) {
+		var request struct {
+			Email string `json:"email"`
+		}
+		require.NoError(t, common.DecodeJson(c.Request.Body, &request))
+		assert.Equal(t, email, request.Email)
+		c.JSON(http.StatusOK, gin.H{"success": true})
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"email":"verified@example.com","verification_code":"123456"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"success":true}`, recorder.Body.String())
+}
+
+func TestCaptchaCheckRegisterRequiresCaptchaForInvalidEmailCode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousEmailVerificationEnabled := common.EmailVerificationEnabled
+	previousCaptchaType := common.CaptchaType
+	previousCapEnabled := common.CapEnabled
+	common.EmailVerificationEnabled = true
+	common.CaptchaType = "cap"
+	common.CapEnabled = true
+	t.Cleanup(func() {
+		common.EmailVerificationEnabled = previousEmailVerificationEnabled
+		common.CaptchaType = previousCaptchaType
+		common.CapEnabled = previousCapEnabled
+	})
+
+	router := gin.New()
+	router.POST("/register", CaptchaCheckRegister(), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"success": true})
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"email":"unverified@example.com","verification_code":"wrong"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"success":false,"message":"Cap token 为空"}`, recorder.Body.String())
+}
 
 func TestCaptchaCheckRedemptionDisabledPassesThrough(t *testing.T) {
 	gin.SetMode(gin.TestMode)

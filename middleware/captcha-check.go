@@ -1,9 +1,12 @@
 package middleware
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,6 +24,37 @@ func CaptchaCheck() gin.HandlerFunc {
 			// "turnstile" or any unrecognised value falls back to Turnstile
 			TurnstileCheck()(c)
 		}
+	}
+}
+
+// CaptchaCheckRegister accepts a verified email code as proof that the user
+// already completed the registration captcha when requesting that code. This
+// avoids asking for a second challenge while preserving captcha enforcement for
+// registrations without a valid email verification code.
+func CaptchaCheckRegister() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if common.EmailVerificationEnabled {
+			body, err := io.ReadAll(c.Request.Body)
+			if err != nil {
+				common.ApiError(c, err)
+				c.Abort()
+				return
+			}
+			c.Request.Body = io.NopCloser(bytes.NewReader(body))
+
+			var request struct {
+				Email            string `json:"email"`
+				VerificationCode string `json:"verification_code"`
+			}
+			if err := common.Unmarshal(body, &request); err == nil &&
+				request.Email != "" && request.VerificationCode != "" &&
+				common.VerifyCodeWithKey(model.NormalizeEmail(request.Email), request.VerificationCode, common.EmailVerificationPurpose) {
+				c.Next()
+				return
+			}
+		}
+
+		CaptchaCheck()(c)
 	}
 }
 
