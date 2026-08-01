@@ -171,10 +171,9 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if provider.TokenEndpoint == "" {
 		return errors.New("token endpoint is required")
 	}
-	if provider.UserInfoEndpoint == "" {
-		return errors.New("user info endpoint is required")
+	if provider.UserInfoEndpoint == "" && strings.TrimSpace(provider.WellKnown) == "" {
+		return errors.New("user info endpoint or discovery URL is required")
 	}
-
 	// Set defaults for field mappings if empty
 	if provider.UserIdField == "" {
 		provider.UserIdField = "sub"

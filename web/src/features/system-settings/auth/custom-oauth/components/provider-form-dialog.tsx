@@ -488,7 +488,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
               name='user_info_endpoint'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('User Info Endpoint')}</FormLabel>
+                  <FormLabel>{t('User Info Endpoint (Optional)')}</FormLabel>
                   <FormControl>
                     <Input
                       placeholder='https://provider.com/api/user'

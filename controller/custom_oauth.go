@@ -121,7 +121,7 @@ type CreateCustomOAuthProviderRequest struct {
 	ClientSecret          string `json:"client_secret" binding:"required"`
 	AuthorizationEndpoint string `json:"authorization_endpoint" binding:"required"`
 	TokenEndpoint         string `json:"token_endpoint" binding:"required"`
-	UserInfoEndpoint      string `json:"user_info_endpoint" binding:"required"`
+	UserInfoEndpoint      string `json:"user_info_endpoint"`
 	Scopes                string `json:"scopes"`
 	UserIdField           string `json:"user_id_field"`
 	UsernameField         string `json:"username_field"`
@@ -276,7 +276,7 @@ type UpdateCustomOAuthProviderRequest struct {
 	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
 	AuthorizationEndpoint string  `json:"authorization_endpoint"`
 	TokenEndpoint         string  `json:"token_endpoint"`
-	UserInfoEndpoint      string  `json:"user_info_endpoint"`
+	UserInfoEndpoint      *string `json:"user_info_endpoint"` // Optional: if nil, keep existing
 	Scopes                string  `json:"scopes"`
 	UserIdField           string  `json:"user_id_field"`
 	UsernameField         string  `json:"username_field"`
@@ -350,8 +350,8 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.TokenEndpoint != "" {
 		provider.TokenEndpoint = req.TokenEndpoint
 	}
-	if req.UserInfoEndpoint != "" {
-		provider.UserInfoEndpoint = req.UserInfoEndpoint
+	if req.UserInfoEndpoint != nil {
+		provider.UserInfoEndpoint = *req.UserInfoEndpoint
 	}
 	if req.Scopes != "" {
 		provider.Scopes = req.Scopes

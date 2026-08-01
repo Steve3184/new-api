@@ -921,6 +921,27 @@ func (user *User) ClearBinding(bindingType string) error {
 		return errors.New("user id is empty")
 	}
 
+	bindingTypeAliases := map[string]string{
+		"email":       "email",
+		"github":      "github",
+		"github_id":   "github",
+		"discord":     "discord",
+		"discord_id":  "discord",
+		"oidc":        "oidc",
+		"oidc_id":     "oidc",
+		"wechat":      "wechat",
+		"wechat_id":   "wechat",
+		"telegram":    "telegram",
+		"telegram_id": "telegram",
+		"linuxdo":     "linuxdo",
+		"linux_do_id": "linuxdo",
+	}
+	bindingType = strings.ToLower(strings.TrimSpace(bindingType))
+	bindingType, ok := bindingTypeAliases[bindingType]
+	if !ok {
+		return errors.New("invalid binding type")
+	}
+
 	bindingColumnMap := map[string]string{
 		"email":    "email",
 		"github":   "github_id",
@@ -931,10 +952,7 @@ func (user *User) ClearBinding(bindingType string) error {
 		"linuxdo":  "linux_do_id",
 	}
 
-	column, ok := bindingColumnMap[bindingType]
-	if !ok {
-		return errors.New("invalid binding type")
-	}
+	column := bindingColumnMap[bindingType]
 
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&User{}).Where("id = ?", user.Id).Update(column, "").Error; err != nil {

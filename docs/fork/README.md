@@ -39,6 +39,42 @@ upstream conflict resolution auditable.
   NewAPI quota value.
 - No files under `web/classic` are modified.
 
+## OAuth binding and custom provider flow
+
+The admin user-binding dialog sends canonical binding types (`github`,
+`discord`, `oidc`, `wechat`, `telegram`, and `linuxdo`) instead of database
+field names. The backend also accepts the previous field-name aliases for
+compatibility, so existing clients can still clear bindings.
+
+Custom OAuth providers use the same state-protected `/oauth/{slug}` callback
+for login and popup binding. The frontend creates an OAuth flow, redirects to
+the configured authorization endpoint, and sends the callback to
+`/api/oauth/{slug}`. The backend exchanges the code at the configured token
+endpoint, then either fetches the configured profile endpoint with the returned
+Bearer token or, when that endpoint is empty, reads claims from the returned
+OIDC `id_token` after verifying its issuer, audience, expiry, and signature
+against the configured discovery document's JWKS. This supports providers whose
+token and profile endpoints are separate as well as Telegram's OIDC flow, which
+returns profile claims in the ID token and has no separate UserInfo endpoint.
+
+The custom OAuth preset list includes Telegram with these defaults:
+`https://oauth.telegram.org/auth`, `https://oauth.telegram.org/token`, scopes
+`openid profile`, and claims `sub`, `preferred_username`, and `name`.
+
+Files:
+
+- `model/user.go`
+- `model/user_binding_test.go`
+- `oauth/generic.go`
+- `oauth/generic_test.go`
+- `model/custom_oauth_provider.go`
+- `model/custom_oauth_provider_test.go`
+- `controller/custom_oauth.go`
+- `web/src/features/users/components/dialogs/user-binding-dialog.tsx`
+- `web/src/features/system-settings/auth/custom-oauth/types.ts`
+- `web/src/features/system-settings/auth/custom-oauth/components/preset-selector.tsx`
+- `web/src/features/system-settings/auth/custom-oauth/components/provider-form-dialog.tsx`
+
 ## Per-group retry and channel recovery controls
 
 `GroupRetryTimes` is an additive JSON option that overrides the global

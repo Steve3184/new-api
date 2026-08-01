@@ -2,11 +2,17 @@ package oauth
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"encoding/base64"
 	stdjson "encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,7 +25,9 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
 )
@@ -53,6 +61,30 @@ type accessPolicyFailure struct {
 	Op       string
 	Expected any
 	Current  any
+}
+
+type oauthJWK struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Alg string `json:"alg"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+	Crv string `json:"crv"`
+	X   string `json:"x"`
+	Y   string `json:"y"`
+}
+
+var signingMethodES256K = &jwt.SigningMethodECDSA{
+	Name:      "ES256K",
+	Hash:      crypto.SHA256,
+	KeySize:   32,
+	CurveBits: 256,
+}
+
+func init() {
+	jwt.RegisterSigningMethod(signingMethodES256K.Alg(), func() jwt.SigningMethod {
+		return signingMethodES256K
+	})
 }
 
 var supportedAccessPolicyOps = []string{
@@ -200,42 +232,11 @@ func (p *GenericOAuthProvider) ExchangeToken(ctx context.Context, code string, c
 }
 
 func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
-	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo: fetching user info from %s", p.config.Slug, p.config.UserInfoEndpoint)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", p.config.UserInfoEndpoint, nil)
+	bodyStr, err := p.fetchUserInfo(ctx, token)
 	if err != nil {
 		return nil, err
 	}
 
-	// Set authorization header
-	tokenType := normalizeAuthorizationTokenType(token.TokenType)
-	req.Header.Set("Authorization", fmt.Sprintf("%s %s", tokenType, token.AccessToken))
-	req.Header.Set("Accept", "application/json")
-
-	client := http.Client{
-		Timeout: 20 * time.Second,
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo error: %s", p.config.Slug, err.Error()))
-		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": p.config.Name}, err.Error())
-	}
-	defer res.Body.Close()
-
-	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo response status: %d", p.config.Slug, res.StatusCode)
-
-	if res.StatusCode != http.StatusOK {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo failed: status=%d", p.config.Slug, res.StatusCode))
-		return nil, NewOAuthError(i18n.MsgOAuthGetUserErr, nil)
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo read body error: %s", p.config.Slug, err.Error()))
-		return nil, err
-	}
-
-	bodyStr := string(body)
 	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo response body: %s", p.config.Slug, bodyStr[:min(len(bodyStr), 500)])
 
 	// Extract fields using gjson (supports JSONPath-like syntax)
@@ -288,6 +289,211 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 			"provider": p.config.Slug,
 		},
 	}, nil
+}
+
+func (p *GenericOAuthProvider) fetchUserInfo(ctx context.Context, token *OAuthToken) (string, error) {
+	if strings.TrimSpace(p.config.UserInfoEndpoint) == "" {
+		claims, err := p.verifyIDToken(ctx, token.IDToken)
+		if err != nil {
+			return "", err
+		}
+		payload, err := common.Marshal(claims)
+		if err != nil {
+			return "", err
+		}
+		return string(payload), nil
+	}
+
+	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo: fetching user info from %s", p.config.Slug, p.config.UserInfoEndpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.config.UserInfoEndpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	tokenType := normalizeAuthorizationTokenType(token.TokenType)
+	req.Header.Set("Authorization", fmt.Sprintf("%s %s", tokenType, token.AccessToken))
+	req.Header.Set("Accept", "application/json")
+
+	client := http.Client{Timeout: 20 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo error: %s", p.config.Slug, err.Error()))
+		return "", NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": p.config.Name}, err.Error())
+	}
+	defer res.Body.Close()
+	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo response status: %d", p.config.Slug, res.StatusCode)
+	if res.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo failed: status=%d", p.config.Slug, res.StatusCode))
+		return "", NewOAuthError(i18n.MsgOAuthGetUserErr, nil)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo read body error: %s", p.config.Slug, err.Error()))
+		return "", err
+	}
+	return string(body), nil
+}
+
+func (p *GenericOAuthProvider) verifyIDToken(ctx context.Context, rawToken string) (jwt.MapClaims, error) {
+	if rawToken == "" || strings.TrimSpace(p.config.WellKnown) == "" {
+		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": p.config.Name})
+	}
+
+	discoveryBody, err := fetchOAuthJSON(ctx, p.config.WellKnown)
+	if err != nil {
+		return nil, err
+	}
+	jwksURL := gjson.Get(string(discoveryBody), "jwks_uri").String()
+	issuer := gjson.Get(string(discoveryBody), "issuer").String()
+	if jwksURL == "" || issuer == "" {
+		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": p.config.Name})
+	}
+	jwksBody, err := fetchOAuthJSON(ctx, jwksURL)
+	if err != nil {
+		return nil, err
+	}
+	var jwks struct {
+		Keys []oauthJWK `json:"keys"`
+	}
+	if err := common.Unmarshal(jwksBody, &jwks); err != nil {
+		return nil, err
+	}
+
+	claims := jwt.MapClaims{}
+	_, err = jwt.ParseWithClaims(rawToken, claims, func(token *jwt.Token) (any, error) {
+		kid, _ := token.Header["kid"].(string)
+		for _, key := range jwks.Keys {
+			if key.Kid == kid || (kid == "" && len(jwks.Keys) == 1) {
+				return jwkPublicKey(key)
+			}
+		}
+		return nil, fmt.Errorf("OAuth signing key not found")
+	},
+		jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "ES256K", "EdDSA"}),
+		jwt.WithIssuer(issuer),
+		jwt.WithExpirationRequired(),
+	)
+	if err != nil {
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": p.config.Name}, err.Error())
+	}
+	if !idTokenAudienceMatches(claims, p.config.ClientId) {
+		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": p.config.Name})
+	}
+	return claims, nil
+}
+
+func idTokenAudienceMatches(claims jwt.MapClaims, expected string) bool {
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return false
+	}
+	match := func(value any) bool {
+		switch audience := value.(type) {
+		case string:
+			return audience == expected
+		case float64:
+			expectedAudience, err := strconv.ParseInt(expected, 10, 64)
+			return err == nil && audience == float64(expectedAudience)
+		case stdjson.Number:
+			return audience.String() == expected
+		default:
+			return false
+		}
+	}
+	switch audience := claims["aud"].(type) {
+	case []any:
+		for _, value := range audience {
+			if match(value) {
+				return true
+			}
+		}
+		return false
+	default:
+		return match(audience)
+	}
+}
+
+func fetchOAuthJSON(ctx context.Context, endpoint string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	res, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
+	if err != nil {
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, nil, err.Error())
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, NewOAuthError(i18n.MsgOAuthGetUserErr, nil)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func jwkPublicKey(key oauthJWK) (any, error) {
+	decode := func(value string) ([]byte, error) {
+		return base64.RawURLEncoding.DecodeString(value)
+	}
+	switch key.Kty {
+	case "RSA":
+		n, err := decode(key.N)
+		if err != nil {
+			return nil, err
+		}
+		e, err := decode(key.E)
+		if err != nil {
+			return nil, err
+		}
+		exponent := 0
+		for _, value := range e {
+			exponent = exponent<<8 | int(value)
+		}
+		return &rsa.PublicKey{N: new(big.Int).SetBytes(n), E: exponent}, nil
+	case "EC":
+		var curve elliptic.Curve
+		switch key.Crv {
+		case "P-256":
+			curve = elliptic.P256()
+		case "P-384":
+			curve = elliptic.P384()
+		case "P-521":
+			curve = elliptic.P521()
+		case "secp256k1":
+			curve = secp256k1.S256()
+		default:
+			return nil, fmt.Errorf("unsupported OAuth curve %s", key.Crv)
+		}
+		x, err := decode(key.X)
+		if err != nil {
+			return nil, err
+		}
+		y, err := decode(key.Y)
+		if err != nil {
+			return nil, err
+		}
+		publicKey := &ecdsa.PublicKey{Curve: curve, X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
+		if !curve.IsOnCurve(publicKey.X, publicKey.Y) {
+			return nil, errors.New("OAuth EC public key is not on the configured curve")
+		}
+		return publicKey, nil
+	case "OKP":
+		if key.Crv != "Ed25519" {
+			return nil, fmt.Errorf("unsupported OAuth key curve %s", key.Crv)
+		}
+		x, err := decode(key.X)
+		if err != nil {
+			return nil, err
+		}
+		if len(x) != ed25519.PublicKeySize {
+			return nil, errors.New("invalid OAuth Ed25519 public key length")
+		}
+		return ed25519.PublicKey(x), nil
+	default:
+		return nil, fmt.Errorf("unsupported OAuth key type %s", key.Kty)
+	}
 }
 
 func (p *GenericOAuthProvider) IsUserIDTaken(providerUserID string) bool {

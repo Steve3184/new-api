@@ -71,10 +71,14 @@ export function PresetSelector(props: PresetSelectorProps) {
     props.form.setValue('email_field', preset.email_field, {
       shouldDirty: true,
     })
+    props.form.setValue('well_known', preset.well_known || '', {
+      shouldDirty: true,
+    })
 
-    // Apply base URL if already entered
-    if (baseUrl) {
+    if (preset.needsBaseUrl && baseUrl) {
       applyEndpoints(preset, baseUrl)
+    } else if (!preset.needsBaseUrl) {
+      applyEndpoints(preset, '')
     }
   }
 

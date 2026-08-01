@@ -65,7 +65,7 @@ export const customOAuthFormSchema = z.object({
     .string()
     .min(1, 'Authorization endpoint is required'),
   token_endpoint: z.string().min(1, 'Token endpoint is required'),
-  user_info_endpoint: z.string().min(1, 'User info endpoint is required'),
+  user_info_endpoint: z.string().optional().default(''),
   scopes: z.string().optional().default(''),
   user_id_field: z.string().min(1, 'User ID field is required'),
   username_field: z.string().optional().default(''),
@@ -114,9 +114,25 @@ export interface OAuthPreset {
   display_name_field: string
   email_field: string
   needsBaseUrl: boolean
+  well_known?: string
 }
 
 export const OAUTH_PRESETS: OAuthPreset[] = [
+  {
+    key: 'telegram',
+    name: 'Telegram',
+    icon: 'telegram',
+    authorization_endpoint: 'https://oauth.telegram.org/auth',
+    token_endpoint: 'https://oauth.telegram.org/token',
+    user_info_endpoint: '',
+    scopes: 'openid profile',
+    user_id_field: 'sub',
+    username_field: 'preferred_username',
+    display_name_field: 'name',
+    email_field: 'email',
+    needsBaseUrl: false,
+    well_known: 'https://oauth.telegram.org/.well-known/openid-configuration',
+  },
   {
     key: 'github-enterprise',
     name: 'GitHub Enterprise',

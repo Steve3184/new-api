@@ -14,6 +14,7 @@ require (
 	github.com/aws/smithy-go v1.24.2
 	github.com/bytedance/gopkg v0.1.3
 	github.com/casbin/casbin/v2 v2.135.0
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-contrib/static v0.0.1

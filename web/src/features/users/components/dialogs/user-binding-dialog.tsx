@@ -64,6 +64,7 @@ interface Props {
 
 interface BindingItem {
   key: string
+  bindingType?: string
   label: string
   icon: React.ReactNode
   value: string
@@ -88,56 +89,56 @@ interface StatusInfo {
 }
 
 const BUILTIN_BINDINGS: ReadonlyArray<{
-  key: string
+  bindingType: string
   field: string
   label: string
   icon: React.ReactNode
   statusKey: keyof StatusInfo | null
 }> = [
   {
-    key: 'email',
+    bindingType: 'email',
     field: 'email',
     label: 'Email',
     icon: <Mail className='h-4 w-4' />,
     statusKey: null,
   },
   {
-    key: 'github_id',
+    bindingType: 'github',
     field: 'github_id',
     label: 'GitHub',
     icon: <SiGithub className='h-4 w-4' />,
     statusKey: 'github_oauth',
   },
   {
-    key: 'discord_id',
+    bindingType: 'discord',
     field: 'discord_id',
     label: 'Discord',
     icon: <SiDiscord className='h-4 w-4' />,
     statusKey: 'discord_oauth',
   },
   {
-    key: 'wechat_id',
+    bindingType: 'wechat',
     field: 'wechat_id',
     label: 'WeChat',
     icon: <MessageCircle className='h-4 w-4' />,
     statusKey: 'wechat_login',
   },
   {
-    key: 'oidc_id',
+    bindingType: 'oidc',
     field: 'oidc_id',
     label: 'OIDC',
     icon: <Globe className='h-4 w-4' />,
     statusKey: 'oidc_enabled',
   },
   {
-    key: 'telegram_id',
+    bindingType: 'telegram',
     field: 'telegram_id',
     label: 'Telegram',
     icon: <Send className='h-4 w-4' />,
     statusKey: 'telegram_oauth',
   },
   {
-    key: 'linux_do_id',
+    bindingType: 'linuxdo',
     field: 'linux_do_id',
     label: 'LinuxDO',
     icon: <Globe className='h-4 w-4' />,
@@ -226,7 +227,8 @@ export function UserBindingDialog(props: Props) {
         field.statusKey == null ? true : Boolean(statusInfo[field.statusKey])
 
       items.push({
-        key: field.key,
+        key: field.field,
+        bindingType: field.bindingType,
         label: field.label,
         icon: field.icon,
         value: isBound ? value : '',
@@ -288,7 +290,10 @@ export function UserBindingDialog(props: Props) {
     try {
       let res
       if (unbindTarget.type === 'builtin') {
-        res = await adminClearUserBinding(props.userId, unbindTarget.key)
+        res = await adminClearUserBinding(
+          props.userId,
+          unbindTarget.bindingType || unbindTarget.key
+        )
       } else if (unbindTarget.providerId) {
         res = await adminUnbindCustomOAuth(
           props.userId,
