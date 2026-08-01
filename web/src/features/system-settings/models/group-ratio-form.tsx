@@ -62,6 +62,7 @@ import {
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
 import { GroupCodingModelEditor } from './group-coding-model-editor'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
@@ -72,6 +73,7 @@ type GroupFormValues = {
   GroupGroupRatio: string
   AutoGroups: string
   AutoGroupDescription: string
+  MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
   GroupDefaultModel: string
@@ -168,6 +170,34 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
+              maxTokenAutoGroupsField={
+                <FormField
+                  control={form.control}
+                  name='MaxTokenAutoGroups'
+                  render={({ field, fieldState }) => (
+                    <FormItem data-invalid={fieldState.invalid}>
+                      <FormLabel>
+                        {t('Maximum custom groups per token')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...safeNumberFieldProps(field)}
+                          type='number'
+                          min={1}
+                          step={1}
+                          aria-invalid={fieldState.invalid}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              }
               groupSpecialUsableGroup={form.watch('GroupSpecialUsableGroup')}
               groupRetryTimes={form.watch('GroupRetryTimes')}
               onChange={(field, value) =>
@@ -434,6 +464,31 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 )}
               />
             ) : null}
+
+            <FormField
+              control={form.control}
+              name='MaxTokenAutoGroups'
+              render={({ field, fieldState }) => (
+                <FormItem data-invalid={fieldState.invalid}>
+                  <FormLabel>{t('Maximum custom groups per token')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...safeNumberFieldProps(field)}
+                      type='number'
+                      min={1}
+                      step={1}
+                      aria-invalid={fieldState.invalid}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

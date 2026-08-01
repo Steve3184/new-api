@@ -251,6 +251,7 @@ export type ModelSettings = {
   GroupGroupRatio: string
   AutoGroups: string
   AutoGroupDescription: string
+  MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
   GroupDefaultModel: string
@@ -309,6 +310,7 @@ export type BillingSettings = {
   GroupGroupRatio: string
   AutoGroups: string
   AutoGroupDescription: string
+  MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
   GroupDefaultModel: string

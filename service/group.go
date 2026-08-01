@@ -83,6 +83,30 @@ func filterAutoGroups(configuredGroups []string, usableGroups map[string]string)
 	return autoGroups
 }
 
+func IsUserSelectableGroup(userGroup, groupName string) bool {
+	if groupName == "" || groupName == "auto" {
+		return false
+	}
+	return GroupInUserUsableGroups(userGroup, groupName) && ratio_setting.ContainsGroupRatio(groupName)
+}
+
+// GetUserAutoGroup 根据用户分组获取自动分组设置
+func GetUserAutoGroup(userGroup string) []string {
+	autoGroups := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, group := range setting.GetAutoGroups() {
+		if !IsUserSelectableGroup(userGroup, group) {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		autoGroups = append(autoGroups, group)
+	}
+	return autoGroups
+}
+
 func GetRequestUserGroupAccess(c *gin.Context) UserGroupAccess {
 	if cached, ok := common.GetContextKey(c, constant.ContextKeyUserGroupAccess); ok {
 		if access, valid := cached.(UserGroupAccess); valid {
@@ -94,9 +118,41 @@ func GetRequestUserGroupAccess(c *gin.Context) UserGroupAccess {
 	return access
 }
 
-// GetUserAutoGroup 根据用户分组获取自动分组设置
-func GetUserAutoGroup(userGroup string) []string {
-	return ResolveUserGroupAccess(userGroup).AutoGroups
+// FilterUserTokenAutoGroups applies current permissions before the current
+// per-token limit. It intentionally does not fall back to the global Auto list.
+func FilterUserTokenAutoGroups(userGroup string, groups []string) []string {
+	maxCount := setting.GetMaxTokenAutoGroups()
+	filtered := make([]string, 0, min(len(groups), maxCount))
+	seen := make(map[string]struct{})
+	for _, group := range groups {
+		if !IsUserSelectableGroup(userGroup, group) {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		filtered = append(filtered, group)
+		if len(filtered) == maxCount {
+			break
+		}
+	}
+	return filtered
+}
+
+// GetRequestAutoGroups resolves the ordered Auto groups for the current token.
+// The absence of the context value means that the token inherits the complete
+// global Auto list; a present (even empty) value is an explicit token snapshot.
+func GetRequestAutoGroups(c *gin.Context, userGroup string) []string {
+	value, ok := common.GetContextKey(c, constant.ContextKeyTokenAutoGroups)
+	if !ok {
+		return GetUserAutoGroup(userGroup)
+	}
+	groups, ok := value.([]string)
+	if !ok {
+		return []string{}
+	}
+	return FilterUserTokenAutoGroups(userGroup, groups)
 }
 
 // GetGroupsEnabledModels 按 groups 顺序获取各分组启用的模型并去重
