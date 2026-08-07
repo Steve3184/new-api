@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { RankingPeriod, RankingsSnapshot } from './types'
+import type {
+  RankingPeriod,
+  RankingsSnapshot,
+  UserRankingsSnapshot,
+} from './types'
 
 type RankingsResponse = {
   success: boolean
@@ -30,5 +34,18 @@ export async function getRankings(
   period: RankingPeriod
 ): Promise<RankingsResponse> {
   const res = await api.get('/api/rankings', { params: { period } })
+  return res.data
+}
+
+type UserRankingsResponse = {
+  success: boolean
+  message?: string
+  data: UserRankingsSnapshot
+}
+
+export async function getUserRankings(
+  period: RankingPeriod
+): Promise<UserRankingsResponse> {
+  const res = await api.get('/api/rankings/users', { params: { period } })
   return res.data
 }

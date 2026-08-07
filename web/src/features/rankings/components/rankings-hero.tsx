@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
-import type { RankingPeriod } from '../types'
+import type { RankingPeriod, RankingsView } from '../types'
 
 const PERIODS: { id: RankingPeriod; labelKey: string }[] = [
   { id: 'today', labelKey: 'Today' },
@@ -32,6 +33,8 @@ const PERIODS: { id: RankingPeriod; labelKey: string }[] = [
 type RankingsHeroProps = {
   period: RankingPeriod
   onPeriodChange: (period: RankingPeriod) => void
+  view: RankingsView
+  onViewChange: (view: RankingsView) => void
 }
 
 /**
@@ -55,38 +58,58 @@ export function RankingsHero(props: RankingsHeroProps) {
       </div>
 
       {/* Underline tabs for period — clean and unobtrusive. */}
-      <div
-        role='tablist'
-        aria-label={t('Period')}
-        className='border-border/60 flex items-center border-b'
-      >
-        {PERIODS.map((p) => {
-          const isActive = props.period === p.id
-          return (
-            <button
-              key={p.id}
-              role='tab'
-              type='button'
-              aria-selected={isActive}
-              onClick={() => props.onPeriodChange(p.id)}
-              className={cn(
-                'focus-visible:ring-ring/40 relative -mb-px rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none',
-                isActive
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t(p.labelKey)}
-              <span
-                aria-hidden
+      <div className='border-border/60 flex flex-wrap items-center justify-between gap-3 border-b'>
+        <div
+          role='tablist'
+          aria-label={t('Period')}
+          className='flex min-w-0 items-center'
+        >
+          {PERIODS.map((p) => {
+            const isActive = props.period === p.id
+            return (
+              <button
+                key={p.id}
+                role='tab'
+                type='button'
+                aria-selected={isActive}
+                onClick={() => props.onPeriodChange(p.id)}
                 className={cn(
-                  'bg-foreground absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-opacity',
-                  isActive ? 'opacity-100' : 'opacity-0'
+                  'focus-visible:ring-ring/40 relative -mb-px rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                  isActive
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
-              />
-            </button>
-          )
-        })}
+              >
+                {t(p.labelKey)}
+                <span
+                  aria-hidden
+                  className={cn(
+                    'bg-foreground absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-opacity',
+                    isActive ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
+              </button>
+            )
+          })}
+        </div>
+
+        <ToggleGroup
+          value={[props.view]}
+          onValueChange={(values) => {
+            const next = values[0]
+            if (next === 'models' || next === 'users') {
+              props.onViewChange(next)
+            }
+          }}
+          variant='outline'
+          size='sm'
+          spacing={1}
+          aria-label={t('Ranking view')}
+          className='mb-1'
+        >
+          <ToggleGroupItem value='models'>{t('Models')}</ToggleGroupItem>
+          <ToggleGroupItem value='users'>{t('Users')}</ToggleGroupItem>
+        </ToggleGroup>
       </div>
     </section>
   )

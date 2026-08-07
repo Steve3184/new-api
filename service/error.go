@@ -85,6 +85,13 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 }
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
+	upstreamStatusCode := resp.StatusCode
+	defer func() {
+		if newApiErr != nil {
+			newApiErr.SetUpstreamStatusCode(upstreamStatusCode)
+		}
+	}()
+
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
 	responseBody, err := io.ReadAll(resp.Body)

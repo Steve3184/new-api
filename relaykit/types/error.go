@@ -88,14 +88,15 @@ const (
 )
 
 type NewAPIError struct {
-	Err            error
-	RelayError     any
-	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	Err                error
+	RelayError         any
+	skipRetry          bool
+	recordErrorLog     *bool
+	errorType          ErrorType
+	errorCode          ErrorCode
+	StatusCode         int
+	upstreamStatusCode int
+	Metadata           json.RawMessage
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -175,6 +176,24 @@ func (e *NewAPIError) MaskSensitiveErrorWithStatusCode() string {
 
 func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
+}
+
+// SetUpstreamStatusCode records the HTTP status received from the upstream
+// before any channel-level status-code mapping is applied.
+func (e *NewAPIError) SetUpstreamStatusCode(statusCode int) {
+	if e == nil {
+		return
+	}
+	e.upstreamStatusCode = statusCode
+}
+
+// GetUpstreamStatusCode returns zero when the error was not produced by an
+// upstream HTTP response.
+func (e *NewAPIError) GetUpstreamStatusCode() int {
+	if e == nil {
+		return 0
+	}
+	return e.upstreamStatusCode
 }
 
 func (e *NewAPIError) ToOpenAIError() OpenAIError {

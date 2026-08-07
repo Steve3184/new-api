@@ -24,6 +24,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 export type RankingPeriod = 'today' | 'week' | 'month' | 'year'
 
+export type RankingsView = 'models' | 'users'
+
 export type RankingCategoryId =
   | 'all'
   | 'programming'
@@ -135,4 +137,19 @@ export type RankingsSnapshot = {
   models_history: ModelHistorySeries
   /** 100%-stacked area history of token share by vendor over the period. */
   vendor_share_history: VendorShareSeries
+}
+
+export type UserRanking = {
+  rank: number
+  username: string
+  display_name?: string
+  total_quota: number
+  total_tokens: number
+  top_group?: string
+}
+
+export type UserRankingsSnapshot = {
+  period: RankingPeriod
+  by_quota: UserRanking[]
+  by_tokens: UserRanking[]
 }

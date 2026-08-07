@@ -93,6 +93,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			// Apply global message rewrites only after channel retries and
+			// accounting have completed. This keeps retry/auto-ban decisions
+			// and the diagnostic log based on the original upstream error while
+			// changing only the final client-facing payload.
+			modelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+			operation_setting.ApplyErrorRewrite(newAPIError, modelName)
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime, types.RelayFormatUnrealSpeechWebSocket:
@@ -641,7 +647,8 @@ func RelayTask(c *gin.Context) {
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
-	if taskErr.StatusCode == http.StatusTooManyRequests {
+	modelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	if !operation_setting.ApplyTaskErrorRewrite(taskErr, modelName) && taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
 	c.JSON(taskErr.StatusCode, taskErr)

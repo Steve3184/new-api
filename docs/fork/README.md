@@ -1526,6 +1526,97 @@ Files:
 - `router/api-router.go`
 - `docker-compose.yml`
 
+## Global upstream error rewriting
+
+Administrators can configure global client-facing error rewrites under
+**System Settings -> Operations -> Global Error Rewrite**. The feature is
+disabled by default and is stored as two additive options:
+
+| Option | Purpose |
+| --- | --- |
+| `error_rewrite.enabled` | Global switch for applying configured rewrites |
+| `error_rewrite.rules` | JSON array of unique upstream HTTP status codes and replacement messages |
+
+The UI exposes the rules as a table with status-code and message columns,
+row-level validation, deletion controls, and an **Add Row** action. Rule
+messages support these placeholders:
+
+| Placeholder | Value |
+| --- | --- |
+| `{model}` | Original model requested by the client |
+| `{status_code}` | HTTP status returned to the client after any channel mapping |
+| `{upstream_status_code}` | Original HTTP status received from the upstream |
+
+Rules match the original upstream status before per-channel status-code
+mapping. A rewrite changes only the client-facing message; the returned HTTP
+status, protocol-specific error shape, error code, retry behavior, channel
+health decisions, and diagnostic logging remain unchanged. Local validation,
+billing, quota, and routing failures are not rewritten. The same behavior is
+applied to synchronous relay formats and asynchronous task submissions,
+including video, 3D, and task-based speech endpoints.
+
+The settings implementation uses a synchronized config codec so live option
+updates cannot race with relay requests. Invalid status ranges, duplicate
+codes, empty messages, non-array JSON, and invalid switch values are rejected
+at the option boundary.
+
+Files:
+
+- `setting/operation_setting/error_rewrite.go`
+- `setting/config/config.go`
+- `model/option.go`
+- `service/error.go`
+- `relaykit/types/error.go`
+- `controller/relay.go`
+- `relay/relay_task.go`
+- `dto/task.go`
+- `web/src/features/system-settings/operations/error-rewrite-section.tsx`
+- `web/src/features/system-settings/operations/error-rewrite-table.tsx`
+- `web/src/features/system-settings/operations/error-rewrite-utils.ts`
+- `web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
+## User usage rankings
+
+The existing `/rankings` page now keeps its Today, Week, Month, and Year
+period selector while adding a Models/Users view switch on the right side of
+the same control row. The selected view is persisted in the `view` URL search
+parameter. User rankings render as two responsive columns with up to ten users
+per column:
+
+- **Token Usage** ranks users by total tokens and shows the group with the
+  highest token use for each user.
+- **Quota Usage** ranks users by consumed quota and shows the group with the
+  highest quota consumption for each user.
+
+Each row includes the current display name when configured, the username, the
+selected metric total, and the metric-specific most-used group. Deleted users
+and disabled accounts are excluded.
+
+`GET /api/rankings/users?period=today|week|month|year` returns both top-ten
+lists in one response. It follows the same `rankings` header-navigation access
+setting as the model rankings: when anonymous rankings access is enabled, both
+views are public; when login is required, both views require authentication.
+No separate user-ranking visibility switch is introduced. The backend reads
+the existing hourly `quota_data` rollup instead of the raw consume log, runs
+the two bounded aggregate queries in parallel, and limits the group aggregate
+to the union of users appearing in either top-ten list. A composite
+`(user_id, created_at, use_group)` index accelerates the follow-up group lookup.
+Each period snapshot is cached for five minutes, concurrent cache misses are
+coalesced into one build, and an open Users view revalidates on the same
+interval. This keeps the query count and returned row count bounded as the
+usage history grows without leaving an open leaderboard indefinitely stale.
+
+Files:
+
+- `model/usedata.go`
+- `model/usedata_rankings.go`
+- `service/rankings.go`
+- `controller/rankings.go`
+- `router/api-router.go`
+- `web/src/features/rankings/`
+- `web/src/routes/rankings/index.tsx`
+- `web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.

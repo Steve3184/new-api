@@ -265,6 +265,13 @@ func validateOptionValue(key string, value string) error {
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
+	if key == "error_rewrite.enabled" {
+		_, err := strconv.ParseBool(value)
+		return err
+	}
+	if key == "error_rewrite.rules" {
+		return operation_setting.ValidateErrorRewriteRulesJSON(value)
+	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}

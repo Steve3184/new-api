@@ -30,6 +30,8 @@ const defaultOperationsSettings: OperationsSettings = {
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
+  'error_rewrite.enabled': false,
+  'error_rewrite.rules': '[]',
   QuotaRemindThreshold: '',
   SMTPServer: '',
   SMTPPort: '',
