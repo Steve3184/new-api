@@ -75,7 +75,7 @@ export interface RedemptionFormData {
   id?: number
   name: string
   quota: number
-  subscription_plan_id?: number
+  subscription_plan_id: number
   expired_time: number
   count?: number // Only for create
   status?: number // Only for status update

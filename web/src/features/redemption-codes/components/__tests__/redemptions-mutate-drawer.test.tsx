@@ -373,11 +373,32 @@ test('redemption drawer keeps the original quota when another field changes', as
 
 test('redemption drawer preserves a subscription plan when updating metadata', async () => {
   const original = {
-    ...redemption(1),
+    ...redemption(1, 0),
     subscription_plan_id: 42,
   }
   const updates: Array<Record<string, unknown>> = []
-  apiClient.get = async () => ({ data: { success: true, data: original } })
+  apiClient.get = async (url) => {
+    if (url === '/api/redemption/1') {
+      return { data: { success: true, data: original } }
+    }
+    if (url === '/api/subscription/admin/plans') {
+      return {
+        data: {
+          success: true,
+          data: [
+            {
+              plan: {
+                id: 42,
+                title: 'Current subscription plan',
+                enabled: false,
+              },
+            },
+          ],
+        },
+      }
+    }
+    throw new Error(`Unexpected GET ${url}`)
+  }
   apiClient.put = async (_url, data) => {
     assert.ok(data && typeof data === 'object')
     updates.push(data as Record<string, unknown>)
@@ -386,6 +407,15 @@ test('redemption drawer preserves a subscription plan when updating metadata', a
 
   await renderDrawer(original)
   await waitForLoadedForm()
+  await act(async () =>
+    waitForCondition(
+      () =>
+        getControlByLabel<HTMLElement>('Redemption type').textContent?.includes(
+          'Current subscription plan (#42)'
+        ) === true,
+      'current subscription plan was not shown'
+    )
+  )
   await changeInput(getControlByLabel<HTMLInputElement>('Name'), 'renamed-plan')
   await submitForm()
   await act(async () =>
@@ -394,7 +424,7 @@ test('redemption drawer preserves a subscription plan when updating metadata', a
 
   assert.equal(updates[0]?.name, 'renamed-plan')
   assert.equal(updates[0]?.subscription_plan_id, 42)
-  assert.equal(updates[0]?.quota, 500001)
+  assert.equal(updates[0]?.quota, 0)
 })
 
 test('redemption drawer recalculates quota when the quota field changes', async () => {

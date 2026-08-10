@@ -449,7 +449,9 @@ export function SubscriptionsMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {t('Quota ({{currency}})', { currency: currencyLabel })}
+                        {t('Quota per Billing Period ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -473,7 +475,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Total quota included in the plan, usable per billing period. 0 means unlimited; a negative value creates a benefits-only plan with no usable quota.'
+                          'Quota available during each billing period. 0 means unlimited; a negative value creates a benefits-only plan with no usable quota.'
                         )}
                       </FormDescription>
                       <FormMessage />

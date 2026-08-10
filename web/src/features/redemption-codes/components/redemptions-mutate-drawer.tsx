@@ -161,7 +161,7 @@ export function RedemptionsMutateDrawer({
   }, [open, isUpdate, redemptionId, form, t])
 
   useEffect(() => {
-    if (!open || isUpdate) {
+    if (!open) {
       setSubscriptionPlans([])
       return
     }
@@ -174,9 +174,7 @@ export function RedemptionsMutateDrawer({
         if (ignoreResult) return
 
         setSubscriptionPlans(
-          result.success
-            ? (result.data || []).filter(({ plan }) => plan.enabled)
-            : []
+          result.success && Array.isArray(result.data) ? result.data : []
         )
       })
       .catch(() => {
@@ -188,7 +186,7 @@ export function RedemptionsMutateDrawer({
     return () => {
       ignoreResult = true
     }
-  }, [open, isUpdate])
+  }, [open])
 
   const isUpdateReady =
     !isUpdate ||
@@ -267,10 +265,12 @@ export function RedemptionsMutateDrawer({
   const subscriptionPlanId = form.watch('subscription_plan_id')
   const redemptionTypeItems = [
     { value: 'wallet', label: t('Wallet balance code') },
-    ...subscriptionPlans.map(({ plan }) => ({
-      value: String(plan.id),
-      label: `${plan.title} (#${plan.id})`,
-    })),
+    ...subscriptionPlans
+      .filter(({ plan }) => plan.enabled || plan.id === subscriptionPlanId)
+      .map(({ plan }) => ({
+        value: String(plan.id),
+        label: `${plan.title} (#${plan.id})`,
+      })),
   ]
   let submitButtonLabel = t('Save changes')
   if (isLoadingRedemption) {
@@ -366,52 +366,50 @@ export function RedemptionsMutateDrawer({
                   )}
                 />
 
-                {!isUpdate && (
-                  <FormField
-                    control={form.control}
-                    name='subscription_plan_id'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Redemption type')}</FormLabel>
-                        <Select
-                          items={redemptionTypeItems}
-                          value={field.value ? String(field.value) : 'wallet'}
-                          onValueChange={(value) => {
-                            if (!value) return
+                <FormField
+                  control={form.control}
+                  name='subscription_plan_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Redemption type')}</FormLabel>
+                      <Select
+                        items={redemptionTypeItems}
+                        value={field.value ? String(field.value) : 'wallet'}
+                        onValueChange={(value) => {
+                          if (!value) return
 
-                            field.onChange(
-                              value === 'wallet' ? null : Number(value)
-                            )
-                            if (value !== 'wallet') {
-                              form.setValue('quota_dollars', 0, {
-                                shouldValidate: true,
-                              })
-                            }
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger className='w-full'>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent alignItemWithTrigger={false}>
-                            {redemptionTypeItems.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          {t(
-                            'Wallet balance codes add quota; subscription codes grant the selected plan.'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                          field.onChange(
+                            value === 'wallet' ? null : Number(value)
+                          )
+                          if (value !== 'wallet') {
+                            form.setValue('quota_dollars', 0, {
+                              shouldValidate: true,
+                            })
+                          }
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger className='w-full'>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          {redemptionTypeItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t(
+                          'Wallet balance codes add quota; subscription codes grant the selected plan.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}

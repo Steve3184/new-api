@@ -5593,6 +5593,9 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Quota per Billing Period": "Квота за расчётный период",
+    "Quota per Billing Period ({{currency}})": "Квота за расчётный период ({{currency}})",
+    "Quota available during each billing period. 0 means unlimited; a negative value creates a benefits-only plan with no usable quota.": "Квота, доступная в течение каждого расчётного периода. 0 означает безлимит; отрицательное значение создаёт план только с привилегиями без доступной квоты."
   }
 }

@@ -202,7 +202,14 @@ func DeleteRedemptionBatch(c *gin.Context) {
 
 func UpdateRedemption(c *gin.Context) {
 	statusOnly := c.Query("status_only")
-	redemption := model.Redemption{}
+	var redemption struct {
+		Id                 int    `json:"id"`
+		Status             int    `json:"status"`
+		Name               string `json:"name"`
+		Quota              int    `json:"quota"`
+		SubscriptionPlanId *int   `json:"subscription_plan_id"`
+		ExpiredTime        int64  `json:"expired_time"`
+	}
 	err := c.ShouldBindJSON(&redemption)
 	if err != nil {
 		common.ApiError(c, err)
@@ -214,17 +221,37 @@ func UpdateRedemption(c *gin.Context) {
 		return
 	}
 	if statusOnly == "" {
+		if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
+			common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
+			return
+		}
+		requestedPlanID := cleanRedemption.SubscriptionPlanId
+		if redemption.SubscriptionPlanId != nil {
+			requestedPlanID = *redemption.SubscriptionPlanId
+		}
+		if requestedPlanID > 0 {
+			plan, planErr := model.GetSubscriptionPlanById(requestedPlanID)
+			if planErr != nil {
+				common.ApiErrorMsg(c, "订阅套餐不存在")
+				return
+			}
+			if !plan.Enabled && requestedPlanID != cleanRedemption.SubscriptionPlanId {
+				common.ApiErrorMsg(c, "订阅套餐已禁用")
+				return
+			}
+			redemption.Quota = 0
+		} else if redemption.Quota < 0 {
+			common.ApiErrorMsg(c, "额度不能为负数")
+			return
+		}
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
 		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
-		if cleanRedemption.SubscriptionPlanId > 0 {
-			cleanRedemption.Quota = 0
-		} else {
-			cleanRedemption.Quota = redemption.Quota
-		}
+		cleanRedemption.Quota = redemption.Quota
+		cleanRedemption.SubscriptionPlanId = requestedPlanID
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {

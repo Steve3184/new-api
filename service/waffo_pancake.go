@@ -317,7 +317,9 @@ func ResolveWaffoPancakeTradeNo(event *WaffoPancakeWebhookEvent) (string, error)
 }
 
 // ResolveWaffoPancakeSubscriptionTradeNo is the SubscriptionOrder counterpart
-// of ResolveWaffoPancakeTradeNo.
+// of ResolveWaffoPancakeTradeNo. Waffo may echo either the merchant-provided
+// stable identity or the checkout email, so both are verified against the
+// local order owner.
 func ResolveWaffoPancakeSubscriptionTradeNo(event *WaffoPancakeWebhookEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("missing webhook event")
@@ -333,12 +335,18 @@ func ResolveWaffoPancakeSubscriptionTradeNo(event *WaffoPancakeWebhookEvent) (st
 	expectedIdentity := WaffoPancakeBuyerIdentityFromUserID(order.UserId)
 	actualIdentity := strings.TrimSpace(event.Data.MerchantProvidedBuyerIdentity)
 	if actualIdentity != expectedIdentity {
-		return "", fmt.Errorf(
-			"waffo pancake buyer identity mismatch for subscription tradeNo=%s: expected=%q actual=%q",
-			tradeNo,
-			expectedIdentity,
-			actualIdentity,
-		)
+		userEmail, err := model.GetUserEmail(order.UserId)
+		if err != nil {
+			return "", fmt.Errorf("get Waffo Pancake subscription order user email: %w", err)
+		}
+		if actualIdentity == "" || model.NormalizeEmail(actualIdentity) != model.NormalizeEmail(userEmail) {
+			return "", fmt.Errorf(
+				"waffo pancake buyer identity mismatch for subscription tradeNo=%s: expected=%q actual=%q",
+				tradeNo,
+				expectedIdentity,
+				actualIdentity,
+			)
+		}
 	}
 	return tradeNo, nil
 }

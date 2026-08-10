@@ -82,7 +82,7 @@ export function transformFormDataToPayload(
   return {
     name: data.name,
     quota: parseQuotaFromDollars(data.quota_dollars),
-    subscription_plan_id: data.subscription_plan_id || undefined,
+    subscription_plan_id: data.subscription_plan_id ?? 0,
     expired_time: data.expired_time
       ? Math.floor(data.expired_time.getTime() / 1000)
       : 0,

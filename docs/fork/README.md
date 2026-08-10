@@ -362,6 +362,13 @@ wallet balance. Startup migration normalizes any legacy subscription-code quota
 to `0`, and redemption also clears it in the same transaction as a defense for
 codes created outside the normal admin flow.
 
+The redemption edit drawer exposes the same wallet/subscription type selector
+as creation. Updates validate and persist `subscription_plan_id`, force quota to
+`0` for subscription codes, and restore the entered quota when switching back
+to a wallet code. A currently assigned disabled plan remains visible and can be
+preserved, but a disabled plan cannot be newly assigned. Quantity remains a
+create-only option because editing one code must not create additional codes.
+
 Subscription plans can be deleted when they have no active user subscriptions;
 expired and cancelled history does not block deletion. Each plan also has an
 optional group billing policy with an enable switch, blacklist/whitelist mode,
@@ -384,8 +391,10 @@ does not participate in wallet-overflow decisions, but it can still upgrade a
 user group or grant configured rate-limit entitlements. A plan can configure
 one or more `{group, rpm}` entries. While that plan is active, requests in a
 listed group use the highest matching plan RPM instead of the system default.
-Benefits-only plans omit the **Total Quota** line from the wallet's available
-plan cards and existing-subscription list.
+Benefits-only plans omit the **Quota per Billing Period** line from the wallet's
+available plan cards and existing-subscription list. All subscription plan and
+usage surfaces use this wording (Chinese: **周期内额度**) so the value is not
+mistaken for an account-wide lifetime quota.
 
 Wallet plan prices use the configured billing display currency instead of a
 hard-coded dollar sign.
@@ -404,6 +413,21 @@ Files:
 - `web/default/src/features/redemption-codes/`
 - `web/default/src/features/subscriptions/`
 - `web/default/src/features/wallet/`
+
+## Target-user management audit attribution
+
+Management actions that operate on a user, including quota changes, user
+updates, passkey resets, and user-subscription resets, store the affected user
+as the audit log owner. The logs table's user column therefore identifies the
+account that changed. The administrator remains recorded under the admin-only
+`other.admin_info` metadata, and `target_user_id` remains in the structured
+operation parameters for traceability.
+
+Files:
+
+- `controller/audit.go`
+- `model/log.go`
+- `controller/user_manage_test.go`
 
 ## Advanced Custom Responses-to-Anthropic conversion
 
@@ -1392,6 +1416,13 @@ the configured limit has been reached, invoice creation is refused. The
 count-and-create sequence is serialized in-process so concurrent invoice
 requests cannot bypass the limit on one application node.
 
+If wallet RPC returns a subaddress already stored by this deployment, invoice
+creation rolls back both the conflicting Monero row and its generic top-up row,
+then asks wallet RPC for the next subaddress. This handles restored or replayed
+wallet indexes without violating the unique address constraint or leaving an
+orphan top-up. Repeating the same address within one request is rejected, and
+the configured subaddress-capacity check still applies to every retry.
+
 Monero wallet RPC has no operation to delete an individual subaddress. A
 completed and unlocked address is therefore **not** reused: a late payment or
 overpayment cannot safely be attributed to a new invoice. While Monero payments
@@ -1420,6 +1451,12 @@ actual Pancake payment amount. The optional create-product action can seed a
 new Pancake product from the plan, but later checkout prices remain controlled
 only in Waffo Pancake. The plan price remains available for other payment
 methods.
+
+For subscription completion webhooks, buyer identity may be either the
+canonical `new-api-user-<id>` value or an email whose normalized value matches
+the local order owner's email. Any other identity is rejected. An unresolved
+subscription order returns a non-2xx response so Waffo Pancake can retry instead
+of treating the event as successfully consumed.
 
 The Monero completion toast uses the existing frontend i18n key
 `Monero payment credited successfully`, which is present in all supported

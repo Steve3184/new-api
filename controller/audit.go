@@ -94,17 +94,21 @@ func recordManageAudit(c *gin.Context, action string, params map[string]interfac
 	recordManageAuditFor(c, c.GetInt("id"), action, params)
 }
 
-// recordManageAuditFor 记录一条管理审计日志，日志归属于操作者；targetUserId
-// 只表示被操作用户，用于在结构化参数中保留目标上下文。
+// recordManageAuditFor 记录一条针对用户的管理审计日志。日志归属于被操作
+// 用户，操作者身份保存在 admin_info 中，便于按目标用户查询并保留审计链。
 func recordManageAuditFor(c *gin.Context, targetUserId int, action string, params map[string]interface{}) {
 	if params == nil {
 		params = map[string]interface{}{}
 	}
 	operatorUserId := c.GetInt("id")
+	logUserId := targetUserId
+	if logUserId <= 0 {
+		logUserId = operatorUserId
+	}
 	if _, ok := params["target_user_id"]; !ok && targetUserId > 0 && targetUserId != operatorUserId {
 		params["target_user_id"] = targetUserId
 	}
-	model.RecordOperationAuditLog(operatorUserId, auditContentEN(action, params), c.ClientIP(), action, params, auditOperatorInfo(c), nil)
+	model.RecordOperationAuditLog(logUserId, auditContentEN(action, params), c.ClientIP(), action, params, auditOperatorInfo(c), nil)
 	markAuditLogged(c)
 }
 

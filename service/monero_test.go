@@ -356,6 +356,88 @@ func TestCreateMoneroInvoiceStopsAtWalletSubaddressLimit(t *testing.T) {
 	assert.Zero(t, createAddressCalls)
 }
 
+func TestCreateMoneroInvoiceRetriesUsedWalletSubaddress(t *testing.T) {
+	setupMoneroServiceTest(t)
+
+	existingTopUp := &model.TopUp{
+		UserId:          991,
+		TradeNo:         "monero-existing-address",
+		PaymentMethod:   model.PaymentMethodMonero,
+		PaymentProvider: model.PaymentProviderMonero,
+		CreateTime:      common.GetTimestamp(),
+		Status:          common.TopUpStatusExpired,
+	}
+	require.NoError(t, model.DB.Create(existingTopUp).Error)
+	require.NoError(t, model.DB.Create(&model.MoneroPayment{
+		TopUpID:      existingTopUp.Id,
+		Address:      "9usedMoneroInvoiceAddress",
+		AccountIndex: 0,
+		AddressIndex: 17,
+		Network:      setting.MoneroNetworkTestnet,
+		Status:       model.MoneroPaymentStatusExpired,
+		CreateTime:   common.GetTimestamp(),
+	}).Error)
+
+	createAddressCalls := 0
+	rpcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request moneroRPCRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		var response any
+		switch request.Method {
+		case "get_address":
+			response = map[string]any{"result": map[string]any{
+				"addresses": []map[string]any{{"address": "9primaryAddress"}},
+			}}
+		case "create_address":
+			createAddressCalls++
+			address := "9usedMoneroInvoiceAddress"
+			addressIndex := 17
+			if createAddressCalls == 2 {
+				address = "9freshMoneroInvoiceAddress"
+				addressIndex = 18
+			}
+			response = map[string]any{"result": map[string]any{
+				"address":       address,
+				"address_index": addressIndex,
+			}}
+		default:
+			response = map[string]any{"error": map[string]any{"code": -1, "message": "unexpected method"}}
+		}
+		body, err := common.Marshal(response)
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer rpcServer.Close()
+
+	priceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		body, err := common.Marshal(map[string]any{"monero": map[string]any{"usd": 100}})
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer priceServer.Close()
+
+	moneroUSDPriceURL = priceServer.URL
+	setting.MoneroEnabled = true
+	setting.MoneroWalletRPCURL = rpcServer.URL + "/json_rpc"
+	setting.MoneroNetwork = setting.MoneroNetworkTestnet
+	setting.MoneroConfirmations = 1
+	setting.MoneroUSDToCurrencyRate = 1
+
+	invoice, err := CreateMoneroInvoice(context.Background(), 991, 10)
+	require.NoError(t, err)
+	assert.Equal(t, "9freshMoneroInvoiceAddress", invoice.Address)
+	assert.Equal(t, 2, createAddressCalls)
+
+	var topUpCount int64
+	require.NoError(t, model.DB.Model(&model.TopUp{}).Count(&topUpCount).Error)
+	assert.Equal(t, int64(2), topUpCount)
+	var paymentCount int64
+	require.NoError(t, model.DB.Model(&model.MoneroPayment{}).Count(&paymentCount).Error)
+	assert.Equal(t, int64(2), paymentCount)
+}
+
 func TestAuditMoneroTerminalAddressesReportsOnlyFullyUnlockedAddresses(t *testing.T) {
 	setupMoneroServiceTest(t)
 

@@ -134,6 +134,31 @@ func TestManageUserDemoteAdvancesAuthVersionAndRevokesSessionsOnce(t *testing.T)
 	assert.Equal(t, 1, sessionUpdateCount)
 }
 
+func TestManageUserQuotaAuditBelongsToManagedUser(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	user := model.User{
+		Username: "managed-quota-user", Password: "password", Role: common.RoleCommonUser,
+		Status: common.UserStatusEnabled, Group: "default", Quota: 100,
+	}
+	require.NoError(t, db.Create(&user).Error)
+
+	recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"add_quota","value":50,"mode":"add"}`, user.Id))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+
+	var auditLog model.Log
+	require.NoError(t, db.Where("type = ?", model.LogTypeManage).First(&auditLog).Error)
+	assert.Equal(t, user.Id, auditLog.UserId)
+	assert.Equal(t, user.Username, auditLog.Username)
+
+	other, err := common.StrToMap(auditLog.Other)
+	require.NoError(t, err)
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	assert.EqualValues(t, 9999, adminInfo["admin_id"])
+	assert.Equal(t, "root-operator", adminInfo["admin_username"])
+}
+
 func TestManageUserDeleteReturnsImmediatelyAndUnknownActionFails(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	deleted := model.User{

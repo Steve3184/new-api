@@ -481,7 +481,7 @@ export function SubscriptionPlansCard({
                       )}
                       {totalAmount >= 0 && (
                         <div className='text-muted-foreground mt-1'>
-                          {t('Total Quota')}:{' '}
+                          {t('Quota per Billing Period')}:{' '}
                           {totalAmount > 0 ? (
                             <Tooltip>
                               <TooltipTrigger
@@ -559,8 +559,8 @@ export function SubscriptionPlansCard({
               if (totalAmount >= 0) {
                 totalQuotaBenefit =
                   totalAmount > 0
-                    ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
-                    : `${t('Total Quota')}: ${t('Unlimited')}`
+                    ? `${t('Quota per Billing Period')}: ${formatQuota(totalAmount)}`
+                    : `${t('Quota per Billing Period')}: ${t('Unlimited')}`
               }
 
               const benefits = [

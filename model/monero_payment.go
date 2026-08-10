@@ -10,6 +10,7 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -19,6 +20,8 @@ const (
 
 	moneroAtomicUnits = int32(12)
 )
+
+var ErrMoneroPaymentAddressConflict = errors.New("monero payment address already exists")
 
 // MoneroPayment stores the immutable invoice quote next to the generic top-up
 // record. Decimal values are strings so SQLite, MySQL, and PostgreSQL retain
@@ -58,7 +61,19 @@ func CreateMoneroPaymentInvoice(topUp *TopUp, payment *MoneroPayment) error {
 			return err
 		}
 		payment.TopUpID = topUp.Id
-		return tx.Create(payment).Error
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(payment).Error; err != nil {
+			return err
+		}
+		var createdCount int64
+		if err := tx.Model(&MoneroPayment{}).
+			Where("top_up_id = ? AND address = ?", topUp.Id, payment.Address).
+			Count(&createdCount).Error; err != nil {
+			return err
+		}
+		if createdCount != 1 {
+			return ErrMoneroPaymentAddressConflict
+		}
+		return nil
 	})
 }
 

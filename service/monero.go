@@ -604,36 +604,53 @@ func CreateMoneroInvoice(ctx context.Context, userID int, amount int64) (*Monero
 		return nil, err
 	}
 	tradeNo = "monero-" + tradeNo
-	address, addressIndex, err := rpc.createInvoiceAddress(ctx, tradeNo)
-	if err != nil {
-		return nil, err
-	}
-	now := common.GetTimestamp()
-	payment := &model.MoneroPayment{
-		Address:        address,
-		AccountIndex:   0,
-		AddressIndex:   addressIndex,
-		Network:        strings.ToLower(setting.MoneroNetwork),
-		ExpectedAtomic: expectedAtomic.StringFixed(0),
-		QuoteUSD:       quoteUSD.StringFixed(12),
-		USDPerXMR:      usdPerXMR.StringFixed(12),
-		QuotaPerUSD:    quotaPerUSD.StringFixed(12),
-		Status:         model.MoneroPaymentStatusPending,
-		ExpiresAt:      now + int64(moneroInvoiceExpiry/time.Second),
-		CreateTime:     now,
-	}
-	topUp := &model.TopUp{
-		UserId:          userID,
-		Amount:          amount,
-		Money:           quoteUSD.InexactFloat64(),
-		TradeNo:         tradeNo,
-		PaymentMethod:   model.PaymentMethodMonero,
-		PaymentProvider: model.PaymentProviderMonero,
-		CreateTime:      now,
-		Status:          common.TopUpStatusPending,
-	}
-	if err := model.CreateMoneroPaymentInvoice(topUp, payment); err != nil {
-		return nil, err
+	seenAddresses := make(map[string]struct{})
+	var address string
+	var payment *model.MoneroPayment
+	for {
+		var addressIndex int
+		address, addressIndex, err = rpc.createInvoiceAddress(ctx, tradeNo)
+		if err != nil {
+			return nil, err
+		}
+		if _, seen := seenAddresses[address]; seen {
+			return nil, errors.New("monero wallet RPC repeatedly returned the same invoice address")
+		}
+		seenAddresses[address] = struct{}{}
+
+		now := common.GetTimestamp()
+		candidatePayment := &model.MoneroPayment{
+			Address:        address,
+			AccountIndex:   0,
+			AddressIndex:   addressIndex,
+			Network:        strings.ToLower(setting.MoneroNetwork),
+			ExpectedAtomic: expectedAtomic.StringFixed(0),
+			QuoteUSD:       quoteUSD.StringFixed(12),
+			USDPerXMR:      usdPerXMR.StringFixed(12),
+			QuotaPerUSD:    quotaPerUSD.StringFixed(12),
+			Status:         model.MoneroPaymentStatusPending,
+			ExpiresAt:      now + int64(moneroInvoiceExpiry/time.Second),
+			CreateTime:     now,
+		}
+		topUp := &model.TopUp{
+			UserId:          userID,
+			Amount:          amount,
+			Money:           quoteUSD.InexactFloat64(),
+			TradeNo:         tradeNo,
+			PaymentMethod:   model.PaymentMethodMonero,
+			PaymentProvider: model.PaymentProviderMonero,
+			CreateTime:      now,
+			Status:          common.TopUpStatusPending,
+		}
+		if err := model.CreateMoneroPaymentInvoice(topUp, candidatePayment); err != nil {
+			if errors.Is(err, model.ErrMoneroPaymentAddressConflict) {
+				logger.LogWarn(ctx, fmt.Sprintf("Monero wallet RPC returned an existing invoice address address_index=%d", addressIndex))
+				continue
+			}
+			return nil, err
+		}
+		payment = candidatePayment
+		break
 	}
 	return &MoneroInvoice{
 		Address:       address,

@@ -5593,6 +5593,9 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Quota per Billing Period": "Hạn mức mỗi kỳ thanh toán",
+    "Quota per Billing Period ({{currency}})": "Hạn mức mỗi kỳ thanh toán ({{currency}})",
+    "Quota available during each billing period. 0 means unlimited; a negative value creates a benefits-only plan with no usable quota.": "Hạn mức dùng được trong mỗi kỳ thanh toán. 0 là không giới hạn; giá trị âm tạo gói chỉ có quyền lợi, không có hạn mức sử dụng."
   }
 }

@@ -5593,6 +5593,9 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Quota per Billing Period": "週期內額度",
+    "Quota per Billing Period ({{currency}})": "週期內額度 ({{currency}})",
+    "Quota available during each billing period. 0 means unlimited; a negative value creates a benefits-only plan with no usable quota.": "每個計費週期內可用的額度。0 表示不限額；負數會建立不含可用額度的僅權益套餐。"
   }
 }
