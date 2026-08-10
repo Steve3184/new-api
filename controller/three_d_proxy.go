@@ -33,7 +33,7 @@ func ThreeDProxy(c *gin.Context) {
 		return
 	}
 
-	task, exists, err := model.GetByTaskId(c.GetInt("id"), taskID)
+	task, exists, err := model.GetByPublicTaskId(taskID)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query 3D task %s: %s", taskID, err.Error()))
 		threeDProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")
@@ -43,18 +43,19 @@ func ThreeDProxy(c *gin.Context) {
 		threeDProxyError(c, http.StatusNotFound, "invalid_request_error", "Task not found")
 		return
 	}
-	if task.Status != model.TaskStatusSuccess {
-		threeDProxyError(c, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("Task is not completed yet, current status: %s", task.Status))
-		return
-	}
-
 	channel, err := model.CacheGetChannel(task.ChannelId)
 	if err != nil {
 		threeDProxyError(c, http.StatusInternalServerError, "server_error", "Failed to retrieve channel information")
 		return
 	}
 	if channel.Type != constant.ChannelTypeMeshy2API {
-		threeDProxyError(c, http.StatusBadRequest, "invalid_request_error", "Task is not a Meshy2API 3D task")
+		// The content URL is a public capability URL. Do not reveal whether a
+		// task ID belongs to another provider through a status/type response.
+		threeDProxyError(c, http.StatusNotFound, "invalid_request_error", "Task not found")
+		return
+	}
+	if task.Status != model.TaskStatusSuccess {
+		threeDProxyError(c, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("Task is not completed yet, current status: %s", task.Status))
 		return
 	}
 	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")

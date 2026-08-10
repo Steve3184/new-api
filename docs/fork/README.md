@@ -597,13 +597,14 @@ All generation tabs use the same combined model/group picker as chat. The
 frontend loads model availability for every usable group in parallel, builds a
 union model list, and shows the union of groups that provide any model allowed
 for the active generation tab. This keeps every usable group visible even when
-the initially selected model is only available in one group. Selecting a model
-still moves to a group that provides it when needed; selecting a group whose
-current model is unavailable switches to that group's first allowed model. The
-selection no longer relies on effect-driven state correction when a generation
-tab mounts. The group column keeps short rows at their natural height when only
-a few groups are eligible. Only the combined picker is rendered, rather than
-separate model and group fields.
+the initially selected model is only available in one group. After a group is
+selected, the model column is limited to that group's models that are allowed
+for the active generation tab; if the current model is unavailable, the first
+eligible model in that group is selected. The selection no longer relies on
+effect-driven state correction when a generation tab mounts. The group column
+keeps short rows at their natural height when only a few groups are eligible.
+Only the combined picker is rendered, rather than separate model and group
+fields.
 
 ### Model ordering and OpenAI chat relay options
 
@@ -1175,9 +1176,10 @@ Completed response:
 }
 ```
 
-The public response never exposes the upstream task ID or upstream artifact
-URL. The content endpoint authenticates the caller, checks task ownership, and
-streams the GLB from the original Meshy2API channel.
+The public response keeps the upstream artifact URL internal. The content URL
+uses the high-entropy public task ID as a capability: anyone holding the URL can
+download the GLB without API or session credentials. The endpoint resolves the
+task and streams the GLB from the original Meshy2API channel.
 
 ### Billing
 

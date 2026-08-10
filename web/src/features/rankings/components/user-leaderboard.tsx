@@ -58,7 +58,7 @@ export function UserLeaderboard(props: UserLeaderboardProps) {
         </p>
       </header>
 
-      <div className='grid gap-x-8 md:grid-cols-2'>
+      <div className='grid md:grid-cols-2'>
         <UserRankingColumn
           icon={<Hash className='size-4 text-sky-500' />}
           title={t('Token Usage')}

@@ -4,7 +4,10 @@ import { useMemo } from 'react'
 import { ModelGroupSelector } from '@/components/model-group-selector'
 
 import type { GroupOption, ModelOption } from '../../types'
-import { filterGenerationGroups } from './generation-utils'
+import {
+  filterGenerationGroups,
+  filterGenerationModelsForGroup,
+} from './generation-utils'
 
 type GenerationControlsProps = {
   groups: GroupOption[]
@@ -22,17 +25,26 @@ export function GenerationControls(props: GenerationControlsProps) {
     () => filterGenerationGroups(props.groups, props.groupModels, props.models),
     [props.groupModels, props.groups, props.models]
   )
+  const visibleModels = useMemo(
+    () =>
+      filterGenerationModelsForGroup(
+        props.models,
+        props.groupModels,
+        props.group
+      ),
+    [props.group, props.groupModels, props.models]
+  )
 
   return (
     <ModelGroupSelector
       selectedModel={props.model}
-      models={props.models}
+      models={visibleModels}
       onModelChange={props.onModelChange}
       selectedGroup={props.group}
       groups={eligibleGroups}
       onGroupChange={props.onGroupChange}
       className='h-10 w-full max-w-none justify-start font-mono'
-      disabled={props.disabled || props.models.length === 0}
+      disabled={props.disabled || visibleModels.length === 0}
     />
   )
 }

@@ -15,27 +15,13 @@ export function filterGenerationGroups(
   })
 }
 
-export function filterGroupsForGenerationModel(
-  groups: GroupOption[],
-  groupModels: Record<string, string[]>,
-  selectedModel: string
-): GroupOption[] {
-  if (!selectedModel) return []
-  return groups.filter((group) =>
-    (groupModels[group.value] ?? []).includes(selectedModel)
-  )
-}
-
 export function resolveGenerationGroup(
   groups: GroupOption[],
   groupModels: Record<string, string[]>,
   models: ModelOption[],
-  selectedModel: string,
   selectedGroup: string
 ): string {
-  const eligibleGroups = selectedModel
-    ? filterGroupsForGenerationModel(groups, groupModels, selectedModel)
-    : filterGenerationGroups(groups, groupModels, models)
+  const eligibleGroups = filterGenerationGroups(groups, groupModels, models)
   if (eligibleGroups.some((group) => group.value === selectedGroup)) {
     return selectedGroup
   }
@@ -49,6 +35,16 @@ export function filterGenerationModels(
   if (allowedModels.length === 0) return models
   const allowed = new Set(allowedModels)
   return models.filter((model) => allowed.has(model.value))
+}
+
+export function filterGenerationModelsForGroup(
+  models: ModelOption[],
+  groupModels: Record<string, string[]>,
+  selectedGroup: string
+): ModelOption[] {
+  if (!selectedGroup) return models
+  const availableModels = new Set(groupModels[selectedGroup] ?? [])
+  return models.filter((model) => availableModels.has(model.value))
 }
 
 export function imageResponseSource(image: {

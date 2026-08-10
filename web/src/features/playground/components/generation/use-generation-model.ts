@@ -3,7 +3,7 @@ import { useState } from 'react'
 
 import type { GroupOption, ModelOption } from '../../types'
 import {
-  filterGroupsForGenerationModel,
+  filterGenerationModelsForGroup,
   resolveGenerationGroup,
 } from './generation-utils'
 
@@ -17,40 +17,35 @@ type GenerationModelOptions = {
 
 export function useGenerationModel(options: GenerationModelOptions) {
   const [selectedModel, setSelectedModel] = useState('')
-  const model = options.models.some((option) => option.value === selectedModel)
-    ? selectedModel
-    : (options.models[0]?.value ?? '')
   const group = resolveGenerationGroup(
     options.groups,
     options.groupModels,
     options.models,
-    model,
     options.group
   )
+  const visibleModels = filterGenerationModelsForGroup(
+    options.models,
+    options.groupModels,
+    group
+  )
+  const model = visibleModels.some((option) => option.value === selectedModel)
+    ? selectedModel
+    : (visibleModels[0]?.value ?? '')
 
   const setModel = (value: string) => {
+    if (!visibleModels.some((option) => option.value === value)) return
     setSelectedModel(value)
-    const nextGroups = filterGroupsForGenerationModel(
-      options.groups,
-      options.groupModels,
-      value
-    )
-    if (
-      nextGroups.length > 0 &&
-      !nextGroups.some((option) => option.value === options.group)
-    ) {
-      options.onGroupChange(nextGroups[0].value)
-    }
   }
 
   const setGroup = (value: string) => {
-    const groupModels = new Set(options.groupModels[value] ?? [])
-    if (!groupModels.has(model)) {
-      const nextModel = options.models.find((option) =>
-        groupModels.has(option.value)
-      )
-      if (!nextModel) return
-      setSelectedModel(nextModel.value)
+    const nextModels = filterGenerationModelsForGroup(
+      options.models,
+      options.groupModels,
+      value
+    )
+    if (nextModels.length === 0) return
+    if (!nextModels.some((option) => option.value === model)) {
+      setSelectedModel(nextModels[0].value)
     }
     options.onGroupChange(value)
   }

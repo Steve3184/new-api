@@ -4,6 +4,7 @@ import { describe, test } from 'node:test'
 
 import {
   filterGenerationGroups,
+  filterGenerationModelsForGroup,
   imageSizeFromResolution,
   normalizeImageAspectRatio,
   resolveGenerationGroup,
@@ -40,16 +41,47 @@ describe('generation group filtering', () => {
     )
   })
 
-  test('falls back to a group that provides the selected model', () => {
+  test('falls back to an eligible group', () => {
     assert.equal(
       resolveGenerationGroup(
         groups,
         groupModels,
         [{ label: 'GPT Image 2', value: 'gpt-image-2' }],
-        'gpt-image-2',
         'speech'
       ),
       'default'
+    )
+  })
+
+  test('keeps an eligible selected group when it has a different allowed model', () => {
+    assert.equal(
+      resolveGenerationGroup(
+        groups,
+        groupModels,
+        [
+          { label: 'GPT Image 2', value: 'gpt-image-2' },
+          { label: 'TTS', value: 'tts-1' },
+        ],
+        'speech'
+      ),
+      'speech'
+    )
+  })
+
+  test('limits the model list to models available in the selected group', () => {
+    assert.deepEqual(
+      filterGenerationModelsForGroup(
+        [
+          { label: 'GPT Image 2', value: 'gpt-image-2' },
+          { label: 'DALL-E 3', value: 'dall-e-3' },
+        ],
+        {
+          default: ['gpt-image-2', 'dall-e-3'],
+          image: ['gpt-image-2'],
+        },
+        'image'
+      ).map((model) => model.value),
+      ['gpt-image-2']
     )
   })
 })

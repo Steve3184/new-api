@@ -27,7 +27,7 @@ func SetVideoRouter(router *gin.Engine) {
 
 	threeDContentRouter := router.Group("/v1")
 	threeDContentRouter.Use(middleware.RouteTag("relay"))
-	threeDContentRouter.Use(middleware.TokenOrUserAuth())
+	threeDContentRouter.Use(middleware.DownloadRateLimit())
 	{
 		threeDContentRouter.GET("/3d/:task_id/content", controller.ThreeDProxy)
 	}
