@@ -74,6 +74,7 @@ export function UserAuthForm({
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
   const loginFailedMessage = t('Login failed')
 
@@ -86,6 +87,7 @@ export function UserAuthForm({
       status?.data?.password_login_enabled ??
       true) !== false
   const {
+    isCaptchaEnabled,
     isTurnstileEnabled,
     isHCaptchaEnabled,
     isCapEnabled,
@@ -154,17 +156,23 @@ export function UserAuthForm({
 
     if (!validateCaptcha()) return
 
+    const submittedCaptchaToken = captchaToken
+    if (isCaptchaEnabled) {
+      setCaptchaToken('')
+      setCaptchaWidgetKey((current) => current + 1)
+    }
+
     setIsLoading(true)
     try {
       let captchaPayload: {
         turnstile?: string
         hcaptcha?: string
         cap_token?: string
-      } = { turnstile: captchaToken }
+      } = { turnstile: submittedCaptchaToken }
       if (isCapEnabled) {
-        captchaPayload = { cap_token: captchaToken }
+        captchaPayload = { cap_token: submittedCaptchaToken }
       } else if (isHCaptchaEnabled) {
-        captchaPayload = { hcaptcha: captchaToken }
+        captchaPayload = { hcaptcha: submittedCaptchaToken }
       }
       const res = await login({
         username: data.username,
@@ -404,14 +412,17 @@ export function UserAuthForm({
             {isTurnstileEnabled && (
               <div className='mt-2'>
                 <Turnstile
+                  key={captchaWidgetKey}
                   siteKey={turnstileSiteKey}
                   onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken('')}
                 />
               </div>
             )}
             {isHCaptchaEnabled && (
               <div className='mt-2'>
                 <HCaptcha
+                  key={captchaWidgetKey}
                   siteKey={hCaptchaSiteKey}
                   onVerify={setCaptchaToken}
                   onExpire={() => setCaptchaToken('')}
@@ -422,6 +433,7 @@ export function UserAuthForm({
             {isCapEnabled && (
               <div className='mt-2'>
                 <Cap
+                  key={captchaWidgetKey}
                   apiEndpoint={capApiEndpoint}
                   onVerify={setCaptchaToken}
                   onReset={() => setCaptchaToken('')}
