@@ -68,7 +68,7 @@ export function PublicLayout(props: PublicLayoutProps) {
         siteName={props.siteName}
         {...props.headerProps}
         className={cn(
-          showHeroBackground && 'bg-background/35 backdrop-blur-xl',
+          showHeroBackground && 'border-0 bg-transparent',
           props.headerProps?.className
         )}
       />

@@ -190,7 +190,7 @@ func GetRankingsSnapshot(period string) (*RankingsResponse, error) {
 	return data, nil
 }
 
-// GetUserRankingsSnapshot returns the top ten users by quota and token usage
+// GetUserRankingsSnapshot returns the top twenty users by quota and token usage
 // for the same rolling period used by the model rankings. Results are cached
 // briefly because the source table is an hourly rollup and the page is often
 // revisited while switching between periods.
@@ -258,7 +258,7 @@ func buildUserRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*User
 }
 
 const (
-	rankingLeaderboardUserLimit = 10
+	rankingLeaderboardUserLimit = 20
 	rankingUserMetricQuota      = "quota"
 	rankingUserMetricTokens     = "tokens"
 )

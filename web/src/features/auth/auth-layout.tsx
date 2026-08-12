@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { cn } from '@/lib/utils'
 
 type AuthLayoutProps = {
   children: React.ReactNode
@@ -28,13 +29,44 @@ type AuthLayoutProps = {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { t } = useTranslation()
-  const { systemName, logo, loading } = useSystemConfig()
+  const { systemName, logo, loading, appearance } = useSystemConfig()
+  const backgroundImage = appearance.backgroundImage
+  const blurOpacity = Math.min(
+    100,
+    Math.max(0, appearance.backgroundBlurOpacity ?? 40)
+  )
+  const surfaceStyles = backgroundImage
+    ? ({
+        '--console-card-opacity': `${Math.min(85, blurOpacity + 15)}%`,
+      } as React.CSSProperties)
+    : undefined
+  const glassSurfaceStyle = backgroundImage
+    ? {
+        backgroundColor:
+          'color-mix(in oklch, var(--card) var(--console-card-opacity), transparent)',
+      }
+    : undefined
 
   return (
-    <div className='relative grid h-svh max-w-none'>
+    <div
+      className='relative isolate grid min-h-svh max-w-none'
+      data-console-background={backgroundImage ? 'image' : undefined}
+      style={surfaceStyles}
+    >
+      {backgroundImage && (
+        <div
+          aria-hidden='true'
+          className='pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat'
+          style={{ backgroundImage: `url(${JSON.stringify(backgroundImage)})` }}
+        />
+      )}
       <Link
         to='/'
-        className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
+        className={cn(
+          'absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8',
+          backgroundImage && 'rounded-lg p-2 backdrop-blur-sm'
+        )}
+        style={glassSurfaceStyle}
       >
         <div className='relative h-8 w-8'>
           {loading ? (
@@ -53,8 +85,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <h1 className='text-xl font-medium'>{systemName}</h1>
         )}
       </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
+      <div className='container relative z-0 flex items-center pt-16 sm:pt-0'>
+        <div
+          className={cn(
+            'mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8',
+            backgroundImage && 'rounded-lg backdrop-blur-sm'
+          )}
+          style={glassSurfaceStyle}
+        >
           {children}
         </div>
       </div>

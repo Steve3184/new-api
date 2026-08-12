@@ -17,6 +17,8 @@ func TestValidatePublicOption(t *testing.T) {
 		{name: "absolute background", key: "console_setting.background_image", value: "https://cdn.example.com/background.jpg"},
 		{name: "relative background", key: "console_setting.background_image", value: "/_custom/img/background.jpg"},
 		{name: "reject unsafe background", key: "console_setting.background_image", value: "javascript:alert(1)", wantErr: true},
+		{name: "background blur opacity", key: "console_setting.background_blur_opacity", value: "60"},
+		{name: "reject background blur opacity above range", key: "console_setting.background_blur_opacity", value: "101", wantErr: true},
 		{name: "relative logo", key: "Logo", value: "/_custom/img/logo.png"},
 		{name: "reject unsafe logo", key: "Logo", value: "data:image/svg+xml,test", wantErr: true},
 		{name: "valid preset", key: "console_setting.default_theme_preset", value: "anthropic"},
@@ -45,6 +47,7 @@ func TestPublicSettingsDefaults(t *testing.T) {
 	meta := GetSPAMetaSetting()
 
 	assert.Equal(t, "system", appearance.DefaultTheme)
+	assert.Equal(t, 40, appearance.BackgroundBlurOpacity)
 	assert.Equal(t, "card", appearance.ModelSquareDefaultView)
 	assert.Equal(t, 18, appearance.ModelSquareCardPageSize)
 	assert.Equal(t, 20, appearance.ModelSquareTablePageSize)

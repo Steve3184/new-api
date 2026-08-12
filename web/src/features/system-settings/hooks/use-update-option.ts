@@ -64,6 +64,7 @@ const STATUS_RELATED_KEYS = new Set([
   'PlaygroundSettings',
   'oidc.display_name',
   'console_setting.background_image',
+  'console_setting.background_blur_opacity',
   'console_setting.default_theme',
   'console_setting.default_theme_preset',
   'console_setting.default_theme_font',

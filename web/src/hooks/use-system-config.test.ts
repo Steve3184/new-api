@@ -26,6 +26,7 @@ describe('mapStatusDataToConfig', () => {
     const config = mapStatusDataToConfig({
       site_appearance: {
         background_image: '/background.webp',
+        background_blur_opacity: 60,
         default_theme: 'dark',
         default_theme_preset: 'anthropic',
         default_theme_font: 'serif',
@@ -48,6 +49,7 @@ describe('mapStatusDataToConfig', () => {
 
     assert.deepEqual(config.appearance, {
       backgroundImage: '/background.webp',
+      backgroundBlurOpacity: 60,
       defaultTheme: 'dark',
       defaultThemePreset: 'anthropic',
       defaultThemeFont: 'serif',
@@ -80,5 +82,15 @@ describe('mapStatusDataToConfig', () => {
     assert.equal(config.appearance?.defaultTheme, 'system')
     assert.equal(config.appearance?.defaultSidebarLayout, 'expanded')
     assert.equal(config.appearance?.modelSquareDefaultView, 'card')
+  })
+
+  test('clamps the background blur opacity to its supported range', () => {
+    const config = mapStatusDataToConfig({
+      site_appearance: {
+        background_blur_opacity: 125,
+      },
+    })
+
+    assert.equal(config.appearance?.backgroundBlurOpacity, 100)
   })
 })

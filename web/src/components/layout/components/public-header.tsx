@@ -183,6 +183,7 @@ export function PublicHeader(props: PublicHeaderProps) {
           )}
         >
           <nav
+            data-slot='public-navigation'
             className={cn(
               'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
               scrolled

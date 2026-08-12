@@ -41,6 +41,7 @@ const defaultSiteSettings: SiteSettings = {
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
   'console_setting.background_image': '',
+  'console_setting.background_blur_opacity': 40,
   'console_setting.default_theme': 'system',
   'console_setting.default_theme_preset': 'default',
   'console_setting.default_theme_font': 'default',

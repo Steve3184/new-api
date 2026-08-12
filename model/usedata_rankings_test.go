@@ -53,7 +53,7 @@ func TestGetRankingUserUsageAggregatesBothMetricsAndGroups(t *testing.T) {
 
 func TestGetRankingUserUsageLimitsEachMetricInSQL(t *testing.T) {
 	truncateTables(t)
-	for userID := 1; userID <= 12; userID++ {
+	for userID := 1; userID <= 22; userID++ {
 		require.NoError(t, DB.Create(&User{
 			Id:       userID,
 			Username: "user-" + string(rune('a'+userID-1)),
@@ -66,15 +66,15 @@ func TestGetRankingUserUsageLimitsEachMetricInSQL(t *testing.T) {
 			CreatedAt: 1000,
 			UseGroup:  "default",
 			Quota:     userID,
-			TokenUsed: 13 - userID,
+			TokenUsed: 23 - userID,
 		}).Error)
 	}
 
-	usage, err := GetRankingUserUsage(1000, 1000, 10)
+	usage, err := GetRankingUserUsage(1000, 1000, 20)
 	require.NoError(t, err)
-	require.Len(t, usage.ByQuota, 10)
-	require.Len(t, usage.ByTokens, 10)
-	require.Equal(t, 12, usage.ByQuota[0].UserID)
+	require.Len(t, usage.ByQuota, 20)
+	require.Len(t, usage.ByTokens, 20)
+	require.Equal(t, 22, usage.ByQuota[0].UserID)
 	require.Equal(t, 1, usage.ByTokens[0].UserID)
 }
 

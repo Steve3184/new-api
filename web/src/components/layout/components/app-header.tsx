@@ -53,8 +53,7 @@ import { TopNav } from './top-nav'
  *   rightContent={<CustomRight />}
  * />
  */
-type AppHeaderProps = {
-  className?: string
+type AppHeaderProps = React.ComponentProps<typeof Header> & {
   /**
    * Custom navigation links, uses default global navigation or dynamically generated from backend if not provided
    */
@@ -104,6 +103,7 @@ export function AppHeader({
   showConfigDrawer = true,
   showProfileDropdown = true,
   className,
+  ...headerProps
 }: AppHeaderProps) {
   // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
@@ -113,7 +113,7 @@ export function AppHeader({
   const notifications = useNotifications()
 
   return (
-    <Header className={className}>
+    <Header className={className} {...headerProps}>
       <SystemBrand variant='inline' />
 
       {leftContent ? (

@@ -1737,6 +1737,7 @@ The section maps directly to these public options:
 | Option | Allowed values / behavior |
 | --- | --- |
 | `console_setting.background_image` | Empty, absolute HTTP(S) URL, or root-relative path such as `/_custom/img/background.webp` |
+| `console_setting.background_blur_opacity` | Integer from `0` through `100`; controls the opacity of console surfaces over the background image and defaults to `40` |
 | `console_setting.default_theme` | `system`, `light`, `dark` |
 | `console_setting.default_theme_preset` | Any preset exposed by the theme drawer |
 | `console_setting.default_theme_font` | `default`, `sans`, `serif` |
@@ -1756,12 +1757,19 @@ current administrator default; resetting an axis removes that personal cookie
 and returns to the administrator default. Users cannot override the background
 image.
 
-The authenticated console renders the configured image at full viewport size;
-the header, sidebar, and main content use translucent blurred surfaces. The
-model square and rankings use the image only in their upper hero region. Card
-page sizes must be multiples of six from `6` through `96`, which keeps both the
-two-column and three-column grids complete. The default is `18`; table page
-sizes may range from `5` through `100` and default to `20`.
+The authenticated console renders the configured image at full viewport size.
+The full-width public navigation remains transparent, while the authentication
+pages, header, sidebar, cards, and list rows use translucent surfaces derived from
+`console_setting.background_blur_opacity`; the blur remains shallow so the
+image is visible. List rows retain a subtle surface color rather than becoming
+fully transparent. The model square and rankings use the image only in their
+upper hero region. Card page sizes must be multiples of six from `6` through
+`96`, which keeps both the two-column and three-column grids complete. The
+default is `18`; table page sizes may range from `5` through `100` and default
+to `20`.
+
+The public user leaderboard returns the top `20` users independently for token
+usage and quota usage in each selected period.
 
 Files:
 

@@ -52,6 +52,7 @@ interface StatusApiResponse {
     custom_currency_exchange_rate?: number
     site_appearance?: {
       background_image?: string
+      background_blur_opacity?: number
       default_theme?: string
       default_theme_preset?: string
       default_theme_font?: string
@@ -89,7 +90,10 @@ function normalizeAppearance(
   const defaults = DEFAULT_SITE_APPEARANCE
   return {
     backgroundImage: value?.background_image?.trim() || '',
-    backgroundBlurOpacity: toNumber(value?.background_blur_opacity, 40),
+    backgroundBlurOpacity: Math.min(
+      100,
+      Math.max(0, toNumber(value?.background_blur_opacity, 40))
+    ),
     defaultTheme: enumValue(
       value?.default_theme,
       ['system', 'light', 'dark'],

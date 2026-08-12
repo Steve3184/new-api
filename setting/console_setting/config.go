@@ -105,6 +105,7 @@ type SPAMetaSetting struct {
 func GetAppearanceSetting() AppearanceSetting {
 	return AppearanceSetting{
 		BackgroundImage:          consoleSetting.BackgroundImage,
+		BackgroundBlurOpacity:    consoleSetting.BackgroundBlurOpacity,
 		DefaultTheme:             consoleSetting.DefaultTheme,
 		DefaultThemePreset:       consoleSetting.DefaultThemePreset,
 		DefaultThemeFont:         consoleSetting.DefaultThemeFont,
@@ -174,6 +175,11 @@ func ValidatePublicOption(key, value string) error {
 	switch name {
 	case "background_image":
 		return validatePublicImageURL("background image", value)
+	case "background_blur_opacity":
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || parsed < 0 || parsed > 100 {
+			return fmt.Errorf("background blur opacity must be between 0 and 100")
+		}
 	case "default_theme":
 		return validateEnum(value, "system", "light", "dark")
 	case "default_theme_preset":

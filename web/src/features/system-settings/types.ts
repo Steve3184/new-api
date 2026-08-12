@@ -123,6 +123,7 @@ export type SiteSettings = {
   HeaderNavModules: string
   SidebarModulesAdmin: string
   'console_setting.background_image': string
+  'console_setting.background_blur_opacity': number
   'console_setting.default_theme': 'system' | 'light' | 'dark'
   'console_setting.default_theme_preset':
     | 'default'

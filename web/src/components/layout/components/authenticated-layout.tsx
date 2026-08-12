@@ -39,11 +39,25 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
     ? savedSidebarState !== 'false'
     : appearance.defaultSidebarLayout === 'expanded'
   const backgroundImage = appearance.backgroundImage
-  const blurOpacity = appearance.backgroundBlurOpacity ?? 40
-  const opacityValue = blurOpacity / 100
+  const blurOpacity = Math.min(
+    100,
+    Math.max(0, appearance.backgroundBlurOpacity ?? 40)
+  )
+  const surfaceStyles = backgroundImage
+    ? ({
+        '--console-surface-opacity': `${blurOpacity}%`,
+        '--console-card-opacity': `${Math.min(85, blurOpacity + 15)}%`,
+        '--console-sidebar-opacity': `${Math.min(80, blurOpacity + 10)}%`,
+        '--console-list-opacity': `${Math.min(75, blurOpacity + 20)}%`,
+      } as React.CSSProperties)
+    : undefined
 
   return (
-    <div className='relative isolate min-h-svh'>
+    <div
+      className='relative isolate min-h-svh'
+      data-console-background={backgroundImage ? 'image' : undefined}
+      style={surfaceStyles}
+    >
       {backgroundImage && (
         <div
           aria-hidden='true'
@@ -59,13 +73,13 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
           >
             <SkipToMain />
             <AppHeader
-              className={cn(
-                backgroundImage && 'backdrop-blur-md',
-                backgroundImage && `bg-background/${blurOpacity}`
-              )}
+              className={cn(backgroundImage && 'backdrop-blur-sm')}
               style={
                 backgroundImage
-                  ? { backgroundColor: `rgb(var(--background) / ${opacityValue})` }
+                  ? {
+                      backgroundColor:
+                        'color-mix(in oklch, var(--background) var(--console-surface-opacity), transparent)',
+                    }
                   : undefined
               }
             />
@@ -77,11 +91,14 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                   'h-[calc(100svh-var(--app-header-height,0px))]',
                   'min-h-0 overflow-hidden',
                   'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]',
-                  backgroundImage && 'backdrop-blur-md'
+                  backgroundImage && 'backdrop-blur-sm'
                 )}
                 style={
                   backgroundImage
-                    ? { backgroundColor: `rgb(var(--background) / ${opacityValue})` }
+                    ? {
+                        backgroundColor:
+                          'color-mix(in oklch, var(--background) var(--console-surface-opacity), transparent)',
+                      }
                     : undefined
                 }
               >

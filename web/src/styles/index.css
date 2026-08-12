@@ -123,6 +123,41 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* Image-backed console surfaces share one transparency control. Keeping the
+ * blur shallow preserves the image while maintaining readable content. */
+[data-console-background='image'] [data-slot='sidebar-container'] {
+  background-color: transparent;
+  backdrop-filter: none;
+}
+
+[data-console-background='image'] [data-slot='sidebar-inner'],
+[data-console-background='image'] [data-sidebar='sidebar'][data-mobile='true'] {
+  background-color: color-mix(
+    in oklch,
+    var(--sidebar) var(--console-sidebar-opacity),
+    transparent
+  );
+  backdrop-filter: blur(4px);
+}
+
+[data-console-background='image'] [data-slot='card'],
+[data-console-background='image'] .bg-card {
+  background-color: color-mix(
+    in oklch,
+    var(--card) var(--console-card-opacity),
+    transparent
+  );
+  backdrop-filter: blur(4px);
+}
+
+[data-console-background='image'] [data-slot='table-row'] {
+  background-color: color-mix(
+    in oklch,
+    var(--table-row) var(--console-list-opacity),
+    transparent
+  );
+}
+
 /* Vercel Geist-style skeleton shimmer */
 .skeleton-shimmer {
   background: linear-gradient(
