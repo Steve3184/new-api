@@ -485,7 +485,17 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={t('Select a color')} />
+                        <SelectValue placeholder={t('Select a color')}>
+                          {field.value ? (
+                            <div className='flex items-center gap-2'>
+                              <div
+                                className={`h-4 w-4 rounded-full ${getBgColorClass(field.value)}`}
+                              />
+                              {colorOptions.find((o) => o.value === field.value)
+                                ?.label || field.value}
+                            </div>
+                          ) : null}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent alignItemWithTrigger={false}>

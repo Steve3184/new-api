@@ -326,7 +326,13 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue>
+                        {field.value === 'turnstile'
+                          ? 'Cloudflare Turnstile'
+                          : field.value === 'cap'
+                            ? 'Cap (PoW)'
+                            : 'hCaptcha'}
+                      </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent alignItemWithTrigger={false}>

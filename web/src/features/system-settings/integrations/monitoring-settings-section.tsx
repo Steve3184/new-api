@@ -275,7 +275,13 @@ export function MonitoringSettingsSection({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue>
+                          {field.value === 'minute'
+                            ? t('1 minute')
+                            : field.value === '5min'
+                              ? t('5 minutes')
+                              : t('1 hour')}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent alignItemWithTrigger={false}>

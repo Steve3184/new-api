@@ -54,6 +54,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const appearanceSchema = z.object({
   backgroundImage: z.string(),
+  backgroundBlurOpacity: z.coerce.number().min(0).max(100).default(40),
   defaultTheme: z.enum(['system', 'light', 'dark']),
   defaultThemePreset: z.string(),
   defaultThemeFont: z.enum(['default', 'sans', 'serif']),
@@ -72,6 +73,7 @@ export type AppearanceFormValues = z.infer<typeof appearanceSchema>
 
 const OPTION_KEYS: Record<keyof AppearanceFormValues, string> = {
   backgroundImage: 'console_setting.background_image',
+  backgroundBlurOpacity: 'console_setting.background_blur_opacity',
   defaultTheme: 'console_setting.default_theme',
   defaultThemePreset: 'console_setting.default_theme_preset',
   defaultThemeFont: 'console_setting.default_theme_font',
@@ -267,7 +269,7 @@ export function AppearanceSection({ defaultValues }: AppearanceSectionProps) {
                           onValueChange={field.onChange}
                         >
                           <SelectTrigger className='w-full'>
-                            <SelectValue />
+                            <SelectValue placeholder={t(config.options.find(([v]) => v === field.value)?.[1] || String(field.value))} />
                           </SelectTrigger>
                           <SelectContent alignItemWithTrigger={false}>
                             <SelectGroup>
@@ -317,6 +319,28 @@ export function AppearanceSection({ defaultValues }: AppearanceSectionProps) {
                     <FormControl>
                       <Input type='number' min={5} max={100} {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='backgroundBlurOpacity'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Background blur opacity (%)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={100}
+                        step={5}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Controls transparency of the background blur effect')}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

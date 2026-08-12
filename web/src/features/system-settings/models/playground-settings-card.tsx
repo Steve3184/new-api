@@ -225,7 +225,13 @@ export function PlaygroundSettingsCard(props: PlaygroundSettingsCardProps) {
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue />
+                                <SelectValue>
+                                  {modelType === 'openai'
+                                    ? 'OpenAI'
+                                    : modelType === 'azure'
+                                      ? 'Azure'
+                                      : 'UnrealSpeech'}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent alignItemWithTrigger={false}>
                                 <SelectGroup>

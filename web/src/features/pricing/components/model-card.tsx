@@ -45,6 +45,7 @@ export interface ModelCardProps {
   showRechargePrice?: boolean
   selectedGroup?: string
   perf?: ModelPerfBadgeData
+  backgroundImage?: string
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -203,7 +204,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       {/* Header: icon + name + price + actions */}
       <div className='flex items-start justify-between gap-2.5 sm:gap-3'>
         <div className='flex min-w-0 items-start gap-2.5 sm:gap-3'>
-          <div className='bg-muted/40 flex size-9 shrink-0 items-center justify-center rounded-lg sm:size-10 sm:rounded-xl'>
+          <div className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-lg sm:size-10 sm:rounded-xl',
+            props.backgroundImage ? 'bg-transparent' : 'bg-muted/40'
+          )}>
             {modelIcon || (
               <span className='text-muted-foreground text-sm font-bold'>
                 {initial}

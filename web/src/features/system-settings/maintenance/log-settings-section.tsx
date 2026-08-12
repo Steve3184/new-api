@@ -490,7 +490,11 @@ export function LogSettingsSection({
                     }
                   >
                     <SelectTrigger className='w-[160px]'>
-                      <SelectValue />
+                      <SelectValue>
+                        {serverLogCleanupMode === 'by_count'
+                          ? t('Retain last N files')
+                          : t('Retain last N days')}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>

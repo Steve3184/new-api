@@ -39,6 +39,8 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
     ? savedSidebarState !== 'false'
     : appearance.defaultSidebarLayout === 'expanded'
   const backgroundImage = appearance.backgroundImage
+  const blurOpacity = appearance.backgroundBlurOpacity ?? 40
+  const opacityValue = blurOpacity / 100
 
   return (
     <div className='relative isolate min-h-svh'>
@@ -56,7 +58,17 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
             className='flex-col has-data-[variant=inset]:bg-transparent'
           >
             <SkipToMain />
-            <AppHeader className='border-border/50 bg-background/65 border-b backdrop-blur-xl' />
+            <AppHeader
+              className={cn(
+                backgroundImage && 'backdrop-blur-md',
+                backgroundImage && `bg-background/${blurOpacity}`
+              )}
+              style={
+                backgroundImage
+                  ? { backgroundColor: `rgb(var(--background) / ${opacityValue})` }
+                  : undefined
+              }
+            />
             <div className='flex min-h-0 w-full flex-1'>
               <AppSidebar />
               <SidebarInset
@@ -65,8 +77,13 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                   'h-[calc(100svh-var(--app-header-height,0px))]',
                   'min-h-0 overflow-hidden',
                   'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]',
-                  backgroundImage && 'bg-background/72 backdrop-blur-xl'
+                  backgroundImage && 'backdrop-blur-md'
                 )}
+                style={
+                  backgroundImage
+                    ? { backgroundColor: `rgb(var(--background) / ${opacityValue})` }
+                    : undefined
+                }
               >
                 {props.children ?? <AnimatedOutlet />}
               </SidebarInset>
