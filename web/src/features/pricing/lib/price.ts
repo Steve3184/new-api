@@ -234,7 +234,7 @@ export function formatFixedPrice(
 
   return formatCurrencyFromUSD(priceInUSD, {
     digitsLarge: 4,
-    digitsSmall: 4,
+    digitsSmall: 6,
     abbreviate: false,
   })
 }
@@ -266,7 +266,7 @@ export function formatRequestPrice(
 
   return formatCurrencyFromUSD(priceInUSD, {
     digitsLarge: 4,
-    digitsSmall: 4,
+    digitsSmall: 6,
     abbreviate: false,
   })
 }
