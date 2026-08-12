@@ -585,6 +585,8 @@
     "Back to Models": "Back to Models",
     "Backed up": "Backed up",
     "Background image": "Background image",
+    "Background blur opacity (%)": "Background blur opacity (%)",
+    "Controls transparency of the background blur effect": "Controls transparency of the background blur effect",
     "Background job tracker for queued work.": "Background job tracker for queued work.",
     "Backup Code": "Backup Code",
     "Backup code must be in format XXXX-XXXX": "Backup code must be in format XXXX-XXXX",

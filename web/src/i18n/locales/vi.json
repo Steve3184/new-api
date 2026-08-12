@@ -585,6 +585,8 @@
     "Back to Models": "Quay lại Mô hình",
     "Backed up": "Đã sao lưu",
     "Background image": "Ảnh nền",
+    "Background blur opacity (%)": "Độ mờ làm mờ nền (%)",
+    "Controls transparency of the background blur effect": "Kiểm soát độ trong suốt của hiệu ứng làm mờ nền",
     "Background job tracker for queued work.": "Theo dõi công việc nền cho công việc chờ xử lý.",
     "Backup Code": "Mã dự phòng",
     "Backup code must be in format XXXX-XXXX": "Mã dự phòng phải có định dạng XXXX-XXXX",

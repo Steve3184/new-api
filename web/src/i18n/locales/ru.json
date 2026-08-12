@@ -585,6 +585,8 @@
     "Back to Models": "Вернуться к моделям",
     "Backed up": "Резервная копия создана",
     "Background image": "Фоновое изображение",
+    "Background blur opacity (%)": "Прозрачность размытия фона (%)",
+    "Controls transparency of the background blur effect": "Управляет прозрачностью эффекта размытия фона",
     "Background job tracker for queued work.": "Отслеживатель фоновых заданий для задач в очереди.",
     "Backup Code": "Резервный код",
     "Backup code must be in format XXXX-XXXX": "Резервный код должен быть в формате XXXX-XXXX",

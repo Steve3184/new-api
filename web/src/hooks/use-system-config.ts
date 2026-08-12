@@ -89,6 +89,7 @@ function normalizeAppearance(
   const defaults = DEFAULT_SITE_APPEARANCE
   return {
     backgroundImage: value?.background_image?.trim() || '',
+    backgroundBlurOpacity: toNumber(value?.background_blur_opacity, 40),
     defaultTheme: enumValue(
       value?.default_theme,
       ['system', 'light', 'dark'],

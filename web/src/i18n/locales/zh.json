@@ -585,6 +585,8 @@
     "Back to Models": "返回模型",
     "Backed up": "已备份",
     "Background image": "背景图片",
+    "Background blur opacity (%)": "背景模糊透明度 (%)",
+    "Controls transparency of the background blur effect": "控制背景模糊效果的透明度",
     "Background job tracker for queued work.": "队列工作的后台作业跟踪器。",
     "Backup Code": "备用代码",
     "Backup code must be in format XXXX-XXXX": "备份代码必须为 XXXX-XXXX 格式",

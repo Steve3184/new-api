@@ -585,6 +585,8 @@
     "Back to Models": "モデルに戻る",
     "Backed up": "バックアップ済み",
     "Background image": "背景画像",
+    "Background blur opacity (%)": "背景ぼかしの不透明度 (%)",
+    "Controls transparency of the background blur effect": "背景ぼかし効果の透明度を制御します",
     "Background job tracker for queued work.": "キューされた作業のためのバックグラウンドジョブトラッカー。",
     "Backup Code": "バックアップコード",
     "Backup code must be in format XXXX-XXXX": "バックアップコードはXXXX-XXXX形式で入力してください",

@@ -53,6 +53,7 @@ export type SiteThemePreset =
 
 export interface SiteAppearanceConfig {
   backgroundImage: string
+  backgroundBlurOpacity: number
   defaultTheme: SiteTheme
   defaultThemePreset: SiteThemePreset
   defaultThemeFont: 'default' | 'sans' | 'serif'
@@ -95,6 +96,7 @@ export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
 
 export const DEFAULT_SITE_APPEARANCE: SiteAppearanceConfig = {
   backgroundImage: '',
+  backgroundBlurOpacity: 40,
   defaultTheme: 'system',
   defaultThemePreset: 'default',
   defaultThemeFont: 'default',

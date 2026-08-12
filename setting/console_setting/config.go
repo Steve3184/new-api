@@ -20,6 +20,7 @@ type ConsoleSetting struct {
 	AnnouncementsEnabled     bool   `json:"announcements_enabled"` // 是否启用系统公告面板
 	FAQEnabled               bool   `json:"faq_enabled"`           // 是否启用常见问答面板
 	BackgroundImage          string `json:"background_image"`
+	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
 	DefaultTheme             string `json:"default_theme"`
 	DefaultThemePreset       string `json:"default_theme_preset"`
 	DefaultThemeFont         string `json:"default_theme_font"`
@@ -47,6 +48,7 @@ var defaultConsoleSetting = ConsoleSetting{
 	UptimeKumaEnabled:        true,
 	AnnouncementsEnabled:     true,
 	FAQEnabled:               true,
+	BackgroundBlurOpacity:    40,
 	DefaultTheme:             "system",
 	DefaultThemePreset:       "default",
 	DefaultThemeFont:         "default",
@@ -79,6 +81,7 @@ func GetConsoleSetting() *ConsoleSetting {
 
 type AppearanceSetting struct {
 	BackgroundImage          string `json:"background_image"`
+	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
 	DefaultTheme             string `json:"default_theme"`
 	DefaultThemePreset       string `json:"default_theme_preset"`
 	DefaultThemeFont         string `json:"default_theme_font"`
