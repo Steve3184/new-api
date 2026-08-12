@@ -24,6 +24,11 @@ func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
 			setting: dto.ChannelSettings{HTTPProtocol: "http1", HTTP2ConnectionShards: 2},
 			wantErr: "http2_connection_shards",
 		},
+		{
+			name:    "negative first response timeout rejected",
+			setting: dto.ChannelSettings{StreamFirstResponseTimeout: -1},
+			wantErr: "stream_first_response_timeout",
+		},
 	}
 
 	for _, tt := range tests {

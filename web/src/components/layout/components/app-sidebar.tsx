@@ -49,7 +49,11 @@ export function AppSidebar() {
   const shouldReduce = useReducedMotion()
 
   return (
-    <Sidebar collapsible={collapsible} variant={variant}>
+    <Sidebar
+      collapsible={collapsible}
+      variant={variant}
+      className='bg-sidebar/75 [&_[data-slot=sidebar-inner]]:bg-sidebar/70 backdrop-blur-xl [&_[data-slot=sidebar-inner]]:backdrop-blur-xl'
+    >
       {view && <SidebarViewHeader view={view} />}
 
       <SidebarContent className='py-2'>

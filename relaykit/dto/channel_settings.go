@@ -11,14 +11,15 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	UseResponsesAPI        bool   `json:"use_responses_api,omitempty"`
-	FakeNonStream          bool   `json:"fake_non_stream,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat                bool   `json:"force_format,omitempty"`
+	ThinkingToContent          bool   `json:"thinking_to_content,omitempty"`
+	UseResponsesAPI            bool   `json:"use_responses_api,omitempty"`
+	FakeNonStream              bool   `json:"fake_non_stream,omitempty"`
+	Proxy                      string `json:"proxy"`
+	PassThroughBodyEnabled     bool   `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt               string `json:"system_prompt,omitempty"`
+	SystemPromptOverride       bool   `json:"system_prompt_override,omitempty"`
+	StreamFirstResponseTimeout int    `json:"stream_first_response_timeout,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`
@@ -28,9 +29,10 @@ type ChannelSettings struct {
 }
 
 const (
-	HTTPProtocolAuto         = "auto"
-	HTTPProtocolHTTP1        = "http1"
-	MaxHTTP2ConnectionShards = 8
+	HTTPProtocolAuto                     = "auto"
+	HTTPProtocolHTTP1                    = "http1"
+	MaxHTTP2ConnectionShards             = 8
+	MaxStreamFirstResponseTimeoutSeconds = 24 * 60 * 60
 )
 
 // ValidateHTTPTransport validates save-time HTTP transport channel settings.
@@ -49,6 +51,9 @@ func (s *ChannelSettings) ValidateHTTPTransport() error {
 	}
 	if protocol == HTTPProtocolHTTP1 && s.HTTP2ConnectionShards > 1 {
 		return fmt.Errorf("http2_connection_shards must be 1 when http_protocol is http1")
+	}
+	if s.StreamFirstResponseTimeout < 0 || s.StreamFirstResponseTimeout > MaxStreamFirstResponseTimeoutSeconds {
+		return fmt.Errorf("invalid stream_first_response_timeout: %d", s.StreamFirstResponseTimeout)
 	}
 	return nil
 }

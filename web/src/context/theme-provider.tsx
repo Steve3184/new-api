@@ -26,6 +26,7 @@ import {
 } from 'react'
 
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 type Theme = 'dark' | 'light' | 'system'
 type ResolvedTheme = Exclude<Theme, 'system'>
@@ -81,12 +82,22 @@ export function ThemeProvider({
   storageKey = THEME_COOKIE_NAME,
   ...props
 }: ThemeProviderProps) {
+  const configuredDefaultTheme = useSystemConfigStore(
+    (state) => state.config.appearance?.defaultTheme
+  )
+  const effectiveDefaultTheme = THEMES.has(configuredDefaultTheme as Theme)
+    ? (configuredDefaultTheme as Theme)
+    : defaultTheme
   const [theme, _setTheme] = useState<Theme>(() =>
-    getStoredTheme(storageKey, defaultTheme)
+    getStoredTheme(storageKey, effectiveDefaultTheme)
   )
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(getStoredTheme(storageKey, defaultTheme))
+    resolveTheme(getStoredTheme(storageKey, effectiveDefaultTheme))
   )
+
+  useEffect(() => {
+    if (!getCookie(storageKey)) _setTheme(effectiveDefaultTheme)
+  }, [effectiveDefaultTheme, storageKey])
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -116,18 +127,18 @@ export function ThemeProvider({
 
   const resetTheme = useCallback(() => {
     removeCookie(storageKey)
-    _setTheme(defaultTheme)
-  }, [defaultTheme, storageKey])
+    _setTheme(effectiveDefaultTheme)
+  }, [effectiveDefaultTheme, storageKey])
 
   const contextValue = useMemo(
     () => ({
-      defaultTheme,
+      defaultTheme: effectiveDefaultTheme,
       resolvedTheme,
       resetTheme,
       theme,
       setTheme,
     }),
-    [defaultTheme, resolvedTheme, resetTheme, theme, setTheme]
+    [effectiveDefaultTheme, resolvedTheme, resetTheme, theme, setTheme]
   )
 
   return (

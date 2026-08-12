@@ -101,6 +101,17 @@ export interface TokenAutoGroupsConfig {
   max_count: number
 }
 
+export interface TokenGroupNames {
+  source_groups: string[]
+  target_groups: string[]
+}
+
+export interface TokenGroupMigrationResult {
+  source_group: string
+  target_group: string
+  migrated: number
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================
@@ -112,3 +123,4 @@ export type ApiKeysDialogType =
   | 'batch-delete'
   | 'cc-switch'
   | 'use-key'
+  | 'migrate-group'

@@ -122,6 +122,38 @@ export type SiteSettings = {
   'legal.privacy_policy': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  'console_setting.background_image': string
+  'console_setting.default_theme': 'system' | 'light' | 'dark'
+  'console_setting.default_theme_preset':
+    | 'default'
+    | 'anthropic'
+    | 'simple-large'
+    | 'underground'
+    | 'rose-garden'
+    | 'lake-view'
+    | 'sunset-glow'
+    | 'forest-whisper'
+    | 'ocean-breeze'
+    | 'lavender-dream'
+  'console_setting.default_theme_font': 'default' | 'sans' | 'serif'
+  'console_setting.default_theme_radius':
+    | 'default'
+    | 'none'
+    | 'sm'
+    | 'md'
+    | 'lg'
+    | 'xl'
+  'console_setting.default_theme_scale': 'default' | 'sm' | 'lg' | 'xl'
+  'console_setting.default_sidebar_variant': 'inset' | 'floating' | 'sidebar'
+  'console_setting.default_sidebar_layout': 'expanded' | 'icon' | 'offcanvas'
+  'console_setting.default_content_layout': 'full' | 'centered'
+  'console_setting.default_direction': 'ltr' | 'rtl'
+  'console_setting.model_square_default_view': 'card' | 'table'
+  'console_setting.model_square_card_page_size': number
+  'console_setting.model_square_table_page_size': number
+  'console_setting.spa_meta_description': string
+  'console_setting.spa_meta_og_type': string
+  'console_setting.spa_meta_og_description': string
 }
 
 export type AuthSettings = {

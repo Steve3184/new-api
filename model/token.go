@@ -469,6 +469,62 @@ func CountUserTokens(userId int) (int64, error) {
 	return total, err
 }
 
+// GetTokenGroups returns the distinct groups used by active tokens.
+func GetTokenGroups() ([]string, error) {
+	var groups []string
+	if err := DB.Model(&Token{}).
+		Where(commonGroupCol+" <> ?", "").
+		Distinct(commonGroupCol).
+		Order(commonGroupCol+" asc").
+		Pluck(commonGroupCol, &groups).Error; err != nil {
+		return nil, err
+	}
+	return groups, nil
+}
+
+// MigrateTokenGroup moves all active tokens from sourceGroup to targetGroup.
+// The database update is transactional; affected Redis entries are invalidated
+// after commit so the next request reloads the new group from the database.
+func MigrateTokenGroup(sourceGroup, targetGroup string) (int, error) {
+	sourceGroup = strings.TrimSpace(sourceGroup)
+	targetGroup = strings.TrimSpace(targetGroup)
+	if sourceGroup == "" || targetGroup == "" {
+		return 0, errors.New("source_group 和 target_group 不能为空")
+	}
+	if sourceGroup == targetGroup {
+		return 0, errors.New("source_group 和 target_group 不能相同")
+	}
+
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return 0, tx.Error
+	}
+	var tokens []Token
+	if err := tx.Select(commonKeyCol).
+		Where(commonGroupCol+" = ?", sourceGroup).
+		Find(&tokens).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	result := tx.Model(&Token{}).
+		Where(commonGroupCol+" = ?", sourceGroup).
+		Update("group", targetGroup)
+	if result.Error != nil {
+		tx.Rollback()
+		return 0, result.Error
+	}
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	if common.RedisEnabled && len(tokens) > 0 {
+		if err := invalidateTokensCache(tokens); err != nil {
+			common.SysError(fmt.Sprintf("failed to invalidate token cache after group migration: %v", err))
+		}
+	}
+	return int(result.RowsAffected), nil
+}
+
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
 func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	if len(ids) == 0 {

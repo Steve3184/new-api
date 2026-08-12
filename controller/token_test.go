@@ -16,6 +16,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -577,4 +579,64 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
 	}
+}
+
+func TestMigrateTokenGroupMovesOnlyActiveSourceTokens(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	sourceOne := seedToken(t, db, 1, "source-one", "migration-source-one")
+	sourceTwo := seedToken(t, db, 2, "source-two", "migration-source-two")
+	other := seedToken(t, db, 3, "other", "migration-other")
+	deleted := seedToken(t, db, 4, "deleted", "migration-deleted")
+
+	require.NoError(t, db.Model(&model.Token{}).
+		Where("id IN ?", []int{sourceOne.Id, sourceTwo.Id, deleted.Id}).
+		Update("group", "ClaudeA").Error)
+	require.NoError(t, db.Model(&model.Token{}).
+		Where("id = ?", other.Id).
+		Update("group", "Other").Error)
+	require.NoError(t, db.Delete(deleted).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/group/migrate", map[string]any{
+		"source_group": " ClaudeA ",
+		"target_group": "vip",
+	}, 1)
+	MigrateTokenGroup(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var result struct {
+		SourceGroup string `json:"source_group"`
+		TargetGroup string `json:"target_group"`
+		Migrated    int    `json:"migrated"`
+	}
+	require.NoError(t, common.Unmarshal(response.Data, &result))
+	assert.Equal(t, "ClaudeA", result.SourceGroup)
+	assert.Equal(t, "vip", result.TargetGroup)
+	assert.Equal(t, 2, result.Migrated)
+
+	for _, tokenID := range []int{sourceOne.Id, sourceTwo.Id} {
+		var token model.Token
+		require.NoError(t, db.First(&token, tokenID).Error)
+		assert.Equal(t, "vip", token.Group)
+	}
+	var otherToken model.Token
+	require.NoError(t, db.First(&otherToken, other.Id).Error)
+	assert.Equal(t, "Other", otherToken.Group)
+	var deletedToken model.Token
+	require.NoError(t, db.Unscoped().First(&deletedToken, deleted.Id).Error)
+	assert.Equal(t, "ClaudeA", deletedToken.Group)
+}
+
+func TestMigrateTokenGroupRejectsInvalidTarget(t *testing.T) {
+	setupTokenControllerTestDB(t)
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/group/migrate", map[string]any{
+		"source_group": "ClaudeA",
+		"target_group": "missing-group",
+	}, 1)
+
+	MigrateTokenGroup(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	assert.False(t, response.Success)
+	assert.Contains(t, response.Message, "target_group")
 }

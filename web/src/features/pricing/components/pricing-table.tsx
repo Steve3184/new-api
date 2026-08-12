@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row, PaginationState } from '@tanstack/react-table'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -27,7 +27,10 @@ import {
   useDataTable,
 } from '@/components/data-table'
 
-import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
+import {
+  DEFAULT_PRICING_TABLE_PAGE_SIZE,
+  DEFAULT_TOKEN_UNIT,
+} from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { usePricingColumns } from './pricing-columns'
 
@@ -40,6 +43,7 @@ export interface PricingTableProps {
   showRechargePrice?: boolean
   selectedGroup?: string
   onModelClick?: (modelName: string) => void
+  pageSize?: number
 }
 
 export function PricingTable(props: PricingTableProps) {
@@ -57,8 +61,15 @@ export function PricingTable(props: PricingTableProps) {
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: DEFAULT_PRICING_PAGE_SIZE,
+    pageSize: props.pageSize ?? DEFAULT_PRICING_TABLE_PAGE_SIZE,
   })
+
+  useEffect(() => {
+    setPagination({
+      pageIndex: 0,
+      pageSize: props.pageSize ?? DEFAULT_PRICING_TABLE_PAGE_SIZE,
+    })
+  }, [props.pageSize])
 
   const columns = usePricingColumns({
     tokenUnit,

@@ -38,6 +38,41 @@ export interface CurrencyConfig {
   customCurrencyExchangeRate: number
 }
 
+export type SiteTheme = 'system' | 'light' | 'dark'
+export type SiteThemePreset =
+  | 'default'
+  | 'anthropic'
+  | 'simple-large'
+  | 'underground'
+  | 'rose-garden'
+  | 'lake-view'
+  | 'sunset-glow'
+  | 'forest-whisper'
+  | 'ocean-breeze'
+  | 'lavender-dream'
+
+export interface SiteAppearanceConfig {
+  backgroundImage: string
+  defaultTheme: SiteTheme
+  defaultThemePreset: SiteThemePreset
+  defaultThemeFont: 'default' | 'sans' | 'serif'
+  defaultThemeRadius: 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
+  defaultThemeScale: 'default' | 'sm' | 'lg' | 'xl'
+  defaultSidebarVariant: 'inset' | 'floating' | 'sidebar'
+  defaultSidebarLayout: 'expanded' | 'icon' | 'offcanvas'
+  defaultContentLayout: 'full' | 'centered'
+  defaultDirection: 'ltr' | 'rtl'
+  modelSquareDefaultView: 'card' | 'table'
+  modelSquareCardPageSize: number
+  modelSquareTablePageSize: number
+}
+
+export interface SPAMetaConfig {
+  description: string
+  ogType: string
+  ogDescription: string
+}
+
 export interface SystemConfig {
   systemName: string
   logo: string
@@ -45,6 +80,8 @@ export interface SystemConfig {
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
   currency: CurrencyConfig
+  appearance: SiteAppearanceConfig
+  spaMeta: SPAMetaConfig
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
@@ -54,6 +91,28 @@ export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   usdExchangeRate: 1,
   customCurrencySymbol: '¤',
   customCurrencyExchangeRate: 1,
+}
+
+export const DEFAULT_SITE_APPEARANCE: SiteAppearanceConfig = {
+  backgroundImage: '',
+  defaultTheme: 'system',
+  defaultThemePreset: 'default',
+  defaultThemeFont: 'default',
+  defaultThemeRadius: 'default',
+  defaultThemeScale: 'default',
+  defaultSidebarVariant: 'inset',
+  defaultSidebarLayout: 'expanded',
+  defaultContentLayout: 'full',
+  defaultDirection: 'ltr',
+  modelSquareDefaultView: 'card',
+  modelSquareCardPageSize: 18,
+  modelSquareTablePageSize: 20,
+}
+
+export const DEFAULT_SPA_META: SPAMetaConfig = {
+  description: 'Unified AI API gateway and admin dashboard.',
+  ogType: 'website',
+  ogDescription: 'Unified AI API gateway and admin dashboard.',
 }
 
 interface SystemConfigState {
@@ -76,6 +135,8 @@ export const useSystemConfigStore = create<SystemConfigState>()(
         systemName: DEFAULT_SYSTEM_NAME,
         logo: DEFAULT_LOGO,
         currency: { ...DEFAULT_CURRENCY_CONFIG },
+        appearance: { ...DEFAULT_SITE_APPEARANCE },
+        spaMeta: { ...DEFAULT_SPA_META },
       },
       loading: true,
       loadedLogoUrl: DEFAULT_LOGO,
@@ -86,7 +147,15 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             ...newConfig,
             currency: {
               ...state.config.currency,
-              ...(newConfig.currency ?? {}),
+              ...newConfig.currency,
+            },
+            appearance: {
+              ...(state.config.appearance ?? DEFAULT_SITE_APPEARANCE),
+              ...newConfig.appearance,
+            },
+            spaMeta: {
+              ...(state.config.spaMeta ?? DEFAULT_SPA_META),
+              ...newConfig.spaMeta,
             },
           },
         })),
@@ -95,6 +164,29 @@ export const useSystemConfigStore = create<SystemConfigState>()(
     }),
     {
       name: 'system-config-storage',
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<SystemConfigState>
+        return {
+          ...current,
+          ...saved,
+          config: {
+            ...current.config,
+            ...saved.config,
+            currency: {
+              ...DEFAULT_CURRENCY_CONFIG,
+              ...saved.config?.currency,
+            },
+            appearance: {
+              ...DEFAULT_SITE_APPEARANCE,
+              ...saved.config?.appearance,
+            },
+            spaMeta: {
+              ...DEFAULT_SPA_META,
+              ...saved.config?.spaMeta,
+            },
+          },
+        }
+      },
       partialize: (state) => ({
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,

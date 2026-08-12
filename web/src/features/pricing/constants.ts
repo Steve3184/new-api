@@ -143,5 +143,6 @@ export const VIEW_MODES = {
 
 export type ViewMode = (typeof VIEW_MODES)[keyof typeof VIEW_MODES]
 
-/** Default page size for pricing table */
-export const DEFAULT_PRICING_PAGE_SIZE = 20
+/** Card size is divisible by both the two- and three-column breakpoints. */
+export const DEFAULT_PRICING_CARD_PAGE_SIZE = 18
+export const DEFAULT_PRICING_TABLE_PAGE_SIZE = 20

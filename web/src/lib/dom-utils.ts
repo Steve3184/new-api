@@ -32,3 +32,29 @@ export function applyFaviconToDom(url: string) {
     // Ignore malformed URLs
   }
 }
+
+function upsertMeta(selector: string, attribute: string, value: string) {
+  if (typeof document === 'undefined') return
+  let element = document.head.querySelector<HTMLMetaElement>(selector)
+  if (!element) {
+    element = document.createElement('meta')
+    const [name, content] = attribute.split('=')
+    element.setAttribute(name, content)
+    document.head.appendChild(element)
+  }
+  element.content = value
+}
+
+export function applySPAMetaToDom(config: {
+  description: string
+  ogType: string
+  ogDescription: string
+}) {
+  upsertMeta('meta[name="description"]', 'name=description', config.description)
+  upsertMeta('meta[property="og:type"]', 'property=og:type', config.ogType)
+  upsertMeta(
+    'meta[property="og:description"]',
+    'property=og:description',
+    config.ogDescription
+  )
+}

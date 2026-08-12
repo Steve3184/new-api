@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -37,5 +38,16 @@ func TestShouldRetryHonorsZeroLimitForChannelErrors(t *testing.T) {
 	err := types.NewError(errors.New("invalid channel key"), types.ErrorCodeChannelInvalidKey)
 
 	assert.False(t, shouldRetry(ctx, err, 0))
+	assert.True(t, shouldRetry(ctx, err, 1))
+}
+
+func TestShouldRetryStreamFirstResponseTimeout(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	err := types.NewErrorWithStatusCode(
+		errors.New("first response timeout"),
+		types.ErrorCodeChannelStreamFirstResponseTimeout,
+		http.StatusGatewayTimeout,
+	)
+
 	assert.True(t, shouldRetry(ctx, err, 1))
 }

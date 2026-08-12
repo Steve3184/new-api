@@ -40,6 +40,24 @@ const defaultSiteSettings: SiteSettings = {
   'legal.privacy_policy': '',
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
+  'console_setting.background_image': '',
+  'console_setting.default_theme': 'system',
+  'console_setting.default_theme_preset': 'default',
+  'console_setting.default_theme_font': 'default',
+  'console_setting.default_theme_radius': 'default',
+  'console_setting.default_theme_scale': 'default',
+  'console_setting.default_sidebar_variant': 'inset',
+  'console_setting.default_sidebar_layout': 'expanded',
+  'console_setting.default_content_layout': 'full',
+  'console_setting.default_direction': 'ltr',
+  'console_setting.model_square_default_view': 'card',
+  'console_setting.model_square_card_page_size': 18,
+  'console_setting.model_square_table_page_size': 20,
+  'console_setting.spa_meta_description':
+    'Unified AI API gateway and admin dashboard.',
+  'console_setting.spa_meta_og_type': 'website',
+  'console_setting.spa_meta_og_description':
+    'Unified AI API gateway and admin dashboard.',
 }
 
 export function SiteSettings() {

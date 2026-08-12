@@ -21,6 +21,7 @@ import { SkipToMain } from '@/components/skip-to-main'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 
@@ -32,29 +33,47 @@ type AuthenticatedLayoutProps = {
 }
 
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
-  const defaultOpen = getCookie('sidebar_state') !== 'false'
+  const { appearance } = useSystemConfig()
+  const savedSidebarState = getCookie('sidebar_state')
+  const defaultOpen = savedSidebarState
+    ? savedSidebarState !== 'false'
+    : appearance.defaultSidebarLayout === 'expanded'
+  const backgroundImage = appearance.backgroundImage
 
   return (
-    <LayoutProvider>
-      <SearchProvider>
-        <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
-          <SkipToMain />
-          <AppHeader />
-          <div className='flex min-h-0 w-full flex-1'>
-            <AppSidebar />
-            <SidebarInset
-              className={cn(
-                '@container/content',
-                'h-[calc(100svh-var(--app-header-height,0px))]',
-                'min-h-0 overflow-hidden',
-                'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
-              )}
-            >
-              {props.children ?? <AnimatedOutlet />}
-            </SidebarInset>
-          </div>
-        </SidebarProvider>
-      </SearchProvider>
-    </LayoutProvider>
+    <div className='relative isolate min-h-svh'>
+      {backgroundImage && (
+        <div
+          aria-hidden='true'
+          className='pointer-events-none fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat'
+          style={{ backgroundImage: `url(${JSON.stringify(backgroundImage)})` }}
+        />
+      )}
+      <LayoutProvider>
+        <SearchProvider>
+          <SidebarProvider
+            defaultOpen={defaultOpen}
+            className='flex-col has-data-[variant=inset]:bg-transparent'
+          >
+            <SkipToMain />
+            <AppHeader className='border-border/50 bg-background/65 border-b backdrop-blur-xl' />
+            <div className='flex min-h-0 w-full flex-1'>
+              <AppSidebar />
+              <SidebarInset
+                className={cn(
+                  '@container/content',
+                  'h-[calc(100svh-var(--app-header-height,0px))]',
+                  'min-h-0 overflow-hidden',
+                  'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]',
+                  backgroundImage && 'bg-background/72 backdrop-blur-xl'
+                )}
+              >
+                {props.children ?? <AnimatedOutlet />}
+              </SidebarInset>
+            </div>
+          </SidebarProvider>
+        </SearchProvider>
+      </LayoutProvider>
+    </div>
   )
 }

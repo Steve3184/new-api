@@ -28,6 +28,8 @@ import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { AppearanceSection } from './appearance-section'
+import { SPAMetaSection } from './spa-meta-section'
 
 const SITE_SECTIONS = [
   {
@@ -46,6 +48,48 @@ const SITE_SECTIONS = [
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],
           },
+        }}
+      />
+    ),
+  },
+  {
+    id: 'appearance',
+    titleKey: 'Appearance & Model Square',
+    build: (settings: SiteSettings) => (
+      <AppearanceSection
+        defaultValues={{
+          backgroundImage: settings['console_setting.background_image'],
+          defaultTheme: settings['console_setting.default_theme'],
+          defaultThemePreset: settings['console_setting.default_theme_preset'],
+          defaultThemeFont: settings['console_setting.default_theme_font'],
+          defaultThemeRadius: settings['console_setting.default_theme_radius'],
+          defaultThemeScale: settings['console_setting.default_theme_scale'],
+          defaultSidebarVariant:
+            settings['console_setting.default_sidebar_variant'],
+          defaultSidebarLayout:
+            settings['console_setting.default_sidebar_layout'],
+          defaultContentLayout:
+            settings['console_setting.default_content_layout'],
+          defaultDirection: settings['console_setting.default_direction'],
+          modelSquareDefaultView:
+            settings['console_setting.model_square_default_view'],
+          modelSquareCardPageSize:
+            settings['console_setting.model_square_card_page_size'],
+          modelSquareTablePageSize:
+            settings['console_setting.model_square_table_page_size'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'spa-metadata',
+    titleKey: 'SPA Metadata',
+    build: (settings: SiteSettings) => (
+      <SPAMetaSection
+        defaultValues={{
+          description: settings['console_setting.spa_meta_description'],
+          ogType: settings['console_setting.spa_meta_og_type'],
+          ogDescription: settings['console_setting.spa_meta_og_description'],
         }}
       />
     ),

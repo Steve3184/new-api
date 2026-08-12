@@ -1656,6 +1656,161 @@ Files:
 - `web/src/routes/rankings/index.tsx`
 - `web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 
+## Stream first-response timeout and channel fallback
+
+Each channel has an additive `stream_first_response_timeout` setting measured
+in seconds. It applies only to streaming requests and covers the interval from
+starting the upstream request through receiving the first upstream body byte.
+The normal stream idle timeout still governs later gaps between chunks.
+
+Configure it from **Channels -> Edit channel -> Advanced settings -> Stream
+first response timeout**. The value is persisted inside the channel's existing
+`setting` JSON, so no database migration is required:
+
+```json
+{
+  "stream_first_response_timeout": 30
+}
+```
+
+When the first-response deadline expires, the relay returns a retryable channel
+error and the existing priority routing selects the next eligible channel. The
+timeout does not automatically disable the channel. A value of `0` preserves
+the previous unlimited first-response wait. Channel validation accepts values
+from `0` through `86400` seconds.
+
+Files:
+
+- `relaykit/dto/channel_settings.go`
+- `relaykit/types/error.go`
+- `relay/channel/api_request.go`
+- `service/channel.go`
+- `controller/relay_retry_test.go`
+- `web/src/features/channels/`
+
+## Token group migration
+
+Administrators can migrate every non-deleted token in one existing group to
+another configured group from the API key page. `GET /api/token/group-names`
+returns the current source groups and configured target groups;
+`POST /api/token/group-migrate` performs the migration in one database
+transaction and invalidates affected token cache entries after commit.
+
+The UI entry is **API Keys -> Migrate token groups** and is visible only to
+administrators. The write endpoint accepts this payload and returns the number
+of migrated tokens:
+
+```json
+{
+  "source_group": "ClaudeA",
+  "target_group": "ClaudeB"
+}
+```
+
+Both endpoints require administrator authentication. A target must be a
+currently configured ratio group, or `auto` when automatic groups are enabled.
+The source and target cannot be the same.
+
+The implementation uses GORM and the shared reserved-column identifier, so the
+operation remains compatible with SQLite, MySQL, and PostgreSQL. Deleted tokens
+are intentionally left unchanged.
+
+Files:
+
+- `model/token.go`
+- `controller/token_group.go`
+- `router/api-router.go`
+- `web/src/features/keys/`
+
+## Managed appearance and model square defaults
+
+The Site Settings page includes an **Appearance & Model Square** section backed
+by additive `console_setting.*` options. It covers every setting exposed by the
+user theme drawer: light/dark/system mode, color preset, font, radius, density,
+sidebar variant, sidebar layout, content width, and text direction. It also
+configures the administrator-controlled background image, the model square's
+default card/table view, and the page size for each view.
+
+The admin entry is **System Settings -> Site -> Appearance & Model Square**.
+The section maps directly to these public options:
+
+| Option | Allowed values / behavior |
+| --- | --- |
+| `console_setting.background_image` | Empty, absolute HTTP(S) URL, or root-relative path such as `/_custom/img/background.webp` |
+| `console_setting.default_theme` | `system`, `light`, `dark` |
+| `console_setting.default_theme_preset` | Any preset exposed by the theme drawer |
+| `console_setting.default_theme_font` | `default`, `sans`, `serif` |
+| `console_setting.default_theme_radius` | `default`, `none`, `sm`, `md`, `lg`, `xl` |
+| `console_setting.default_theme_scale` | `default`, `sm`, `lg`, `xl` |
+| `console_setting.default_sidebar_variant` | `inset`, `floating`, `sidebar` |
+| `console_setting.default_sidebar_layout` | `expanded`, `icon`, `offcanvas` |
+| `console_setting.default_content_layout` | `full`, `centered` |
+| `console_setting.default_direction` | `ltr`, `rtl` |
+| `console_setting.model_square_default_view` | `card`, `table` |
+| `console_setting.model_square_card_page_size` | Multiple of 6 from `6` through `96` |
+| `console_setting.model_square_table_page_size` | Integer from `5` through `100` |
+
+Administrator defaults apply only when the corresponding personal cookie is
+absent. A user's explicit theme choice remains pinned even when it equals the
+current administrator default; resetting an axis removes that personal cookie
+and returns to the administrator default. Users cannot override the background
+image.
+
+The authenticated console renders the configured image at full viewport size;
+the header, sidebar, and main content use translucent blurred surfaces. The
+model square and rankings use the image only in their upper hero region. Card
+page sizes must be multiples of six from `6` through `96`, which keeps both the
+two-column and three-column grids complete. The default is `18`; table page
+sizes may range from `5` through `100` and default to `20`.
+
+Files:
+
+- `setting/console_setting/config.go`
+- `controller/misc.go`
+- `web/src/stores/system-config-store.ts`
+- `web/src/context/`
+- `web/src/components/layout/`
+- `web/src/features/pricing/`
+- `web/src/features/rankings/`
+- `web/src/features/system-settings/site/`
+
+## SPA metadata without reverse-proxy rewriting
+
+Site Settings also exposes the document description, Open Graph type, and Open
+Graph description. The Go web router parses the embedded SPA HTML and updates
+those tags plus the favicon URL from the existing `Logo` setting before serving
+an application route. The frontend applies the same values after `/api/status`
+loads, covering separately hosted frontend deployments.
+
+Use **System Settings -> Site -> System Information** for `Logo`, and **System
+Settings -> Site -> SPA Metadata** for the metadata fields. `Logo` now accepts
+an HTTP(S) URL or a root-relative path such as `/_custom/img/logo.png`. The SPA
+metadata options are:
+
+| Option | Validation |
+| --- | --- |
+| `console_setting.spa_meta_description` | At most 500 characters |
+| `console_setting.spa_meta_og_type` | Open Graph type identifier, default `website` |
+| `console_setting.spa_meta_og_description` | At most 500 characters |
+
+The existing protected project title, `meta[name=title]`, and `og:title` remain
+unchanged. This customization replaces the previous need for nginx
+`sub_filter` rules for the favicon and description metadata without allowing
+protected project identity to be replaced.
+
+After deployment, request any SPA route directly (for example `/pricing`) and
+inspect the returned HTML to verify the favicon, description, `og:type`, and
+`og:description`. This validates server-rendered metadata independently of the
+client-side runtime update.
+
+Files:
+
+- `router/web-router.go`
+- `web/index.html`
+- `web/src/lib/dom-utils.ts`
+- `web/src/hooks/use-system-config.ts`
+- `web/src/features/system-settings/site/spa-meta-section.tsx`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.
@@ -1665,7 +1820,7 @@ Files:
 3. Confirm that no existing option or status field was removed or renamed.
 4. Run `gofmt` on changed Go files.
 5. Run `go test ./common ./model ./middleware ./service ./controller ./router`.
-6. From `web/default`, run `bun run i18n:sync`, `bun run typecheck`, targeted
+6. From `web`, run `bun run i18n:sync`, `bun run typecheck`, targeted
    lint for changed files, and `bun run build`.
 7. Test Turnstile, hCaptcha, and Cap separately, including token reuse
    rejection and a forced check-in after an earlier login captcha.

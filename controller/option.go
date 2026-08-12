@@ -223,6 +223,10 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
+	if err = console_setting.ValidatePublicOption(option.Key, option.Value.(string)); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	// Reject the read-only sentinel that GetOptions emits for already-set
 	// sensitive fields. The frontend skips unchanged password fields, but
 	// guard here as well so a stale client can never accidentally overwrite

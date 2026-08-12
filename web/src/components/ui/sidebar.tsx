@@ -43,6 +43,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state'
@@ -54,8 +55,10 @@ const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
 
 type SidebarContextProps = {
   state: 'expanded' | 'collapsed'
+  defaultOpen: boolean
   open: boolean
   setOpen: (open: boolean) => void
+  resetOpen: () => void
   openMobile: boolean
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
@@ -93,6 +96,11 @@ function SidebarProvider({
   // We use openProp and setOpenProp for control from outside the component.
   const [_open, _setOpen] = React.useState(defaultOpen)
   const open = openProp ?? _open
+  React.useEffect(() => {
+    if (!getCookie(SIDEBAR_COOKIE_NAME) && openProp === undefined) {
+      _setOpen(defaultOpen)
+    }
+  }, [defaultOpen, openProp])
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === 'function' ? value(open) : value
@@ -107,6 +115,11 @@ function SidebarProvider({
     },
     [setOpenProp, open]
   )
+  const resetOpen = React.useCallback(() => {
+    if (setOpenProp) setOpenProp(defaultOpen)
+    else _setOpen(defaultOpen)
+    document.cookie = `${SIDEBAR_COOKIE_NAME}=; path=/; max-age=0`
+  }, [defaultOpen, setOpenProp])
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
@@ -136,14 +149,26 @@ function SidebarProvider({
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
       state,
+      defaultOpen,
       open,
       setOpen,
+      resetOpen,
       isMobile,
       openMobile,
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [
+      state,
+      defaultOpen,
+      open,
+      setOpen,
+      resetOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+    ]
   )
 
   return (
@@ -158,7 +183,7 @@ function SidebarProvider({
           } as React.CSSProperties
         }
         className={cn(
-          'group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full',
+          'group/sidebar-wrapper has-data-[variant=inset]:bg-transparent flex min-h-svh w-full',
           className
         )}
         {...props}
@@ -207,7 +232,10 @@ function Sidebar({
           data-sidebar='sidebar'
           data-slot='sidebar'
           data-mobile='true'
-          className='bg-sidebar text-sidebar-foreground pointer-events-auto z-60 w-(--sidebar-width) p-0 [&>button]:hidden'
+          className={cn(
+            'bg-sidebar text-sidebar-foreground pointer-events-auto z-60 w-(--sidebar-width) p-0 [&>button]:hidden',
+            className
+          )}
           style={
             {
               '--sidebar-width': SIDEBAR_WIDTH_MOBILE,

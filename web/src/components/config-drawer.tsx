@@ -68,14 +68,14 @@ const Item = RadioPrimitive.Root
 
 export function ConfigDrawer() {
   const { t } = useTranslation()
-  const { setOpen } = useSidebar()
+  const { resetOpen } = useSidebar()
   const { resetDir } = useDirection()
   const { resetTheme } = useTheme()
   const { resetLayout } = useLayout()
   const { resetCustomization } = useThemeCustomization()
 
   const handleReset = () => {
-    setOpen(true)
+    resetOpen()
     resetDir()
     resetTheme()
     resetLayout()
@@ -245,13 +245,14 @@ function ThemeConfig() {
 
 function PresetConfig() {
   const { t } = useTranslation()
-  const { defaults, customization, setPreset } = useThemeCustomization()
+  const { defaults, customization, setPreset, resetPreset } =
+    useThemeCustomization()
   return (
     <div>
       <SectionTitle
         title={t('Color preset')}
         showReset={customization.preset !== defaults.preset}
-        onReset={() => setPreset(defaults.preset)}
+        onReset={resetPreset}
       />
       <Radio
         value={customization.preset}
@@ -326,13 +327,14 @@ const FONT_OPTIONS: {
 
 function FontConfig() {
   const { t } = useTranslation()
-  const { defaults, customization, setFont } = useThemeCustomization()
+  const { defaults, customization, setFont, resetFont } =
+    useThemeCustomization()
   return (
     <div>
       <SectionTitle
         title={t('Font')}
         showReset={customization.font !== defaults.font}
-        onReset={() => setFont(defaults.font)}
+        onReset={resetFont}
       />
       <Radio
         value={customization.font}
@@ -402,13 +404,14 @@ const RADIUS_OPTIONS: {
 
 function RadiusConfig() {
   const { t } = useTranslation()
-  const { defaults, customization, setRadius } = useThemeCustomization()
+  const { defaults, customization, setRadius, resetRadius } =
+    useThemeCustomization()
   return (
     <div>
       <SectionTitle
         title={t('Border radius')}
         showReset={customization.radius !== defaults.radius}
-        onReset={() => setRadius(defaults.radius)}
+        onReset={resetRadius}
       />
       <Radio
         value={customization.radius}
@@ -480,7 +483,8 @@ function ScalePreview(props: { rows: number; rowGap: string }) {
 
 function ScaleConfig() {
   const { t } = useTranslation()
-  const { defaults, customization, setScale } = useThemeCustomization()
+  const { defaults, customization, setScale, resetScale } =
+    useThemeCustomization()
   const scaleOptions: {
     value: ThemeScale
     label: string
@@ -497,7 +501,7 @@ function ScaleConfig() {
       <SectionTitle
         title={t('Density')}
         showReset={customization.scale !== defaults.scale}
-        onReset={() => setScale(defaults.scale)}
+        onReset={resetScale}
       />
       <Radio
         value={customization.scale}
@@ -541,13 +545,13 @@ function ScaleConfig() {
 
 function SidebarConfig() {
   const { t } = useTranslation()
-  const { defaultVariant, variant, setVariant } = useLayout()
+  const { defaultVariant, variant, setVariant, resetVariant } = useLayout()
   return (
     <div className='max-md:hidden'>
       <SectionTitle
         title={t('Sidebar')}
         showReset={defaultVariant !== variant}
-        onReset={() => setVariant(defaultVariant)}
+        onReset={resetVariant}
       />
       <Radio
         value={variant}
@@ -577,19 +581,21 @@ function SidebarConfig() {
 
 function LayoutConfig() {
   const { t } = useTranslation()
-  const { open, setOpen } = useSidebar()
-  const { defaultCollapsible, collapsible, setCollapsible } = useLayout()
+  const { defaultOpen, open, setOpen, resetOpen } = useSidebar()
+  const { defaultCollapsible, collapsible, setCollapsible, resetCollapsible } =
+    useLayout()
 
   const radioState = open ? 'default' : collapsible
+  const defaultRadioState = defaultOpen ? 'default' : defaultCollapsible
 
   return (
     <div className='max-md:hidden'>
       <SectionTitle
         title={t('Layout')}
-        showReset={radioState !== 'default'}
+        showReset={radioState !== defaultRadioState}
         onReset={() => {
-          setOpen(true)
-          setCollapsible(defaultCollapsible)
+          resetOpen()
+          resetCollapsible()
         }}
       />
       <Radio
@@ -629,13 +635,14 @@ function LayoutConfig() {
 
 function ContentLayoutConfig() {
   const { t } = useTranslation()
-  const { defaults, customization, setContentLayout } = useThemeCustomization()
+  const { defaults, customization, setContentLayout, resetContentLayout } =
+    useThemeCustomization()
   return (
     <div className='max-md:hidden'>
       <SectionTitle
         title={t('Content width')}
         showReset={customization.contentLayout !== defaults.contentLayout}
-        onReset={() => setContentLayout(defaults.contentLayout)}
+        onReset={resetContentLayout}
       />
       <Radio
         value={customization.contentLayout}
@@ -703,13 +710,13 @@ function ContentLayoutPreview(props: { centered: boolean }) {
 
 function DirConfig() {
   const { t } = useTranslation()
-  const { defaultDir, dir, setDir } = useDirection()
+  const { defaultDir, dir, setDir, resetDir } = useDirection()
   return (
     <div>
       <SectionTitle
         title={t('Direction')}
         showReset={defaultDir !== dir}
-        onReset={() => setDir(defaultDir)}
+        onReset={resetDir}
       />
       <Radio
         value={dir}

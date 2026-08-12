@@ -46,14 +46,13 @@ type FilterState = {
   rechargePrice?: boolean
 }
 
-function normalizeViewMode(value: unknown): ViewMode {
-  if (value === VIEW_MODES.TABLE) {
-    return VIEW_MODES.TABLE
-  }
-  return VIEW_MODES.CARD
+function normalizeViewMode(value: unknown, fallback: ViewMode): ViewMode {
+  return value === VIEW_MODES.CARD || value === VIEW_MODES.TABLE
+    ? value
+    : fallback
 }
 
-export function useFilters(models: PricingModel[]) {
+export function useFilters(models: PricingModel[], defaultViewMode: ViewMode) {
   const search = useSearch({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
@@ -78,7 +77,7 @@ export function useFilters(models: PricingModel[]) {
   const tagFilter = filterState.tag || FILTER_ALL
   const tokenUnit: TokenUnit =
     filterState.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
-  const viewMode = normalizeViewMode(filterState.view)
+  const viewMode = normalizeViewMode(filterState.view, defaultViewMode)
   const showRechargePrice = filterState.rechargePrice === true
 
   const updateFilters = useCallback((updates: Record<string, unknown>) => {
@@ -133,8 +132,8 @@ export function useFilters(models: PricingModel[]) {
   )
   const setViewMode = useCallback(
     (v: ViewMode) =>
-      updateFilters({ view: v === VIEW_MODES.CARD ? undefined : v }),
-    [updateFilters]
+      updateFilters({ view: v === defaultViewMode ? undefined : v }),
+    [defaultViewMode, updateFilters]
   )
   const setShowRechargePrice = useCallback(
     (v: boolean) => updateFilters({ rechargePrice: v || undefined }),

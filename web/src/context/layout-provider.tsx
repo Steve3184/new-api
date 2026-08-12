@@ -16,9 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createContext, useContext, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 
-import { getCookie, setCookie } from '@/lib/cookies'
+import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 export type Collapsible = 'offcanvas' | 'icon' | 'none'
 export type Variant = 'inset' | 'sidebar' | 'floating'
@@ -38,10 +46,12 @@ type LayoutContextType = {
   defaultCollapsible: Collapsible
   collapsible: Collapsible
   setCollapsible: (collapsible: Collapsible) => void
+  resetCollapsible: () => void
 
   defaultVariant: Variant
   variant: Variant
   setVariant: (variant: Variant) => void
+  resetVariant: () => void
 }
 
 const LayoutContext = createContext<LayoutContextType | null>(null)
@@ -51,15 +61,32 @@ type LayoutProviderProps = {
 }
 
 export function LayoutProvider({ children }: LayoutProviderProps) {
+  const appearance = useSystemConfigStore((state) => state.config.appearance)
+  const defaultVariant: Variant = ['inset', 'floating', 'sidebar'].includes(
+    appearance?.defaultSidebarVariant
+  )
+    ? appearance.defaultSidebarVariant
+    : DEFAULT_VARIANT
+  const defaultCollapsible: Collapsible =
+    appearance?.defaultSidebarLayout === 'offcanvas'
+      ? 'offcanvas'
+      : DEFAULT_COLLAPSIBLE
   const [collapsible, _setCollapsible] = useState<Collapsible>(() => {
     const saved = getCookie(LAYOUT_COLLAPSIBLE_COOKIE_NAME)
-    return (saved as Collapsible) || DEFAULT_COLLAPSIBLE
+    return (saved as Collapsible) || defaultCollapsible
   })
 
   const [variant, _setVariant] = useState<Variant>(() => {
     const saved = getCookie(LAYOUT_VARIANT_COOKIE_NAME)
-    return (saved as Variant) || DEFAULT_VARIANT
+    return (saved as Variant) || defaultVariant
   })
+
+  useEffect(() => {
+    if (!getCookie(LAYOUT_COLLAPSIBLE_COOKIE_NAME)) {
+      _setCollapsible(defaultCollapsible)
+    }
+    if (!getCookie(LAYOUT_VARIANT_COOKIE_NAME)) _setVariant(defaultVariant)
+  }, [defaultCollapsible, defaultVariant])
 
   const setCollapsible = (newCollapsible: Collapsible) => {
     _setCollapsible(newCollapsible)
@@ -75,20 +102,43 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
     setCookie(LAYOUT_VARIANT_COOKIE_NAME, newVariant, LAYOUT_COOKIE_MAX_AGE)
   }
 
-  const resetLayout = () => {
-    setCollapsible(DEFAULT_COLLAPSIBLE)
-    setVariant(DEFAULT_VARIANT)
-  }
+  const resetCollapsible = useCallback(() => {
+    removeCookie(LAYOUT_COLLAPSIBLE_COOKIE_NAME)
+    _setCollapsible(defaultCollapsible)
+  }, [defaultCollapsible])
 
-  const contextValue: LayoutContextType = {
-    resetLayout,
-    defaultCollapsible: DEFAULT_COLLAPSIBLE,
-    collapsible,
-    setCollapsible,
-    defaultVariant: DEFAULT_VARIANT,
-    variant,
-    setVariant,
-  }
+  const resetVariant = useCallback(() => {
+    removeCookie(LAYOUT_VARIANT_COOKIE_NAME)
+    _setVariant(defaultVariant)
+  }, [defaultVariant])
+
+  const resetLayout = useCallback(() => {
+    resetCollapsible()
+    resetVariant()
+  }, [resetCollapsible, resetVariant])
+
+  const contextValue = useMemo<LayoutContextType>(
+    () => ({
+      resetLayout,
+      defaultCollapsible,
+      collapsible,
+      setCollapsible,
+      resetCollapsible,
+      defaultVariant,
+      variant,
+      setVariant,
+      resetVariant,
+    }),
+    [
+      resetLayout,
+      defaultCollapsible,
+      collapsible,
+      resetCollapsible,
+      defaultVariant,
+      variant,
+      resetVariant,
+    ]
+  )
 
   return <LayoutContext value={contextValue}>{children}</LayoutContext>
 }

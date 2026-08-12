@@ -26,6 +26,8 @@ import type {
   SearchApiKeysParams,
   ApiKeyFormData,
   TokenAutoGroupsConfig,
+  TokenGroupNames,
+  TokenGroupMigrationResult,
 } from './types'
 
 // ============================================================================
@@ -66,6 +68,24 @@ export async function getTokenAutoGroups(): Promise<
   ApiResponse<TokenAutoGroupsConfig>
 > {
   const res = await api.get('/api/token/auto-groups')
+  return res.data
+}
+
+export async function getTokenGroupNames(): Promise<
+  ApiResponse<TokenGroupNames>
+> {
+  const res = await api.get('/api/token/group-names')
+  return res.data
+}
+
+export async function migrateTokenGroup(
+  sourceGroup: string,
+  targetGroup: string
+): Promise<ApiResponse<TokenGroupMigrationResult>> {
+  const res = await api.post('/api/token/group/migrate', {
+    source_group: sourceGroup,
+    target_group: targetGroup,
+  })
   return res.data
 }
 

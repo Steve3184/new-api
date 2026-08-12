@@ -20,6 +20,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
+import { mapStatusDataToConfig } from '@/hooks/use-system-config'
+import { getStatus } from '@/lib/api'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+
 import { updateSystemOption } from '../api'
 import type { UpdateOptionRequest } from '../types'
 
@@ -59,6 +63,22 @@ const STATUS_RELATED_KEYS = new Set([
   'StatusCheckFlexibleMode',
   'PlaygroundSettings',
   'oidc.display_name',
+  'console_setting.background_image',
+  'console_setting.default_theme',
+  'console_setting.default_theme_preset',
+  'console_setting.default_theme_font',
+  'console_setting.default_theme_radius',
+  'console_setting.default_theme_scale',
+  'console_setting.default_sidebar_variant',
+  'console_setting.default_sidebar_layout',
+  'console_setting.default_content_layout',
+  'console_setting.default_direction',
+  'console_setting.model_square_default_view',
+  'console_setting.model_square_card_page_size',
+  'console_setting.model_square_table_page_size',
+  'console_setting.spa_meta_description',
+  'console_setting.spa_meta_og_type',
+  'console_setting.spa_meta_og_description',
 ])
 
 const STATUS_CHECK_RELATED_KEYS = new Set([
@@ -85,6 +105,16 @@ export function useUpdateOption() {
           } catch {
             /* empty */
           }
+          void getStatus()
+            .then((status) => {
+              useSystemConfigStore
+                .getState()
+                .setConfig(mapStatusDataToConfig(status))
+              window.localStorage.setItem('status', JSON.stringify(status))
+            })
+            .catch(() => {
+              /* The next page load retries the public status request. */
+            })
         }
 
         if (STATUS_CHECK_RELATED_KEYS.has(variables.key)) {

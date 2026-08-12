@@ -16,6 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { cn } from '@/lib/utils'
+
 import type { TopNavLink } from '../types'
 import { PublicHeader, type PublicHeaderProps } from './public-header'
 
@@ -30,11 +33,31 @@ type PublicLayoutProps = {
   showNotifications?: boolean
   logo?: React.ReactNode
   siteName?: string
+  backgroundMode?: 'none' | 'hero'
 }
 
 export function PublicLayout(props: PublicLayoutProps) {
+  const { appearance } = useSystemConfig()
+  const showHeroBackground =
+    props.backgroundMode === 'hero' && !!appearance.backgroundImage
+
   return (
     <div className='bg-background text-foreground relative min-h-svh overflow-x-clip'>
+      {showHeroBackground && (
+        <div className='pointer-events-none absolute inset-x-0 top-0 h-[min(62svh,760px)] overflow-hidden'>
+          <div
+            aria-hidden='true'
+            className='absolute inset-0 bg-cover bg-center bg-no-repeat'
+            style={{
+              backgroundImage: `url(${JSON.stringify(appearance.backgroundImage)})`,
+            }}
+          />
+          <div
+            aria-hidden='true'
+            className='from-background/20 via-background/35 to-background absolute inset-0 bg-linear-to-b'
+          />
+        </div>
+      )}
       <PublicHeader
         navContent={props.navContent}
         navLinks={props.navLinks}
@@ -44,10 +67,14 @@ export function PublicLayout(props: PublicLayoutProps) {
         logo={props.logo}
         siteName={props.siteName}
         {...props.headerProps}
+        className={cn(
+          showHeroBackground && 'bg-background/35 backdrop-blur-xl',
+          props.headerProps?.className
+        )}
       />
 
       {props.showMainContainer !== false ? (
-        <main className='container px-4 py-6 pt-20 md:px-4'>
+        <main className='relative container px-4 py-6 pt-20 md:px-4'>
           {props.children}
         </main>
       ) : (

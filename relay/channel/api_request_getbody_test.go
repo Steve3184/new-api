@@ -15,6 +15,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +24,68 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 )
+
+func TestDoRequestStreamFirstResponseTimeout(t *testing.T) {
+	service.InitHttpClient()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	req, err := http.NewRequest(http.MethodPost, server.URL, strings.NewReader("{}"))
+	require.NoError(t, err)
+	info := &relaycommon.RelayInfo{
+		IsStream: true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{StreamFirstResponseTimeout: 1},
+		},
+	}
+
+	resp, err := DoRequest(c, req, info)
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	var newAPIError *relaytypes.NewAPIError
+	require.ErrorAs(t, err, &newAPIError)
+	assert.Equal(t, relaytypes.ErrorCodeChannelStreamFirstResponseTimeout, newAPIError.GetErrorCode())
+	assert.Equal(t, http.StatusGatewayTimeout, newAPIError.StatusCode)
+}
+
+func TestDoRequestStreamFirstResponseTimeoutPreservesPrefetchedByte(t *testing.T) {
+	service.InitHttpClient()
+
+	const streamBody = "data: {\"id\":\"first\"}\n\ndata: [DONE]\n\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, streamBody)
+	}))
+	defer server.Close()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	req, err := http.NewRequest(http.MethodPost, server.URL, strings.NewReader("{}"))
+	require.NoError(t, err)
+	info := &relaycommon.RelayInfo{
+		IsStream: true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{StreamFirstResponseTimeout: 1},
+		},
+	}
+
+	resp, err := DoRequest(c, req, info)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, streamBody, string(body))
+}
 
 func TestApplyUpstreamBodyMetadataSetsReplayableMetadata(t *testing.T) {
 	t.Parallel()

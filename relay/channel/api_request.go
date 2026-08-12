@@ -481,6 +481,55 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return doRequest(c, req, info)
 }
 
+type streamFirstResponseGuard struct {
+	once   sync.Once
+	timer  *time.Timer
+	cancel context.CancelFunc
+}
+
+func newStreamFirstResponseGuard(cancel context.CancelFunc, timeout time.Duration) *streamFirstResponseGuard {
+	guard := &streamFirstResponseGuard{cancel: cancel}
+	guard.timer = time.AfterFunc(timeout, func() {
+		guard.once.Do(cancel)
+	})
+	return guard
+}
+
+func (g *streamFirstResponseGuard) resolve() bool {
+	if g == nil {
+		return true
+	}
+	resolvedBeforeTimeout := false
+	g.once.Do(func() {
+		resolvedBeforeTimeout = true
+	})
+	g.timer.Stop()
+	return resolvedBeforeTimeout
+}
+
+type prefetchedResponseBody struct {
+	reader io.Reader
+	body   io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *prefetchedResponseBody) Read(p []byte) (int, error) {
+	return b.reader.Read(p)
+}
+
+func (b *prefetchedResponseBody) Close() error {
+	b.cancel()
+	return b.body.Close()
+}
+
+func streamFirstResponseTimeoutError(timeout time.Duration) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("upstream stream produced no response bytes within %s", timeout),
+		types.ErrorCodeChannelStreamFirstResponseTimeout,
+		http.StatusGatewayTimeout,
+	)
+}
+
 // keepUpstreamRedirectResponse stops net/http from following redirects while
 // returning the upstream 3xx response to the relay without an extra error.
 func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
@@ -498,6 +547,20 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	// transparent stream retries.
 	relayClient := *client
 	relayClient.CheckRedirect = keepUpstreamRedirectResponse
+	firstResponseTimeout := time.Duration(0)
+	if info != nil && info.IsStream && info.ChannelSetting.StreamFirstResponseTimeout > 0 {
+		firstResponseTimeout = time.Duration(info.ChannelSetting.StreamFirstResponseTimeout) * time.Second
+	}
+	var (
+		firstResponseGuard *streamFirstResponseGuard
+		cancelRequest      context.CancelFunc
+	)
+	if firstResponseTimeout > 0 {
+		requestContext, cancel := context.WithCancel(req.Context())
+		cancelRequest = cancel
+		req = req.Clone(requestContext)
+		firstResponseGuard = newStreamFirstResponseGuard(cancel, firstResponseTimeout)
+	}
 	if common2.DebugEnabled && req != nil && req.URL != nil {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)
 		logger.LogDebug(c, fmt.Sprintf(
@@ -515,7 +578,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
-		if generalSettings.PingIntervalEnabled && !info.DisablePing {
+		if firstResponseTimeout == 0 && generalSettings.PingIntervalEnabled && !info.DisablePing {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
 			stopPinger, pingerDone = startPingKeepAlive(c, pingInterval)
 			// 使用defer确保在任何情况下都能停止ping goroutine
@@ -531,11 +594,52 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	resp, err := relayClient.Do(req)
 	if err != nil {
+		timedOut := firstResponseGuard != nil && !firstResponseGuard.resolve()
+		if cancelRequest != nil {
+			cancelRequest()
+		}
+		if timedOut {
+			return nil, streamFirstResponseTimeoutError(firstResponseTimeout)
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
+		if firstResponseGuard != nil {
+			firstResponseGuard.resolve()
+		}
+		if cancelRequest != nil {
+			cancelRequest()
+		}
 		return nil, errors.New("resp is nil")
+	}
+	if firstResponseGuard != nil {
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			firstResponseGuard.resolve()
+			resp.Body = &prefetchedResponseBody{
+				reader: resp.Body,
+				body:   resp.Body,
+				cancel: cancelRequest,
+			}
+		} else {
+			firstByte := make([]byte, 1)
+			n, readErr := resp.Body.Read(firstByte)
+			if !firstResponseGuard.resolve() {
+				_ = resp.Body.Close()
+				cancelRequest()
+				return nil, streamFirstResponseTimeoutError(firstResponseTimeout)
+			}
+			if n == 0 && readErr != nil {
+				_ = resp.Body.Close()
+				cancelRequest()
+				return nil, fmt.Errorf("read upstream stream first response byte failed: %w", readErr)
+			}
+			resp.Body = &prefetchedResponseBody{
+				reader: io.MultiReader(strings.NewReader(string(firstByte[:n])), resp.Body),
+				body:   resp.Body,
+				cancel: cancelRequest,
+			}
+		}
 	}
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)

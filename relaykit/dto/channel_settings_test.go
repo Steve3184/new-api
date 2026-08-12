@@ -577,4 +577,12 @@ func TestChannelSettingsValidateHTTPTransport(t *testing.T) {
 	err = (&ChannelSettings{HTTPProtocol: "http1", HTTP2ConnectionShards: 2}).ValidateHTTPTransport()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "http2_connection_shards")
+
+	require.NoError(t, (&ChannelSettings{StreamFirstResponseTimeout: 30}).ValidateHTTPTransport())
+	err = (&ChannelSettings{StreamFirstResponseTimeout: -1}).ValidateHTTPTransport()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stream_first_response_timeout")
+	err = (&ChannelSettings{StreamFirstResponseTimeout: MaxStreamFirstResponseTimeoutSeconds + 1}).ValidateHTTPTransport()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stream_first_response_timeout")
 }

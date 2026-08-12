@@ -21,6 +21,7 @@ import { ApiKeysMutateDrawer } from './api-keys-mutate-drawer'
 import { useApiKeys } from './api-keys-provider'
 import { ApiKeyUsageDialog } from './dialogs/api-key-usage-dialog'
 import { CCSwitchDialog } from './dialogs/cc-switch-dialog'
+import { TokenGroupMigrationDialog } from './dialogs/token-group-migration-dialog'
 
 export function ApiKeysDialogs() {
   const { open, setOpen, currentRow, resolvedKey } = useApiKeys()
@@ -33,6 +34,10 @@ export function ApiKeysDialogs() {
         currentRow={open === 'update' ? currentRow || undefined : undefined}
       />
       <ApiKeysDeleteDialog />
+      <TokenGroupMigrationDialog
+        open={open === 'migrate-group'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+      />
       <CCSwitchDialog
         open={open === 'cc-switch'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
