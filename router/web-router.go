@@ -69,7 +69,25 @@ func upsertMeta(head *html.Node, attribute, name, content string) {
 	setHTMLAttribute(node, "content", content)
 }
 
-func renderSPAIndex(indexPage []byte, logo string, meta console_setting.SPAMetaSetting) ([]byte, error) {
+func setElementText(node *html.Node, content string) {
+	for child := node.FirstChild; child != nil; {
+		next := child.NextSibling
+		node.RemoveChild(child)
+		child = next
+	}
+	node.AppendChild(&html.Node{Type: html.TextNode, Data: content})
+}
+
+func upsertTitle(head *html.Node, title string) {
+	node := findHTMLElement(head, "title", "", "")
+	if node == nil {
+		node = &html.Node{Type: html.ElementNode, Data: "title"}
+		head.AppendChild(node)
+	}
+	setElementText(node, title)
+}
+
+func renderSPAIndex(indexPage []byte, logo, systemName string, meta console_setting.SPAMetaSetting) ([]byte, error) {
 	document, err := html.Parse(bytes.NewReader(indexPage))
 	if err != nil {
 		return nil, err
@@ -83,6 +101,11 @@ func renderSPAIndex(indexPage []byte, logo string, meta console_setting.SPAMetaS
 		if favicon := findHTMLElement(head, "link", "rel", "icon"); favicon != nil {
 			setHTMLAttribute(favicon, "href", logo)
 		}
+	}
+	if systemName != "" {
+		upsertTitle(head, systemName)
+		upsertMeta(head, "name", "title", systemName)
+		upsertMeta(head, "property", "og:title", systemName)
 	}
 	upsertMeta(head, "name", "description", meta.Description)
 	upsertMeta(head, "property", "og:type", meta.OGType)
@@ -111,9 +134,10 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 		c.Header("Cache-Control", "no-cache")
 		common.OptionMapRWMutex.RLock()
 		logo := common.Logo
+		systemName := common.SystemName
 		meta := console_setting.GetSPAMetaSetting()
 		common.OptionMapRWMutex.RUnlock()
-		indexPage, err := renderSPAIndex(assets.IndexPage, logo, meta)
+		indexPage, err := renderSPAIndex(assets.IndexPage, logo, systemName, meta)
 		if err != nil || indexPage == nil {
 			indexPage = assets.IndexPage
 		}

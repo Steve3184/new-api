@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCaptchaCheckRegisterSkipsCaptchaForVerifiedEmailCode(t *testing.T) {
+func TestCaptchaCheckRegisterSkipsCaptchaWhenEmailVerificationEnabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousEmailVerificationEnabled := common.EmailVerificationEnabled
 	previousCaptchaType := common.CaptchaType
@@ -20,14 +20,10 @@ func TestCaptchaCheckRegisterSkipsCaptchaForVerifiedEmailCode(t *testing.T) {
 	common.EmailVerificationEnabled = true
 	common.CaptchaType = "cap"
 	common.CapEnabled = true
-	const email = "verified@example.com"
-	const code = "123456"
-	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
 	t.Cleanup(func() {
 		common.EmailVerificationEnabled = previousEmailVerificationEnabled
 		common.CaptchaType = previousCaptchaType
 		common.CapEnabled = previousCapEnabled
-		common.DeleteKey(email, common.EmailVerificationPurpose)
 	})
 
 	router := gin.New()
@@ -36,7 +32,7 @@ func TestCaptchaCheckRegisterSkipsCaptchaForVerifiedEmailCode(t *testing.T) {
 			Email string `json:"email"`
 		}
 		require.NoError(t, common.DecodeJson(c.Request.Body, &request))
-		assert.Equal(t, email, request.Email)
+		assert.Equal(t, "verified@example.com", request.Email)
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
 
@@ -49,12 +45,12 @@ func TestCaptchaCheckRegisterSkipsCaptchaForVerifiedEmailCode(t *testing.T) {
 	assert.JSONEq(t, `{"success":true}`, recorder.Body.String())
 }
 
-func TestCaptchaCheckRegisterRequiresCaptchaForInvalidEmailCode(t *testing.T) {
+func TestCaptchaCheckRegisterRequiresCaptchaWhenEmailVerificationDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousEmailVerificationEnabled := common.EmailVerificationEnabled
 	previousCaptchaType := common.CaptchaType
 	previousCapEnabled := common.CapEnabled
-	common.EmailVerificationEnabled = true
+	common.EmailVerificationEnabled = false
 	common.CaptchaType = "cap"
 	common.CapEnabled = true
 	t.Cleanup(func() {
@@ -69,7 +65,7 @@ func TestCaptchaCheckRegisterRequiresCaptchaForInvalidEmailCode(t *testing.T) {
 	})
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"email":"unverified@example.com","verification_code":"wrong"}`))
+	request := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(`{"username":"new-user"}`))
 	request.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(recorder, request)
 

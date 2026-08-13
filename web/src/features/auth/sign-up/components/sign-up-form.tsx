@@ -63,12 +63,11 @@ export function SignUpForm({
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
-  const [verificationEmail, setVerificationEmail] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
@@ -117,11 +116,10 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const emailForVerification = (emailValue ?? '').trim().toLowerCase()
-  const emailVerificationReady =
-    emailForVerification !== '' && emailForVerification === verificationEmail
-  const captchaReady =
-    emailVerificationReady || !isCaptchaEnabled || Boolean(captchaToken)
+  const captchaReadyForEmailVerification =
+    !isCaptchaEnabled || Boolean(captchaToken)
+  const captchaReadyForRegistration =
+    emailVerificationRequired || captchaReadyForEmailVerification
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -170,7 +168,7 @@ export function SignUpForm({
       }
     }
 
-    if (!emailVerificationReady && !validateCaptcha()) return
+    if (!emailVerificationRequired && !validateCaptcha()) return
 
     setIsLoading(true)
     try {
@@ -178,11 +176,14 @@ export function SignUpForm({
         turnstile?: string
         hcaptcha?: string
         cap_token?: string
-      } = { turnstile: captchaToken }
-      if (isCapEnabled) {
-        captchaPayload = { cap_token: captchaToken }
-      } else if (isHCaptchaEnabled) {
-        captchaPayload = { hcaptcha: captchaToken }
+      } = {}
+      if (!emailVerificationRequired) {
+        captchaPayload = { turnstile: captchaToken }
+        if (isCapEnabled) {
+          captchaPayload = { cap_token: captchaToken }
+        } else if (isHCaptchaEnabled) {
+          captchaPayload = { hcaptcha: captchaToken }
+        }
       }
       const res = await register({
         username: data.username,
@@ -208,9 +209,8 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     if (await sendCode(emailValue || '')) {
-      setVerificationEmail(emailForVerification)
       setCaptchaToken('')
-      setTurnstileWidgetKey((current) => current + 1)
+      setCaptchaWidgetKey((current) => current + 1)
     }
   }
 
@@ -370,7 +370,7 @@ export function SignUpForm({
                   isSendingCode ||
                   isActive ||
                   !emailValue ||
-                  !captchaReady
+                  !captchaReadyForEmailVerification
                 }
                 onClick={handleSendVerificationCode}
               >
@@ -381,18 +381,19 @@ export function SignUpForm({
         )}
 
         {/* Captcha */}
-        {!emailVerificationReady && isTurnstileEnabled && (
+        {isTurnstileEnabled && (
           <div className='mt-2'>
             <Turnstile
-              key={turnstileWidgetKey}
+              key={captchaWidgetKey}
               siteKey={turnstileSiteKey}
               onVerify={setCaptchaToken}
             />
           </div>
         )}
-        {!emailVerificationReady && isHCaptchaEnabled && (
+        {isHCaptchaEnabled && (
           <div className='mt-2'>
             <HCaptcha
+              key={captchaWidgetKey}
               siteKey={hCaptchaSiteKey}
               onVerify={setCaptchaToken}
               onExpire={() => setCaptchaToken('')}
@@ -400,9 +401,10 @@ export function SignUpForm({
             />
           </div>
         )}
-        {!emailVerificationReady && isCapEnabled && (
+        {isCapEnabled && (
           <div className='mt-2'>
             <Cap
+              key={captchaWidgetKey}
               apiEndpoint={capApiEndpoint}
               onVerify={setCaptchaToken}
               onReset={() => setCaptchaToken('')}
@@ -424,7 +426,7 @@ export function SignUpForm({
           disabled={
             isLoading ||
             (requiresLegalConsent && !agreedToLegal) ||
-            !captchaReady
+            !captchaReadyForRegistration
           }
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}

@@ -1,12 +1,9 @@
 package middleware
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,31 +24,15 @@ func CaptchaCheck() gin.HandlerFunc {
 	}
 }
 
-// CaptchaCheckRegister accepts a verified email code as proof that the user
-// already completed the registration captcha when requesting that code. This
-// avoids asking for a second challenge while preserving captcha enforcement for
-// registrations without a valid email verification code.
+// CaptchaCheckRegister skips the registration captcha when email verification
+// is enabled. The registration controller then requires and validates the
+// email verification code, while registrations without email verification
+// continue to require a captcha token.
 func CaptchaCheckRegister() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if common.EmailVerificationEnabled {
-			body, err := io.ReadAll(c.Request.Body)
-			if err != nil {
-				common.ApiError(c, err)
-				c.Abort()
-				return
-			}
-			c.Request.Body = io.NopCloser(bytes.NewReader(body))
-
-			var request struct {
-				Email            string `json:"email"`
-				VerificationCode string `json:"verification_code"`
-			}
-			if err := common.Unmarshal(body, &request); err == nil &&
-				request.Email != "" && request.VerificationCode != "" &&
-				common.VerifyCodeWithKey(model.NormalizeEmail(request.Email), request.VerificationCode, common.EmailVerificationPurpose) {
-				c.Next()
-				return
-			}
+			c.Next()
+			return
 		}
 
 		CaptchaCheck()(c)
