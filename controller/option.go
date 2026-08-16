@@ -236,6 +236,15 @@ func UpdateOption(c *gin.Context) {
 		return
 	}
 	switch option.Key {
+	case "EmailVerificationTemplate":
+		err = common.ValidateEmailVerificationTemplate(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "CaptchaType":
 		if option.Value != "turnstile" && option.Value != "hcaptcha" && option.Value != "cap" {
 			common.ApiErrorMsg(c, "CaptchaType must be turnstile, hcaptcha, or cap")

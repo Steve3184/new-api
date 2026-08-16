@@ -60,7 +60,14 @@ const numericString = z.string().refine((value) => {
   return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
 }, 'Enter a non-negative number or leave empty')
 
+const perfMetricsBucketLabel = {
+  minute: '1 minute',
+  '5min': '5 minutes',
+  hour: '1 hour',
+} as const
+
 const monitoringSchema = z.object({
+  QuotaRemindEnabled: z.boolean(),
   QuotaRemindThreshold: numericString,
   perf_metrics_setting: z.object({
     enabled: z.boolean(),
@@ -74,6 +81,7 @@ type MonitoringFormInput = z.input<typeof monitoringSchema>
 type MonitoringFormValues = z.output<typeof monitoringSchema>
 
 type FlatMonitoringDefaults = {
+  QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
   'perf_metrics_setting.enabled': boolean
   'perf_metrics_setting.flush_interval': number
@@ -88,6 +96,7 @@ type MonitoringSettingsSectionProps = {
 const buildFormDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
 ): MonitoringFormInput => ({
+  QuotaRemindEnabled: defaults.QuotaRemindEnabled,
   QuotaRemindThreshold: defaults.QuotaRemindThreshold ?? '',
   perf_metrics_setting: {
     enabled: defaults['perf_metrics_setting.enabled'],
@@ -100,6 +109,7 @@ const buildFormDefaults = (
 const normalizeDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
 ): FlatMonitoringDefaults => ({
+  QuotaRemindEnabled: defaults.QuotaRemindEnabled,
   QuotaRemindThreshold: (defaults.QuotaRemindThreshold ?? '').trim(),
   'perf_metrics_setting.enabled': defaults['perf_metrics_setting.enabled'],
   'perf_metrics_setting.flush_interval':
@@ -113,6 +123,7 @@ const normalizeDefaults = (
 const normalizeFormValues = (
   values: MonitoringFormValues
 ): FlatMonitoringDefaults => ({
+  QuotaRemindEnabled: values.QuotaRemindEnabled,
   QuotaRemindThreshold: values.QuotaRemindThreshold.trim(),
   'perf_metrics_setting.enabled': values.perf_metrics_setting.enabled,
   'perf_metrics_setting.flush_interval':
@@ -185,6 +196,26 @@ export function MonitoringSettingsSection({
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
+          />
+          <FormField
+            control={form.control}
+            name='QuotaRemindEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable balance warnings')}</FormLabel>
+                  <p className='text-muted-foreground mt-1 text-xs'>
+                    {t('Send balance and subscription quota warning emails')}
+                  </p>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
           />
           <FormField
             control={form.control}
@@ -276,11 +307,7 @@ export function MonitoringSettingsSection({
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue>
-                          {field.value === 'minute'
-                            ? t('1 minute')
-                            : field.value === '5min'
-                              ? t('5 minutes')
-                              : t('1 hour')}
+                          {t(perfMetricsBucketLabel[field.value])}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>

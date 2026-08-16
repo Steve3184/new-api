@@ -196,6 +196,16 @@ func RegisterRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// OAuthRateLimit protects OAuth state and callback endpoints with a dedicated,
+// more permissive bucket so unrelated critical requests cannot exhaust a login
+// flow's allowance.
+func OAuthRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.OAuthRateLimitNum, common.OAuthRateLimitDuration, "OA")
+	}
+	return defNext
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext

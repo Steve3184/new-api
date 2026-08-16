@@ -18,6 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { GroupOption, ModelOption } from '../../types'
 
+export function filterChatGroups(groups: GroupOption[]): GroupOption[] {
+  return groups.filter((group) => group.value !== 'auto')
+}
+
 export function getModelFallback(
   models: ModelOption[],
   currentModel: string

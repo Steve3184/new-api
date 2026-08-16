@@ -295,6 +295,45 @@ func TestSendEmailUsesExplicitStartTLSWithInsecureCertificate(t *testing.T) {
 	}
 }
 
+func TestSendSMTPTestEmailDeliversTestContent(t *testing.T) {
+	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = false
+	SMTPInsecureSkipVerify = false
+	SMTPForceAuthLogin = false
+	SMTPAccount = ""
+	SMTPFrom = "sender@example.com"
+	SMTPToken = ""
+	SystemName = "New API"
+
+	err := SendSMTPTestEmail("receiver@example.com")
+	require.NoError(t, err)
+
+	select {
+	case message := <-server.messages:
+		require.Contains(t, message, "Subject: =?UTF-8?B?")
+		require.Contains(t, message, "Your SMTP configuration is working")
+	case <-time.After(2 * time.Second):
+		require.FailNow(t, "timed out waiting for SMTP DATA")
+	}
+}
+
+func TestSendEmailRejectsMissingSMTPConfiguration(t *testing.T) {
+	withSMTPSettings(t)
+
+	SMTPServer = ""
+	SMTPAccount = "sender@example.com"
+	SMTPFrom = ""
+
+	err := SendSMTPTestEmail("receiver@example.com")
+	require.EqualError(t, err, "SMTP 服务器未配置")
+}
+
 func TestSendEmailExplicitStartTLSRequiresServerSupport(t *testing.T) {
 	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
 	defer server.close()

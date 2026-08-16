@@ -45,6 +45,9 @@ export const subscriptionPlanSchema = z.object({
   rate_limit_groups: z.string().optional().default('[]'),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  five_hour_limit: z.number().optional(),
+  weekly_limit: z.number().optional(),
+  monthly_limit: z.number().optional(),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -73,6 +76,15 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  five_hour_limit: z.number().optional(),
+  five_hour_used: z.number().optional(),
+  five_hour_next_reset_time: z.number().optional(),
+  weekly_limit: z.number().optional(),
+  weekly_used: z.number().optional(),
+  weekly_next_reset_time: z.number().optional(),
+  monthly_limit: z.number().optional(),
+  monthly_used: z.number().optional(),
+  monthly_next_reset_time: z.number().optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>

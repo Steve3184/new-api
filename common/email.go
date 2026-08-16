@@ -76,15 +76,15 @@ func newSMTPClient(addr string) (*smtp.Client, error) {
 }
 
 func SendEmail(subject string, receiver string, content string) error {
+	if strings.TrimSpace(SMTPServer) == "" {
+		return fmt.Errorf("SMTP 服务器未配置")
+	}
 	if SMTPFrom == "" { // for compatibility
 		SMTPFrom = SMTPAccount
 	}
 	id, err2 := generateMessageID()
 	if err2 != nil {
 		return err2
-	}
-	if SMTPServer == "" && SMTPAccount == "" {
-		return fmt.Errorf("SMTP 服务器未配置")
 	}
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
 	mail := []byte(fmt.Sprintf("To: %s\r\n"+
@@ -133,4 +133,12 @@ func SendEmail(subject string, receiver string, content string) error {
 		SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, err))
 	}
 	return err
+}
+
+func SendSMTPTestEmail(receiver string) error {
+	return SendEmail(
+		fmt.Sprintf("%s SMTP test email", SystemName),
+		receiver,
+		"<p>This is a test email. Your SMTP configuration is working.</p>",
+	)
 }

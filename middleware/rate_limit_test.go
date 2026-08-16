@@ -136,6 +136,47 @@ func TestLoginAndRegisterRateLimitsUseIndependentBuckets(t *testing.T) {
 	assert.True(t, redisServer.Exists(redisIPRateLimitKey("RG", "192.0.2.20")))
 }
 
+func TestOAuthRateLimitUsesIndependentBucket(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+
+	previousEnabled := common.CriticalRateLimitEnable
+	previousCriticalLimit := common.CriticalRateLimitNum
+	previousCriticalDuration := common.CriticalRateLimitDuration
+	previousOAuthLimit := common.OAuthRateLimitNum
+	previousOAuthDuration := common.OAuthRateLimitDuration
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = 1
+	common.CriticalRateLimitDuration = 60
+	common.OAuthRateLimitNum = 2
+	common.OAuthRateLimitDuration = 60
+	t.Cleanup(func() {
+		common.CriticalRateLimitEnable = previousEnabled
+		common.CriticalRateLimitNum = previousCriticalLimit
+		common.CriticalRateLimitDuration = previousCriticalDuration
+		common.OAuthRateLimitNum = previousOAuthLimit
+		common.OAuthRateLimitDuration = previousOAuthDuration
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.GET("/critical", CriticalRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	router.GET("/oauth", OAuthRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	remoteAddr := "192.0.2.21:12345"
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/critical", remoteAddr).Code)
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/critical", remoteAddr).Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/oauth", remoteAddr).Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/oauth", remoteAddr).Code)
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/oauth", remoteAddr).Code)
+	assert.True(t, redisServer.Exists(redisIPRateLimitKey("CT", "192.0.2.21")))
+	assert.True(t, redisServer.Exists(redisIPRateLimitKey("OA", "192.0.2.21")))
+}
+
 func TestRedisEmailVerificationRateLimiterPreservesResponseAndTTL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	redisServer, _ := useRateLimitMiniRedis(t)

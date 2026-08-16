@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Box, ImageIcon, MessageSquare, Volume2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -36,6 +36,10 @@ import {
   usePlaygroundState,
 } from './hooks'
 import { useGenerationOptions } from './hooks/use-generation-options'
+import {
+  filterChatGroups,
+  getGroupFallback,
+} from './lib/options/playground-option-utils'
 import type { PlaygroundFeature, PlaygroundPublicSettings } from './types'
 
 const DEFAULT_PLAYGROUND_SETTINGS: PlaygroundPublicSettings = {
@@ -118,6 +122,7 @@ export function Playground() {
     generationOptions.models,
     playgroundSettings.models.three_d ?? []
   )
+  const chatGroups = useMemo(() => filterChatGroups(groups), [groups])
 
   useEffect(() => {
     if (enabledFeatures.includes(activeFeature)) return
@@ -128,6 +133,14 @@ export function Playground() {
     if (chatModels.some((model) => model.value === config.model)) return
     updateConfig('model', chatModels[0]?.value ?? '')
   }, [chatModels, config.model, updateConfig])
+
+  useEffect(() => {
+    if (activeFeature !== 'chat') return
+    const fallback = getGroupFallback(chatGroups, config.group)
+    if (fallback) {
+      updateConfig('group', fallback)
+    }
+  }, [activeFeature, chatGroups, config.group, updateConfig])
 
   const tabItems = [
     { feature: 'chat' as const, label: t('Chat'), icon: MessageSquare },
@@ -183,7 +196,7 @@ export function Playground() {
           <PlaygroundInput
             config={config}
             disabled={isGenerating}
-            groups={groups}
+            groups={chatGroups}
             groupValue={config.group}
             isGenerating={isGenerating}
             isModelLoading={isLoadingModels}

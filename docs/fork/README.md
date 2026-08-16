@@ -209,6 +209,17 @@ option that defaults to `true`. Disabling it suppresses email to the root
 administrator when a channel is automatically disabled or re-enabled without
 changing the automatic status transition or non-email notification channels.
 
+`QuotaRemindEnabled` is an additive **Monitoring & Alerts** switch that
+defaults to `true`. When disabled, low wallet-balance and subscription-quota
+warning emails are both suppressed without changing quota accounting or the
+configured warning threshold.
+
+The root-only SMTP settings page can send a test message to an explicitly
+entered recipient through `POST /api/option/smtp/test`. It also stores an
+additive `EmailVerificationTemplate` option. The default is a responsive HTML
+verification email and custom templates can use `{{.SystemName}}`, `{{.Code}}`,
+and `{{.ValidMinutes}}`; dynamic values are HTML-escaped before delivery.
+
 The Playground generation configuration now appears under **Console Content**
 instead of **Models & Routing**. Its persisted option remains
 `PlaygroundSettings`; only the settings navigation location changed.
@@ -223,7 +234,10 @@ Files:
 - `controller/system_task_handlers.go`
 - `router/api-router.go`
 - `common/constants.go`
+- `common/email.go`
+- `common/email_template.go`
 - `model/option.go`
+- `controller/option_email.go`
 - `service/channel.go`
 - `web/default/src/features/status-check/`
 - `web/default/src/routes/_authenticated/status/index.tsx`
@@ -395,6 +409,16 @@ Benefits-only plans omit the **Quota per Billing Period** line from the wallet's
 available plan cards and existing-subscription list. All subscription plan and
 usage surfaces use this wording (Chinese: **周期内额度**) so the value is not
 mistaken for an account-wide lifetime quota.
+
+Plans can additionally set independent **5-hour**, **weekly**, and **monthly**
+quota limits. A value of `0` disables that specific limit. Each purchased
+subscription snapshots its configured limits and tracks separate used amounts
+and reset timestamps, so later plan edits do not rewrite existing
+entitlements. The 5-hour limit uses consecutive five-hour windows; weekly and
+monthly limits reset at Monday 00:00 and the first day of the month 00:00.
+Pre-consume, settlement, and refund updates check and adjust every enabled
+window atomically. The active-subscription UI shows each configured window's
+used amount, remaining quota, and next reset time.
 
 Wallet plan prices use the configured billing display currency instead of a
 hard-coded dollar sign.
@@ -629,6 +653,18 @@ effect-driven state correction when a generation tab mounts. The group column
 keeps short rows at their natural height when only a few groups are eligible.
 Only the combined picker is rendered, rather than separate model and group
 fields.
+
+The chat picker excludes the virtual `auto` group from its selectable group
+column. A locally persisted `auto` selection is normalized to the default (or
+first available) concrete group when chat is opened, while automatic routing
+itself remains unchanged for API requests that are authorized to use `auto`.
+
+Standard OAuth state and provider callback routes use a dedicated, more
+permissive `OA` IP bucket (default: 60 requests per 10 minutes) instead of the
+generic critical-operation bucket. Override it with `OAUTH_RATE_LIMIT` and
+`OAUTH_RATE_LIMIT_DURATION`; the existing `CRITICAL_RATE_LIMIT_ENABLE` switch
+still enables or disables this protection together with the other critical
+routes.
 
 ### Model ordering and OpenAI chat relay options
 
@@ -1560,9 +1596,13 @@ Files:
 Login and registration no longer share the general `CT` critical-operation IP
 bucket. Password login, passkey login, and 2FA verification use the dedicated
 `LG` bucket; registration uses the independent `RG` bucket. This prevents
-unrelated critical operations (for example, OAuth, password reset, or payment
-actions) from making a normal user wait before they can sign in or create an
-account.
+unrelated critical operations (for example, password reset or payment actions)
+from making a normal user wait before they can sign in or create an account.
+
+Standard OAuth state and provider callback requests use the independent `OA`
+bucket, so OAuth redirects do not consume the generic critical-operation
+allowance. The default is 60 requests per 10 minutes and can be overridden with
+`OAUTH_RATE_LIMIT` and `OAUTH_RATE_LIMIT_DURATION`.
 
 The default deployment values are intentionally modestly more permissive while
 preserving IP-based brute-force protection and the existing captcha checks:
@@ -1573,6 +1613,8 @@ preserving IP-based brute-force protection and the existing captcha checks:
 | `LOGIN_RATE_LIMIT_DURATION` | `600` | Login window in seconds |
 | `REGISTER_RATE_LIMIT` | `20` | Registration attempts per client IP |
 | `REGISTER_RATE_LIMIT_DURATION` | `600` | Registration window in seconds |
+| `OAUTH_RATE_LIMIT` | `60` | Standard OAuth state/callback requests per client IP |
+| `OAUTH_RATE_LIMIT_DURATION` | `600` | OAuth window in seconds |
 
 `CRITICAL_RATE_LIMIT_ENABLE=false` still disables both dedicated buckets and
 the existing `CT` bucket. Keep it enabled for public deployments. Docker

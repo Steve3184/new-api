@@ -105,6 +105,7 @@ var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
+var EmailVerificationTemplate = DefaultEmailVerificationTemplate
 
 var GitHubClientId = ""
 var GitHubClientSecret = ""
@@ -190,6 +191,7 @@ var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
 var ChannelAutoStatusEmailEnabled = true
+var QuotaRemindEnabled = true
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 
@@ -277,6 +279,10 @@ var (
 	LoginRateLimitDuration    int64 = 10 * 60
 	RegisterRateLimitNum            = 20
 	RegisterRateLimitDuration int64 = 10 * 60
+	// OAuth state and callback requests use a more permissive dedicated bucket
+	// because a single login flow can legitimately make several redirects.
+	OAuthRateLimitNum            = 60
+	OAuthRateLimitDuration int64 = 10 * 60
 
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60

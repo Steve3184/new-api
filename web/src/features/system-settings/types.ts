@@ -39,6 +39,11 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type SMTPTestEmailResponse = {
+  success: boolean
+  message: string
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -420,6 +425,7 @@ export type OperationsSettings = {
   SelfUseModeEnabled: boolean
   'error_rewrite.enabled': boolean
   'error_rewrite.rules': string
+  QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
   SMTPServer: string
   SMTPPort: string
@@ -430,6 +436,7 @@ export type OperationsSettings = {
   SMTPStartTLSEnabled: boolean
   SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
+  EmailVerificationTemplate: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

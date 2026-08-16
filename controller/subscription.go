@@ -39,6 +39,19 @@ func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
 	plan.WalletOnlyGroups = model.NormalizeWalletOnlyGroups(plan.WalletOnlyGroups)
 	if plan.TotalAmount < 0 {
 		plan.TotalAmount = -1
+		plan.FiveHourLimit = 0
+		plan.WeeklyLimit = 0
+		plan.MonthlyLimit = 0
+	} else {
+		if plan.FiveHourLimit < 0 || plan.FiveHourLimit > int64(common.MaxQuota) {
+			return fmt.Errorf("5小时限额必须介于 0 和 %d 之间", common.MaxQuota)
+		}
+		if plan.WeeklyLimit < 0 || plan.WeeklyLimit > int64(common.MaxQuota) {
+			return fmt.Errorf("周限额必须介于 0 和 %d 之间", common.MaxQuota)
+		}
+		if plan.MonthlyLimit < 0 || plan.MonthlyLimit > int64(common.MaxQuota) {
+			return fmt.Errorf("月限额必须介于 0 和 %d 之间", common.MaxQuota)
+		}
 	}
 	normalizedRateLimits, rateLimits, err := model.NormalizeSubscriptionRateLimitGroups(plan.RateLimitGroups)
 	if err != nil {
@@ -328,6 +341,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"five_hour_limit":            req.Plan.FiveHourLimit,
+			"weekly_limit":               req.Plan.WeeklyLimit,
+			"monthly_limit":              req.Plan.MonthlyLimit,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"wallet_only_groups_enabled": req.Plan.WalletOnlyGroupsEnabled,

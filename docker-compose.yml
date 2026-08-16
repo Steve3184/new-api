@@ -46,6 +46,8 @@ services:
 #      - LOGIN_RATE_LIMIT_DURATION=600  # 登录限流窗口，单位秒 (login rate-limit window in seconds)
 #      - REGISTER_RATE_LIMIT=20  # 单 IP 的注册尝试次数 (per-IP registration attempts)
 #      - REGISTER_RATE_LIMIT_DURATION=600  # 注册限流窗口，单位秒 (registration rate-limit window in seconds)
+#      - OAUTH_RATE_LIMIT=60  # 单 IP 的标准 OAuth state/callback 请求次数 (per-IP standard OAuth state/callback requests)
+#      - OAUTH_RATE_LIMIT_DURATION=600  # OAuth 限流窗口，单位秒 (OAuth rate-limit window in seconds)
 #      - USER_SESSION_ACTIVE_LIMIT=50
 #      - USER_SESSION_ISSUANCE_LIMIT=100
 #      - USER_SESSION_ISSUANCE_WINDOW_SECONDS=86400  # 不得大于 revoked 保留期 (must not exceed revoked retention)

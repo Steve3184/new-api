@@ -25,6 +25,7 @@ import {
   Plus,
   RefreshCw,
   Settings2,
+  Timer,
   Trash2,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -617,6 +618,15 @@ export function SubscriptionsMutateDrawer({
                             form.setValue('total_amount', -1, {
                               shouldDirty: true,
                             })
+                            form.setValue('five_hour_limit', 0, {
+                              shouldDirty: true,
+                            })
+                            form.setValue('weekly_limit', 0, {
+                              shouldDirty: true,
+                            })
+                            form.setValue('monthly_limit', 0, {
+                              shouldDirty: true,
+                            })
                           } else if (form.getValues('total_amount') < 0) {
                             form.setValue('total_amount', 0, {
                               shouldDirty: true,
@@ -1104,6 +1114,131 @@ export function SubscriptionsMutateDrawer({
                           onChange={(e) =>
                             field.onChange(
                               Number.parseInt(e.target.value, 10) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </SideDrawerSection>
+
+            {/* Independent Usage Limits */}
+            <SideDrawerSection>
+              <h3 className='flex items-center gap-2 text-sm font-medium'>
+                <IconBadge tone='warning' size='xs'>
+                  <Timer />
+                </IconBadge>
+                {t('Usage Limits')}
+              </h3>
+              <FormDescription>
+                {t(
+                  'Configure independent usage limits for each active subscription. Set a limit to 0 to disable it.'
+                )}
+              </FormDescription>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+                <FormField
+                  control={form.control}
+                  name='five_hour_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('5-hour Quota Limit ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.01}
+                          disabled={benefitsOnly}
+                          placeholder={
+                            tokensOnly
+                              ? t('Enter quota in tokens')
+                              : t('Enter quota in {{currency}}', {
+                                  currency: currencyLabel,
+                                })
+                          }
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.parseFloat(event.target.value) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='weekly_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Weekly Quota Limit ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.01}
+                          disabled={benefitsOnly}
+                          placeholder={
+                            tokensOnly
+                              ? t('Enter quota in tokens')
+                              : t('Enter quota in {{currency}}', {
+                                  currency: currencyLabel,
+                                })
+                          }
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.parseFloat(event.target.value) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='monthly_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Monthly Quota Limit ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.01}
+                          disabled={benefitsOnly}
+                          placeholder={
+                            tokensOnly
+                              ? t('Enter quota in tokens')
+                              : t('Enter quota in {{currency}}', {
+                                  currency: currencyLabel,
+                                })
+                          }
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.parseFloat(event.target.value) || 0
                             )
                           }
                         />

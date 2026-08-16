@@ -55,6 +55,9 @@ export function getPlanFormSchema(t: TFunction) {
     benefits_only: z.boolean(),
     max_purchase_per_user: z.coerce.number().min(0),
     total_amount: z.coerce.number(),
+    five_hour_limit: z.coerce.number().min(0),
+    weekly_limit: z.coerce.number().min(0),
+    monthly_limit: z.coerce.number().min(0),
     upgrade_group: z.string().optional(),
     downgrade_group: z.string().optional(),
     stripe_price_id: z.string().optional(),
@@ -85,6 +88,9 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   benefits_only: false,
   max_purchase_per_user: 0,
   total_amount: 0,
+  five_hour_limit: 0,
+  weekly_limit: 0,
+  monthly_limit: 0,
   upgrade_group: '',
   downgrade_group: '',
   stripe_price_id: '',
@@ -134,6 +140,9 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
       Number(plan.total_amount || 0) < 0
         ? -1
         : quotaUnitsToDollars(Number(plan.total_amount || 0)),
+    five_hour_limit: quotaUnitsToDollars(Number(plan.five_hour_limit || 0)),
+    weekly_limit: quotaUnitsToDollars(Number(plan.weekly_limit || 0)),
+    monthly_limit: quotaUnitsToDollars(Number(plan.monthly_limit || 0)),
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
@@ -165,6 +174,15 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
         values.benefits_only || values.total_amount < 0
           ? -1
           : parseQuotaFromDollars(Number(values.total_amount || 0)),
+      five_hour_limit: values.benefits_only
+        ? 0
+        : parseQuotaFromDollars(Number(values.five_hour_limit || 0)),
+      weekly_limit: values.benefits_only
+        ? 0
+        : parseQuotaFromDollars(Number(values.weekly_limit || 0)),
+      monthly_limit: values.benefits_only
+        ? 0
+        : parseQuotaFromDollars(Number(values.monthly_limit || 0)),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
     },
