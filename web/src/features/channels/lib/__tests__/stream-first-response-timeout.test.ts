@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   buildSettingJSON,
@@ -29,7 +28,7 @@ import {
 describe('stream first response timeout channel setting', () => {
   test('omits disabled timeout and persists a configured timeout', () => {
     const disabled = JSON.parse(buildSettingJSON(CHANNEL_FORM_DEFAULT_VALUES))
-    assert.equal('stream_first_response_timeout' in disabled, false)
+    expect('stream_first_response_timeout' in disabled).toBe(false)
 
     const configured = JSON.parse(
       buildSettingJSON({
@@ -37,7 +36,7 @@ describe('stream first response timeout channel setting', () => {
         stream_first_response_timeout: 45,
       })
     )
-    assert.equal(configured.stream_first_response_timeout, 45)
+    expect(configured.stream_first_response_timeout).toBe(45)
   })
 
   test('loads the persisted timeout into edit defaults', () => {
@@ -69,23 +68,21 @@ describe('stream first response timeout channel setting', () => {
       settings: '{}',
     })
 
-    assert.equal(defaults.stream_first_response_timeout, 30)
+    expect(defaults.stream_first_response_timeout).toBe(30)
   })
 
   test('rejects negative and oversized values', () => {
-    assert.equal(
+    expect(
       channelFormSchema.safeParse({
         ...CHANNEL_FORM_DEFAULT_VALUES,
         stream_first_response_timeout: -1,
-      }).success,
-      false
-    )
-    assert.equal(
+      }).success
+    ).toBe(false)
+    expect(
       channelFormSchema.safeParse({
         ...CHANNEL_FORM_DEFAULT_VALUES,
         stream_first_response_timeout: 86401,
-      }).success,
-      false
-    )
+      }).success
+    ).toBe(false)
   })
 })

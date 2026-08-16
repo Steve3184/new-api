@@ -1,6 +1,5 @@
 /* Copyright (C) 2023-2026 QuantumNous */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   filterGenerationGroups,
@@ -23,38 +22,35 @@ const groupModels = {
 
 describe('generation group filtering', () => {
   test('shows the union of groups that provide any allowed generation model', () => {
-    assert.deepEqual(
+    expect(
       filterGenerationGroups(groups, groupModels, [
         { label: 'GPT Image 2', value: 'gpt-image-2' },
         { label: 'TTS', value: 'tts-1' },
-      ]).map((group) => group.value),
-      ['default', 'image', 'speech']
-    )
+      ]).map((group) => group.value)
+    ).toEqual(['default', 'image', 'speech'])
   })
 
   test('hides groups without any allowed generation model before selection', () => {
-    assert.deepEqual(
+    expect(
       filterGenerationGroups(groups, groupModels, [
         { label: 'TTS', value: 'tts-1' },
-      ]).map((group) => group.value),
-      ['default', 'speech']
-    )
+      ]).map((group) => group.value)
+    ).toEqual(['default', 'speech'])
   })
 
   test('falls back to an eligible group', () => {
-    assert.equal(
+    expect(
       resolveGenerationGroup(
         groups,
         groupModels,
         [{ label: 'GPT Image 2', value: 'gpt-image-2' }],
         'speech'
-      ),
-      'default'
-    )
+      )
+    ).toBe('default')
   })
 
   test('keeps an eligible selected group when it has a different allowed model', () => {
-    assert.equal(
+    expect(
       resolveGenerationGroup(
         groups,
         groupModels,
@@ -63,13 +59,12 @@ describe('generation group filtering', () => {
           { label: 'TTS', value: 'tts-1' },
         ],
         'speech'
-      ),
-      'speech'
-    )
+      )
+    ).toBe('speech')
   })
 
   test('limits the model list to models available in the selected group', () => {
-    assert.deepEqual(
+    expect(
       filterGenerationModelsForGroup(
         [
           { label: 'GPT Image 2', value: 'gpt-image-2' },
@@ -80,27 +75,26 @@ describe('generation group filtering', () => {
           image: ['gpt-image-2'],
         },
         'image'
-      ).map((model) => model.value),
-      ['gpt-image-2']
-    )
+      ).map((model) => model.value)
+    ).toEqual(['gpt-image-2'])
   })
 })
 
 describe('image size controls', () => {
   test('normalizes valid aspect ratios and rejects malformed values', () => {
-    assert.equal(normalizeImageAspectRatio(' 32 : 18 '), '16:9')
-    assert.equal(normalizeImageAspectRatio('5:4'), '5:4')
-    assert.equal(normalizeImageAspectRatio('0:4'), null)
-    assert.equal(normalizeImageAspectRatio('1.5:1'), null)
-    assert.equal(normalizeImageAspectRatio('square'), null)
+    expect(normalizeImageAspectRatio(' 32 : 18 ')).toBe('16:9')
+    expect(normalizeImageAspectRatio('5:4')).toBe('5:4')
+    expect(normalizeImageAspectRatio('0:4')).toBeNull()
+    expect(normalizeImageAspectRatio('1.5:1')).toBeNull()
+    expect(normalizeImageAspectRatio('square')).toBeNull()
   })
 
   test('combines resolution and aspect ratio into provider-compatible dimensions', () => {
-    assert.equal(imageSizeFromResolution(1024, '1:1'), '1024x1024')
-    assert.equal(imageSizeFromResolution(1536, '3:2'), '1536x1024')
-    assert.equal(imageSizeFromResolution(2048, '3:2'), '2040x1360')
-    assert.equal(imageSizeFromResolution(2560, '16:9'), '2560x1440')
-    assert.equal(imageSizeFromResolution(4096, '9:16'), '2304x4096')
-    assert.equal(imageSizeFromResolution(2560, '5:4'), '2560x2048')
+    expect(imageSizeFromResolution(1024, '1:1')).toBe('1024x1024')
+    expect(imageSizeFromResolution(1536, '3:2')).toBe('1536x1024')
+    expect(imageSizeFromResolution(2048, '3:2')).toBe('2040x1360')
+    expect(imageSizeFromResolution(2560, '16:9')).toBe('2560x1440')
+    expect(imageSizeFromResolution(4096, '9:16')).toBe('2304x4096')
+    expect(imageSizeFromResolution(2560, '5:4')).toBe('2560x2048')
   })
 })

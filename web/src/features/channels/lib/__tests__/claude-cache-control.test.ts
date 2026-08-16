@@ -14,8 +14,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
@@ -31,7 +30,7 @@ describe('Claude stable prefix cache control setting', () => {
         type: 14,
       }).channel.settings ?? '{}'
     )
-    assert.equal(disabled.claude_cache_control, false)
+    expect(disabled.claude_cache_control).toBe(false)
 
     const enabled = JSON.parse(
       transformFormDataToCreatePayload({
@@ -40,7 +39,7 @@ describe('Claude stable prefix cache control setting', () => {
         claude_cache_control: true,
       }).channel.settings ?? '{}'
     )
-    assert.equal(enabled.claude_cache_control, true)
+    expect(enabled.claude_cache_control).toBe(true)
   })
 
   test('loads the persisted switch value and removes it from non-Claude channels', () => {
@@ -71,7 +70,7 @@ describe('Claude stable prefix cache control setting', () => {
       setting: '{}',
       settings: '{"claude_cache_control":true}',
     })
-    assert.equal(defaults.claude_cache_control, true)
+    expect(defaults.claude_cache_control).toBe(true)
 
     const nonClaudeSettings = JSON.parse(
       transformFormDataToCreatePayload({
@@ -81,6 +80,6 @@ describe('Claude stable prefix cache control setting', () => {
         claude_cache_control: true,
       }).channel.settings ?? '{}'
     )
-    assert.equal('claude_cache_control' in nonClaudeSettings, false)
+    expect('claude_cache_control' in nonClaudeSettings).toBe(false)
   })
 })

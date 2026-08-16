@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { createUserMessage, formatMessageForAPI } from './message-utils'
 
@@ -18,7 +17,7 @@ describe('playground attachment payloads', () => {
       },
     ])
 
-    assert.deepEqual(formatMessageForAPI(message), {
+    expect(formatMessageForAPI(message)).toEqual({
       role: 'user',
       content: [
         { type: 'text', text: 'Inspect these attachments' },

@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   getUsageLogsAutoRefreshInterval,
@@ -26,15 +25,14 @@ import {
 
 describe('usage logs auto refresh interval', () => {
   test('refreshes enabled common logs on the first page every five seconds', () => {
-    assert.equal(
-      getUsageLogsAutoRefreshInterval(true, 'common', 0),
+    expect(getUsageLogsAutoRefreshInterval(true, 'common', 0)).toBe(
       USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS
     )
   })
 
   test('does not refresh disabled, paginated, or non-common logs', () => {
-    assert.equal(getUsageLogsAutoRefreshInterval(false, 'common', 0), false)
-    assert.equal(getUsageLogsAutoRefreshInterval(true, 'common', 1), false)
-    assert.equal(getUsageLogsAutoRefreshInterval(true, 'drawing', 0), false)
+    expect(getUsageLogsAutoRefreshInterval(false, 'common', 0)).toBe(false)
+    expect(getUsageLogsAutoRefreshInterval(true, 'common', 1)).toBe(false)
+    expect(getUsageLogsAutoRefreshInterval(true, 'drawing', 0)).toBe(false)
   })
 })

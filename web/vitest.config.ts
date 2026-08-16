@@ -16,20 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { getDisplayedBillingPreference } from './billing-preference'
+import { defineConfig } from 'vitest/config'
 
-describe('displayed billing preference', () => {
-  test('shows subscription only when no subscription is active', () => {
-    expect(getDisplayedBillingPreference('subscription_only', false)).toBe(
-      'subscription_only'
-    )
-  })
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-  test('shows wallet fallback only for subscription first without an active subscription', () => {
-    expect(getDisplayedBillingPreference('subscription_first', false)).toBe(
-      'wallet_first'
-    )
-  })
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.ts'],
+    clearMocks: true,
+    restoreMocks: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+  },
 })

@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { afterEach, describe, test } from 'node:test'
+import { afterEach, describe, expect, test } from 'vitest'
 
 import { api } from '@/lib/api'
 
@@ -41,7 +40,7 @@ afterEach(() => {
 describe('token group migration API', () => {
   test('loads source and target group choices from the admin endpoint', async () => {
     apiClient.get = async (url) => {
-      assert.equal(url, '/api/token/group-names')
+      expect(url).toBe('/api/token/group-names')
       return {
         data: {
           success: true,
@@ -55,7 +54,7 @@ describe('token group migration API', () => {
 
     const result = await getTokenGroupNames()
 
-    assert.deepEqual(result.data, {
+    expect(result.data).toEqual({
       source_groups: ['ClaudeA'],
       target_groups: ['ClaudeB'],
     })
@@ -63,8 +62,8 @@ describe('token group migration API', () => {
 
   test('posts the selected source and target groups without renaming fields', async () => {
     apiClient.post = async (url, data) => {
-      assert.equal(url, '/api/token/group/migrate')
-      assert.deepEqual(data, {
+      expect(url).toBe('/api/token/group/migrate')
+      expect(data).toEqual({
         source_group: 'ClaudeA',
         target_group: 'ClaudeB',
       })
@@ -82,6 +81,6 @@ describe('token group migration API', () => {
 
     const result = await migrateTokenGroup('ClaudeA', 'ClaudeB')
 
-    assert.equal(result.data?.migrated, 12)
+    expect(result.data?.migrated).toBe(12)
   })
 })

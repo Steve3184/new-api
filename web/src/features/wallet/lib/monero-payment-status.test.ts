@@ -14,30 +14,28 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { getMoneroPaymentStatusMessage } from './monero-payment-status'
 
 describe('Monero payment status messages', () => {
   test('shows a waiting message before a transaction is detected', () => {
-    assert.deepEqual(getMoneroPaymentStatusMessage(undefined), {
+    expect(getMoneroPaymentStatusMessage(undefined)).toEqual({
       key: 'Waiting for transaction...',
     })
   })
 
   test('shows the observed confirmation count after detection', () => {
-    assert.deepEqual(
+    expect(
       getMoneroPaymentStatusMessage({
         status: 'pending',
         transaction_detected: true,
         confirmations: 0,
         required_confirmations: 1,
-      }),
-      {
-        key: 'Transaction detected, waiting for confirmations... (Confirmations: {{count}})',
-        values: { count: 0 },
-      }
-    )
+      })
+    ).toEqual({
+      key: 'Transaction detected, waiting for confirmations... (Confirmations: {{count}})',
+      values: { count: 0 },
+    })
   })
 })

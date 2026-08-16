@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { mapStatusDataToConfig } from './use-system-config'
 
@@ -47,7 +46,7 @@ describe('mapStatusDataToConfig', () => {
       },
     })
 
-    assert.deepEqual(config.appearance, {
+    expect(config.appearance).toEqual({
       backgroundImage: '/background.webp',
       backgroundBlurOpacity: 60,
       defaultTheme: 'dark',
@@ -63,7 +62,7 @@ describe('mapStatusDataToConfig', () => {
       modelSquareCardPageSize: 24,
       modelSquareTablePageSize: 50,
     })
-    assert.deepEqual(config.spaMeta, {
+    expect(config.spaMeta).toEqual({
       description: 'Description',
       ogType: 'website',
       ogDescription: 'Open Graph description',
@@ -79,9 +78,9 @@ describe('mapStatusDataToConfig', () => {
       },
     })
 
-    assert.equal(config.appearance?.defaultTheme, 'system')
-    assert.equal(config.appearance?.defaultSidebarLayout, 'expanded')
-    assert.equal(config.appearance?.modelSquareDefaultView, 'card')
+    expect(config.appearance?.defaultTheme).toBe('system')
+    expect(config.appearance?.defaultSidebarLayout).toBe('expanded')
+    expect(config.appearance?.modelSquareDefaultView).toBe('card')
   })
 
   test('clamps the background blur opacity to its supported range', () => {
@@ -91,6 +90,6 @@ describe('mapStatusDataToConfig', () => {
       },
     })
 
-    assert.equal(config.appearance?.backgroundBlurOpacity, 100)
+    expect(config.appearance?.backgroundBlurOpacity).toBe(100)
   })
 })

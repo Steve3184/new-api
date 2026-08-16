@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   parseErrorRewriteRules,
@@ -31,15 +30,14 @@ describe('global error rewrite rule validation', () => {
       '[{"status_code":429,"message":"Model {model} is unavailable"}]'
     )
 
-    assert.deepEqual(rows, [
+    expect(rows).toEqual([
       {
         id: 'error-rewrite-0',
         statusCode: '429',
         message: 'Model {model} is unavailable',
       },
     ])
-    assert.equal(
-      JSON.parse(serializeErrorRewriteRules(rows))[0].message,
+    expect(JSON.parse(serializeErrorRewriteRules(rows))[0].message).toBe(
       'Model {model} is unavailable'
     )
   })
@@ -52,13 +50,13 @@ describe('global error rewrite rule validation', () => {
       { id: 'duplicate', statusCode: '500', message: 'duplicate' },
     ])
 
-    assert.deepEqual(errors.low, ['invalid-status-code'])
-    assert.deepEqual(errors.fraction, ['invalid-status-code'])
-    assert.deepEqual(errors.empty, ['empty-message', 'duplicate-status-code'])
-    assert.deepEqual(errors.duplicate, ['duplicate-status-code'])
+    expect(errors.low).toEqual(['invalid-status-code'])
+    expect(errors.fraction).toEqual(['invalid-status-code'])
+    expect(errors.empty).toEqual(['empty-message', 'duplicate-status-code'])
+    expect(errors.duplicate).toEqual(['duplicate-status-code'])
   })
 
   test('serializes an empty editor as an empty JSON array', () => {
-    assert.equal(serializeErrorRewriteRules([]), '[]')
+    expect(serializeErrorRewriteRules([])).toBe('[]')
   })
 })

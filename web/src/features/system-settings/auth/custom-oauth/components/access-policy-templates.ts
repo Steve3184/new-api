@@ -16,20 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+export const ACCESS_POLICY_TEMPLATES = {
+  levelAndActive: `{
+  "logic": "and",
+  "conditions": [
+    { "field": "trust_level", "op": "gte", "value": 2 },
+    { "field": "active", "op": "eq", "value": true }
+  ]
+}`,
+  orgOrRole: `{
+  "logic": "or",
+  "conditions": [
+    { "field": "org", "op": "eq", "value": "core" },
+    { "field": "roles", "op": "contains", "value": "admin" }
+  ]
+}`,
+} as const
 
-import { getDisplayedBillingPreference } from './billing-preference'
-
-describe('displayed billing preference', () => {
-  test('shows subscription only when no subscription is active', () => {
-    expect(getDisplayedBillingPreference('subscription_only', false)).toBe(
-      'subscription_only'
-    )
-  })
-
-  test('shows wallet fallback only for subscription first without an active subscription', () => {
-    expect(getDisplayedBillingPreference('subscription_first', false)).toBe(
-      'wallet_first'
-    )
-  })
-})
+export const ACCESS_DENIED_MESSAGE_TEMPLATES = {
+  level:
+    'Requires level {{required}}; your current level is {{current}} (field: {{field}}).',
+  org: 'Access is limited to approved organizations or roles. Organization: {{current.org}}; roles: {{current.roles}}.',
+} as const
