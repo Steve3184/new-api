@@ -299,6 +299,7 @@ const SENSITIVE_FORM_FIELDS = [
   'allow_inference_geo',
   'allow_speed',
   'claude_beta_query',
+  'claude_cache_control',
   'disable_task_polling_sleep',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
@@ -351,6 +352,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
       values.http2_connection_shards > 1) ||
     (values.stream_first_response_timeout ?? 0) > 0 ||
     values.claude_beta_query ||
+    values.claude_cache_control ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -772,6 +774,7 @@ export function ChannelMutateDrawer({
   const currentAllowInferenceGeo = form.watch('allow_inference_geo')
   const currentAllowSpeed = form.watch('allow_speed')
   const currentClaudeBetaQuery = form.watch('claude_beta_query')
+  const currentClaudeCacheControl = form.watch('claude_cache_control')
   const currentUpstreamModelUpdateAutoSyncEnabled = form.watch(
     'upstream_model_update_auto_sync_enabled'
   )
@@ -1054,7 +1057,8 @@ export function ChannelMutateDrawer({
       currentAllowServiceTier ||
       currentAllowInferenceGeo ||
       currentAllowSpeed ||
-      currentClaudeBetaQuery
+      currentClaudeBetaQuery ||
+      currentClaudeCacheControl
     )
   }
   const upstreamModelDetectionConfigured = Boolean(
@@ -4689,6 +4693,33 @@ export function ChannelMutateDrawer({
                                             <FormDescription>
                                               {t(
                                                 'Pass through the anthropic-beta header for beta features'
+                                              )}
+                                            </FormDescription>
+                                          </div>
+                                          <FormControl>
+                                            <Switch
+                                              checked={field.value}
+                                              onCheckedChange={field.onChange}
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={form.control}
+                                      name='claude_cache_control'
+                                      render={({ field }) => (
+                                        <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                          <div className='space-y-0.5'>
+                                            <FormLabel className='text-sm'>
+                                              {t(
+                                                'Automatically cache Claude stable prefixes'
+                                              )}
+                                            </FormLabel>
+                                            <FormDescription>
+                                              {t(
+                                                'Add cache_control type ephemeral to the stable system, tools, and last user message, replacing request cache controls'
                                               )}
                                             </FormDescription>
                                           </div>
