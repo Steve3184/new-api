@@ -84,6 +84,7 @@ export interface ChannelSettings {
   thinking_to_content?: boolean
   use_responses_api?: boolean
   fake_non_stream?: boolean
+  simulate_remote_compact_v2?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean
   system_prompt?: string

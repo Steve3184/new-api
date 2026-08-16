@@ -88,6 +88,13 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 }
 
 func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) error {
+	if handled, err := interceptSimulatedRemoteCompactV2Stream(c, resp, data); handled || err != nil {
+		return err
+	}
+	return writeResponsesChunkData(c, resp, data)
+}
+
+func writeResponsesChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) error {
 	if requestContextDone(c) {
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}

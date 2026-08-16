@@ -15,6 +15,7 @@ type ChannelSettings struct {
 	ThinkingToContent          bool   `json:"thinking_to_content,omitempty"`
 	UseResponsesAPI            bool   `json:"use_responses_api,omitempty"`
 	FakeNonStream              bool   `json:"fake_non_stream,omitempty"`
+	SimulateRemoteCompactV2    bool   `json:"simulate_remote_compact_v2,omitempty"`
 	Proxy                      string `json:"proxy"`
 	PassThroughBodyEnabled     bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt               string `json:"system_prompt,omitempty"`

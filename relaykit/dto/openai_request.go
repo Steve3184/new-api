@@ -859,14 +859,14 @@ type OpenAIResponsesRequest struct {
 	Include json.RawMessage `json:"include,omitempty"`
 	// 在后台运行推理，暂时还不支持依赖的接口
 	// Background         json.RawMessage `json:"background,omitempty"`
-	Conversation       json.RawMessage `json:"conversation,omitempty"`
-	ContextManagement  json.RawMessage `json:"context_management,omitempty"`
-	Instructions       json.RawMessage `json:"instructions,omitempty"`
-	MaxOutputTokens    *uint           `json:"max_output_tokens,omitempty"`
-	TopLogProbs        *int            `json:"top_logprobs,omitempty"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
-	Moderation         json.RawMessage `json:"moderation,omitempty"`
-	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
+	Conversation      json.RawMessage `json:"conversation,omitempty"`
+	ContextManagement json.RawMessage `json:"context_management,omitempty"`
+	Instructions      json.RawMessage `json:"instructions,omitempty"`
+	MaxOutputTokens   *uint           `json:"max_output_tokens,omitempty"`
+	TopLogProbs       *int            `json:"top_logprobs,omitempty"`
+	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	Moderation        json.RawMessage `json:"moderation,omitempty"`
+	ParallelToolCalls json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	// FrequencyPenalty/PresencePenalty are not part of the official OpenAI
 	// Responses API; they are forwarded verbatim for OpenAI-compatible upstreams
 	// (e.g. vLLM) that accept them.
@@ -1025,9 +1025,10 @@ type Reasoning struct {
 }
 
 type Input struct {
-	Type    string          `json:"type,omitempty"`
-	Role    string          `json:"role,omitempty"`
-	Content json.RawMessage `json:"content,omitempty"`
+	Type             string          `json:"type,omitempty"`
+	Role             string          `json:"role,omitempty"`
+	Content          json.RawMessage `json:"content,omitempty"`
+	EncryptedContent string          `json:"encrypted_content,omitempty"`
 }
 
 type MediaInput struct {
@@ -1067,6 +1068,13 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 		var inputs []Input
 		_ = kitutil.Unmarshal(r.Input, &inputs)
 		for _, input := range inputs {
+			if input.Type == "compaction" {
+				if summary, simulated, err := DecodeSimulatedRemoteCompactV2(input.EncryptedContent); err == nil && simulated {
+					mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: summary})
+				}
+				continue
+			}
+
 			if kitutil.GetJsonType(input.Content) == "string" {
 				var str string
 				_ = kitutil.Unmarshal(input.Content, &str)

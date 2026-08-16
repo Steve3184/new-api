@@ -258,6 +258,7 @@ export const channelFormSchema = z
     thinking_to_content: z.boolean().optional(),
     use_responses_api: z.boolean().optional(),
     fake_non_stream: z.boolean().optional(),
+    simulate_remote_compact_v2: z.boolean().optional(),
     proxy: z
       .string()
       .optional()
@@ -442,6 +443,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   thinking_to_content: false,
   use_responses_api: false,
   fake_non_stream: false,
+  simulate_remote_compact_v2: false,
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
@@ -486,6 +488,7 @@ export function transformChannelToFormDefaults(
     thinking_to_content: false,
     use_responses_api: false,
     fake_non_stream: false,
+    simulate_remote_compact_v2: false,
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
@@ -507,6 +510,7 @@ export function transformChannelToFormDefaults(
         thinking_to_content: parsed.thinking_to_content || false,
         use_responses_api: parsed.use_responses_api || false,
         fake_non_stream: parsed.fake_non_stream || false,
+        simulate_remote_compact_v2: parsed.simulate_remote_compact_v2 || false,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
@@ -636,6 +640,7 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     use_responses_api:
       formData.type === 1 && formData.use_responses_api === true,
     fake_non_stream: formData.type === 1 && formData.fake_non_stream === true,
+    simulate_remote_compact_v2: formData.simulate_remote_compact_v2 === true,
     proxy: formData.proxy?.trim() || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',

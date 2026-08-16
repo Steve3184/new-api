@@ -288,6 +288,7 @@ const SENSITIVE_FORM_FIELDS = [
   'thinking_to_content',
   'use_responses_api',
   'fake_non_stream',
+  'simulate_remote_compact_v2',
   'proxy',
   'http_protocol',
   'http2_connection_shards',
@@ -348,6 +349,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.use_responses_api ||
     values.fake_non_stream ||
+    values.simulate_remote_compact_v2 ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     (values.http_protocol && values.http_protocol !== 'auto') ||
@@ -758,6 +760,9 @@ export function ChannelMutateDrawer({
   const currentThinkingToContent = form.watch('thinking_to_content')
   const currentUseResponsesAPI = form.watch('use_responses_api')
   const currentFakeNonStream = form.watch('fake_non_stream')
+  const currentSimulateRemoteCompactV2 = form.watch(
+    'simulate_remote_compact_v2'
+  )
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
@@ -1036,6 +1041,7 @@ export function ChannelMutateDrawer({
     currentThinkingToContent ||
     currentUseResponsesAPI ||
     currentFakeNonStream ||
+    currentSimulateRemoteCompactV2 ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
@@ -4178,6 +4184,31 @@ export function ChannelMutateDrawer({
                                       <FormDescription>
                                         {t(
                                           'Convert reasoning_content to <think> tag in content'
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='simulate_remote_compact_v2'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>
+                                        {t('Simulate Remote Compact V2')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          'Generate a compatible compaction item with the upstream model when Codex sends a Remote Compact V2 request'
                                         )}
                                       </FormDescription>
                                     </div>

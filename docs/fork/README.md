@@ -650,9 +650,33 @@ preserves content, reasoning content, tool calls, finish reasons, and usage
 reported by the upstream stream; it estimates usage only when that stream does
 not provide usage data.
 
+### Remote Compact V2 simulation
+
+Channel Extra Settings also includes **Simulate Remote Compact V2**. It is an
+additive compatibility option for Codex clients when an upstream GPT provider
+does not implement Remote Compact V2, when the selected channel converts to a
+non-GPT provider, or when its native remote compaction is slower than a normal
+generation request.
+
+| Setting | JSON field | Behavior |
+| --- | --- | --- |
+| **Simulate Remote Compact V2** | `simulate_remote_compact_v2` | Replaces Codex's streamed `compaction_trigger` with a normal summary request, then returns one compatible `compaction` item with gateway-owned opaque content. |
+
+The option is available for every channel type. It only handles streamed V2
+trigger requests: tool configuration and unsupported request options are
+removed before sending the summary request upstream. On subsequent turns, the
+gateway expands only its own opaque compaction payload back into a user-context
+summary; native provider compaction payloads remain opaque. Requests that need
+this transformation bypass global and per-channel request-body pass-through,
+while usage and billing continue to use the upstream response's reported
+usage.
+
 Files:
 
-- `dto/channel_settings.go`
+- `relaykit/dto/channel_settings.go`
+- `relaykit/dto/remote_compact_v2.go`
+- `relay/responses_handler.go`
+- `relay/helper/remote_compact_v2.go`
 - `relay/chat_completions_via_responses.go`
 - `relay/compatible_handler.go`
 - `relay/channel/openai/relay-openai-buffered.go`

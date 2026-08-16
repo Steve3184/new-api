@@ -325,17 +325,18 @@ type IncompleteDetails struct {
 }
 
 type ResponsesOutput struct {
-	Type      string                   `json:"type"`
-	ID        string                   `json:"id"`
-	Status    string                   `json:"status"`
-	Role      string                   `json:"role"`
-	Content   []ResponsesOutputContent `json:"content"`
-	Quality   string                   `json:"quality"`
-	Size      string                   `json:"size"`
-	Result    string                   `json:"result,omitempty"`
-	CallId    string                   `json:"call_id,omitempty"`
-	Name      string                   `json:"name,omitempty"`
-	Arguments json.RawMessage          `json:"arguments,omitempty"`
+	Type             string                   `json:"type"`
+	ID               string                   `json:"id"`
+	Status           string                   `json:"status"`
+	Role             string                   `json:"role"`
+	Content          []ResponsesOutputContent `json:"content"`
+	Quality          string                   `json:"quality"`
+	Size             string                   `json:"size"`
+	Result           string                   `json:"result,omitempty"`
+	CallId           string                   `json:"call_id,omitempty"`
+	Name             string                   `json:"name,omitempty"`
+	Arguments        json.RawMessage          `json:"arguments,omitempty"`
+	EncryptedContent string                   `json:"encrypted_content,omitempty"`
 }
 
 // ArgumentsString returns function call arguments in the string form expected by Chat Completions.
@@ -387,6 +388,7 @@ type ResponsesStreamResponse struct {
 	Type     string                   `json:"type"`
 	Response *OpenAIResponsesResponse `json:"response,omitempty"`
 	Delta    string                   `json:"delta,omitempty"`
+	Text     string                   `json:"text,omitempty"`
 	Item     *ResponsesOutput         `json:"item,omitempty"`
 	// - response.function_call_arguments.delta
 	// - response.function_call_arguments.done
