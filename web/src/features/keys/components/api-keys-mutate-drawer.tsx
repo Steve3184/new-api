@@ -18,7 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Edit,
+  KeyRound,
+  Plus,
+  Settings2,
+  Trash2,
+  WalletCards,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -62,6 +72,15 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { ModelGroupSelector } from '@/components/model-group-selector'
 import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
@@ -81,7 +100,7 @@ import {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
-import type { ApiKey } from '../types'
+import type { ApiKey, ApiKeyAutoRoutes } from '../types'
 import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
@@ -110,12 +129,27 @@ export function ApiKeysMutateDrawer({
   const [initializedTarget, setInitializedTarget] = useState<string | null>(
     null
   )
+  const [routeEditorOpen, setRouteEditorOpen] = useState(false)
+  const [editingVirtualModel, setEditingVirtualModel] = useState<string | null>(
+    null
+  )
+  const [routeName, setRouteName] = useState('')
+  const [routeChain, setRouteChain] = useState<string[]>([])
+  const [routeModel, setRouteModel] = useState('')
+  const [routeGroup, setRouteGroup] = useState('')
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
   // Fetch models
   const { data: modelsData } = useQuery({
     queryKey: ['user-models'],
     queryFn: () => getUserModels(),
+    enabled: open,
+    staleTime: 0,
+  })
+
+  const { data: autoModelsData } = useQuery({
+    queryKey: ['user-models', 'auto'],
+    queryFn: () => getUserModels('auto'),
     enabled: open,
     staleTime: 0,
   })
@@ -155,6 +189,7 @@ export function ApiKeysMutateDrawer({
   })
 
   const models = modelsData?.data || []
+  const autoModels = autoModelsData?.data || models
   const groups = useMemo<ApiKeyGroupOption[]>(
     () =>
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
@@ -359,9 +394,74 @@ export function ApiKeysMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const autoGroupsMode = form.watch('auto_groups_mode')
   const unlimitedQuota = form.watch('unlimited_quota')
+  const autoRoutes = form.watch('auto_routes')
+  const routeModelOptions = useMemo(
+    () => autoModels.map((model) => ({ label: model, value: model })),
+    [autoModels]
+  )
+  const routeGroupOptions = useMemo(
+    () =>
+      groups
+        .filter((group) => group.value !== 'auto')
+        .map((group) => ({
+          ...group,
+          ratio:
+            typeof group.ratio === 'number' ? group.ratio : undefined,
+        })),
+    [groups]
+  )
+
+  useEffect(() => {
+    if (!routeGroup && routeGroupOptions.length > 0) {
+      setRouteGroup(routeGroupOptions[0].value)
+    }
+  }, [routeGroup, routeGroupOptions])
+
+  const openRouteEditor = (virtualModel?: string) => {
+    const routes = autoRoutes || {}
+    const name = virtualModel || ''
+    setEditingVirtualModel(virtualModel ?? null)
+    setRouteName(name)
+    setRouteChain(virtualModel ? [...(routes[virtualModel] || [])] : [])
+    setRouteModel('')
+    setRouteEditorOpen(true)
+  }
+
+  const saveRoute = () => {
+    const name = routeName.trim()
+    if (!name.startsWith('auto/') || name.length <= 'auto/'.length) {
+      toast.error(t('Virtual model names must start with auto/'))
+      return
+    }
+    if (routeChain.length === 0) {
+      toast.error(t('Each virtual model needs at least one route model'))
+      return
+    }
+    const routes: ApiKeyAutoRoutes = { ...(autoRoutes || {}) }
+    if (editingVirtualModel && editingVirtualModel !== name) {
+      delete routes[editingVirtualModel]
+    }
+    if (!editingVirtualModel && routes[name]) {
+      toast.error(t('This virtual model already exists'))
+      return
+    }
+    routes[name] = routeChain
+    form.setValue('auto_routes', routes, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    setRouteEditorOpen(false)
+  }
+
+  const deleteRoute = (virtualModel: string) => {
+    const routes: ApiKeyAutoRoutes = { ...(autoRoutes || {}) }
+    delete routes[virtualModel]
+    form.setValue('auto_routes', routes, { shouldDirty: true })
+  }
 
   return (
-    <Sheet
+    <>
+      <Sheet
       open={open}
       onOpenChange={(v) => {
         onOpenChange(v)
@@ -433,6 +533,9 @@ export function ApiKeysMutateDrawer({
                           form.setValue('cross_group_retry', false, {
                             shouldDirty: true,
                           })
+                          form.setValue('auto_routes', {}, {
+                            shouldDirty: true,
+                          })
                         }}
                         placeholder={t('Select a group')}
                       />
@@ -480,6 +583,110 @@ export function ApiKeysMutateDrawer({
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+              )}
+
+              {selectedGroup === 'auto' && (
+                <FormField
+                  control={form.control}
+                  name='auto_routes'
+                  render={({ field }) => {
+                    const routes = field.value || {}
+                    const entries = Object.entries(routes)
+                    return (
+                      <FormItem>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div>
+                            <FormLabel>{t('Virtual model routes')}</FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Create auto/ models with an ordered fallback chain.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={() => openRouteEditor()}
+                          >
+                            <Plus className='size-4' />
+                            {t('Add virtual model')}
+                          </Button>
+                        </div>
+                        <FormControl>
+                          <div className='overflow-hidden rounded-lg border'>
+                            <table className='w-full text-sm'>
+                              <thead className='bg-muted/50 text-left text-xs'>
+                                <tr>
+                                  <th className='px-3 py-2 font-medium'>
+                                    {t('Model name')}
+                                  </th>
+                                  <th className='px-3 py-2 font-medium'>
+                                    {t('Route models')}
+                                  </th>
+                                  <th className='px-3 py-2 text-right font-medium'>
+                                    {t('Options')}
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className='divide-y'>
+                                {entries.length === 0 ? (
+                                  <tr>
+                                    <td
+                                      colSpan={3}
+                                      className='text-muted-foreground px-3 py-5 text-center text-xs'
+                                    >
+                                      {t('No virtual models configured')}
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  entries.map(([virtualModel, chain]) => (
+                                    <tr key={virtualModel}>
+                                      <td className='px-3 py-2 font-medium'>
+                                        {virtualModel}
+                                      </td>
+                                      <td className='text-muted-foreground px-3 py-2 tabular-nums'>
+                                        {chain.length}
+                                      </td>
+                                      <td className='px-3 py-2'>
+                                        <div className='flex justify-end gap-1'>
+                                          <Button
+                                            type='button'
+                                            variant='ghost'
+                                            size='icon-sm'
+                                            aria-label={t('Edit route')}
+                                            onClick={() =>
+                                              openRouteEditor(virtualModel)
+                                            }
+                                          >
+                                            <Edit className='size-4' />
+                                          </Button>
+                                          <Button
+                                            type='button'
+                                            variant='ghost'
+                                            size='icon-sm'
+                                            aria-label={t('Delete virtual model')}
+                                            className='text-destructive hover:text-destructive'
+                                            onClick={() =>
+                                              deleteRoute(virtualModel)
+                                            }
+                                          >
+                                            <Trash2 className='size-4' />
+                                          </Button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
                 />
               )}
 
@@ -766,6 +973,145 @@ export function ApiKeysMutateDrawer({
           </Button>
         </SheetFooter>
       </SheetContent>
-    </Sheet>
+      </Sheet>
+      <Dialog open={routeEditorOpen} onOpenChange={setRouteEditorOpen}>
+        <DialogContent className='max-w-[calc(100%-2rem)] sm:max-w-xl'>
+          <DialogHeader>
+            <DialogTitle>{t('Edit virtual model route')}</DialogTitle>
+            <DialogDescription>
+              {t('Choose the ordered models to try for this virtual model.')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <FormLabel>{t('Model name')}</FormLabel>
+              <Input
+                value={routeName}
+                onChange={(event) => setRouteName(event.target.value)}
+                placeholder='auto/free'
+                disabled={editingVirtualModel !== null}
+              />
+            </div>
+            <div className='space-y-2'>
+              <FormLabel>{t('Add route model')}</FormLabel>
+              <div className='flex items-center gap-2'>
+                <ModelGroupSelector
+                  selectedModel={routeModel}
+                  models={routeModelOptions}
+                  onModelChange={setRouteModel}
+                  selectedGroup={routeGroup}
+                  groups={routeGroupOptions}
+                  onGroupChange={setRouteGroup}
+                  className='min-w-0 flex-1'
+                  disabled={routeModelOptions.length === 0}
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='icon-sm'
+                  aria-label={t('Add route model')}
+                  disabled={!routeModel || routeChain.includes(routeModel)}
+                  onClick={() => {
+                    if (!routeModel || routeChain.includes(routeModel)) return
+                    setRouteChain((current) => [...current, routeModel])
+                    setRouteModel('')
+                  }}
+                >
+                  <Plus className='size-4' />
+                </Button>
+              </div>
+            </div>
+            <div className='space-y-2'>
+              <FormLabel>{t('Call chain')}</FormLabel>
+              {routeChain.length === 0 ? (
+                <div className='text-muted-foreground rounded-lg border border-dashed px-3 py-6 text-center text-sm'>
+                  {t('Add at least one route model')}
+                </div>
+              ) : (
+                <ol className='space-y-2'>
+                  {routeChain.map((modelName, index) => (
+                    <li
+                      key={modelName}
+                      className='bg-muted/30 flex items-center gap-2 rounded-lg border px-2 py-1.5'
+                    >
+                      <span className='bg-background text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums'>
+                        {index + 1}
+                      </span>
+                      <span className='min-w-0 flex-1 truncate text-sm font-medium'>
+                        {modelName}
+                      </span>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        aria-label={t('Move route model up')}
+                        disabled={index === 0}
+                        onClick={() =>
+                          setRouteChain((current) => {
+                            const next = [...current]
+                            ;[next[index - 1], next[index]] = [
+                              next[index],
+                              next[index - 1],
+                            ]
+                            return next
+                          })
+                        }
+                      >
+                        <ArrowUp className='size-4' />
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        aria-label={t('Move route model down')}
+                        disabled={index === routeChain.length - 1}
+                        onClick={() =>
+                          setRouteChain((current) => {
+                            const next = [...current]
+                            ;[next[index], next[index + 1]] = [
+                              next[index + 1],
+                              next[index],
+                            ]
+                            return next
+                          })
+                        }
+                      >
+                        <ArrowDown className='size-4' />
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        aria-label={t('Remove route model')}
+                        className='text-destructive hover:text-destructive'
+                        onClick={() =>
+                          setRouteChain((current) =>
+                            current.filter((_, itemIndex) => itemIndex !== index)
+                          )
+                        }
+                      >
+                        <Trash2 className='size-4' />
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setRouteEditorOpen(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button type='button' onClick={saveRoute}>
+              {t('Save route')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

@@ -152,7 +152,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
 
         const used = apiKey.used_quota
         const remaining = apiKey.remain_quota
-        const total = used + remaining
+        const total = apiKey.total_quota || used + remaining
         const percentage = total > 0 ? (remaining / total) * 100 : 0
 
         return (
@@ -189,6 +189,18 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         )
       },
       size: 170,
+    },
+    {
+      id: 'rpm',
+      accessorKey: 'rpm',
+      header: t('RPM (last 60s)'),
+      cell: ({ row }) => (
+        <span className='font-medium tabular-nums'>
+          {row.original.rpm ?? 0}
+        </span>
+      ),
+      size: 120,
+      meta: { mobileHidden: true },
     },
     {
       accessorKey: 'group',

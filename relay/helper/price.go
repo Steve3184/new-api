@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -41,6 +42,27 @@ const claudeCacheCreation1hMultiplier = 6 / 3.75
 // the pre-consumed quota still reflects a plausible output cost in paid groups.
 const defaultTieredPreConsumeMaxTokens = 8192
 
+func resolveAutoRoutePricingModel(c *gin.Context, modelName string) string {
+	if !strings.HasPrefix(modelName, "auto/") {
+		return modelName
+	}
+	value, ok := common.GetContextKey(c, constant.ContextKeyTokenAutoRoutes)
+	if !ok {
+		return modelName
+	}
+	routes, ok := value.(map[string][]string)
+	if !ok || len(routes[modelName]) == 0 {
+		return modelName
+	}
+	if _, configured := ratio_setting.GetModelPrice(modelName, false); configured {
+		return modelName
+	}
+	if _, configured, _ := ratio_setting.GetModelRatio(modelName); configured {
+		return modelName
+	}
+	return routes[modelName][0]
+}
+
 // HandleGroupRatio checks for "auto_group" in the context and updates the group ratio and relayInfo.UsingGroup if present
 func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hosttypes.GroupRatioInfo {
 	groupRatioInfo := hosttypes.GroupRatioInfo{
@@ -71,6 +93,11 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
+	originModelName := info.OriginModelName
+	if pricingModelName := resolveAutoRoutePricingModel(c, originModelName); pricingModelName != originModelName {
+		info.OriginModelName = pricingModelName
+		defer func() { info.OriginModelName = originModelName }()
+	}
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
@@ -185,6 +212,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hosttypes.PriceData, error) {
+	originModelName := info.OriginModelName
+	if pricingModelName := resolveAutoRoutePricingModel(c, originModelName); pricingModelName != originModelName {
+		info.OriginModelName = pricingModelName
+		defer func() { info.OriginModelName = originModelName }()
+	}
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)

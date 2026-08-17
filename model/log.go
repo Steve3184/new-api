@@ -615,6 +615,37 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+// GetTokenRPM returns consume-log counts for the last minute in one grouped
+// query. Keeping this grouped avoids an N+1 query when rendering the key list.
+func GetTokenRPM(tokenIDs []int) (map[int]int, error) {
+	result := make(map[int]int, len(tokenIDs))
+	if len(tokenIDs) == 0 {
+		return result, nil
+	}
+	for _, tokenID := range tokenIDs {
+		result[tokenID] = 0
+	}
+	if LOG_DB == nil {
+		return result, errors.New("日志数据库未初始化")
+	}
+	var rows []struct {
+		TokenID int `gorm:"column:token_id"`
+		RPM     int `gorm:"column:rpm"`
+	}
+	err := LOG_DB.Table("logs").
+		Select("token_id, COUNT(*) AS rpm").
+		Where("type = ? AND created_at >= ? AND token_id IN ?", LogTypeConsume, time.Now().Add(-60*time.Second).Unix(), tokenIDs).
+		Group("token_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.TokenID] = row.RPM
+	}
+	return result, nil
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 

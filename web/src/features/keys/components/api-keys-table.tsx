@@ -130,7 +130,7 @@ function ApiKeysMobileList({
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
-        const total = apiKey.used_quota + apiKey.remain_quota
+        const total = apiKey.total_quota || apiKey.used_quota + apiKey.remain_quota
 
         return (
           <div
@@ -178,6 +178,10 @@ function ApiKeysMobileList({
                   </span>
                 </span>
               )}
+            </div>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('RPM (last 60s)')}</span>
+              <span className='font-medium tabular-nums'>{apiKey.rpm ?? 0}</span>
             </div>
           </div>
         )
@@ -272,6 +276,8 @@ export function ApiKeysTable() {
       }
     },
     placeholderData: (previousData) => previousData,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
   })
 
   const apiKeys = data?.items || []

@@ -35,6 +35,9 @@ export const apiKeySchema = z.object({
   accessed_time: z.number(),
   group: z.string().nullish().default(''),
   auto_groups: z.array(z.string()).nullish().default(null),
+  auto_routes: z.record(z.string(), z.array(z.string())).nullish(),
+  total_quota: z.number().optional(),
+  rpm: z.number().optional(),
   cross_group_retry: z
     .preprocess((v) => {
       if (v === 1) return true
@@ -49,6 +52,8 @@ export const apiKeySchema = z.object({
 })
 
 export type ApiKey = z.infer<typeof apiKeySchema>
+
+export type ApiKeyAutoRoutes = Record<string, string[]>
 
 // ============================================================================
 // API Request/Response Types
@@ -93,12 +98,44 @@ export interface ApiKeyFormData {
   allow_ips: string
   group: string
   auto_groups: string[]
+  auto_routes: ApiKeyAutoRoutes
   cross_group_retry: boolean
 }
 
 export interface TokenAutoGroupsConfig {
   groups: string[]
   max_count: number
+}
+
+export interface TokenAutoRouteModelStatus {
+  model: string
+  total_channels: number
+  enabled_channels: number
+  auto_disabled: number
+  manual_disabled: number
+  state: 'available' | 'degraded' | 'auto_disabled' | 'disabled' | 'unavailable' | string
+  last_reason?: string
+  last_changed_at?: number
+  groups: Array<{
+    group: string
+    total_channels: number
+    enabled_channels: number
+    auto_disabled: number
+    manual_disabled: number
+    state: string
+  }>
+}
+
+export interface TokenAutoRouteStatus {
+  virtual_model: string
+  chain: string[]
+  models: TokenAutoRouteModelStatus[]
+}
+
+export interface TokenAutoRouteStatusResponse {
+  routes: TokenAutoRouteStatus[]
+  auto_groups: string[]
+  updated_at: number
 }
 
 export interface TokenGroupNames {
@@ -123,4 +160,6 @@ export type ApiKeysDialogType =
   | 'batch-delete'
   | 'cc-switch'
   | 'use-key'
+  | 'auto-route-status'
+  | 'reset-used-quota'
   | 'migrate-group'

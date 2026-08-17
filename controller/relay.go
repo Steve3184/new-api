@@ -343,9 +343,17 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 
-	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
+	selectedModel := retryParam.SelectedModel
+	if selectedModel == "" {
+		selectedModel = info.OriginModelName
+	}
+	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, selectedModel)
 	if newAPIError != nil {
 		return nil, newAPIError
+	}
+	if selectedModel != info.OriginModelName {
+		info.UpstreamModelName = selectedModel
+		c.Set(string(constant.ContextKeyOriginalModel), info.OriginModelName)
 	}
 	return channel, nil
 }
@@ -390,7 +398,14 @@ func getRetryTimesForCurrentGroup(c *gin.Context, tokenGroup string) int {
 	if autoGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup); autoGroup != "" {
 		group = autoGroup
 	}
-	return ratio_setting.GetGroupRetryTimes(group, common.RetryTimes)
+	retryTimes := ratio_setting.GetGroupRetryTimes(group, common.RetryTimes)
+	if tokenGroup == "auto" {
+		modelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+		if route, ok := service.GetRequestAutoRoute(c, modelName); ok && len(route)-1 > retryTimes {
+			retryTimes = len(route) - 1
+		}
+	}
+	return retryTimes
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {

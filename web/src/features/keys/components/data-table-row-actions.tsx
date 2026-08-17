@@ -27,6 +27,7 @@ import {
   Copy,
   Link,
   Loader2,
+  RotateCcw,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -302,6 +303,31 @@ export function DataTableRowActions<TData>({
               ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(apiKey)
+            setOpen('reset-used-quota')
+          }}
+        >
+          {t('Reset used quota')}
+          <DropdownMenuShortcut>
+            <RotateCcw size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        {apiKey.group === 'auto' && (
+          <DropdownMenuItem
+            onClick={() => {
+              setCurrentRow(apiKey)
+              setOpen('auto-route-status')
+            }}
+          >
+            {t('View virtual model routes')}
+            <DropdownMenuShortcut>
+              <ExternalLink size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem

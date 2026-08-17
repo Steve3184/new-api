@@ -255,7 +255,7 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
         <ol
           data-slot='global-auto-order'
           aria-label={t('Inherit global Auto order')}
-          className='flex max-h-24 flex-wrap content-start gap-1.5 overflow-y-auto'
+          className='flex max-h-40 min-h-24 flex-wrap content-start gap-1.5 overflow-y-auto'
         >
           {props.globalOptions.map((option, index) => (
             <li key={option.value} className='flex min-w-0 items-center gap-1'>

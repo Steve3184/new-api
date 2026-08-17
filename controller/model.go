@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -260,6 +261,26 @@ func ListModels(c *gin.Context, modelType int) {
 			continue
 		}
 		userModelNames = append(userModelNames, modelName)
+	}
+	if groups.tokenGroup == "auto" {
+		if value, ok := common.GetContextKey(c, constant.ContextKeyTokenAutoRoutes); ok {
+			if routes, ok := value.(map[string][]string); ok {
+				virtualModels := make([]string, 0, len(routes))
+				for virtualModel := range routes {
+					virtualModels = append(virtualModels, virtualModel)
+				}
+				sort.Strings(virtualModels)
+				seen := make(map[string]struct{}, len(userModelNames)+len(virtualModels))
+				for _, modelName := range userModelNames {
+					seen[modelName] = struct{}{}
+				}
+				for _, virtualModel := range virtualModels {
+					if _, exists := seen[virtualModel]; !exists {
+						userModelNames = append(userModelNames, virtualModel)
+					}
+				}
+			}
+		}
 	}
 
 	ownerByModel := map[string]string{}

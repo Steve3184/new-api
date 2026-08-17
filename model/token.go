@@ -29,8 +29,15 @@ type Token struct {
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	AutoGroups         string         `json:"-" gorm:"type:text"`
+	AutoRoutes         string         `json:"-" gorm:"type:text"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
+
+const (
+	maxTokenAutoRoutes      = 64
+	maxTokenAutoRouteModels = 32
+	maxTokenAutoRouteName   = 128
+)
 
 func (token *Token) GetAutoGroups() ([]string, error) {
 	if token.AutoGroups == "" {
@@ -53,6 +60,67 @@ func (token *Token) SetAutoGroups(groups []string) error {
 		return err
 	}
 	token.AutoGroups = string(data)
+	return nil
+}
+
+// GetAutoRoutes decodes the token-scoped virtual model routes. An empty value
+// intentionally means that no virtual models are configured.
+func (token *Token) GetAutoRoutes() (map[string][]string, error) {
+	if token.AutoRoutes == "" {
+		return map[string][]string{}, nil
+	}
+	routes := make(map[string][]string)
+	if err := common.UnmarshalJsonStr(token.AutoRoutes, &routes); err != nil {
+		return nil, err
+	}
+	return routes, nil
+}
+
+func (token *Token) SetAutoRoutes(routes map[string][]string) error {
+	if len(routes) == 0 {
+		token.AutoRoutes = ""
+		return nil
+	}
+	data, err := common.Marshal(routes)
+	if err != nil {
+		return err
+	}
+	token.AutoRoutes = string(data)
+	return nil
+}
+
+// ValidateAutoRoutes validates the durable shape before it reaches request
+// routing. availableModels may be nil when callers only need structural
+// validation (for example while loading legacy data).
+func ValidateAutoRoutes(routes map[string][]string, availableModels map[string]struct{}) error {
+	if len(routes) > maxTokenAutoRoutes {
+		return fmt.Errorf("虚拟模型数量不能超过 %d", maxTokenAutoRoutes)
+	}
+	for virtualModel, chain := range routes {
+		virtualModel = strings.TrimSpace(virtualModel)
+		if !strings.HasPrefix(virtualModel, "auto/") || len(virtualModel) <= len("auto/") || len(virtualModel) > maxTokenAutoRouteName {
+			return fmt.Errorf("虚拟模型名称必须以 auto/ 开头且长度不超过 %d", maxTokenAutoRouteName)
+		}
+		if len(chain) == 0 || len(chain) > maxTokenAutoRouteModels {
+			return fmt.Errorf("虚拟模型 %s 的调用链长度必须介于 1 和 %d 之间", virtualModel, maxTokenAutoRouteModels)
+		}
+		seen := make(map[string]struct{}, len(chain))
+		for _, modelName := range chain {
+			modelName = strings.TrimSpace(modelName)
+			if modelName == "" || strings.HasPrefix(modelName, "auto/") {
+				return fmt.Errorf("虚拟模型 %s 包含无效的调用链模型", virtualModel)
+			}
+			if _, ok := seen[modelName]; ok {
+				return fmt.Errorf("虚拟模型 %s 的调用链包含重复模型 %s", virtualModel, modelName)
+			}
+			seen[modelName] = struct{}{}
+			if availableModels != nil {
+				if _, ok := availableModels[modelName]; !ok {
+					return fmt.Errorf("模型 %s 不在当前 Auto 可用模型中", modelName)
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -313,7 +381,7 @@ func (token *Token) Update() (err error) {
 		common.SysLog("failed to invalidate token cache before update: " + cacheErr.Error())
 	}
 	return DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups", "auto_routes").Updates(token).Error
 }
 
 func (token *Token) SelectUpdate() (err error) {
@@ -432,6 +500,56 @@ func decreaseTokenQuota(id int, quota int) (err error) {
 		},
 	).Error
 	return err
+}
+
+// ResetTokenUsedQuota restores finite quota that has already been consumed and
+// clears the usage counter atomically. Unlimited tokens keep their zero
+// balance while still resetting the displayed usage count.
+func ResetTokenUsedQuota(id int, userId int) (*Token, error) {
+	if id <= 0 || userId <= 0 {
+		return nil, errors.New("id 或 userId 为空！")
+	}
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	var token Token
+	if err := lockForUpdate(tx).Where("id = ? AND user_id = ?", id, userId).First(&token).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if cacheErr := invalidateTokenCacheForMutation(token.Key); cacheErr != nil {
+		tx.Rollback()
+		return nil, cacheErr
+	}
+	remainQuota := token.RemainQuota
+	if !token.UnlimitedQuota && token.UsedQuota > 0 {
+		if token.UsedQuota > common.MaxQuota-remainQuota {
+			remainQuota = common.MaxQuota
+		} else {
+			remainQuota += token.UsedQuota
+		}
+	}
+	status := token.Status
+	if status == common.TokenStatusExhausted &&
+		(token.ExpiredTime == -1 || token.ExpiredTime > common.GetTimestamp()) {
+		status = common.TokenStatusEnabled
+	}
+	if err := tx.Model(&Token{}).Where("id = ? AND user_id = ?", id, userId).Updates(map[string]interface{}{
+		"remain_quota": remainQuota,
+		"used_quota":   0,
+		"status":       status,
+	}).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+	token.RemainQuota = remainQuota
+	token.UsedQuota = 0
+	token.Status = status
+	return &token, nil
 }
 
 // CountUserTokens returns total number of tokens for the given user, used for pagination

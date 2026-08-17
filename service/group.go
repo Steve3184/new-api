@@ -155,6 +155,28 @@ func GetRequestAutoGroups(c *gin.Context, userGroup string) []string {
 	return FilterUserTokenAutoGroups(userGroup, groups)
 }
 
+// GetRequestAutoRoute returns the token-scoped candidate chain for a virtual
+// model. A missing route is intentionally distinguishable from an empty route;
+// the latter is treated as invalid and never falls back to a recursive route.
+func GetRequestAutoRoute(c *gin.Context, modelName string) ([]string, bool) {
+	if !strings.HasPrefix(modelName, "auto/") {
+		return nil, false
+	}
+	value, ok := common.GetContextKey(c, constant.ContextKeyTokenAutoRoutes)
+	if !ok {
+		return nil, false
+	}
+	routes, ok := value.(map[string][]string)
+	if !ok {
+		return nil, false
+	}
+	chain, ok := routes[modelName]
+	if !ok || len(chain) == 0 {
+		return nil, false
+	}
+	return chain, true
+}
+
 // GetGroupsEnabledModels 按 groups 顺序获取各分组启用的模型并去重
 func GetGroupsEnabledModels(groups []string) []string {
 	seen := make(map[string]struct{})
