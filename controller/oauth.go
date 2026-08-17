@@ -214,7 +214,7 @@ func HandleOAuth(c *gin.Context) {
 
 	// 8. Check user status
 	if user.Status != common.UserStatusEnabled {
-		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
+		writeUserBannedResponse(c)
 		return
 	}
 
@@ -360,6 +360,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+	user.RegisterIp = c.ClientIP()
 
 	// Handle affiliate code
 	inviterId := 0

@@ -89,6 +89,7 @@ type User struct {
 	Role             int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string                     `json:"email" gorm:"index" validate:"max=50"`
+	RegisterIp       string                     `json:"register_ip" gorm:"type:varchar(64);column:register_ip;index"`
 	GitHubId         string                     `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string                     `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
@@ -446,8 +447,16 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	query := tx.Unscoped().Model(&User{})
 
 	// 构建搜索条件
-	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
-	likeArgs := []interface{}{"%" + keyword + "%", "%" + keyword + "%", "%" + keyword + "%"}
+	keyword = strings.TrimSpace(keyword)
+	likePattern := "%" + keyword + "%"
+	// Searching an inviter's affiliate code should return both the owner and
+	// every user registered through that code. The subquery is supported by
+	// SQLite, MySQL, and PostgreSQL through GORM's regular WHERE builder.
+	inviterIDs := tx.Unscoped().Model(&User{}).
+		Select("id").
+		Where("aff_code LIKE ?", likePattern)
+	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ? OR register_ip LIKE ? OR aff_code LIKE ? OR inviter_id IN (?)"
+	likeArgs := []interface{}{likePattern, likePattern, likePattern, likePattern, likePattern, inviterIDs}
 
 	// 尝试将关键字转换为整数ID
 	keywordInt, err := strconv.Atoi(keyword)
@@ -1128,8 +1137,11 @@ func (user *User) ValidateAndFill() (err error) {
 		return ErrInvalidCredentials
 	}
 	okay := common.ValidatePasswordAndHash(password, user.Password)
-	if !okay || user.Status != common.UserStatusEnabled {
+	if !okay {
 		return ErrInvalidCredentials
+	}
+	if user.Status != common.UserStatusEnabled {
+		return ErrUserDisabled
 	}
 	return nil
 }

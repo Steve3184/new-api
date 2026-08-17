@@ -235,7 +235,12 @@ export function SubscriptionPlansCard({
     const total = Number(sub?.subscription?.amount_total || 0)
     const used = Number(sub?.subscription?.amount_used || 0)
     if (total <= 0) return 0
-    return Math.round((used / total) * 100)
+    return Math.min(100, Math.max(0, Math.round((used / total) * 100)))
+  }
+
+  const getLimitUsagePercent = (used: number, limit: number) => {
+    if (limit <= 0) return 0
+    return Math.min(100, Math.max(0, Math.round((used / limit) * 100)))
   }
 
   if (loading) {
@@ -429,13 +434,6 @@ export function SubscriptionPlansCard({
                       used: Number(subscription?.weekly_used || 0),
                       nextResetTime: subscription?.weekly_next_reset_time ?? 0,
                     },
-                    {
-                      key: 'monthly',
-                      label: t('Monthly Quota Limit'),
-                      limit: Number(subscription?.monthly_limit || 0),
-                      used: Number(subscription?.monthly_used || 0),
-                      nextResetTime: subscription?.monthly_next_reset_time ?? 0,
-                    },
                   ].filter((limit) => limit.limit > 0)
                   let statusBadge = (
                     <StatusBadge
@@ -503,8 +501,52 @@ export function SubscriptionPlansCard({
                           {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
+                      {usageLimits.map((limit) => {
+                        const remaining = Math.max(0, limit.limit - limit.used)
+                        const limitUsagePercent = getLimitUsagePercent(
+                          limit.used,
+                          limit.limit
+                        )
+                        return (
+                          <div key={limit.key} className='mt-1'>
+                            <div className='text-muted-foreground'>
+                              {limit.label}:{' '}
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={<span className='cursor-help' />}
+                                >
+                                  {formatQuota(limit.used)}/
+                                  {formatQuota(limit.limit)} · {t('Remaining')}{' '}
+                                  {formatQuota(remaining)}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {t('Raw Quota')}: {limit.used}/{limit.limit} ·{' '}
+                                  {t('Remaining')} {remaining}
+                                </TooltipContent>
+                              </Tooltip>
+                              <span className='ml-2'>
+                                {t('Used')} {limitUsagePercent}%
+                              </span>
+                              {isActive && limit.nextResetTime > 0 && (
+                                <span className='ml-2'>
+                                  {t('Next reset')}:{' '}
+                                  {new Date(
+                                    limit.nextResetTime * 1000
+                                  ).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                            {isActive && (
+                              <Progress
+                                value={limitUsagePercent}
+                                className='mt-2 h-1.5'
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
                       {totalAmount >= 0 && (
-                        <div className='text-muted-foreground mt-1'>
+                        <div className='text-muted-foreground mt-2'>
                           {t('Quota per Billing Period')}:{' '}
                           {totalAmount > 0 ? (
                             <Tooltip>
@@ -533,38 +575,6 @@ export function SubscriptionPlansCard({
                       {totalAmount > 0 && isActive && (
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
                       )}
-                      {usageLimits.map((limit) => {
-                        const remaining = Math.max(0, limit.limit - limit.used)
-                        return (
-                          <div
-                            key={limit.key}
-                            className='text-muted-foreground mt-1'
-                          >
-                            {limit.label}:{' '}
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={<span className='cursor-help' />}
-                              >
-                                {formatQuota(limit.used)}/
-                                {formatQuota(limit.limit)} · {t('Remaining')}{' '}
-                                {formatQuota(remaining)}
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {t('Raw Quota')}: {limit.used}/{limit.limit} ·{' '}
-                                {t('Remaining')} {remaining}
-                              </TooltipContent>
-                            </Tooltip>
-                            {isActive && limit.nextResetTime > 0 && (
-                              <span className='ml-2'>
-                                {t('Next reset')}:{' '}
-                                {new Date(
-                                  limit.nextResetTime * 1000
-                                ).toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        )
-                      })}
                     </div>
                   )
                 })}

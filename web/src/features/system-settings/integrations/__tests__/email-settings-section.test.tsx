@@ -70,8 +70,12 @@ describe('SMTP email settings', () => {
 
     const recipient = screen.getByLabelText('Test recipient email')
     const sendButton = screen.getByRole('button', { name: 'Send test email' })
+    const recipientDescription = screen.getByText(
+      'Save SMTP settings before sending a test email'
+    )
     expect(recipient).toHaveAttribute('id', 'smtp-test-recipient')
     expect(sendButton).toBeDisabled()
+    expect(sendButton.parentElement).not.toContainElement(recipientDescription)
 
     await user.type(recipient, 'admin@example.com')
     expect(sendButton).toBeEnabled()

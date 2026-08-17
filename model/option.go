@@ -20,7 +20,7 @@ import (
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
-	Value string `json:"value"`
+	Value string `json:"value" gorm:"type:text"`
 }
 
 func AllOption() ([]*Option, error) {
@@ -97,6 +97,7 @@ func InitOptionMap() {
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["EmailVerificationTemplate"] = common.EmailVerificationTemplate
+	common.OptionMap["UserBannedMessage"] = common.UserBannedMessage
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -495,6 +496,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPToken = value
 	case "EmailVerificationTemplate":
 		common.EmailVerificationTemplate = value
+	case "UserBannedMessage":
+		common.UserBannedMessage = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

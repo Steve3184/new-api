@@ -66,6 +66,8 @@ func Login(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		case errors.Is(err, model.ErrUserDisabled):
+			writeUserBannedResponse(c)
 		default:
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
@@ -112,6 +114,21 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c)
 }
 
+// writeUserBannedResponse keeps the disabled-account contract consistent for
+// password, OAuth, and third-party login handlers. Administrators may provide
+// trusted HTML; clients still receive a boolean marker for a dedicated dialog.
+func writeUserBannedResponse(c *gin.Context) {
+	html := strings.TrimSpace(common.UserBannedMessage)
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": i18n.T(c, i18n.MsgAuthUserBanned),
+		"data": gin.H{
+			"banned": true,
+			"html":   html,
+		},
+	})
+}
+
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
 func loginMethodFromContext(c *gin.Context) string {
 	switch c.FullPath() {
@@ -156,13 +173,21 @@ func setupLogin(user *model.User, c *gin.Context) {
 }
 
 func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin.Context) {
-	if user == nil || user.Id <= 0 || user.Status != common.UserStatusEnabled {
+	if user == nil || user.Id <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgAuthUserBanned)
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		writeUserBannedResponse(c)
 		return
 	}
 	currentUser, err := model.GetUserById(user.Id, false)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if currentUser.Status != common.UserStatusEnabled {
+		writeUserBannedResponse(c)
 		return
 	}
 	var bundle *service.AuthBundle
@@ -268,6 +293,7 @@ func Register(c *gin.Context) {
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		RegisterIp:  c.ClientIP(),
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email

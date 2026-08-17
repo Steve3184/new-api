@@ -161,6 +161,17 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { mobileBadge: true },
     },
     {
+      accessorKey: 'register_ip',
+      header: t('Registration IP'),
+      cell: ({ row }) => (
+        <LongText className='max-w-[150px] text-sm'>
+          {row.original.register_ip || '-'}
+        </LongText>
+      ),
+      size: 160,
+      meta: { mobileHidden: true },
+    },
+    {
       id: 'quota',
       accessorKey: 'quota',
       header: t('Quota'),

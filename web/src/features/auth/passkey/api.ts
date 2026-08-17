@@ -84,7 +84,7 @@ export async function finishPasskeyLogin(
   const res = await api.post<ApiResponse>(
     '/api/user/passkey/login/finish',
     { flow_token: flowToken, credential: payload },
-    { skipAuthRefresh: true }
+    { skipAuthRefresh: true, skipBusinessError: true }
   )
   return res.data
 }

@@ -43,6 +43,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { login, wechatLoginByCode } from '@/features/auth/api'
+import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
+import { BannedUserDialog } from '@/features/auth/components/banned-user-dialog'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
@@ -75,6 +77,7 @@ export function UserAuthForm({
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
   const loginFailedMessage = t('Login failed')
 
@@ -148,6 +151,13 @@ export function UserAuthForm({
     )
   }, [status])
 
+  const showBannedUserDialog = (response: unknown) => {
+    const banned = getBannedLoginResponse(response)
+    if (!banned) return false
+    setBannedHtml(banned.html)
+    return true
+  }
+
   async function onSubmit(data: z.infer<typeof loginFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
@@ -180,25 +190,35 @@ export function UserAuthForm({
         ...captchaPayload,
       })
 
-      if (res.success) {
-        if (res.data && 'require_2fa' in res.data && res.data.require_2fa) {
-          if (!res.data.flow_token) {
-            throw new Error(t('Login flow expired. Please sign in again.'))
-          }
-          setPending2FAFlowToken(res.data.flow_token)
-          redirectTo2FA()
-          return
-        }
-
-        if (!isAuthBundle(res.data)) {
-          throw new Error(t('Login failed'))
-        }
-        await handleLoginSuccess(res.data, redirectTo)
-        toast.success(t('Welcome back!'))
+      if (!res.success) {
+        if (showBannedUserDialog(res)) return
+        toast.error(res.message || loginFailedMessage)
+        return
       }
+
+      if (res.data && 'require_2fa' in res.data && res.data.require_2fa) {
+        if (!res.data.flow_token) {
+          throw new Error(t('Login flow expired. Please sign in again.'))
+        }
+        setPending2FAFlowToken(res.data.flow_token)
+        redirectTo2FA()
+        return
+      }
+
+      if (!isAuthBundle(res.data)) {
+        throw new Error(t('Login failed'))
+      }
+      await handleLoginSuccess(res.data, redirectTo)
+      toast.success(t('Welcome back!'))
     } catch (error: unknown) {
-      if (axios.isAxiosError(error)) return
-      toast.error(error instanceof Error ? error.message : loginFailedMessage)
+      if (showBannedUserDialog(error)) return
+      let message = loginFailedMessage
+      if (axios.isAxiosError(error)) {
+        message = error.response?.data?.message || loginFailedMessage
+      } else if (error instanceof Error) {
+        message = error.message
+      }
+      toast.error(message || loginFailedMessage)
     } finally {
       setIsLoading(false)
     }
@@ -235,10 +255,18 @@ export function UserAuthForm({
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {
+        if (showBannedUserDialog(res)) {
+          handleWeChatDialogChange(false)
+          return
+        }
         if (getServerErrorMessageKey(res)) return
         toast.error(res?.message || loginFailedMessage)
       }
     } catch (error: unknown) {
+      if (showBannedUserDialog(error)) {
+        handleWeChatDialogChange(false)
+        return
+      }
       if (getServerErrorMessageKey(error)) return
       toast.error(loginFailedMessage)
     } finally {
@@ -294,6 +322,7 @@ export function UserAuthForm({
 
       const finish = await finishPasskeyLogin(flowToken, assertion)
       if (!finish.success) {
+        if (showBannedUserDialog(finish)) return
         if (getServerErrorMessageKey(finish)) return
         throw new Error(finish.message || t('Failed to complete Passkey login'))
       }
@@ -305,6 +334,7 @@ export function UserAuthForm({
       await handleLoginSuccess(finish.data, redirectTo)
       toast.success(t('Signed in with Passkey'))
     } catch (error: unknown) {
+      if (showBannedUserDialog(error)) return
       if (getServerErrorMessageKey(error)) return
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
         toast.info(t('Passkey login was cancelled or timed out'))
@@ -526,6 +556,14 @@ export function UserAuthForm({
           </div>
         </Dialog>
       )}
+
+      <BannedUserDialog
+        open={bannedHtml !== null}
+        html={bannedHtml ?? ''}
+        onOpenChange={(open) => {
+          if (!open) setBannedHtml(null)
+        }}
+      />
     </Form>
   )
 }

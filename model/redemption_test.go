@@ -172,6 +172,18 @@ func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {
 	assert.Equal(t, 500, user.Quota)
 }
 
+func TestRedeemTrimsSubmittedKey(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 500)
+
+	quota, err := Redeem(" \t"+key+"\n", userId)
+	require.NoError(t, err)
+	assert.Equal(t, 500, quota)
+
+	var user User
+	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
+	assert.Equal(t, 500, user.Quota)
+}
+
 // Exactly one of several concurrent redeems of the same code may win, and
 // quota must be credited exactly once.
 func TestRedeemConcurrentSingleSuccess(t *testing.T) {

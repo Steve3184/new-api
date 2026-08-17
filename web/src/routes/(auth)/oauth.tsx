@@ -18,16 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import i18next from 'i18next'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { wechatLoginByCode } from '@/features/auth/api'
+import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
+import { BannedUserDialog } from '@/features/auth/components/banned-user-dialog'
 import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
 import { applyAuthBundle, isAuthBundle } from '@/lib/api'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
 
 function OAuthComponent() {
   const navigate = useNavigate()
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
   const search = useSearch({ from: '/(auth)/oauth' }) as {
     redirect?: string
     provider?: 'github' | 'discord' | 'oidc' | 'linuxdo' | 'telegram' | 'wechat'
@@ -36,6 +39,8 @@ function OAuthComponent() {
   }
 
   useEffect(() => {
+    if (bannedHtml !== null) return
+
     ;(async () => {
       try {
         if (search?.provider === 'wechat' && search.code) {
@@ -48,12 +53,22 @@ function OAuthComponent() {
             navigate({ href: target, replace: true })
             return
           }
+          const banned = getBannedLoginResponse(res)
+          if (banned) {
+            setBannedHtml(banned.html)
+            return
+          }
           if (getServerErrorMessageKey(res)) {
             navigate({ to: '/sign-in', replace: true })
             return
           }
         }
       } catch (error: unknown) {
+        const banned = getBannedLoginResponse(error)
+        if (banned) {
+          setBannedHtml(banned.html)
+          return
+        }
         if (getServerErrorMessageKey(error)) {
           navigate({ to: '/sign-in', replace: true })
           return
@@ -62,9 +77,19 @@ function OAuthComponent() {
       toast.error(i18next.t('OAuth failed'))
       navigate({ to: '/sign-in', replace: true })
     })()
-  }, [navigate, search])
+  }, [bannedHtml, navigate, search])
 
-  return null
+  return (
+    <BannedUserDialog
+      open={bannedHtml !== null}
+      html={bannedHtml ?? ''}
+      onOpenChange={(open) => {
+        if (!open) {
+          void navigate({ to: '/sign-in', replace: true })
+        }
+      }}
+    />
+  )
 }
 
 export const Route = createFileRoute('/(auth)/oauth')({

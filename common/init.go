@@ -135,6 +135,8 @@ func InitEnv() {
 	RegisterRateLimitDuration = int64(GetEnvOrDefault("REGISTER_RATE_LIMIT_DURATION", 10*60))
 	OAuthRateLimitNum = GetEnvOrDefault("OAUTH_RATE_LIMIT", 60)
 	OAuthRateLimitDuration = int64(GetEnvOrDefault("OAUTH_RATE_LIMIT_DURATION", 10*60))
+	RedemptionRateLimitNum = GetEnvOrDefault("REDEMPTION_RATE_LIMIT", 60)
+	RedemptionRateLimitDuration = int64(GetEnvOrDefault("REDEMPTION_RATE_LIMIT_DURATION", 20*60))
 
 	SearchRateLimitEnable = GetEnvOrDefaultBool("SEARCH_RATE_LIMIT_ENABLE", true)
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)

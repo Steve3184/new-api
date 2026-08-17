@@ -189,6 +189,8 @@ export function UsersTable() {
         row.getValue('username'),
         row.original.display_name,
         row.original.email,
+        row.original.register_ip,
+        row.original.aff_code,
       ]
       return fields.some((field) =>
         String(field || '')
@@ -220,7 +222,9 @@ export function UsersTable() {
       skeletonKeyPrefix='users-skeleton'
       applyHeaderSize
       toolbarProps={{
-        searchPlaceholder: t('Filter by username, name or email...'),
+        searchPlaceholder: t(
+          'Filter by username, name, email, registration IP or invite code...'
+        ),
         searchDebounceMs: 500,
         filters: [
           {

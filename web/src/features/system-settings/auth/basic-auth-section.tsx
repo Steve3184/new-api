@@ -46,6 +46,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const basicAuthSchema = z.object({
   PasswordLoginEnabled: z.boolean(),
+  UserBannedMessage: z.string(),
   PasswordRegisterEnabled: z.boolean(),
   EmailVerificationEnabled: z.boolean(),
   RegisterEnabled: z.boolean(),
@@ -132,6 +133,30 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                   />
                 </FormControl>
               </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='UserBannedMessage'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Banned account message')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={8}
+                    className='font-mono text-xs'
+                    spellCheck={false}
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Optional HTML shown when a disabled user attempts to sign in. Leave blank to show the default banned message.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
             )}
           />
 

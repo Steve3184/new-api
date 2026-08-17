@@ -210,9 +210,15 @@ func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext
 	}
+	maxRequestNum := common.CriticalRateLimitNum
+	duration := common.CriticalRateLimitDuration
+	if scope == "redemption" {
+		maxRequestNum = common.RedemptionRateLimitNum
+		duration = common.RedemptionRateLimitDuration
+	}
 	return userRateLimitFactory(
-		common.CriticalRateLimitNum,
-		common.CriticalRateLimitDuration,
+		maxRequestNum,
+		duration,
 		"UC:"+scope,
 	)
 }

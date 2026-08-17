@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -157,89 +158,122 @@ func Redeem(key string, userId int) (quota int, err error) {
 }
 
 func RedeemWithResult(key string, userId int) (result *RedemptionResult, err error) {
+	key = strings.TrimSpace(key)
 	if key == "" {
 		return nil, errors.New("未提供兑换码")
 	}
 	if userId == 0 {
 		return nil, errors.New("无效的 user id")
 	}
-	redemption := &Redemption{}
-	result = &RedemptionResult{}
-	upgradeGroup := ""
-
 	keyCol := "`key`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		keyCol = `"key"`
 	}
-	common.RandomSleep()
-	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
-		if err != nil {
-			return errors.New("无效的兑换码")
-		}
-		if redemption.Status != common.RedemptionCodeStatusEnabled {
-			return errors.New("该兑换码已被使用")
-		}
-		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-			return errors.New("该兑换码已过期")
-		}
-		var plan *SubscriptionPlan
-		if redemption.SubscriptionPlanId > 0 {
-			var planErr error
-			plan, planErr = getSubscriptionPlanByIdTx(tx, redemption.SubscriptionPlanId)
-			if planErr != nil {
-				return errors.New("兑换码关联的订阅套餐不存在")
+	const maxAttempts = 3
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		redemption := &Redemption{}
+		result = &RedemptionResult{}
+		upgradeGroup := ""
+		err = DB.Transaction(func(tx *gorm.DB) error {
+			lookupErr := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
+			if lookupErr != nil {
+				if isRetryableRedemptionError(lookupErr) {
+					return lookupErr
+				}
+				return errors.New("无效的兑换码")
 			}
-			if !plan.Enabled {
-				return errors.New("兑换码关联的订阅套餐已禁用")
+			if redemption.Status != common.RedemptionCodeStatusEnabled {
+				return errors.New("该兑换码已被使用")
 			}
-		}
-		// Compare-and-swap on status: only the transaction that flips
-		// enabled -> used may credit quota, so a concurrent redeem of the
-		// same code loses here even without a row lock (e.g. on SQLite).
-		updates := map[string]interface{}{
-			"redeemed_time": common.GetTimestamp(),
-			"status":        common.RedemptionCodeStatusUsed,
-			"used_user_id":  userId,
-		}
-		if plan != nil {
-			updates["quota"] = 0
-		}
-		updateResult := tx.Model(&Redemption{}).
-			Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
-			Updates(updates)
-		if updateResult.Error != nil {
-			return updateResult.Error
-		}
-		if updateResult.RowsAffected == 0 {
-			return errors.New("该兑换码已被使用")
-		}
-		if plan != nil {
-			if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "redemption"); err != nil {
-				return err
+			if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
+				return errors.New("该兑换码已过期")
 			}
-			result.SubscriptionPlanId = plan.Id
-			result.SubscriptionPlanTitle = plan.Title
-			upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+			var plan *SubscriptionPlan
+			if redemption.SubscriptionPlanId > 0 {
+				var planErr error
+				plan, planErr = getSubscriptionPlanByIdTx(tx, redemption.SubscriptionPlanId)
+				if planErr != nil {
+					if isRetryableRedemptionError(planErr) {
+						return planErr
+					}
+					return errors.New("兑换码关联的订阅套餐不存在")
+				}
+				if !plan.Enabled {
+					return errors.New("兑换码关联的订阅套餐已禁用")
+				}
+			}
+			// Compare-and-swap on status: only the transaction that flips
+			// enabled -> used may credit quota, so a concurrent redeem of the
+			// same code loses here even without a row lock (e.g. on SQLite).
+			updates := map[string]interface{}{
+				"redeemed_time": common.GetTimestamp(),
+				"status":        common.RedemptionCodeStatusUsed,
+				"used_user_id":  userId,
+			}
+			if plan != nil {
+				updates["quota"] = 0
+			}
+			updateResult := tx.Model(&Redemption{}).
+				Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
+				Updates(updates)
+			if updateResult.Error != nil {
+				return updateResult.Error
+			}
+			if updateResult.RowsAffected == 0 {
+				return errors.New("该兑换码已被使用")
+			}
+			if plan != nil {
+				if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "redemption"); err != nil {
+					return err
+				}
+				result.SubscriptionPlanId = plan.Id
+				result.SubscriptionPlanTitle = plan.Title
+				upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+				return nil
+			}
+			result.Quota = redemption.Quota
+			quotaUpdate := tx.Model(&User{}).
+				Where("id = ?", userId).
+				Update("quota", gorm.Expr("quota + ?", redemption.Quota))
+			if quotaUpdate.Error != nil {
+				return quotaUpdate.Error
+			}
+			if quotaUpdate.RowsAffected == 0 {
+				return errors.New("用户不存在")
+			}
 			return nil
+		})
+		if err == nil {
+			if result.SubscriptionPlanId > 0 {
+				InvalidateUserSubscriptionRateLimitCache(userId)
+				if upgradeGroup != "" {
+					refreshSubscriptionUserGroupCache(userId, "redemption completion")
+				}
+				RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码兑换订阅套餐 %s，兑换码ID %d", result.SubscriptionPlanTitle, redemption.Id))
+			} else {
+				RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(result.Quota), redemption.Id))
+			}
+			return result, nil
 		}
-		result.Quota = redemption.Quota
-		return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
-	})
+		if !isRetryableRedemptionError(err) || attempt == maxAttempts-1 {
+			break
+		}
+		time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+	}
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())
 		return nil, ErrRedeemFailed
 	}
-	if result.SubscriptionPlanId > 0 {
-		InvalidateUserSubscriptionRateLimitCache(userId)
-		if upgradeGroup != "" {
-			refreshSubscriptionUserGroupCache(userId, "redemption completion")
-		}
-		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码兑换订阅套餐 %s，兑换码ID %d", result.SubscriptionPlanTitle, redemption.Id))
-	} else {
-		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(result.Quota), redemption.Id))
+	return nil, ErrRedeemFailed
+}
+
+func isRetryableRedemptionError(err error) bool {
+	if err == nil {
+		return false
 	}
-	return result, nil
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "database is locked") ||
+		strings.Contains(errText, "database table is locked")
 }
 
 func (redemption *Redemption) Insert() error {

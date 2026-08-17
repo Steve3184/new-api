@@ -484,43 +484,45 @@ export function EmailSettingsSection({
             )}
           />
 
-          <div className='grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end'>
-            <FormItem>
-              <Label htmlFor='smtp-test-recipient'>
-                {t('Test recipient email')}
-              </Label>
-              <Input
-                id='smtp-test-recipient'
-                autoComplete='off'
-                type='email'
-                value={testRecipient}
-                onChange={(event) => setTestRecipient(event.target.value)}
-              />
-              <FormDescription>
-                {t('Save SMTP settings before sending a test email')}
-              </FormDescription>
-            </FormItem>
-            <Button
-              type='button'
-              variant='secondary'
-              className='shrink-0'
-              onClick={handleSendTestEmail}
-              disabled={
-                testEmailMutation.isPending ||
-                updateOption.isPending ||
-                form.formState.isDirty ||
-                !testRecipientIsValid
-              }
-            >
-              {testEmailMutation.isPending ? (
-                <Loader2 className='animate-spin' />
-              ) : (
-                <Send />
-              )}
-              {testEmailMutation.isPending
-                ? t('Sending...')
-                : t('Send test email')}
-            </Button>
+          <div>
+            <div className='grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end'>
+              <FormItem>
+                <Label htmlFor='smtp-test-recipient'>
+                  {t('Test recipient email')}
+                </Label>
+                <Input
+                  id='smtp-test-recipient'
+                  autoComplete='off'
+                  type='email'
+                  value={testRecipient}
+                  onChange={(event) => setTestRecipient(event.target.value)}
+                />
+              </FormItem>
+              <Button
+                type='button'
+                variant='secondary'
+                className='shrink-0'
+                onClick={handleSendTestEmail}
+                disabled={
+                  testEmailMutation.isPending ||
+                  updateOption.isPending ||
+                  form.formState.isDirty ||
+                  !testRecipientIsValid
+                }
+              >
+                {testEmailMutation.isPending ? (
+                  <Loader2 className='animate-spin' />
+                ) : (
+                  <Send />
+                )}
+                {testEmailMutation.isPending
+                  ? t('Sending...')
+                  : t('Send test email')}
+              </Button>
+            </div>
+            <FormDescription className='mt-2'>
+              {t('Save SMTP settings before sending a test email')}
+            </FormDescription>
           </div>
         </SettingsForm>
       </Form>

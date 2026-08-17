@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { clearAuthentication, isAuthBundle } from '@/lib/api'
 
 import { createOAuthFlow, logout, telegramLogin } from '../api'
+import { getBannedLoginResponse } from '../components/banned-login-response'
 import {
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
@@ -45,6 +46,7 @@ export function useOAuthLogin(
   const [isLoading, setIsLoading] = useState(false)
   const [isTelegramDialogOpen, setIsTelegramDialogOpen] = useState(false)
   const [isTelegramPending, setIsTelegramPending] = useState(false)
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
   const [githubButtonText, setGithubButtonText] = useState('')
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
   const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -189,6 +191,12 @@ export function useOAuthLogin(
     try {
       const response = await telegramLogin(authorization)
       if (!response.success || !isAuthBundle(response.data)) {
+        const banned = getBannedLoginResponse(response)
+        if (banned) {
+          setIsTelegramDialogOpen(false)
+          setBannedHtml(banned.html)
+          return
+        }
         toast.error(t('Login failed'))
         return
       }
@@ -196,7 +204,13 @@ export function useOAuthLogin(
       setIsTelegramDialogOpen(false)
       await handleLoginSuccess(response.data, redirectTo)
       toast.success(t('Welcome back!'))
-    } catch {
+    } catch (error: unknown) {
+      const banned = getBannedLoginResponse(error)
+      if (banned) {
+        setIsTelegramDialogOpen(false)
+        setBannedHtml(banned.html)
+        return
+      }
       toast.error(t('Login failed'))
     } finally {
       setIsTelegramPending(false)
@@ -237,6 +251,7 @@ export function useOAuthLogin(
     githubButtonDisabled,
     isTelegramDialogOpen,
     isTelegramPending,
+    bannedHtml,
     handleGitHubLogin,
     handleDiscordLogin,
     handleOIDCLogin,
@@ -244,6 +259,7 @@ export function useOAuthLogin(
     handleTelegramLogin,
     handleTelegramAuthorization,
     setIsTelegramDialogOpen,
+    setBannedHtml,
     handleCustomOAuthLogin,
   }
 }

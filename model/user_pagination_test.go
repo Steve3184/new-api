@@ -64,3 +64,59 @@ func TestSearchUsersSortsBeforePagination(t *testing.T) {
 	assert.Equal(t, int64(42), total)
 	assert.Equal(t, []int{21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40}, collectUserIDs(users))
 }
+
+func TestSearchUsersFindsRegistrationIPAndAffiliateRelationships(t *testing.T) {
+	truncateTables(t)
+	users := []*User{
+		{
+			Id:         501,
+			Username:   "affiliate-owner",
+			Password:   "password123",
+			Status:     common.UserStatusEnabled,
+			AffCode:    "invite-owner",
+			RegisterIp: "203.0.113.15",
+		},
+		{
+			Id:        502,
+			Username:  "affiliate-invitee",
+			Password:  "password123",
+			Status:    common.UserStatusEnabled,
+			InviterId: 501,
+			AffCode:   "invite-invitee",
+		},
+		{
+			Id:       503,
+			Username: "unrelated-user",
+			Password: "password123",
+			Status:   common.UserStatusEnabled,
+			AffCode:  "invite-unrelated",
+		},
+	}
+	require.NoError(t, DB.Create(&users).Error)
+
+	byInviteCode, total, err := SearchUsers(
+		"invite-owner",
+		"",
+		nil,
+		nil,
+		0,
+		20,
+		NewUserSortOptions("id", "asc"),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	assert.Equal(t, []int{501, 502}, collectUserIDs(byInviteCode))
+
+	byRegistrationIP, total, err := SearchUsers(
+		"203.0.113.15",
+		"",
+		nil,
+		nil,
+		0,
+		20,
+		NewUserSortOptions("id", "asc"),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Equal(t, []int{501}, collectUserIDs(byRegistrationIP))
+}

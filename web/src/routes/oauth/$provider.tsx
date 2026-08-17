@@ -24,9 +24,11 @@ import {
 } from '@tanstack/react-router'
 import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
+import { BannedUserDialog } from '@/features/auth/components/banned-user-dialog'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import {
   OAUTH_BIND_CALLBACK_MESSAGE,
@@ -59,6 +61,7 @@ interface OAuthBindingResult {
 
 function OAuthCallback() {
   const navigate = useNavigate()
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
   const { provider } = useParams({ from: '/oauth/$provider' }) as {
     provider: string
   }
@@ -88,6 +91,7 @@ function OAuthCallback() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (bannedHtml !== null) return
 
     const code = search.code ?? ''
     const state = callbackState
@@ -204,6 +208,11 @@ function OAuthCallback() {
           toast.success(i18next.t('Signed in successfully!'))
           return
         }
+        const banned = getBannedLoginResponse(response.data)
+        if (banned) {
+          setBannedHtml(banned.html)
+          return
+        }
         const messageKey = getServerErrorMessageKey(response.data)
         toast.error(
           messageKey
@@ -211,6 +220,11 @@ function OAuthCallback() {
             : response.data?.message || i18next.t('OAuth failed')
         )
       } catch (error: unknown) {
+        const banned = getBannedLoginResponse(error)
+        if (banned) {
+          setBannedHtml(banned.html)
+          return
+        }
         const messageKey = getServerErrorMessageKey(error)
         const responseMessage = (
           error as { response?: { data?: { message?: string } } }
@@ -227,6 +241,7 @@ function OAuthCallback() {
       safeNavigate('/sign-in', '/sign-in')
     })()
   }, [
+    bannedHtml,
     callbackState,
     mode,
     navigate,
@@ -240,7 +255,20 @@ function OAuthCallback() {
     search.telegram_bind,
   ])
 
-  return <OAuthCallbackScreen provider={provider} mode={mode} />
+  return (
+    <>
+      <OAuthCallbackScreen provider={provider} mode={mode} />
+      <BannedUserDialog
+        open={bannedHtml !== null}
+        html={bannedHtml ?? ''}
+        onOpenChange={(open) => {
+          if (!open) {
+            void navigate({ to: '/sign-in', replace: true })
+          }
+        }}
+      />
+    </>
+  )
 }
 
 export const Route = createFileRoute('/oauth/$provider')({

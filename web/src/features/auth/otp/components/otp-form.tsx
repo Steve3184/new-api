@@ -42,6 +42,8 @@ import {
   InputOTPSeparator,
 } from '@/components/ui/input-otp'
 import { login2fa } from '@/features/auth/api'
+import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
+import { BannedUserDialog } from '@/features/auth/components/banned-user-dialog'
 import {
   otpFormSchema,
   OTP_LENGTH,
@@ -64,6 +66,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [useBackupCode, setUseBackupCode] = useState(false)
+  const [bannedHtml, setBannedHtml] = useState<string | null>(null)
 
   const pending2FAFlowToken = useAuthStore(
     (state) => state.auth.pending2FAFlowToken
@@ -106,6 +109,11 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
       })
 
       if (!res.success) {
+        const banned = getBannedLoginResponse(res)
+        if (banned) {
+          setBannedHtml(banned.html)
+          return
+        }
         if (getServerErrorMessageKey(res)) return
         toast.error(res.message || t('Invalid code'))
         return
@@ -118,6 +126,11 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
       await handleLoginSuccess(res.data)
       toast.success(t('Signed in'))
     } catch (error) {
+      const banned = getBannedLoginResponse(error)
+      if (banned) {
+        setBannedHtml(banned.html)
+        return
+      }
       // eslint-disable-next-line no-console
       console.error('2FA verification error:', error)
       if (getServerErrorMessageKey(error)) return
@@ -143,97 +156,108 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
     : otp.length >= OTP_LENGTH
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-4', className)}
-        {...props}
-      >
-        <FormField
-          control={form.control}
-          name='otp'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                {useBackupCode ? t('Backup Code') : t('Verification Code')}
-              </FormLabel>
-              <FormControl>
-                {useBackupCode ? (
-                  <Input
-                    placeholder={t('Enter backup code (e.g., CAWD-OQDV)')}
-                    {...field}
-                    maxLength={BACKUP_CODE_LENGTH}
-                    autoComplete='off'
-                    className='font-mono uppercase'
-                    onChange={(e) => {
-                      const formatted = formatBackupCode(e.target.value)
-                      field.onChange(formatted)
-                    }}
-                  />
-                ) : (
-                  <InputOTP
-                    maxLength={OTP_LENGTH}
-                    {...field}
-                    containerClassName='justify-between sm:[&>[data-slot="input-otp-group"]>div]:w-12'
-                  >
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
-                )}
-              </FormControl>
-              <FormDescription className='text-muted-foreground text-xs'>
-                {useBackupCode
-                  ? t('Each backup code can only be used once.')
-                  : t('Verification code updates every 30 seconds.')}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Button
-          type='submit'
-          className='mt-2 w-full'
-          disabled={!isFormValid || isLoading}
+    <>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className={cn('grid gap-4', className)}
+          {...props}
         >
-          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
-          {t('Verify and Sign In')}
-        </Button>
+          <FormField
+            control={form.control}
+            name='otp'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {useBackupCode ? t('Backup Code') : t('Verification Code')}
+                </FormLabel>
+                <FormControl>
+                  {useBackupCode ? (
+                    <Input
+                      placeholder={t('Enter backup code (e.g., CAWD-OQDV)')}
+                      {...field}
+                      maxLength={BACKUP_CODE_LENGTH}
+                      autoComplete='off'
+                      className='font-mono uppercase'
+                      onChange={(e) => {
+                        const formatted = formatBackupCode(e.target.value)
+                        field.onChange(formatted)
+                      }}
+                    />
+                  ) : (
+                    <InputOTP
+                      maxLength={OTP_LENGTH}
+                      {...field}
+                      containerClassName='justify-between sm:[&>[data-slot="input-otp-group"]>div]:w-12'
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                      </InputOTPGroup>
+                      <InputOTPSeparator />
+                      <InputOTPGroup>
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                      </InputOTPGroup>
+                      <InputOTPSeparator />
+                      <InputOTPGroup>
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  )}
+                </FormControl>
+                <FormDescription className='text-muted-foreground text-xs'>
+                  {useBackupCode
+                    ? t('Each backup code can only be used once.')
+                    : t('Verification code updates every 30 seconds.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <div className='flex items-center justify-center gap-2 text-sm'>
           <Button
-            type='button'
-            variant='link'
-            size='sm'
-            className='text-primary h-auto p-0'
-            onClick={handleToggleMode}
+            type='submit'
+            className='mt-2 w-full'
+            disabled={!isFormValid || isLoading}
           >
-            {useBackupCode ? t('Use authenticator code') : t('Use backup code')}
+            {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
+            {t('Verify and Sign In')}
           </Button>
-          <span className='text-muted-foreground'>·</span>
-          <Button
-            type='button'
-            variant='link'
-            size='sm'
-            className='text-primary h-auto p-0'
-            onClick={handleBackToLogin}
-          >
-            {t('Back to login')}
-          </Button>
-        </div>
-      </form>
-    </Form>
+
+          <div className='flex items-center justify-center gap-2 text-sm'>
+            <Button
+              type='button'
+              variant='link'
+              size='sm'
+              className='text-primary h-auto p-0'
+              onClick={handleToggleMode}
+            >
+              {useBackupCode
+                ? t('Use authenticator code')
+                : t('Use backup code')}
+            </Button>
+            <span className='text-muted-foreground'>·</span>
+            <Button
+              type='button'
+              variant='link'
+              size='sm'
+              className='text-primary h-auto p-0'
+              onClick={handleBackToLogin}
+            >
+              {t('Back to login')}
+            </Button>
+          </div>
+        </form>
+      </Form>
+      <BannedUserDialog
+        open={bannedHtml !== null}
+        html={bannedHtml ?? ''}
+        onOpenChange={(open) => {
+          if (!open) setBannedHtml(null)
+        }}
+      />
+    </>
   )
 }

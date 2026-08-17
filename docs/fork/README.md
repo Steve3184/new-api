@@ -420,6 +420,12 @@ Pre-consume, settlement, and refund updates check and adjust every enabled
 window atomically. The active-subscription UI shows each configured window's
 used amount, remaining quota, and next reset time.
 
+For active subscriptions, the wallet card renders the independent 5-hour and
+weekly limits before the period-total quota. Each configured 5-hour and weekly
+limit has its own bounded `0%` through `100%` progress bar. A zero or omitted
+independent limit remains unlimited and does not render a misleading progress
+bar.
+
 Wallet plan prices use the configured billing display currency instead of a
 hard-coded dollar sign.
 
@@ -437,6 +443,35 @@ Files:
 - `web/default/src/features/redemption-codes/`
 - `web/default/src/features/subscriptions/`
 - `web/default/src/features/wallet/`
+
+## User administration and disabled-account login
+
+The user list supports registration-IP visibility and search. Registration IPs
+are captured for password registration, standard OAuth registration, and
+WeChat registration, then stored in the indexed `users.register_ip` column.
+Searching an invitation code returns both the user who owns that code and the
+users whose `inviter_id` points to that owner.
+
+Selected users have bulk enable, disable, and delete actions in the default
+user table. Disabled accounts receive one consistent login response across
+password, OAuth, WeChat, Passkey, Telegram, and 2FA completion paths. The
+administrator may configure optional sanitized HTML through the additive
+`UserBannedMessage` option under **System Settings → Authentication → Basic
+Authentication**; an empty value shows the translated default ban message.
+
+Files:
+
+- `model/user.go`
+- `controller/user.go`
+- `controller/oauth.go`
+- `controller/wechat.go`
+- `controller/passkey.go`
+- `controller/twofa.go`
+- `model/option.go`
+- `web/src/features/users/`
+- `web/src/features/auth/`
+- `web/src/features/system-settings/auth/`
+- `web/src/features/wallet/components/subscription-plans-card.tsx`
 
 ## Target-user management audit attribution
 
@@ -1604,6 +1639,11 @@ bucket, so OAuth redirects do not consume the generic critical-operation
 allowance. The default is 60 requests per 10 minutes and can be overridden with
 `OAUTH_RATE_LIMIT` and `OAUTH_RATE_LIMIT_DURATION`.
 
+Authenticated redemption requests use an independent per-user `UC:redemption`
+bucket. The default allows 60 requests per 20 minutes, avoiding failures caused
+by a busy shared IP or unrelated critical-operation traffic. Override it with
+`REDEMPTION_RATE_LIMIT` and `REDEMPTION_RATE_LIMIT_DURATION`.
+
 The default deployment values are intentionally modestly more permissive while
 preserving IP-based brute-force protection and the existing captcha checks:
 
@@ -1615,10 +1655,12 @@ preserving IP-based brute-force protection and the existing captcha checks:
 | `REGISTER_RATE_LIMIT_DURATION` | `600` | Registration window in seconds |
 | `OAUTH_RATE_LIMIT` | `60` | Standard OAuth state/callback requests per client IP |
 | `OAUTH_RATE_LIMIT_DURATION` | `600` | OAuth window in seconds |
+| `REDEMPTION_RATE_LIMIT` | `60` | Redemption requests per authenticated user |
+| `REDEMPTION_RATE_LIMIT_DURATION` | `1200` | Redemption window in seconds |
 
-`CRITICAL_RATE_LIMIT_ENABLE=false` still disables both dedicated buckets and
+`CRITICAL_RATE_LIMIT_ENABLE=false` still disables all dedicated buckets and
 the existing `CT` bucket. Keep it enabled for public deployments. Docker
-Compose operators can override the four values through the service `environment`
+Compose operators can override the six values through the service `environment`
 section; the example entries are included in `docker-compose.yml`. The global
 API limit and the two-per-30-second email-verification limit remain unchanged.
 

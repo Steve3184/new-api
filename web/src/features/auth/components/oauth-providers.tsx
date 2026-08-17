@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 
 import { useOAuthLogin } from '../hooks/use-oauth-login'
 import type { SystemStatus } from '../types'
+import { BannedUserDialog } from './banned-user-dialog'
 import { TelegramLoginDialog } from './telegram-login-dialog'
 
 type OAuthProvidersProps = {
@@ -71,8 +72,10 @@ export function OAuthProviders({
     handleCustomOAuthLogin,
     isTelegramDialogOpen,
     isTelegramPending,
+    bannedHtml,
     handleTelegramAuthorization,
     setIsTelegramDialogOpen,
+    setBannedHtml,
   } = useOAuthLogin(status, redirectTo)
 
   const providerButtons: ProviderButton[] = []
@@ -188,6 +191,13 @@ export function OAuthProviders({
         pending={isTelegramPending}
         onOpenChange={setIsTelegramDialogOpen}
         onAuthorization={handleTelegramAuthorization}
+      />
+      <BannedUserDialog
+        open={bannedHtml !== null}
+        html={bannedHtml ?? ''}
+        onOpenChange={(open) => {
+          if (!open) setBannedHtml(null)
+        }}
       />
     </>
   )

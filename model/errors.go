@@ -10,6 +10,7 @@ var (
 // User auth errors
 var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
+	ErrUserDisabled         = errors.New("user disabled")
 	ErrUserEmptyCredentials = errors.New("empty credentials")
 	ErrEmailAlreadyTaken    = errors.New("email already taken")
 	ErrEmailNotFound        = errors.New("email not found")
