@@ -200,6 +200,10 @@ var QuotaRemindEnabled = true
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 
+// SupportMessageLimit caps retained messages in each user's support thread.
+// It is configurable through the SupportMessageLimit system option.
+var SupportMessageLimit = 100
+
 var RetryTimes = 0
 
 //var RootUserEmail = ""

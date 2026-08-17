@@ -64,6 +64,7 @@ const BILLING_SECTIONS = [
         defaultValues={{
           QuotaForNewUser: settings.QuotaForNewUser,
           PreConsumedQuota: settings.PreConsumedQuota,
+          SupportMessageLimit: settings.SupportMessageLimit,
           QuotaForInviter: settings.QuotaForInviter,
           QuotaForInvitee: settings.QuotaForInvitee,
           TopUpLink: settings.TopUpLink,

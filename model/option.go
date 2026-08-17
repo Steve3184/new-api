@@ -183,6 +183,7 @@ func InitOptionMap() {
 	common.OptionMap["QuotaRemindEnabled"] = strconv.FormatBool(common.QuotaRemindEnabled)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
+	common.OptionMap["SupportMessageLimit"] = strconv.Itoa(common.SupportMessageLimit)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
@@ -281,6 +282,12 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "SupportMessageLimit" {
+		limit, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || limit < 1 || limit > 1000 {
+			return errors.New("SupportMessageLimit must be between 1 and 1000")
+		}
 	}
 	if key == "EmailVerificationTemplate" {
 		return common.ValidateEmailVerificationTemplate(value)
@@ -518,6 +525,8 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.AutoGroupDescription = value
 	case "MaxTokenAutoGroups":
 		err = setting.UpdateMaxTokenAutoGroups(value)
+	case "SupportMessageLimit":
+		common.SupportMessageLimit, _ = strconv.Atoi(value)
 	case "CustomCallbackAddress":
 		operation_setting.CustomCallbackAddress = value
 	case "EpayId":

@@ -27,6 +27,7 @@ import {
 const defaultBillingSettings: BillingSettings = {
   QuotaForNewUser: 0,
   PreConsumedQuota: 0,
+  SupportMessageLimit: 100,
   QuotaForInviter: 0,
   QuotaForInvitee: 0,
   TopUpLink: '',

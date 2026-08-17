@@ -139,6 +139,11 @@ export function useSidebarData(): SidebarData {
               icon: Wallet,
             },
             {
+              title: t('Support'),
+              url: '/support',
+              icon: MessageSquare,
+            },
+            {
               title: t('Profile'),
               url: '/profile',
               icon: User,

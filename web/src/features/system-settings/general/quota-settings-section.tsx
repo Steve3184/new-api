@@ -53,6 +53,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
   PreConsumedQuota: z.coerce.number().min(0),
+  SupportMessageLimit: z.coerce.number().int().min(1).max(1000),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
@@ -176,6 +177,33 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('Quota consumed before charging users')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='SupportMessageLimit'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Support message limit')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={1000}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Maximum messages retained per support conversation')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

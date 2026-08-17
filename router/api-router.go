@@ -190,6 +190,26 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
 		}
 
+		// In-console support inbox. Users have one persistent "服务支持" thread;
+		// administrators can browse threads and issue audited grants.
+		supportRoute := apiRouter.Group("/support")
+		supportRoute.Use(middleware.UserAuth())
+		{
+			supportRoute.GET("/conversation", middleware.DisableCache(), controller.GetSupportConversation)
+			supportRoute.GET("/orders", middleware.DisableCache(), controller.GetSupportOrders)
+			supportRoute.POST("/messages", middleware.UploadRateLimit(), middleware.DisableCache(), controller.SendSupportMessage)
+		}
+		supportAdminRoute := apiRouter.Group("/support/admin")
+		supportAdminRoute.Use(middleware.AdminAuth())
+		{
+			supportAdminRoute.GET("/conversations", middleware.DisableCache(), controller.AdminListSupportConversations)
+			supportAdminRoute.GET("/conversations/:id", middleware.DisableCache(), controller.AdminGetSupportConversation)
+			supportAdminRoute.POST("/conversations/:id/messages", middleware.UploadRateLimit(), middleware.DisableCache(), controller.AdminSendSupportMessage)
+			supportAdminRoute.POST("/conversations/:id/grant-quota", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AdminGrantSupportQuota)
+			supportAdminRoute.POST("/conversations/:id/grant-subscription", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AdminGrantSupportSubscription)
+			supportAdminRoute.POST("/messages/:id/complete-order", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AdminCompleteSupportOrder)
+		}
+
 		// Subscription payment callbacks (no auth)
 		apiRouter.POST("/subscription/epay/notify", anonymousRequestBodyLimit, controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
