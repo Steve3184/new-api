@@ -280,6 +280,9 @@ func validateOptionValue(key string, value string) error {
 	if key == "error_rewrite.rules" {
 		return operation_setting.ValidateErrorRewriteRulesJSON(value)
 	}
+	if key == operation_setting.ChannelTestConcurrencyOptionKey {
+		return operation_setting.ValidateChannelTestConcurrency(value)
+	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
