@@ -27,6 +27,7 @@ import {
   MessageCircle,
   Paperclip,
   RefreshCw,
+  Search,
   Send,
   TicketCheck,
   X,
@@ -38,10 +39,25 @@ import { toast } from 'sonner'
 import { SectionPageLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useIsAdmin } from '@/hooks/use-admin'
+import { formatLocalCurrencyAmount } from '@/lib/currency'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -70,27 +86,36 @@ function orderLabel(order: SupportOrderQuote, t: (key: string) => string) {
     order.order_type === 'topup'
       ? t('Top-up order')
       : order.plan_title || t('Subscription order')
-  return `${title} #${order.order_id} · ${order.status}`
+  return `${title} #${order.order_id} · ${formatLocalCurrencyAmount(order.money)} · ${order.status}`
 }
 
 function MessageBody({
   message,
   isAdmin,
   onComplete,
+  onImageClick,
 }: {
   message: SupportMessage
   isAdmin: boolean
   onComplete: (message: SupportMessage) => void
+  onImageClick: (imageData: string) => void
 }) {
   const { t } = useTranslation()
   if (message.kind === 'image' && message.image_data) {
     return (
       <div className='space-y-2'>
-        <img
-          src={message.image_data}
-          alt={t('Support attachment')}
-          className='max-h-64 max-w-full rounded-md object-contain'
-        />
+        <button
+          type='button'
+          className='block max-w-full cursor-zoom-in rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+          aria-label={t('Support attachment')}
+          onClick={() => onImageClick(message.image_data || '')}
+        >
+          <img
+            src={message.image_data}
+            alt={t('Support attachment')}
+            className='max-h-64 max-w-full rounded-md object-contain'
+          />
+        </button>
         {message.content && <p className='whitespace-pre-wrap'>{message.content}</p>}
       </div>
     )
@@ -102,7 +127,7 @@ function MessageBody({
       message.order_status === 'pending' &&
       message.order_provider !== 'monero'
     return (
-      <div className='min-w-56 space-y-2 rounded-md border border-current/15 p-3'>
+      <div className='min-w-0 max-w-full space-y-2 rounded-md border border-current/15 p-3'>
         <div className='flex items-center gap-2 font-medium'>
           <FileText className='size-4' />
           <span>
@@ -116,6 +141,16 @@ function MessageBody({
           <span className='text-right tabular-nums'>{message.order_id}</span>
           <span>{t('Status')}</span>
           <span className='text-right'>{message.order_status}</span>
+          <span>{t('Amount')}</span>
+          <span className='text-right tabular-nums'>
+            {formatLocalCurrencyAmount(message.order_money)}
+          </span>
+          {message.order_type === 'topup' && message.order_amount ? (
+            <>
+              <span>{t('Quota')}</span>
+              <span className='text-right tabular-nums'>{message.order_amount}</span>
+            </>
+          ) : null}
           <span>{t('Trade number')}</span>
           <span className='truncate text-right'>{message.order_trade_no}</span>
         </div>
@@ -165,10 +200,12 @@ function MessageList({
   messages,
   isAdmin,
   onComplete,
+  onImageClick,
 }: {
   messages: SupportMessage[]
   isAdmin: boolean
   onComplete: (message: SupportMessage) => void
+  onImageClick: (imageData: string) => void
 }) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const { t } = useTranslation()
@@ -205,6 +242,7 @@ function MessageList({
                       message={message}
                       isAdmin={isAdmin}
                       onComplete={onComplete}
+                      onImageClick={onImageClick}
                     />
                   </div>
                   <div
@@ -228,11 +266,15 @@ function ConversationList({
   selectedId,
   onSelect,
   isAdmin,
+  searchKeyword,
+  onSearchKeywordChange,
 }: {
   conversations: SupportConversation[]
   selectedId: number | null
   onSelect: (id: number) => void
   isAdmin: boolean
+  searchKeyword: string
+  onSearchKeywordChange: (value: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -244,6 +286,20 @@ function ConversationList({
         </div>
         {isAdmin && <Badge variant='outline'>{conversations.length}</Badge>}
       </div>
+      {isAdmin && (
+        <div className='border-b px-3 py-2'>
+          <div className='relative'>
+            <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2' />
+            <Input
+              value={searchKeyword}
+              onChange={(event) => onSearchKeywordChange(event.target.value)}
+              placeholder={t('Search')}
+              aria-label={t('Search')}
+              className='h-8 pl-8'
+            />
+          </div>
+        </div>
+      )}
       <ScrollArea className='max-h-44 md:max-h-none md:min-h-0 md:flex-1'>
         <div className='p-2'>
           {conversations.map((conversation) => {
@@ -296,7 +352,10 @@ export function Support() {
   const [quota, setQuota] = useState('')
   const [planId, setPlanId] = useState('')
   const [adminNote, setAdminNote] = useState('')
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const debouncedKeyword = useDebounce(searchKeyword, 300)
 
   const userConversationQuery = useQuery({
     queryKey: ['support-conversation', userId],
@@ -307,8 +366,8 @@ export function Support() {
     staleTime: 0,
   })
   const adminConversationsQuery = useQuery({
-    queryKey: ['support-admin-conversations'],
-    queryFn: getAdminSupportConversations,
+    queryKey: ['support-admin-conversations', debouncedKeyword],
+    queryFn: () => getAdminSupportConversations(debouncedKeyword),
     enabled: isAdmin,
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
@@ -353,11 +412,24 @@ export function Support() {
     enabled: isAdmin,
     staleTime: 60_000,
   })
+  const orderItems = useMemo(
+    () =>
+      (ordersQuery.data?.data || []).map((order) => ({
+        value: `${order.order_type}:${order.order_id}`,
+        label: orderLabel(order, t),
+      })),
+    [ordersQuery.data?.data, t]
+  )
+  const planItems = useMemo(
+    () => (plansQuery.data || []).map((plan) => ({ value: String(plan.id), label: plan.title })),
+    [plansQuery.data]
+  )
 
   const invalidateSupport = () => {
     void queryClient.invalidateQueries({ queryKey: ['support-conversation'] })
     void queryClient.invalidateQueries({ queryKey: ['support-conversation-detail'] })
     void queryClient.invalidateQueries({ queryKey: ['support-admin-conversations'] })
+    void queryClient.invalidateQueries({ queryKey: ['support-unread'] })
   }
   const sendMutation = useMutation({
     mutationFn: async () => {
@@ -439,12 +511,14 @@ export function Support() {
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <div className='flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card md:flex-row'>
+        <div className='flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card md:flex-row'>
           <ConversationList
             conversations={conversations}
             selectedId={selectedId}
             onSelect={setSelectedId}
             isAdmin={isAdmin}
+            searchKeyword={searchKeyword}
+            onSearchKeywordChange={setSearchKeyword}
           />
           <section className='flex min-h-0 min-w-0 flex-1 flex-col'>
             <header className='flex shrink-0 items-center justify-between border-b px-4 py-3'>
@@ -468,29 +542,42 @@ export function Support() {
               </div>
             ) : (
               <>
-                <MessageList messages={messages} isAdmin={isAdmin} onComplete={(message) => completeMutation.mutate(message)} />
+                <MessageList
+                  messages={messages}
+                  isAdmin={isAdmin}
+                  onComplete={(message) => completeMutation.mutate(message)}
+                  onImageClick={setPreviewImage}
+                />
                 <div className='shrink-0 border-t p-3'>
                   {!isAdmin && quoteMode && (
                     <div className='mb-3 flex items-center gap-2'>
-                      <select
-                        value={selectedOrder ? `${selectedOrder.order_type}:${selectedOrder.order_id}` : ''}
-                        onChange={(event) => {
-                          const value = event.target.value
+                      <Select
+                        items={orderItems}
+                        value={selectedOrder ? `${selectedOrder.order_type}:${selectedOrder.order_id}` : null}
+                        onValueChange={(value) => {
                           const order = (ordersQuery.data?.data || []).find(
                             (item) => `${item.order_type}:${item.order_id}` === value
                           )
                           if (order) setImage(null)
                           setSelectedOrder(order || null)
                         }}
-                        className='border-input bg-background h-8 min-w-0 flex-1 rounded-md border px-2 text-sm'
                       >
-                        <option value=''>{t('Select an order to quote')}</option>
-                        {(ordersQuery.data?.data || []).map((order) => (
-                          <option key={`${order.order_type}:${order.order_id}`} value={`${order.order_type}:${order.order_id}`}>
-                            {orderLabel(order, t)}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className='min-w-0 flex-1'>
+                          <SelectValue placeholder={t('Select an order to quote')} />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {(ordersQuery.data?.data || []).map((order) => (
+                              <SelectItem
+                                key={`${order.order_type}:${order.order_id}`}
+                                value={`${order.order_type}:${order.order_id}`}
+                              >
+                                {orderLabel(order, t)}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <Button type='button' variant='ghost' size='icon-sm' aria-label={t('Cancel')} onClick={() => { setQuoteMode(false); setSelectedOrder(null) }}>
                         <X className='size-4' />
                       </Button>
@@ -505,10 +592,24 @@ export function Support() {
                           {t('Grant quota')}
                         </Button>
                       </div>
-                      <select value={planId} onChange={(event) => setPlanId(event.target.value)} className='border-input bg-background h-8 min-w-0 rounded-md border px-2 text-sm'>
-                        <option value=''>{t('Select subscription')}</option>
-                        {(plansQuery.data || []).map((plan) => <option key={plan.id} value={plan.id}>{plan.title}</option>)}
-                      </select>
+                      <Select
+                        items={planItems}
+                        value={planId || null}
+                        onValueChange={(value) => setPlanId(value || '')}
+                      >
+                        <SelectTrigger className='min-w-0'>
+                          <SelectValue placeholder={t('Select subscription')} />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {(plansQuery.data || []).map((plan) => (
+                              <SelectItem key={plan.id} value={String(plan.id)}>
+                                {plan.title}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <Button type='button' variant='secondary' size='sm' disabled={!planId || subscriptionMutation.isPending} onClick={() => subscriptionMutation.mutate()}>
                         <TicketCheck className='size-4' />
                         {t('Grant subscription')}
@@ -545,6 +646,23 @@ export function Support() {
           </section>
         </div>
       </SectionPageLayout.Content>
+      <Dialog
+        open={Boolean(previewImage)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewImage(null)
+        }}
+      >
+        <DialogContent className='max-h-[95vh] max-w-[min(95vw,80rem)] p-2 sm:max-w-[min(95vw,80rem)]'>
+          <DialogTitle className='sr-only'>{t('Support attachment')}</DialogTitle>
+          {previewImage && (
+            <img
+              src={previewImage}
+              alt={t('Support attachment')}
+              className='max-h-[90vh] w-full object-contain'
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </SectionPageLayout>
   )
 }

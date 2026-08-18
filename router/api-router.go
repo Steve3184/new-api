@@ -195,6 +195,7 @@ func SetApiRouter(router *gin.Engine) {
 		supportRoute := apiRouter.Group("/support")
 		supportRoute.Use(middleware.UserAuth())
 		{
+			supportRoute.GET("/unread", middleware.DisableCache(), controller.GetSupportUnread)
 			supportRoute.GET("/conversation", middleware.DisableCache(), controller.GetSupportConversation)
 			supportRoute.GET("/orders", middleware.DisableCache(), controller.GetSupportOrders)
 			supportRoute.POST("/messages", middleware.UploadRateLimit(), middleware.DisableCache(), controller.SendSupportMessage)

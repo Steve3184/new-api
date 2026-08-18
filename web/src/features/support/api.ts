@@ -23,12 +23,22 @@ import type {
   SupportConversationPayload,
   SupportMessage,
   SupportOrderQuote,
+  SupportUnreadCount,
 } from './types'
 
 export async function getSupportConversation(): Promise<
   { success: boolean; message?: string; data?: SupportConversationPayload }
 > {
   const res = await api.get('/api/support/conversation')
+  return res.data
+}
+
+export async function getSupportUnreadCount(): Promise<{
+  success: boolean
+  message?: string
+  data?: SupportUnreadCount
+}> {
+  const res = await api.get('/api/support/unread')
   return res.data
 }
 
@@ -60,13 +70,13 @@ export async function sendSupportMessage(
   return res.data
 }
 
-export async function getAdminSupportConversations(): Promise<{
+export async function getAdminSupportConversations(keyword = ''): Promise<{
   success: boolean
   message?: string
   data?: SupportConversationPage
 }> {
   const res = await api.get('/api/support/admin/conversations', {
-    params: { p: 1, page_size: 100 },
+    params: { p: 1, page_size: 100, keyword: keyword || undefined },
   })
   return res.data
 }

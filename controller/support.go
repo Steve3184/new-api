@@ -149,6 +149,15 @@ func GetSupportConversation(c *gin.Context) {
 	common.ApiSuccess(c, payload)
 }
 
+func GetSupportUnread(c *gin.Context) {
+	count, err := model.GetSupportUnreadCount(c.GetInt("id"), c.GetInt("role"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"count": count})
+}
+
 func GetSupportOrders(c *gin.Context) {
 	orders, err := model.ListSupportOrderQuotes(c.GetInt("id"))
 	if err != nil {
@@ -194,7 +203,7 @@ func SendSupportMessage(c *gin.Context) {
 
 func AdminListSupportConversations(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	conversations, total, err := model.ListSupportConversations(pageInfo)
+	conversations, total, err := model.ListSupportConversations(pageInfo, c.Query("keyword"))
 	if err != nil {
 		common.ApiError(c, err)
 		return

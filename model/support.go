@@ -9,7 +9,8 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"io"
-	"math"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -31,7 +32,7 @@ const (
 	SupportOrderTopUp        = "topup"
 	SupportOrderSubscription = "subscription"
 
-	SupportImageMaxBytes      = 2048
+	SupportImageMaxDimension  = 2048
 	SupportImageMaxInputBytes = 8 * 1024 * 1024
 	SupportTextMaxLength      = 4000
 )
@@ -85,6 +86,7 @@ type SupportOrderQuote struct {
 	Money       float64 `json:"money,omitempty"`
 	PlanId      int     `json:"plan_id,omitempty"`
 	PlanTitle   string  `json:"plan_title,omitempty"`
+	CreatedAt   int64   `json:"created_at"`
 	CanComplete bool    `json:"can_complete"`
 }
 
@@ -150,13 +152,44 @@ func GetUserSupportConversation(userId int) (*SupportConversation, error) {
 	return GetOrCreateSupportConversation(userId)
 }
 
-func ListSupportConversations(pageInfo *common.PageInfo) ([]*SupportConversation, int64, error) {
+func GetSupportUnreadCount(userId int, userRole int) (int64, error) {
+	query := DB.Model(&SupportConversation{})
+	if userRole >= common.RoleAdminUser {
+		query = query.Select("COALESCE(SUM(unread_admin), 0)")
+	} else {
+		if userId <= 0 {
+			return 0, errors.New("无效的用户 ID")
+		}
+		query = query.Select("COALESCE(SUM(unread_user), 0)").Where("user_id = ?", userId)
+	}
+	var count int64
+	if err := query.Scan(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func ListSupportConversations(pageInfo *common.PageInfo, keyword string) ([]*SupportConversation, int64, error) {
+	keyword = strings.TrimSpace(keyword)
+	query := DB.Model(&SupportConversation{})
+	if keyword != "" {
+		pattern := "%" + keyword + "%"
+		conditions := []string{"users.username LIKE ?", "users.display_name LIKE ?"}
+		args := []any{pattern, pattern}
+		if id, err := strconv.Atoi(keyword); err == nil {
+			conditions = append([]string{"support_conversations.id = ?", "support_conversations.user_id = ?"}, conditions...)
+			args = append([]any{id, id}, args...)
+		}
+		query = query.Joins("JOIN users ON users.id = support_conversations.user_id").Where(strings.Join(conditions, " OR "), args...)
+	}
 	var total int64
-	if err := DB.Model(&SupportConversation{}).Count(&total).Error; err != nil {
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var conversations []*SupportConversation
-	if err := DB.Order("last_message_at desc, id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&conversations).Error; err != nil {
+	listQuery := query.Order("support_conversations.last_message_at desc, support_conversations.id desc").
+		Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx())
+	if err := listQuery.Find(&conversations).Error; err != nil {
 		return nil, 0, err
 	}
 	if len(conversations) == 0 {
@@ -253,7 +286,7 @@ func (input SupportMessageInput) normalized() (*SupportMessage, error) {
 		return nil, fmt.Errorf("消息不能超过 %d 个字符", SupportTextMaxLength)
 	}
 	if input.Kind == SupportMessageImage {
-		if input.ImageData == "" || input.ImageSize <= 0 || input.ImageSize > SupportImageMaxBytes {
+		if input.ImageData == "" || input.ImageSize <= 0 || input.ImageSize > SupportImageMaxInputBytes {
 			return nil, errors.New("图片大小或内容无效")
 		}
 		input.ImageMime = "image/jpeg"
@@ -366,6 +399,7 @@ func GetSupportOrderQuote(userId int, orderType string, orderId int) (*SupportOr
 		return &SupportOrderQuote{
 			OrderType: SupportOrderTopUp, OrderId: order.Id, TradeNo: order.TradeNo,
 			Status: order.Status, Provider: order.PaymentProvider, Amount: order.Amount, Money: order.Money,
+			CreatedAt:   order.CreateTime,
 			CanComplete: order.Status == common.TopUpStatusPending && order.PaymentProvider != PaymentProviderMonero,
 		}, nil
 	case SupportOrderSubscription:
@@ -376,6 +410,7 @@ func GetSupportOrderQuote(userId int, orderType string, orderId int) (*SupportOr
 		quote := &SupportOrderQuote{
 			OrderType: SupportOrderSubscription, OrderId: order.Id, TradeNo: order.TradeNo,
 			Status: order.Status, Provider: order.PaymentProvider, Money: order.Money, PlanId: order.PlanId,
+			CreatedAt: order.CreateTime,
 		}
 		if plan, err := GetSubscriptionPlanById(order.PlanId); err == nil {
 			quote.PlanTitle = plan.Title
@@ -400,15 +435,21 @@ func ListSupportOrderQuotes(userId int) ([]SupportOrderQuote, error) {
 	}
 	quotes := make([]SupportOrderQuote, 0, len(topups)+len(subscriptions))
 	for _, order := range topups {
-		quotes = append(quotes, SupportOrderQuote{OrderType: SupportOrderTopUp, OrderId: order.Id, TradeNo: order.TradeNo, Status: order.Status, Provider: order.PaymentProvider, Amount: order.Amount, Money: order.Money, CanComplete: order.Status == common.TopUpStatusPending && order.PaymentProvider != PaymentProviderMonero})
+		quotes = append(quotes, SupportOrderQuote{OrderType: SupportOrderTopUp, OrderId: order.Id, TradeNo: order.TradeNo, Status: order.Status, Provider: order.PaymentProvider, Amount: order.Amount, Money: order.Money, CreatedAt: order.CreateTime, CanComplete: order.Status == common.TopUpStatusPending && order.PaymentProvider != PaymentProviderMonero})
 	}
 	for _, order := range subscriptions {
-		quote := SupportOrderQuote{OrderType: SupportOrderSubscription, OrderId: order.Id, TradeNo: order.TradeNo, Status: order.Status, Provider: order.PaymentProvider, Money: order.Money, PlanId: order.PlanId}
+		quote := SupportOrderQuote{OrderType: SupportOrderSubscription, OrderId: order.Id, TradeNo: order.TradeNo, Status: order.Status, Provider: order.PaymentProvider, Money: order.Money, PlanId: order.PlanId, CreatedAt: order.CreateTime}
 		if plan, err := GetSubscriptionPlanById(order.PlanId); err == nil {
 			quote.PlanTitle = plan.Title
 		}
 		quotes = append(quotes, quote)
 	}
+	sort.SliceStable(quotes, func(i, j int) bool {
+		if quotes[i].CreatedAt != quotes[j].CreatedAt {
+			return quotes[i].CreatedAt > quotes[j].CreatedAt
+		}
+		return quotes[i].OrderId > quotes[j].OrderId
+	})
 	return quotes, nil
 }
 
@@ -568,7 +609,7 @@ func GrantSupportSubscriptionWithMessage(conversationId int, senderId int, sende
 }
 
 // CompressSupportImage converts an uploaded image to JPEG quality 90 and
-// repeatedly scales it down until the stored payload is below 2 KB.
+// scales it proportionally so neither dimension exceeds 2K.
 func CompressSupportImage(data []byte) ([]byte, error) {
 	if len(data) == 0 || len(data) > SupportImageMaxInputBytes {
 		return nil, errors.New("图片文件过大或为空")
@@ -585,29 +626,20 @@ func CompressSupportImage(data []byte) ([]byte, error) {
 	current := image.NewRGBA(image.Rect(0, 0, width, height))
 	draw.Draw(current, current.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 	draw.Draw(current, current.Bounds(), source, bounds.Min, draw.Over)
-	for attempt := 0; attempt < 18; attempt++ {
-		var encoded bytes.Buffer
-		if err := jpeg.Encode(&encoded, current, &jpeg.Options{Quality: 90}); err != nil {
-			return nil, fmt.Errorf("图片压缩失败: %w", err)
-		}
-		if encoded.Len() <= SupportImageMaxBytes {
-			return encoded.Bytes(), nil
-		}
-		factor := math.Sqrt(float64(SupportImageMaxBytes) / float64(encoded.Len()) * 0.82)
-		if factor > 0.85 {
-			factor = 0.85
-		}
-		newWidth := max(1, int(float64(current.Bounds().Dx())*factor))
-		newHeight := max(1, int(float64(current.Bounds().Dy())*factor))
-		if newWidth == current.Bounds().Dx() && newHeight == current.Bounds().Dy() {
-			newWidth = max(1, newWidth-1)
-			newHeight = max(1, newHeight-1)
-		}
+	maxDimension := max(width, height)
+	if maxDimension > SupportImageMaxDimension {
+		scale := float64(SupportImageMaxDimension) / float64(maxDimension)
+		newWidth := max(1, int(float64(width)*scale+0.5))
+		newHeight := max(1, int(float64(height)*scale+0.5))
 		resized := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
 		xdraw.CatmullRom.Scale(resized, resized.Bounds(), current, current.Bounds(), xdraw.Over, nil)
 		current = resized
 	}
-	return nil, errors.New("图片无法压缩到 2 KB 以内")
+	var encoded bytes.Buffer
+	if err := jpeg.Encode(&encoded, current, &jpeg.Options{Quality: 90}); err != nil {
+		return nil, fmt.Errorf("图片压缩失败: %w", err)
+	}
+	return encoded.Bytes(), nil
 }
 
 func ReadLimited(reader io.Reader, maxBytes int64) ([]byte, error) {

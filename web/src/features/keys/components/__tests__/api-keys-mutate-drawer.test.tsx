@@ -277,4 +277,13 @@ describe('API keys mutate drawer Auto group integration', () => {
     await waitFor(() => expect(createdPayloads).toHaveLength(1))
     expect(createdPayloads[0]?.auto_groups).toEqual(['vip'])
   })
+
+  test('opens the virtual model editor in create mode', async () => {
+    installApiFixtures([])
+    await renderCreateDrawer()
+    fireEvent.click(findButton('Add virtual model', true))
+    await waitFor(() => {
+      expect(screen.getByText('Edit virtual model route')).toBeTruthy()
+    })
+  })
 })

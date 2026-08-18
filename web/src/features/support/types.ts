@@ -67,6 +67,10 @@ export interface SupportConversationPayload {
   messages: SupportMessage[]
 }
 
+export interface SupportUnreadCount {
+  count: number
+}
+
 export interface SupportOrderQuote {
   order_type: 'topup' | 'subscription' | string
   order_id: number
@@ -77,6 +81,7 @@ export interface SupportOrderQuote {
   money?: number
   plan_id?: number
   plan_title?: string
+  created_at: number
   can_complete: boolean
 }
 

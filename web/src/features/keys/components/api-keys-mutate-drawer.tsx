@@ -437,7 +437,7 @@ export function ApiKeysMutateDrawer({
       toast.error(t('Each virtual model needs at least one route model'))
       return
     }
-    const routes: ApiKeyAutoRoutes = { ...(autoRoutes || {}) }
+    const routes: ApiKeyAutoRoutes = { ...autoRoutes }
     if (editingVirtualModel && editingVirtualModel !== name) {
       delete routes[editingVirtualModel]
     }
@@ -454,7 +454,7 @@ export function ApiKeysMutateDrawer({
   }
 
   const deleteRoute = (virtualModel: string) => {
-    const routes: ApiKeyAutoRoutes = { ...(autoRoutes || {}) }
+    const routes: ApiKeyAutoRoutes = { ...autoRoutes }
     delete routes[virtualModel]
     form.setValue('auto_routes', routes, { shouldDirty: true })
   }
@@ -984,8 +984,11 @@ export function ApiKeysMutateDrawer({
           </DialogHeader>
           <div className='space-y-4'>
             <div className='space-y-2'>
-              <FormLabel>{t('Model name')}</FormLabel>
+              <label htmlFor='virtual-model-name' className='text-sm font-medium'>
+                {t('Model name')}
+              </label>
               <Input
+                id='virtual-model-name'
                 value={routeName}
                 onChange={(event) => setRouteName(event.target.value)}
                 placeholder='auto/free'
@@ -993,7 +996,7 @@ export function ApiKeysMutateDrawer({
               />
             </div>
             <div className='space-y-2'>
-              <FormLabel>{t('Add route model')}</FormLabel>
+              <span className='text-sm font-medium'>{t('Add route model')}</span>
               <div className='flex items-center gap-2'>
                 <ModelGroupSelector
                   selectedModel={routeModel}
@@ -1022,7 +1025,7 @@ export function ApiKeysMutateDrawer({
               </div>
             </div>
             <div className='space-y-2'>
-              <FormLabel>{t('Call chain')}</FormLabel>
+              <span className='text-sm font-medium'>{t('Call chain')}</span>
               {routeChain.length === 0 ? (
                 <div className='text-muted-foreground rounded-lg border border-dashed px-3 py-6 text-center text-sm'>
                   {t('Add at least one route model')}

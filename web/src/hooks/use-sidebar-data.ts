@@ -35,12 +35,15 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { getSupportUnreadCount } from '@/features/support/api'
 import { getCustomTabIcon, parseCustomTabs } from '@/lib/custom-tabs'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { useStatus } from './use-status'
 
@@ -53,6 +56,17 @@ import { useStatus } from './use-status'
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
   const { status } = useStatus()
+  const user = useAuthStore((state) => state.auth.user)
+  const isAdmin = (user?.role ?? ROLE.GUEST) >= ROLE.ADMIN
+  const supportUnreadQuery = useQuery({
+    queryKey: ['support-unread', user?.id, isAdmin],
+    queryFn: getSupportUnreadCount,
+    enabled: Boolean(user?.id),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    staleTime: 0,
+  })
+  const supportUnreadCount = supportUnreadQuery.data?.data?.count || 0
 
   const customTabs = useMemo(
     () => parseCustomTabs(status?.custom_tabs),
@@ -142,6 +156,7 @@ export function useSidebarData(): SidebarData {
               title: t('Support'),
               url: '/support',
               icon: MessageSquare,
+              badge: supportUnreadCount > 0 ? String(supportUnreadCount) : undefined,
             },
             {
               title: t('Profile'),
@@ -201,5 +216,5 @@ export function useSidebarData(): SidebarData {
         },
       ],
     }
-  }, [customTabs, t])
+  }, [customTabs, supportUnreadCount, t])
 }
