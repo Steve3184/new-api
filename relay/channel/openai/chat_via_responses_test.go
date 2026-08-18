@@ -209,6 +209,38 @@ func TestOaiBufferedStreamHandlerReturnsJSONFromChatSSE(t *testing.T) {
 	require.Contains(t, got, `"total_tokens":5`)
 }
 
+func TestOaiBufferedStreamHandlerConvertsChatSSEToResponsesJSON(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"role":"assistant"}}]}`,
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"content":"buffered text"}}]}`,
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, false)
+	info.ChannelMeta.ChannelType = constant.ChannelTypeOpenAI
+	info.RelayFormat = types.RelayFormatOpenAIResponses
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, err := OaiBufferedStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 5, usage.TotalTokens)
+
+	got := recorder.Body.String()
+	require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+	require.NotContains(t, got, `data:`)
+	require.Contains(t, got, `"object":"response"`)
+	require.Contains(t, got, `"type":"output_text","text":"buffered text"`)
+	require.Contains(t, got, `"input_tokens":2`)
+	require.Contains(t, got, `"output_tokens":3`)
+}
+
 func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
