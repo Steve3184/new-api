@@ -556,6 +556,26 @@ type SubscriptionResetResult struct {
 	AffectedUserIds  []int  `json:"-"`
 }
 
+// SubscriptionResetOptions controls which usage buckets an administrator
+// clears. ResetMonthly is kept internal to the compatibility wrapper and is
+// also selected when the total quota option is requested, because the monthly
+// cap is an independent view of the same billing-cycle usage.
+type SubscriptionResetOptions struct {
+	ResetTotal    bool
+	ResetFiveHour bool
+	ResetWeekly   bool
+	ResetMonthly  bool
+}
+
+func allSubscriptionResetOptions() SubscriptionResetOptions {
+	return SubscriptionResetOptions{
+		ResetTotal:    true,
+		ResetFiveHour: true,
+		ResetWeekly:   true,
+		ResetMonthly:  true,
+	}
+}
+
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	if plan == nil {
 		return 0, errors.New("plan is nil")
@@ -795,10 +815,8 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	fiveHourLastResetTime := int64(0)
 	fiveHourNextResetTime := int64(0)
-	if plan.FiveHourLimit > 0 {
-		fiveHourLastResetTime = now.Unix()
-		fiveHourNextResetTime = calcSubscriptionUsageLimitNextResetTime(now, SubscriptionResetFiveHour, endUnix)
-	}
+	// A 5-hour window starts with the first successful consumption, not when
+	// the subscription row is created. Keep both timestamps empty until then.
 	weeklyLastResetTime := int64(0)
 	weeklyNextResetTime := int64(0)
 	if plan.WeeklyLimit > 0 {
@@ -1383,15 +1401,23 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	return "", nil
 }
 
-func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64, advanceResetTime bool) error {
+func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64, advanceResetTime bool, options SubscriptionResetOptions) error {
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
 	}
-	sub.AmountUsed = 0
-	sub.FiveHourUsed = 0
-	sub.WeeklyUsed = 0
-	sub.MonthlyUsed = 0
-	if advanceResetTime {
+	if options.ResetTotal {
+		sub.AmountUsed = 0
+	}
+	if options.ResetFiveHour {
+		sub.FiveHourUsed = 0
+	}
+	if options.ResetWeekly {
+		sub.WeeklyUsed = 0
+	}
+	if options.ResetMonthly {
+		sub.MonthlyUsed = 0
+	}
+	if advanceResetTime && options.ResetTotal {
 		nextReset := calcNextResetTime(time.Unix(now, 0), plan, sub.EndTime)
 		sub.NextResetTime = nextReset
 		if nextReset > 0 {
@@ -1399,18 +1425,18 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 		} else {
 			sub.LastResetTime = 0
 		}
-		if sub.FiveHourLimit > 0 {
-			sub.FiveHourLastResetTime = now
-			sub.FiveHourNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetFiveHour, sub.EndTime)
-		}
-		if sub.WeeklyLimit > 0 {
-			sub.WeeklyLastResetTime = now
-			sub.WeeklyNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetWeekly, sub.EndTime)
-		}
-		if sub.MonthlyLimit > 0 {
-			sub.MonthlyLastResetTime = now
-			sub.MonthlyNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetMonthly, sub.EndTime)
-		}
+	}
+	if advanceResetTime && options.ResetFiveHour && sub.FiveHourLimit > 0 {
+		sub.FiveHourLastResetTime = now
+		sub.FiveHourNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetFiveHour, sub.EndTime)
+	}
+	if advanceResetTime && options.ResetWeekly && sub.WeeklyLimit > 0 {
+		sub.WeeklyLastResetTime = now
+		sub.WeeklyNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetWeekly, sub.EndTime)
+	}
+	if advanceResetTime && options.ResetMonthly && sub.MonthlyLimit > 0 {
+		sub.MonthlyLastResetTime = now
+		sub.MonthlyNextResetTime = calcSubscriptionUsageLimitNextResetTime(time.Unix(now, 0), SubscriptionResetMonthly, sub.EndTime)
 	}
 	return tx.Save(sub).Error
 }
@@ -1436,7 +1462,7 @@ func buildSubscriptionResetResult(plan *SubscriptionPlan, subs []UserSubscriptio
 	}
 }
 
-func adminResetUserSubscriptionsByPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, now int64, advanceResetTime bool) (*SubscriptionResetResult, error) {
+func adminResetUserSubscriptionsByPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, now int64, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if tx == nil || plan == nil {
 		return nil, errors.New("invalid reset args")
 	}
@@ -1451,14 +1477,14 @@ func adminResetUserSubscriptionsByPlanTx(tx *gorm.DB, userId int, plan *Subscrip
 		return nil, errors.New("该用户没有有效的此套餐订阅")
 	}
 	for i := range subs {
-		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime); err != nil {
+		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime, options); err != nil {
 			return nil, err
 		}
 	}
 	return buildSubscriptionResetResult(plan, subs, advanceResetTime), nil
 }
 
-func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int64, advanceResetTime bool) (*SubscriptionResetResult, error) {
+func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int64, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if tx == nil || plan == nil {
 		return nil, errors.New("invalid reset args")
 	}
@@ -1470,7 +1496,7 @@ func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int6
 		return nil, err
 	}
 	for i := range subs {
-		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime); err != nil {
+		if err := resetUserSubscriptionTx(tx, &subs[i], plan, now, advanceResetTime, options); err != nil {
 			return nil, err
 		}
 	}
@@ -1478,6 +1504,10 @@ func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int6
 }
 
 func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime bool) (*SubscriptionResetResult, error) {
+	return AdminResetUserSubscriptionsByPlanWithOptions(userId, planId, advanceResetTime, allSubscriptionResetOptions())
+}
+
+func AdminResetUserSubscriptionsByPlanWithOptions(userId int, planId int, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
@@ -1488,7 +1518,7 @@ func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime 
 		if err != nil {
 			return err
 		}
-		result, err = adminResetUserSubscriptionsByPlanTx(tx, userId, plan, now, advanceResetTime)
+		result, err = adminResetUserSubscriptionsByPlanTx(tx, userId, plan, now, advanceResetTime, options)
 		return err
 	})
 	if err != nil {
@@ -1498,6 +1528,10 @@ func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime 
 }
 
 func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*SubscriptionResetResult, error) {
+	return AdminResetPlanSubscriptionsWithOptions(planId, advanceResetTime, allSubscriptionResetOptions())
+}
+
+func AdminResetPlanSubscriptionsWithOptions(planId int, advanceResetTime bool, options SubscriptionResetOptions) (*SubscriptionResetResult, error) {
 	if planId <= 0 {
 		return nil, errors.New("invalid planId")
 	}
@@ -1508,7 +1542,7 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 		if err != nil {
 			return err
 		}
-		result, err = adminResetPlanSubscriptionsTx(tx, plan, now, advanceResetTime)
+		result, err = adminResetPlanSubscriptionsTx(tx, plan, now, advanceResetTime, options)
 		return err
 	})
 	if err != nil {
@@ -1653,6 +1687,12 @@ func maybeResetSubscriptionUsageLimit(used *int64, lastResetTime *int64, nextRes
 	}
 
 	changed := false
+	// An untouched 5-hour window has no reset anchor yet. Do not silently
+	// anchor it to subscription creation; the first consumption sets the
+	// window in initializeSubscriptionUsageWindow.
+	if *used == 0 && *lastResetTime == 0 && *nextResetTime == 0 && period == SubscriptionResetFiveHour {
+		return false
+	}
 	baseUnix := *lastResetTime
 	if baseUnix <= 0 {
 		baseUnix = startTime
@@ -1682,6 +1722,16 @@ func maybeResetSubscriptionUsageLimit(used *int64, lastResetTime *int64, nextRes
 	*used = 0
 	*lastResetTime = baseUnix
 	*nextResetTime = nextUnix
+	return true
+}
+
+func initializeSubscriptionUsageWindow(usedBefore int64, usedAfter int64, lastResetTime *int64, nextResetTime *int64, limit int64, period string, endTime int64, now int64) bool {
+	if limit <= 0 || usedBefore != 0 || usedAfter <= 0 || *lastResetTime != 0 || *nextResetTime != 0 {
+		return false
+	}
+	base := time.Unix(now, 0)
+	*lastResetTime = now
+	*nextResetTime = calcSubscriptionUsageLimitNextResetTime(base, period, endTime)
 	return true
 }
 
@@ -1896,9 +1946,20 @@ func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName 
 				return err
 			}
 			usedBefore := sub.AmountUsed
+			fiveHourUsedBefore := sub.FiveHourUsed
 			if err := sub.applyUsageDelta(amount); err != nil {
 				continue
 			}
+			initializeSubscriptionUsageWindow(
+				fiveHourUsedBefore,
+				sub.FiveHourUsed,
+				&sub.FiveHourLastResetTime,
+				&sub.FiveHourNextResetTime,
+				sub.FiveHourLimit,
+				SubscriptionResetFiveHour,
+				sub.EndTime,
+				now,
+			)
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
@@ -2064,6 +2125,7 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	if delta == 0 {
 		return nil
 	}
+	now := GetDBTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var sub UserSubscription
 		if err := lockForUpdate(tx).
@@ -2071,8 +2133,21 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			First(&sub).Error; err != nil {
 			return err
 		}
+		fiveHourUsedBefore := sub.FiveHourUsed
 		if err := sub.applyUsageDelta(delta); err != nil {
 			return err
+		}
+		if delta > 0 {
+			initializeSubscriptionUsageWindow(
+				fiveHourUsedBefore,
+				sub.FiveHourUsed,
+				&sub.FiveHourLastResetTime,
+				&sub.FiveHourNextResetTime,
+				sub.FiveHourLimit,
+				SubscriptionResetFiveHour,
+				sub.EndTime,
+				now,
+			)
 		}
 		return tx.Save(&sub).Error
 	})

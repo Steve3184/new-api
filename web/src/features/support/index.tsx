@@ -37,13 +37,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
+import { Dialog as ImagePreviewDialog } from '@/components/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -58,6 +54,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
+import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -176,7 +173,7 @@ function MessageBody({
         <span>{message.content || t('Quota granted')}</span>
         {message.grant_quota ? (
           <Badge variant='secondary' className='tabular-nums'>
-            +{message.grant_quota}
+            +{formatQuota(message.grant_quota)}
           </Badge>
         ) : null}
       </div>
@@ -230,9 +227,9 @@ function MessageList({
                 key={message.id}
                 className={`flex ${own ? 'justify-end' : 'justify-start'}`}
               >
-                <div className='max-w-[min(85%,42rem)] space-y-1'>
+                <div className='min-w-0 max-w-[min(85%,42rem)] space-y-1'>
                   <div
-                    className={`rounded-lg px-3 py-2 text-sm shadow-xs ${
+                    className={`min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-sm shadow-xs ${
                       own
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-foreground'
@@ -246,7 +243,7 @@ function MessageList({
                     />
                   </div>
                   <div
-                    className={`text-muted-foreground text-[10px] ${own ? 'text-right' : 'text-left'}`}
+                    className={`text-muted-foreground max-w-full break-all whitespace-normal text-[10px] ${own ? 'text-right' : 'text-left'}`}
                   >
                     {formatMessageTime(message.created_at)}
                   </div>
@@ -466,7 +463,12 @@ export function Support() {
     onError: (error) => toast.error(error instanceof Error ? error.message : t('Unable to send message')),
   })
   const quotaMutation = useMutation({
-    mutationFn: () => grantSupportQuota(selectedId || 0, Number(quota), adminNote),
+    mutationFn: () =>
+      grantSupportQuota(
+        selectedId || 0,
+        parseQuotaFromDollars(Number(quota)),
+        adminNote
+      ),
     onSuccess: (response) => {
       if (!response.success) return toast.error(response.message || t('Unable to grant quota'))
       setQuota('')
@@ -586,7 +588,7 @@ export function Support() {
                   {isAdmin && (
                     <div className='mb-3 grid gap-2 rounded-md border bg-muted/20 p-2 sm:grid-cols-[1fr_1fr_auto]'>
                       <div className='flex items-center gap-2'>
-                        <Input value={quota} onChange={(event) => setQuota(event.target.value)} type='number' min='1' placeholder={t('Quota amount')} />
+                        <Input value={quota} onChange={(event) => setQuota(event.target.value)} type='number' min='0' step='any' placeholder={t('Quota amount')} />
                         <Button type='button' variant='secondary' size='sm' disabled={!quota || quotaMutation.isPending} onClick={() => quotaMutation.mutate()}>
                           <Gift className='size-4' />
                           {t('Grant quota')}
@@ -646,23 +648,24 @@ export function Support() {
           </section>
         </div>
       </SectionPageLayout.Content>
-      <Dialog
+      <ImagePreviewDialog
         open={Boolean(previewImage)}
         onOpenChange={(open) => {
           if (!open) setPreviewImage(null)
         }}
+        title={t('Image Preview')}
+        description={t('View the generated image')}
+        contentClassName='sm:max-w-4xl'
+        bodyClassName='flex min-h-0 items-center justify-center'
       >
-        <DialogContent className='max-h-[95vh] max-w-[min(95vw,80rem)] p-2 sm:max-w-[min(95vw,80rem)]'>
-          <DialogTitle className='sr-only'>{t('Support attachment')}</DialogTitle>
-          {previewImage && (
-            <img
-              src={previewImage}
-              alt={t('Support attachment')}
-              className='max-h-[90vh] w-full object-contain'
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+        {previewImage && (
+          <img
+            src={previewImage}
+            alt={t('Support attachment')}
+            className='max-h-[calc(100vh-12rem)] max-w-full object-contain'
+          />
+        )}
+      </ImagePreviewDialog>
     </SectionPageLayout>
   )
 }

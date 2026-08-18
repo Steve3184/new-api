@@ -98,6 +98,36 @@ func TestSubscriptionUsageLimitsAreEnforcedAtomically(t *testing.T) {
 	assert.EqualValues(t, 100, afterSettlement.MonthlyUsed)
 }
 
+func TestFiveHourWindowStartsAtFirstConsumption(t *testing.T) {
+	prepareSubscriptionUsageLimitTest(t)
+	plan := &SubscriptionPlan{
+		Title:         "First-use 5-hour window",
+		DurationUnit:  SubscriptionDurationMonth,
+		DurationValue: 1,
+		FiveHourLimit: 100,
+	}
+	user, subscription := createSubscriptionUsageLimitFixture(t, plan)
+	firstUseBase := GetDBTimestamp() - 3600
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", subscription.Id).Updates(map[string]interface{}{
+		"start_time":                firstUseBase,
+		"five_hour_used":            0,
+		"five_hour_last_reset_time": 0,
+		"five_hour_next_reset_time": 0,
+	}).Error)
+
+	before := GetDBTimestamp()
+	_, err := PreConsumeUserSubscription("subscription-first-use-window", user.Id, "test", 0, 10)
+	after := GetDBTimestamp()
+	require.NoError(t, err)
+
+	var reloaded UserSubscription
+	require.NoError(t, DB.First(&reloaded, subscription.Id).Error)
+	assert.GreaterOrEqual(t, reloaded.FiveHourLastResetTime, before)
+	assert.LessOrEqual(t, reloaded.FiveHourLastResetTime, after)
+	assert.Equal(t, reloaded.FiveHourLastResetTime+int64((5*time.Hour).Seconds()), reloaded.FiveHourNextResetTime)
+	assert.NotEqual(t, firstUseBase+int64((5*time.Hour).Seconds()), reloaded.FiveHourNextResetTime)
+}
+
 func TestSubscriptionUsageLimitPeriodsAreIndependentlyEnforced(t *testing.T) {
 	tests := []struct {
 		name string

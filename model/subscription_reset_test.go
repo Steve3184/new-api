@@ -115,6 +115,46 @@ func TestAdminResetUserSubscriptionsByPlanKeepsResetTimes(t *testing.T) {
 	assert.Equal(t, nextReset, sub.NextResetTime)
 }
 
+func TestAdminResetUserSubscriptionsByPlanHonorsSelectedUsageBuckets(t *testing.T) {
+	truncateTables(t)
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Id:               9351,
+		Title:            "Selective reset",
+		PriceAmount:      20,
+		DurationUnit:     SubscriptionDurationMonth,
+		DurationValue:    1,
+		TotalAmount:      2000,
+		FiveHourLimit:    500,
+		WeeklyLimit:      700,
+		MonthlyLimit:     900,
+		QuotaResetPeriod: SubscriptionResetDaily,
+	}
+	seedSubscriptionResetPlan(t, plan)
+	seedSubscriptionResetSub(t, &UserSubscription{
+		Id: 9352, UserId: 235, PlanId: plan.Id, AmountTotal: 2000, AmountUsed: 1200,
+		FiveHourLimit: 500, FiveHourUsed: 200, FiveHourLastResetTime: now - 100, FiveHourNextResetTime: now + 100,
+		WeeklyLimit: 700, WeeklyUsed: 300, WeeklyLastResetTime: now - 100, WeeklyNextResetTime: now + 100,
+		MonthlyLimit: 900, MonthlyUsed: 400, MonthlyLastResetTime: now - 100, MonthlyNextResetTime: now + 100,
+		StartTime: now - 3600, EndTime: now + 30*24*3600, Status: "active", LastResetTime: now - 100, NextResetTime: now + 100,
+	})
+
+	_, err := AdminResetUserSubscriptionsByPlanWithOptions(235, plan.Id, true, SubscriptionResetOptions{
+		ResetFiveHour: true,
+	})
+	require.NoError(t, err)
+
+	sub := getSubscriptionResetSub(t, 9352)
+	assert.Zero(t, sub.FiveHourUsed)
+	assert.EqualValues(t, 1200, sub.AmountUsed)
+	assert.EqualValues(t, 300, sub.WeeklyUsed)
+	assert.EqualValues(t, 400, sub.MonthlyUsed)
+	assert.Equal(t, now, sub.FiveHourLastResetTime)
+	assert.Equal(t, sub.FiveHourLastResetTime+int64((5*time.Hour).Seconds()), sub.FiveHourNextResetTime)
+	assert.Equal(t, now-100, sub.LastResetTime)
+}
+
 func TestAdminResetUserSubscriptionsByPlanNoActiveMatchReturnsError(t *testing.T) {
 	truncateTables(t)
 

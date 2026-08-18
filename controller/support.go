@@ -91,7 +91,7 @@ func buildSupportMessageInput(c *gin.Context, request supportMessageRequest, ima
 			return input, err
 		}
 		input.Kind = model.SupportMessageImage
-		input.ImageData = base64.StdEncoding.EncodeToString(compressed)
+		input.ImageBytes = compressed
 		input.ImageMime = "image/jpeg"
 		input.ImageSize = len(compressed)
 	}
@@ -348,8 +348,21 @@ func AdminCompleteSupportOrder(c *gin.Context) {
 }
 
 func SupportImageResponse(message *model.SupportMessage) {
-	if message == nil || message.ImageData == "" {
+	if message == nil {
 		return
 	}
-	message.ImageData = "data:image/jpeg;base64," + message.ImageData
+	if message.ImageData == "" && len(message.ImageDataBlob) > 0 {
+		message.ImageData = base64.StdEncoding.EncodeToString(message.ImageDataBlob)
+	}
+	if message.ImageData == "" {
+		return
+	}
+	if strings.HasPrefix(message.ImageData, "data:") {
+		return
+	}
+	mime := message.ImageMime
+	if mime == "" {
+		mime = "image/jpeg"
+	}
+	message.ImageData = "data:" + mime + ";base64," + message.ImageData
 }

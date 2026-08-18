@@ -90,6 +90,7 @@ import {
   createApiKey,
   updateApiKey,
   getApiKey,
+  getTokenAutoRoutes,
   getTokenAutoGroups,
 } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -178,6 +179,17 @@ export function ApiKeysMutateDrawer({
   })
 
   const {
+    data: autoRoutesData,
+    isFetched: autoRoutesFetched,
+    isFetching: autoRoutesFetching,
+  } = useQuery({
+    queryKey: ['api-key-auto-routes', currentRowId],
+    queryFn: () => getTokenAutoRoutes(currentRowId ?? 0),
+    enabled: open && isUpdate && currentRowId !== undefined,
+    staleTime: 0,
+  })
+
+  const {
     data: autoGroupsData,
     isFetched: autoGroupsFetched,
     isFetching: autoGroupsFetching,
@@ -248,15 +260,21 @@ export function ApiKeysMutateDrawer({
       return
     }
     if (isUpdate && (!apiKeyFetched || apiKeyFetching)) return
+    if (isUpdate && (!autoRoutesFetched || autoRoutesFetching)) return
     if (!isUpdate && statusLoading) return
 
     const target = isUpdate && currentRow ? `update:${currentRow.id}` : 'create'
     if (initializedTarget === target) return
     if (isUpdate && currentRow) {
       if (apiKeyData?.success && apiKeyData.data) {
+        const tokenData = {
+          ...apiKeyData.data,
+          auto_routes:
+            autoRoutesData?.data?.auto_routes ?? apiKeyData.data.auto_routes,
+        }
         form.reset(
           transformApiKeyToFormDefaults(
-            apiKeyData.data,
+            tokenData,
             availableAutoGroupNames,
             maxAutoGroups
           )
@@ -282,8 +300,11 @@ export function ApiKeysMutateDrawer({
     autoGroupsFetched,
     autoGroupsFetching,
     apiKeyData,
+    autoRoutesData,
     apiKeyFetched,
     apiKeyFetching,
+    autoRoutesFetched,
+    autoRoutesFetching,
     availableAutoGroupNames,
     maxAutoGroups,
     initializedTarget,

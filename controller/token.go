@@ -55,7 +55,7 @@ type tokenRequest struct {
 type tokenResponse struct {
 	*model.Token
 	AutoGroups []string            `json:"auto_groups"`
-	AutoRoutes map[string][]string `json:"auto_routes"`
+	AutoRoutes map[string][]string `json:"auto_routes,omitempty"`
 	TotalQuota int                 `json:"total_quota"`
 	RPM        int                 `json:"rpm"`
 }
@@ -74,14 +74,6 @@ func buildMaskedTokenResponseWithStats(token *model.Token, rpm int) *tokenRespon
 	if len(autoGroups) == 0 {
 		autoGroups = nil
 	}
-	autoRoutes, err := token.GetAutoRoutes()
-	if err != nil {
-		common.SysError(fmt.Sprintf("failed to parse auto routes for token %d: %v", token.Id, err))
-		autoRoutes = nil
-	}
-	if len(autoRoutes) == 0 {
-		autoRoutes = nil
-	}
 	totalQuota := 0
 	if !token.UnlimitedQuota {
 		totalQuota = token.RemainQuota
@@ -93,7 +85,10 @@ func buildMaskedTokenResponseWithStats(token *model.Token, rpm int) *tokenRespon
 			}
 		}
 	}
-	return &tokenResponse{Token: &maskedToken, AutoGroups: autoGroups, AutoRoutes: autoRoutes, TotalQuota: totalQuota, RPM: rpm}
+	// Virtual model routes are deliberately omitted from list and detail
+	// responses. They are loaded through the token-scoped endpoint only when
+	// the editor is opened, so the 5-second RPM refresh stays lightweight.
+	return &tokenResponse{Token: &maskedToken, AutoGroups: autoGroups, TotalQuota: totalQuota, RPM: rpm}
 }
 
 func buildMaskedTokenResponse(token *model.Token) *tokenResponse {
@@ -271,6 +266,31 @@ func GetToken(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, buildMaskedTokenResponse(token))
+}
+
+// GetTokenAutoRoutes returns the virtual models configured on one API key.
+// Keep this separate from the frequently refreshed key list because routes can
+// be comparatively large and are only needed by the editor.
+func GetTokenAutoRoutes(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiError(c, fmt.Errorf("令牌 ID 无效"))
+		return
+	}
+	token, err := model.GetTokenByIds(id, c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	routes, err := token.GetAutoRoutes()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if routes == nil {
+		routes = map[string][]string{}
+	}
+	common.ApiSuccess(c, gin.H{"auto_routes": routes})
 }
 
 type tokenAutoRouteStatusResponse struct {

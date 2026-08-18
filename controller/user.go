@@ -664,9 +664,9 @@ func GetUserModels(c *gin.Context) {
 			groupsToQuery = append(groupsToQuery, g)
 		}
 	case group == "auto":
-		if _, ok := groups[group]; ok {
-			groupsToQuery = service.GetUserAutoGroup(user.Group)
-		}
+		// auto is a virtual group resolved from the user's selectable groups;
+		// it is not required to be present in the usable-group map itself.
+		groupsToQuery = service.GetUserAutoGroup(user.Group)
 	default:
 		if _, ok := groups[group]; ok {
 			groupsToQuery = []string{group}

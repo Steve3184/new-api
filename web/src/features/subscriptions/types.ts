@@ -138,10 +138,16 @@ export interface CreateUserSubscriptionRequest {
 export interface ResetUserSubscriptionsRequest {
   plan_id: number
   advance_reset_time: boolean
+  reset_total: boolean
+  reset_five_hour: boolean
+  reset_weekly: boolean
 }
 
 export interface ResetPlanSubscriptionsRequest {
   advance_reset_time: boolean
+  reset_total: boolean
+  reset_five_hour: boolean
+  reset_weekly: boolean
 }
 
 export interface SubscriptionResetResult {

@@ -55,6 +55,10 @@ export type ApiKey = z.infer<typeof apiKeySchema>
 
 export type ApiKeyAutoRoutes = Record<string, string[]>
 
+export interface TokenAutoRoutesResponse {
+  auto_routes: ApiKeyAutoRoutes
+}
+
 // ============================================================================
 // API Request/Response Types
 // ============================================================================

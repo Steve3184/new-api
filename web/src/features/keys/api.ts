@@ -29,6 +29,7 @@ import type {
   TokenGroupNames,
   TokenGroupMigrationResult,
   TokenAutoRouteStatusResponse,
+  TokenAutoRoutesResponse,
 } from './types'
 
 // ============================================================================
@@ -76,6 +77,13 @@ export async function getTokenAutoRouteStatus(
   id: number
 ): Promise<ApiResponse<TokenAutoRouteStatusResponse>> {
   const res = await api.get(`/api/token/${id}/auto-routes/status`)
+  return res.data
+}
+
+export async function getTokenAutoRoutes(
+  id: number
+): Promise<ApiResponse<TokenAutoRoutesResponse>> {
+  const res = await api.get(`/api/token/${id}/auto-routes`)
   return res.data
 }
 

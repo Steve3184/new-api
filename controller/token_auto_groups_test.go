@@ -232,3 +232,34 @@ func TestGetTokenAutoGroupsReturnsFullFilteredGlobalOrderAndLimit(t *testing.T) 
 	assert.Equal(t, []string{"vip", "default"}, data.Groups)
 	assert.Equal(t, 1, data.MaxCount)
 }
+
+func TestGetTokenAutoRoutesUsesSeparateTokenScopedResponse(t *testing.T) {
+	configureTokenAutoGroupsTest(t, "5", `["default"]`)
+	user := setupTokenAutoGroupsControllerTest(t)
+	token := seedToken(t, model.DB, user.Id, "virtual-routes", "virtual-routes-key")
+	token.Group = "auto"
+	require.NoError(t, token.SetAutoRoutes(map[string][]string{
+		"auto/free": {"model-a", "model-b"},
+	}))
+	require.NoError(t, model.DB.Save(token).Error)
+
+	ctx, recorder := newTokenAutoGroupsAuthenticatedContext(t, http.MethodGet, "/api/token/auto-routes", nil, user.Id)
+	ctx.Params = append(ctx.Params, gin.Param{Key: "id", Value: stringInt(token.Id)})
+	GetTokenAutoRoutes(ctx)
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var data struct {
+		AutoRoutes map[string][]string `json:"auto_routes"`
+	}
+	require.NoError(t, common.Unmarshal(response.Data, &data))
+	assert.Equal(t, []string{"model-a", "model-b"}, data.AutoRoutes["auto/free"])
+
+	getCtx, getRecorder := newTokenAutoGroupsAuthenticatedContext(t, http.MethodGet, "/api/token/"+stringInt(token.Id), nil, user.Id)
+	getCtx.Params = append(getCtx.Params, gin.Param{Key: "id", Value: stringInt(token.Id)})
+	GetToken(getCtx)
+	getResponse := decodeAPIResponse(t, getRecorder)
+	require.True(t, getResponse.Success, getResponse.Message)
+	var detail map[string]any
+	require.NoError(t, common.Unmarshal(getResponse.Data, &detail))
+	assert.NotContains(t, detail, "auto_routes")
+}

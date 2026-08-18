@@ -52,13 +52,16 @@ type SupportConversation struct {
 }
 
 type SupportMessage struct {
-	Id             int     `json:"id"`
-	ConversationId int     `json:"conversation_id" gorm:"index"`
-	SenderId       int     `json:"sender_id" gorm:"index"`
-	SenderRole     int     `json:"sender_role"`
-	Kind           string  `json:"kind" gorm:"type:varchar(32);index"`
-	Content        string  `json:"content" gorm:"type:text"`
-	ImageData      string  `json:"image_data,omitempty" gorm:"type:text"`
+	Id             int    `json:"id"`
+	ConversationId int    `json:"conversation_id" gorm:"index"`
+	SenderId       int    `json:"sender_id" gorm:"index"`
+	SenderRole     int    `json:"sender_role"`
+	Kind           string `json:"kind" gorm:"type:varchar(32);index"`
+	Content        string `json:"content" gorm:"type:text"`
+	ImageData      string `json:"image_data,omitempty" gorm:"type:text"`
+	// ImageDataBlob stores new attachments as binary data. ImageData is kept for
+	// backwards compatibility with messages written before the blob column.
+	ImageDataBlob  []byte  `json:"-" gorm:"column:image_data_blob"`
 	ImageMime      string  `json:"image_mime,omitempty" gorm:"type:varchar(64)"`
 	ImageSize      int     `json:"image_size,omitempty"`
 	OrderType      string  `json:"order_type,omitempty" gorm:"type:varchar(32)"`
@@ -256,6 +259,7 @@ type SupportMessageInput struct {
 	Kind           string
 	Content        string
 	ImageData      string
+	ImageBytes     []byte
 	ImageMime      string
 	ImageSize      int
 	OrderQuote     *SupportOrderQuote
@@ -271,7 +275,7 @@ func (input SupportMessageInput) normalized() (*SupportMessage, error) {
 		return nil, errors.New("无效的消息归属")
 	}
 	if input.Kind == "" {
-		if input.ImageData != "" {
+		if input.ImageData != "" || len(input.ImageBytes) > 0 {
 			input.Kind = SupportMessageImage
 		} else {
 			input.Kind = SupportMessageText
@@ -286,7 +290,13 @@ func (input SupportMessageInput) normalized() (*SupportMessage, error) {
 		return nil, fmt.Errorf("消息不能超过 %d 个字符", SupportTextMaxLength)
 	}
 	if input.Kind == SupportMessageImage {
-		if input.ImageData == "" || input.ImageSize <= 0 || input.ImageSize > SupportImageMaxInputBytes {
+		if len(input.ImageBytes) > 0 {
+			input.ImageSize = len(input.ImageBytes)
+		}
+		if input.ImageData == "" && len(input.ImageBytes) == 0 {
+			return nil, errors.New("图片大小或内容无效")
+		}
+		if input.ImageSize <= 0 || input.ImageSize > SupportImageMaxInputBytes {
 			return nil, errors.New("图片大小或内容无效")
 		}
 		input.ImageMime = "image/jpeg"
@@ -312,6 +322,7 @@ func (input SupportMessageInput) normalized() (*SupportMessage, error) {
 		Kind:           input.Kind,
 		Content:        input.Content,
 		ImageData:      input.ImageData,
+		ImageDataBlob:  append([]byte(nil), input.ImageBytes...),
 		ImageMime:      input.ImageMime,
 		ImageSize:      input.ImageSize,
 		GrantQuota:     input.GrantQuota,

@@ -467,6 +467,9 @@ type AdminCreateUserSubscriptionRequest struct {
 type AdminResetSubscriptionRequest struct {
 	PlanId           int   `json:"plan_id"`
 	AdvanceResetTime *bool `json:"advance_reset_time"`
+	ResetTotal       *bool `json:"reset_total"`
+	ResetFiveHour    *bool `json:"reset_five_hour"`
+	ResetWeekly      *bool `json:"reset_weekly"`
 }
 
 func resolveAdvanceResetTime(value *bool) bool {
@@ -474,6 +477,26 @@ func resolveAdvanceResetTime(value *bool) bool {
 		return true
 	}
 	return *value
+}
+
+func resolveSubscriptionResetOptions(req AdminResetSubscriptionRequest) model.SubscriptionResetOptions {
+	if req.ResetTotal == nil && req.ResetFiveHour == nil && req.ResetWeekly == nil {
+		return model.SubscriptionResetOptions{
+			ResetTotal:    true,
+			ResetFiveHour: true,
+			ResetWeekly:   true,
+			ResetMonthly:  true,
+		}
+	}
+	resetTotal := req.ResetTotal != nil && *req.ResetTotal
+	return model.SubscriptionResetOptions{
+		ResetTotal:    resetTotal,
+		ResetFiveHour: req.ResetFiveHour != nil && *req.ResetFiveHour,
+		ResetWeekly:   req.ResetWeekly != nil && *req.ResetWeekly,
+		// Monthly usage belongs to the total billing-cycle reset in the
+		// administrator UI, while legacy omitted options still reset it.
+		ResetMonthly: resetTotal,
+	}
 }
 
 func recordSubscriptionResetUserLogs(result *model.SubscriptionResetResult, adminInfo map[string]interface{}) {
@@ -530,7 +553,8 @@ func AdminResetUserSubscriptionsByPlan(c *gin.Context) {
 		return
 	}
 	advanceResetTime := resolveAdvanceResetTime(req.AdvanceResetTime)
-	result, err := model.AdminResetUserSubscriptionsByPlan(userId, req.PlanId, advanceResetTime)
+	options := resolveSubscriptionResetOptions(req)
+	result, err := model.AdminResetUserSubscriptionsByPlanWithOptions(userId, req.PlanId, advanceResetTime, options)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -543,6 +567,9 @@ func AdminResetUserSubscriptionsByPlan(c *gin.Context) {
 		"reset_count":        result.ResetCount,
 		"user_count":         result.UserCount,
 		"advance_reset_time": result.AdvanceResetTime,
+		"reset_total":        options.ResetTotal,
+		"reset_five_hour":    options.ResetFiveHour,
+		"reset_weekly":       options.ResetWeekly,
 	})
 	common.ApiSuccess(c, result)
 }
@@ -559,7 +586,8 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		return
 	}
 	advanceResetTime := resolveAdvanceResetTime(req.AdvanceResetTime)
-	result, err := model.AdminResetPlanSubscriptions(planId, advanceResetTime)
+	options := resolveSubscriptionResetOptions(req)
+	result, err := model.AdminResetPlanSubscriptionsWithOptions(planId, advanceResetTime, options)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -573,6 +601,9 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		"reset_count":        result.ResetCount,
 		"user_count":         result.UserCount,
 		"advance_reset_time": result.AdvanceResetTime,
+		"reset_total":        options.ResetTotal,
+		"reset_five_hour":    options.ResetFiveHour,
+		"reset_weekly":       options.ResetWeekly,
 	})
 	common.ApiSuccess(c, result)
 }

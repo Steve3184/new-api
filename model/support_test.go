@@ -72,6 +72,29 @@ func TestSupportMessageRetentionKeepsConfiguredNewestMessages(t *testing.T) {
 	assert.Equal(t, "5", messages[2].Content)
 }
 
+func TestSupportMessageStoresAttachmentBytesOutsideTextColumn(t *testing.T) {
+	truncateTables(t)
+	conversation, err := GetOrCreateSupportConversation(7051)
+	require.NoError(t, err)
+
+	imageBytes := []byte{0xff, 0xd8, 0xff, 0xd9}
+	message, err := CreateSupportMessage(SupportMessageInput{
+		ConversationId: conversation.Id,
+		SenderId:       7051,
+		SenderRole:     common.RoleCommonUser,
+		Kind:           SupportMessageImage,
+		ImageBytes:     imageBytes,
+		ImageMime:      "image/jpeg",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, message.ImageData)
+
+	var stored SupportMessage
+	require.NoError(t, DB.First(&stored, message.Id).Error)
+	assert.Equal(t, imageBytes, stored.ImageDataBlob)
+	assert.Empty(t, stored.ImageData)
+}
+
 func TestSupportOrderQuoteRequiresOwnership(t *testing.T) {
 	truncateTables(t)
 	order := &TopUp{UserId: 7101, Amount: 10, Money: 10, TradeNo: "support-order-7101", Status: common.TopUpStatusPending, PaymentProvider: PaymentProviderEpay}

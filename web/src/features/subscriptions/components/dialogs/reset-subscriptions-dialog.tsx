@@ -30,13 +30,21 @@ export function ResetSubscriptionsDialog() {
   const { t } = useTranslation()
   const { open, setOpen, currentRow, triggerRefresh } = useSubscriptions()
   const [advanceResetTime, setAdvanceResetTime] = useState(true)
+  const [resetTotal, setResetTotal] = useState(true)
+  const [resetFiveHour, setResetFiveHour] = useState(true)
+  const [resetWeekly, setResetWeekly] = useState(true)
   const [resetting, setResetting] = useState(false)
   const isOpen = open === 'reset-subscriptions'
   const plan = currentRow?.plan
   const planLabel = plan?.title || (plan?.id ? `#${plan.id}` : '-')
 
   useEffect(() => {
-    if (isOpen) setAdvanceResetTime(true)
+    if (isOpen) {
+      setAdvanceResetTime(true)
+      setResetTotal(true)
+      setResetFiveHour(true)
+      setResetWeekly(true)
+    }
   }, [isOpen])
 
   const handleConfirm = async () => {
@@ -45,6 +53,9 @@ export function ResetSubscriptionsDialog() {
     try {
       const res = await resetPlanSubscriptions(plan.id, {
         advance_reset_time: advanceResetTime,
+        reset_total: resetTotal,
+        reset_five_hour: resetFiveHour,
+        reset_weekly: resetWeekly,
       })
       if (res.success) {
         toast.success(
@@ -83,6 +94,32 @@ export function ResetSubscriptionsDialog() {
           aria-label={t('Advance next reset time')}
         />
       </label>
+      <div className='grid gap-2 rounded-md border p-3'>
+        <label className='flex items-center justify-between gap-3 text-sm'>
+          <span>{t('Reset total quota')}</span>
+          <Switch
+            checked={resetTotal}
+            onCheckedChange={(checked) => setResetTotal(!!checked)}
+            aria-label={t('Reset total quota')}
+          />
+        </label>
+        <label className='flex items-center justify-between gap-3 text-sm'>
+          <span>{t('Reset 5-hour quota')}</span>
+          <Switch
+            checked={resetFiveHour}
+            onCheckedChange={(checked) => setResetFiveHour(!!checked)}
+            aria-label={t('Reset 5-hour quota')}
+          />
+        </label>
+        <label className='flex items-center justify-between gap-3 text-sm'>
+          <span>{t('Reset weekly quota')}</span>
+          <Switch
+            checked={resetWeekly}
+            onCheckedChange={(checked) => setResetWeekly(!!checked)}
+            aria-label={t('Reset weekly quota')}
+          />
+        </label>
+      </div>
     </ConfirmDialog>
   )
 }
