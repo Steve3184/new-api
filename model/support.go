@@ -93,6 +93,30 @@ type SupportOrderQuote struct {
 	CanComplete bool    `json:"can_complete"`
 }
 
+type ClearedSupportData struct {
+	Conversations int64 `json:"conversations"`
+	Messages      int64 `json:"messages"`
+}
+
+func ClearSupportData() (ClearedSupportData, error) {
+	result := ClearedSupportData{}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		messageDelete := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&SupportMessage{})
+		if messageDelete.Error != nil {
+			return messageDelete.Error
+		}
+		result.Messages = messageDelete.RowsAffected
+
+		conversationDelete := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&SupportConversation{})
+		if conversationDelete.Error != nil {
+			return conversationDelete.Error
+		}
+		result.Conversations = conversationDelete.RowsAffected
+		return nil
+	})
+	return result, err
+}
+
 func (message *SupportMessage) BeforeCreate(tx *gorm.DB) error {
 	if message.CreatedAt == 0 {
 		message.CreatedAt = common.GetTimestamp()

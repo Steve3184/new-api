@@ -72,6 +72,32 @@ func TestSupportMessageRetentionKeepsConfiguredNewestMessages(t *testing.T) {
 	assert.Equal(t, "5", messages[2].Content)
 }
 
+func TestClearSupportDataDeletesMessagesAndConversations(t *testing.T) {
+	truncateTables(t)
+	conversation, err := GetOrCreateSupportConversation(7021)
+	require.NoError(t, err)
+	_, err = CreateSupportMessage(SupportMessageInput{
+		ConversationId: conversation.Id,
+		SenderId:       7021,
+		SenderRole:     common.RoleCommonUser,
+		Kind:           SupportMessageText,
+		Content:        "delete me",
+	})
+	require.NoError(t, err)
+
+	result, err := ClearSupportData()
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, result.Conversations)
+	assert.EqualValues(t, 1, result.Messages)
+
+	var conversationCount int64
+	var messageCount int64
+	require.NoError(t, DB.Model(&SupportConversation{}).Count(&conversationCount).Error)
+	require.NoError(t, DB.Model(&SupportMessage{}).Count(&messageCount).Error)
+	assert.Zero(t, conversationCount)
+	assert.Zero(t, messageCount)
+}
+
 func TestSupportMessageStoresAttachmentBytesOutsideTextColumn(t *testing.T) {
 	truncateTables(t)
 	conversation, err := GetOrCreateSupportConversation(7051)

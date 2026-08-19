@@ -26,6 +26,7 @@ import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ErrorRewriteSection } from './error-rewrite-section'
+import { SupportSettingsSection } from './support-settings-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -49,6 +50,18 @@ const OPERATIONS_SECTIONS = [
         defaultValues={{
           enabled: settings['error_rewrite.enabled'],
           rules: settings['error_rewrite.rules'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'support',
+    titleKey: 'Support Settings',
+    build: (settings: OperationsSettings) => (
+      <SupportSettingsSection
+        defaultValues={{
+          SupportEnabled: settings.SupportEnabled,
+          SupportMessageLimit: settings.SupportMessageLimit,
         }}
       />
     ),

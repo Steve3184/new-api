@@ -21,13 +21,13 @@ const groupModels = {
 }
 
 describe('generation group filtering', () => {
-  test('shows the union of groups that provide any allowed generation model', () => {
+  test('shows eligible generation groups without exposing the default group', () => {
     expect(
       filterGenerationGroups(groups, groupModels, [
         { label: 'GPT Image 2', value: 'gpt-image-2' },
         { label: 'TTS', value: 'tts-1' },
       ]).map((group) => group.value)
-    ).toEqual(['default', 'image', 'speech'])
+    ).toEqual(['image', 'speech'])
   })
 
   test('hides groups without any allowed generation model before selection', () => {
@@ -35,7 +35,7 @@ describe('generation group filtering', () => {
       filterGenerationGroups(groups, groupModels, [
         { label: 'TTS', value: 'tts-1' },
       ]).map((group) => group.value)
-    ).toEqual(['default', 'speech'])
+    ).toEqual(['speech'])
   })
 
   test('falls back to an eligible group', () => {
@@ -46,7 +46,7 @@ describe('generation group filtering', () => {
         [{ label: 'GPT Image 2', value: 'gpt-image-2' }],
         'speech'
       )
-    ).toBe('default')
+    ).toBe('image')
   })
 
   test('keeps an eligible selected group when it has a different allowed model', () => {
@@ -61,6 +61,23 @@ describe('generation group filtering', () => {
         'speech'
       )
     ).toBe('speech')
+  })
+
+  test('does not fall back to default when no selectable group is available', () => {
+    const defaultOnlyGroups = [groups[0]]
+    const models = [{ label: 'GPT Image 2', value: 'gpt-image-2' }]
+
+    expect(
+      resolveGenerationGroup(
+        defaultOnlyGroups,
+        groupModels,
+        models,
+        'default'
+      )
+    ).toBe('')
+    expect(
+      filterGenerationModelsForGroup(models, groupModels, '')
+    ).toEqual([])
   })
 
   test('limits the model list to models available in the selected group', () => {

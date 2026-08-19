@@ -111,6 +111,7 @@ func GetStatus(c *gin.Context) {
 		"password_login_enabled":        common.PasswordLoginEnabled,
 		"password_register_enabled":     common.PasswordRegisterEnabled,
 		"default_use_auto_group":        setting.DefaultUseAutoGroup,
+		"support_enabled":               common.SupportEnabled,
 		"site_appearance":               console_setting.GetAppearanceSetting(),
 		"spa_meta":                      console_setting.GetSPAMetaSetting(),
 

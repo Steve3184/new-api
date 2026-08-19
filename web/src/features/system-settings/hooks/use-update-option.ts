@@ -37,6 +37,7 @@ const STATUS_RELATED_KEYS = new Set([
   'NoticePopupMode',
   'NoticePopupOnDashboardEnabled',
   'NoticeHeaderButtonMode',
+  'SupportEnabled',
   'LogConsumeEnabled',
   'QuotaPerUnit',
   'USDExchangeRate',

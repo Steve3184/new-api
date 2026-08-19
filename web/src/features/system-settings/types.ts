@@ -39,6 +39,15 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type ClearSupportDataResponse = {
+  success: boolean
+  message: string
+  data?: {
+    conversations: number
+    messages: number
+  }
+}
+
 export type SMTPTestEmailResponse = {
   success: boolean
   message: string
@@ -324,7 +333,6 @@ export type ModelSettings = {
 export type BillingSettings = {
   QuotaForNewUser: number
   PreConsumedQuota: number
-  SupportMessageLimit: number
   QuotaForInviter: number
   QuotaForInvitee: number
   TopUpLink: string
@@ -431,6 +439,8 @@ export type OperationsSettings = {
   'error_rewrite.rules': string
   QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
+  SupportEnabled: boolean
+  SupportMessageLimit: number
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

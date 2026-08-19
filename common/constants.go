@@ -200,6 +200,9 @@ var QuotaRemindEnabled = true
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
 
+// SupportEnabled controls access to the in-console support inbox.
+var SupportEnabled = true
+
 // SupportMessageLimit caps retained messages in each user's support thread.
 // It is configurable through the SupportMessageLimit system option.
 var SupportMessageLimit = 100

@@ -193,7 +193,7 @@ func SetApiRouter(router *gin.Engine) {
 		// In-console support inbox. Users have one persistent "服务支持" thread;
 		// administrators can browse threads and issue audited grants.
 		supportRoute := apiRouter.Group("/support")
-		supportRoute.Use(middleware.UserAuth())
+		supportRoute.Use(middleware.UserAuth(), middleware.SupportEnabled())
 		{
 			supportRoute.GET("/unread", middleware.DisableCache(), controller.GetSupportUnread)
 			supportRoute.GET("/conversation", middleware.DisableCache(), controller.GetSupportConversation)
@@ -201,7 +201,7 @@ func SetApiRouter(router *gin.Engine) {
 			supportRoute.POST("/messages", middleware.UploadRateLimit(), middleware.DisableCache(), controller.SendSupportMessage)
 		}
 		supportAdminRoute := apiRouter.Group("/support/admin")
-		supportAdminRoute.Use(middleware.AdminAuth())
+		supportAdminRoute.Use(middleware.AdminAuth(), middleware.SupportEnabled())
 		{
 			supportAdminRoute.GET("/conversations", middleware.DisableCache(), controller.AdminListSupportConversations)
 			supportAdminRoute.GET("/conversations/:id", middleware.DisableCache(), controller.AdminGetSupportConversation)
@@ -222,6 +222,7 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.PUT("/", controller.UpdateOption)
 			optionRoute.POST("/smtp/test", controller.SendSMTPTestEmail)
+			optionRoute.DELETE("/support", controller.ClearSupportData)
 			optionRoute.POST("/payment_compliance", controller.ConfirmPaymentCompliance)
 			optionRoute.GET("/channel_affinity_cache", controller.GetChannelAffinityCacheStats)
 			optionRoute.DELETE("/channel_affinity_cache", controller.ClearChannelAffinityCache)

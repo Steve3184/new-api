@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
   Box,
@@ -35,7 +36,6 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -58,10 +58,11 @@ export function useSidebarData(): SidebarData {
   const { status } = useStatus()
   const user = useAuthStore((state) => state.auth.user)
   const isAdmin = (user?.role ?? ROLE.GUEST) >= ROLE.ADMIN
+  const supportEnabled = status?.support_enabled !== false
   const supportUnreadQuery = useQuery({
     queryKey: ['support-unread', user?.id, isAdmin],
     queryFn: getSupportUnreadCount,
-    enabled: Boolean(user?.id),
+    enabled: Boolean(user?.id) && supportEnabled,
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
     staleTime: 0,
@@ -152,12 +153,19 @@ export function useSidebarData(): SidebarData {
               url: '/wallet',
               icon: Wallet,
             },
-            {
-              title: t('Support'),
-              url: '/support',
-              icon: MessageSquare,
-              badge: supportUnreadCount > 0 ? String(supportUnreadCount) : undefined,
-            },
+            ...(supportEnabled
+              ? [
+                  {
+                    title: t('Support'),
+                    url: '/support',
+                    icon: MessageSquare,
+                    badge:
+                      supportUnreadCount > 0
+                        ? String(supportUnreadCount)
+                        : undefined,
+                  },
+                ]
+              : []),
             {
               title: t('Profile'),
               url: '/profile',
@@ -216,5 +224,5 @@ export function useSidebarData(): SidebarData {
         },
       ],
     }
-  }, [customTabs, supportUnreadCount, t])
+  }, [customTabs, supportEnabled, supportUnreadCount, t])
 }

@@ -10,6 +10,7 @@ export function filterGenerationGroups(
 ): GroupOption[] {
   const allowedModels = new Set(models.map((model) => model.value))
   return groups.filter((group) => {
+    if (group.value === 'default') return false
     const availableModels = groupModels[group.value] ?? []
     return availableModels.some((model) => allowedModels.has(model))
   })
@@ -25,7 +26,7 @@ export function resolveGenerationGroup(
   if (eligibleGroups.some((group) => group.value === selectedGroup)) {
     return selectedGroup
   }
-  return eligibleGroups[0]?.value ?? selectedGroup
+  return eligibleGroups[0]?.value ?? ''
 }
 
 export function filterGenerationModels(
@@ -42,7 +43,7 @@ export function filterGenerationModelsForGroup(
   groupModels: Record<string, string[]>,
   selectedGroup: string
 ): ModelOption[] {
-  if (!selectedGroup) return models
+  if (!selectedGroup) return []
   const availableModels = new Set(groupModels[selectedGroup] ?? [])
   return models.filter((model) => availableModels.has(model.value))
 }

@@ -34,6 +34,8 @@ const defaultOperationsSettings: OperationsSettings = {
   'error_rewrite.rules': '[]',
   QuotaRemindEnabled: true,
   QuotaRemindThreshold: '',
+  SupportEnabled: true,
+  SupportMessageLimit: 100,
   SMTPServer: '',
   SMTPPort: '',
   SMTPAccount: '',
