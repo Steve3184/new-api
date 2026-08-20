@@ -59,6 +59,17 @@ export async function searchApiKeys(
   return res.data
 }
 
+// Get RPM values for the currently visible API keys without replacing their
+// list rows or status/quota fields.
+export async function getApiKeyRPMs(
+  ids: number[]
+): Promise<ApiResponse<{ rpms: Record<string, number> }>> {
+  const queryParams = new URLSearchParams()
+  for (const id of ids) queryParams.append('ids', String(id))
+  const res = await api.get(`/api/token/rpm?${queryParams.toString()}`)
+  return res.data
+}
+
 // Get single API key by ID
 export async function getApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   const res = await api.get(`/api/token/${id}`)

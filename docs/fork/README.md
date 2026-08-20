@@ -534,6 +534,34 @@ Files:
 - `web/default/src/hooks/use-notifications.ts`
 - `web/default/src/features/system-settings/maintenance/notice-section.tsx`
 
+## Support inbox polling and API-key RPM snapshots
+
+The additive `SupportEnabled` option now gates both the support routes and all
+frontend support queries. When the inbox is disabled, the sidebar
+unread-count query, user conversation query, administrator conversation list,
+conversation detail, order lookup, and grant-plan lookup are disabled together;
+the background 5-second polling requests therefore do not hit the disabled API
+and do not repeatedly show `站内信功能未启用`. When enabled, the existing
+conversation and unread-count refresh behavior remains available.
+
+The API Keys page loads RPM for the currently visible token IDs once through
+`GET /api/token/rpm`. It no longer refreshes RPM on a timer or on window focus.
+The backend derives that snapshot from the consume logs in the last 60 seconds;
+the normal NewAPI consume logs continue to retain the historical usage data for
+later inspection and reporting.
+
+Files:
+
+- `middleware/support.go`
+- `controller/misc.go`
+- `controller/token.go`
+- `model/log.go`
+- `router/api-router.go`
+- `web/src/hooks/use-sidebar-data.ts`
+- `web/src/features/support/index.tsx`
+- `web/src/features/keys/api.ts`
+- `web/src/features/keys/components/api-keys-table.tsx`
+
 ## Payment announcement
 
 `PaymentAnnouncement` is an optional Markdown announcement configured with the

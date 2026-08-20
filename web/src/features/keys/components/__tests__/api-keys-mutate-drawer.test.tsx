@@ -47,13 +47,27 @@ const originalGet = apiClient.get
 const originalPost = apiClient.post
 let renderedDrawer: RenderedDrawer | null = null
 
-function installApiFixtures(createdPayloads: Array<Record<string, unknown>>) {
-  apiClient.get = async (url) => {
+function installApiFixtures(
+  createdPayloads: Array<Record<string, unknown>>,
+  modelRequests: string[] = []
+) {
+  apiClient.get = async (url, requestOptions) => {
     switch (url) {
       case '/api/status':
         return { data: { data: { default_use_auto_group: true } } }
-      case '/api/user/models':
-        return { data: { success: true, data: [] } }
+      case '/api/user/models': {
+        const group = (
+          requestOptions as { params?: { group?: string } } | undefined
+        )?.params?.group
+        modelRequests.push(group || '')
+        let models: string[] = []
+        if (group === 'default') {
+          models = ['default-model']
+        } else if (group === 'vip') {
+          models = ['vip-model']
+        }
+        return { data: { success: true, data: models } }
+      }
       case '/api/user/self/groups':
         return {
           data: {
@@ -285,5 +299,30 @@ describe('API keys mutate drawer Auto group integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Edit virtual model route')).toBeTruthy()
     })
+  })
+
+  test('filters route models by the selected route group', async () => {
+    const modelRequests: string[] = []
+    installApiFixtures([], modelRequests)
+    await renderCreateDrawer()
+
+    fireEvent.click(findButton('Add virtual model', true))
+
+    await waitFor(() => expect(modelRequests).toContain('default'))
+    const routeSelector = screen
+      .getAllByRole('combobox')
+      .find((candidate) => candidate.textContent?.includes('default'))
+    if (!routeSelector) {
+      throw new Error('Expected virtual route model selector')
+    }
+
+    await waitFor(() => expect(routeSelector).toBeEnabled())
+    fireEvent.click(routeSelector)
+    await waitFor(() => expect(screen.getByText('default-model')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: 'vip' }))
+    await waitFor(() => expect(modelRequests).toContain('vip'))
+    await waitFor(() => expect(screen.getByText('vip-model')).toBeTruthy())
+    expect(screen.queryByText('default-model')).toBe(null)
   })
 })

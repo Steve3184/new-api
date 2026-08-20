@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -45,7 +45,7 @@ import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { getApiKeys, searchApiKeys } from '../api'
+import { getApiKeyRPMs, getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
   API_KEY_STATUS_OPTIONS,
@@ -65,6 +65,7 @@ const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
   { length: 5 },
   (_, index) => `api-key-mobile-skeleton-${index + 1}`
 )
+const EMPTY_API_KEYS: ApiKey[] = []
 
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED
@@ -130,7 +131,8 @@ function ApiKeysMobileList({
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
-        const total = apiKey.total_quota || apiKey.used_quota + apiKey.remain_quota
+        const total =
+          apiKey.total_quota || apiKey.used_quota + apiKey.remain_quota
 
         return (
           <div
@@ -180,8 +182,12 @@ function ApiKeysMobileList({
               )}
             </div>
             <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-muted-foreground'>{t('RPM (last 60s)')}</span>
-              <span className='font-medium tabular-nums'>{apiKey.rpm ?? 0}</span>
+              <span className='text-muted-foreground'>
+                {t('RPM (last 60s)')}
+              </span>
+              <span className='font-medium tabular-nums'>
+                {apiKey.rpm ?? 0}
+              </span>
             </div>
           </div>
         )
@@ -236,7 +242,7 @@ export function ApiKeysTable() {
 
   // Fetch data with React Query
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: [
       'keys',
       pagination.pageIndex + 1,
@@ -276,14 +282,36 @@ export function ApiKeysTable() {
       }
     },
     placeholderData: (previousData) => previousData,
-    refetchInterval: 5_000,
-    refetchIntervalInBackground: false,
   })
 
-  const apiKeys = data?.items || []
+  const apiKeys = data?.items ?? EMPTY_API_KEYS
+  const tokenIDs = useMemo(() => apiKeys.map((apiKey) => apiKey.id), [apiKeys])
+  const { data: rpmValues } = useQuery({
+    queryKey: ['keys-rpm', tokenIDs],
+    queryFn: async () => {
+      const result = await getApiKeyRPMs(tokenIDs)
+      if (!result.success) return {}
+      return result.data?.rpms ?? {}
+    },
+    enabled: tokenIDs.length > 0,
+    placeholderData: (previousData) => previousData,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  })
+  const apiKeysWithRPM = useMemo(() => {
+    if (!rpmValues) return apiKeys
+    return apiKeys.map((apiKey) => {
+      const rpm = rpmValues[String(apiKey.id)]
+      return rpm === undefined || rpm === apiKey.rpm
+        ? apiKey
+        : { ...apiKey, rpm }
+    })
+  }, [apiKeys, rpmValues])
 
   const { table } = useDataTable({
-    data: apiKeys,
+    data: apiKeysWithRPM,
     columns,
     enableRowSelection: true,
     columnFilters,
@@ -304,7 +332,6 @@ export function ApiKeysTable() {
       table={table}
       columns={columns}
       isLoading={isLoading}
-      isFetching={isFetching}
       emptyTitle={t('No API Keys Found')}
       emptyDescription={t(
         'No API keys available. Create your first API key to get started.'

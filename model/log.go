@@ -646,6 +646,24 @@ func GetTokenRPM(tokenIDs []int) (map[int]int, error) {
 	return result, nil
 }
 
+// GetUserTokenRPM limits token RPM results to tokens owned by the user.
+func GetUserTokenRPM(userID int, tokenIDs []int) (map[int]int, error) {
+	result := make(map[int]int, len(tokenIDs))
+	if userID <= 0 || len(tokenIDs) == 0 {
+		return result, nil
+	}
+	if DB == nil {
+		return result, errors.New("主数据库未初始化")
+	}
+	ownedTokenIDs := make([]int, 0, len(tokenIDs))
+	if err := DB.Model(&Token{}).
+		Where("user_id = ? AND id IN ?", userID, tokenIDs).
+		Pluck("id", &ownedTokenIDs).Error; err != nil {
+		return nil, err
+	}
+	return GetTokenRPM(ownedTokenIDs)
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 

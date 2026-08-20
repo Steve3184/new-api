@@ -43,6 +43,15 @@ func TestCompressSupportImageScalesToTwoKAndUsesJpegQuality(t *testing.T) {
 	assert.Equal(t, SupportImageMaxDimension/2, largeDecoded.Bounds().Dy())
 }
 
+func TestCompressSupportImageRejectsOversizedPixelDimensions(t *testing.T) {
+	canvas := image.NewGray(image.Rect(0, 0, 5000, 4000))
+	var source bytes.Buffer
+	require.NoError(t, png.Encode(&source, canvas))
+
+	_, err := CompressSupportImage(source.Bytes())
+	assert.ErrorContains(t, err, "图片尺寸无效")
+}
+
 func TestSupportMessageRetentionKeepsConfiguredNewestMessages(t *testing.T) {
 	truncateTables(t)
 	previousLimit := common.SupportMessageLimit

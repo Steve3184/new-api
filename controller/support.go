@@ -277,7 +277,7 @@ func AdminGrantSupportQuota(c *gin.Context) {
 	}
 	note := strings.TrimSpace(request.Note)
 	if note == "" {
-		note = fmt.Sprintf("管理员已直接发放 %d 额度", request.Quota)
+		note = "管理员已直接发放额度"
 	}
 	message, err := model.GrantSupportUserQuotaWithMessage(id, c.GetInt("id"), c.GetInt("role"), request.Quota, note)
 	if err != nil {

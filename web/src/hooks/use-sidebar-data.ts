@@ -58,14 +58,15 @@ export function useSidebarData(): SidebarData {
   const { status } = useStatus()
   const user = useAuthStore((state) => state.auth.user)
   const isAdmin = (user?.role ?? ROLE.GUEST) >= ROLE.ADMIN
-  const supportEnabled = status?.support_enabled !== false
+  const supportEnabled = status !== null && status.support_enabled !== false
   const supportUnreadQuery = useQuery({
     queryKey: ['support-unread', user?.id, isAdmin],
     queryFn: getSupportUnreadCount,
-    enabled: Boolean(user?.id) && supportEnabled,
+    enabled: status !== null && Boolean(user?.id) && supportEnabled,
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
     staleTime: 0,
+    retry: false,
   })
   const supportUnreadCount = supportUnreadQuery.data?.data?.count || 0
 

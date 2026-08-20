@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -42,6 +43,10 @@ type tokenResponseItem struct {
 
 type tokenKeyResponse struct {
 	Key string `json:"key"`
+}
+
+type tokenRPMResponse struct {
+	RPMs map[string]int `json:"rpms"`
 }
 
 type sqliteColumnInfo struct {
@@ -484,6 +489,35 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("search response leaked raw token key: %s", recorder.Body.String())
 	}
+}
+
+func TestGetTokenRPMOnlyReturnsOwnedTokenStats(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	ownedToken := seedToken(t, db, 1, "owned-rpm-token", "owned1234efgh5678")
+	otherToken := seedToken(t, db, 2, "other-rpm-token", "other1234efgh5678")
+	now := time.Now().Unix()
+	require.NoError(t, db.Create(&model.Log{
+		CreatedAt: now,
+		Type:      model.LogTypeConsume,
+		TokenId:   ownedToken.Id,
+	}).Error)
+	require.NoError(t, db.Create(&model.Log{
+		CreatedAt: now,
+		Type:      model.LogTypeConsume,
+		TokenId:   otherToken.Id,
+	}).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/rpm", nil, 1)
+	ctx.Request.URL.RawQuery = "ids=" + strconv.Itoa(ownedToken.Id) + "&ids=" + strconv.Itoa(otherToken.Id)
+	GetTokenRPM(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, "expected success response, got message: %s", response.Message)
+	var payload tokenRPMResponse
+	require.NoError(t, common.Unmarshal(response.Data, &payload))
+	assert.Equal(t, 1, payload.RPMs[strconv.Itoa(ownedToken.Id)])
+	assert.NotContains(t, payload.RPMs, strconv.Itoa(otherToken.Id))
 }
 
 func TestGetTokenMasksKeyInResponse(t *testing.T) {

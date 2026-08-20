@@ -7,7 +7,9 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	_ "image/gif"
 	"image/jpeg"
+	_ "image/png"
 	"io"
 	"sort"
 	"strconv"
@@ -34,6 +36,7 @@ const (
 
 	SupportImageMaxDimension  = 2048
 	SupportImageMaxInputBytes = 8 * 1024 * 1024
+	SupportImageMaxPixels     = 16_000_000
 	SupportTextMaxLength      = 4000
 )
 
@@ -552,7 +555,7 @@ func GrantSupportUserQuotaWithMessage(conversationId int, senderId int, senderRo
 		return nil, errors.New("额度参数无效")
 	}
 	if strings.TrimSpace(note) == "" {
-		note = fmt.Sprintf("管理员已直接发放 %d 额度", quota)
+		note = "管理员已直接发放额度"
 	}
 	var message *SupportMessage
 	var userId int
@@ -643,11 +646,19 @@ func GrantSupportSubscriptionWithMessage(conversationId int, senderId int, sende
 	return message, nil
 }
 
-// CompressSupportImage converts an uploaded image to JPEG quality 90 and
+// CompressSupportImage converts an uploaded image to JPEG quality 85 and
 // scales it proportionally so neither dimension exceeds 2K.
 func CompressSupportImage(data []byte) ([]byte, error) {
 	if len(data) == 0 || len(data) > SupportImageMaxInputBytes {
 		return nil, errors.New("图片文件过大或为空")
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("无法读取图片: %w", err)
+	}
+	if config.Width <= 0 || config.Height <= 0 ||
+		config.Width > SupportImageMaxPixels/config.Height {
+		return nil, errors.New("图片尺寸无效")
 	}
 	source, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
@@ -655,23 +666,27 @@ func CompressSupportImage(data []byte) ([]byte, error) {
 	}
 	bounds := source.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
-	if width <= 0 || height <= 0 || int64(width)*int64(height) > 16_000_000 {
+	if width <= 0 || height <= 0 || width > SupportImageMaxPixels/height {
 		return nil, errors.New("图片尺寸无效")
 	}
-	current := image.NewRGBA(image.Rect(0, 0, width, height))
-	draw.Draw(current, current.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-	draw.Draw(current, current.Bounds(), source, bounds.Min, draw.Over)
 	maxDimension := max(width, height)
+	newWidth, newHeight := width, height
 	if maxDimension > SupportImageMaxDimension {
 		scale := float64(SupportImageMaxDimension) / float64(maxDimension)
-		newWidth := max(1, int(float64(width)*scale+0.5))
-		newHeight := max(1, int(float64(height)*scale+0.5))
-		resized := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
-		xdraw.CatmullRom.Scale(resized, resized.Bounds(), current, current.Bounds(), xdraw.Over, nil)
-		current = resized
+		newWidth = max(1, int(float64(width)*scale+0.5))
+		newHeight = max(1, int(float64(height)*scale+0.5))
+	}
+	current := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+	draw.Draw(current, current.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+	if newWidth == width && newHeight == height {
+		draw.Draw(current, current.Bounds(), source, bounds.Min, draw.Over)
+	} else {
+		// Resize directly into the final canvas to avoid keeping a full-size
+		// intermediate RGBA image for large uploads.
+		xdraw.ApproxBiLinear.Scale(current, current.Bounds(), source, bounds, draw.Over, nil)
 	}
 	var encoded bytes.Buffer
-	if err := jpeg.Encode(&encoded, current, &jpeg.Options{Quality: 90}); err != nil {
+	if err := jpeg.Encode(&encoded, current, &jpeg.Options{Quality: 85}); err != nil {
 		return nil, fmt.Errorf("图片压缩失败: %w", err)
 	}
 	return encoded.Bytes(), nil

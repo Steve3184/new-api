@@ -20,7 +20,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 
 import { api } from '@/lib/api'
 
-import { getTokenGroupNames, migrateTokenGroup } from './api'
+import { getApiKeyRPMs, getTokenGroupNames, migrateTokenGroup } from './api'
 
 type ApiMethod = (url: string, data?: unknown) => Promise<{ data: unknown }>
 type MockableApi = {
@@ -82,5 +82,23 @@ describe('token group migration API', () => {
     const result = await migrateTokenGroup('ClaudeA', 'ClaudeB')
 
     expect(result.data?.migrated).toBe(12)
+  })
+})
+
+describe('API key RPM API', () => {
+  test('requests only the visible token IDs and returns the RPM map', async () => {
+    apiClient.get = async (url) => {
+      expect(url).toBe('/api/token/rpm?ids=12&ids=34')
+      return {
+        data: {
+          success: true,
+          data: { rpms: { '12': 3, '34': 0 } },
+        },
+      }
+    }
+
+    const result = await getApiKeyRPMs([12, 34])
+
+    expect(result.data?.rpms).toEqual({ '12': 3, '34': 0 })
   })
 })

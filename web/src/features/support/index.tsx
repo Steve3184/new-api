@@ -36,11 +36,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { SectionPageLayout } from '@/components/layout'
 import { Dialog as ImagePreviewDialog } from '@/components/dialog'
+import { SectionPageLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -49,13 +50,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
-import { useDebounce } from '@/hooks/use-debounce'
 import { useIsAdmin } from '@/hooks/use-admin'
-import { formatLocalCurrencyAmount } from '@/lib/currency'
+import { useDebounce } from '@/hooks/use-debounce'
+import { useStatus } from '@/hooks/use-status'
+import { formatLocalCurrencyAmount, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
   completeSupportOrder,
@@ -103,7 +105,7 @@ function MessageBody({
       <div className='space-y-2'>
         <button
           type='button'
-          className='block max-w-full cursor-zoom-in rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+          className='focus-visible:ring-ring block max-w-full cursor-zoom-in rounded-md focus-visible:ring-2 focus-visible:outline-none'
           aria-label={t('Support attachment')}
           onClick={() => onImageClick(message.image_data || '')}
         >
@@ -113,7 +115,9 @@ function MessageBody({
             className='max-h-64 max-w-full rounded-md object-contain'
           />
         </button>
-        {message.content && <p className='whitespace-pre-wrap'>{message.content}</p>}
+        {message.content && (
+          <p className='whitespace-pre-wrap'>{message.content}</p>
+        )}
       </div>
     )
   }
@@ -124,7 +128,7 @@ function MessageBody({
       message.order_status === 'pending' &&
       message.order_provider !== 'monero'
     return (
-      <div className='min-w-0 max-w-full space-y-2 rounded-md border border-current/15 p-3'>
+      <div className='max-w-full min-w-0 space-y-2 rounded-md border border-current/15 p-3'>
         <div className='flex items-center gap-2 font-medium'>
           <FileText className='size-4' />
           <span>
@@ -145,7 +149,9 @@ function MessageBody({
           {message.order_type === 'topup' && message.order_amount ? (
             <>
               <span>{t('Quota')}</span>
-              <span className='text-right tabular-nums'>{message.order_amount}</span>
+              <span className='text-right tabular-nums'>
+                {message.order_amount}
+              </span>
             </>
           ) : null}
           <span>{t('Trade number')}</span>
@@ -162,7 +168,9 @@ function MessageBody({
             {t('Complete order')}
           </Button>
         )}
-        {message.content && <p className='whitespace-pre-wrap text-sm'>{message.content}</p>}
+        {message.content && (
+          <p className='text-sm whitespace-pre-wrap'>{message.content}</p>
+        )}
       </div>
     )
   }
@@ -227,9 +235,9 @@ function MessageList({
                 key={message.id}
                 className={`flex ${own ? 'justify-end' : 'justify-start'}`}
               >
-                <div className='min-w-0 max-w-[min(85%,42rem)] space-y-1'>
+                <div className='w-full max-w-[min(85%,42rem)] min-w-0 space-y-1'>
                   <div
-                    className={`min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-sm shadow-xs ${
+                    className={`w-fit max-w-full min-w-0 overflow-hidden rounded-lg px-3 py-2 text-sm shadow-xs ${
                       own
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-foreground'
@@ -243,7 +251,7 @@ function MessageList({
                     />
                   </div>
                   <div
-                    className={`text-muted-foreground max-w-full break-all whitespace-normal text-[10px] ${own ? 'text-right' : 'text-left'}`}
+                    className={`text-muted-foreground max-w-full text-[10px] break-all whitespace-normal ${own ? 'text-right' : 'text-left'}`}
                   >
                     {formatMessageTime(message.created_at)}
                   </div>
@@ -313,11 +321,16 @@ function ConversationList({
                 <div className='flex items-center justify-between gap-2'>
                   <span className='truncate text-sm font-medium'>
                     {isAdmin
-                      ? conversation.display_name || conversation.username || `#${conversation.user_id}`
+                      ? conversation.display_name ||
+                        conversation.username ||
+                        `#${conversation.user_id}`
                       : conversation.title}
                   </span>
                   {unread > 0 && (
-                    <Badge variant='destructive' className='shrink-0 tabular-nums'>
+                    <Badge
+                      variant='destructive'
+                      className='shrink-0 tabular-nums'
+                    >
                       {unread}
                     </Badge>
                   )}
@@ -340,12 +353,17 @@ export function Support() {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const userId = useAuthStore((state) => state.auth.user?.id)
+  const { status } = useStatus()
+  const supportEnabled = status !== null && status.support_enabled !== false
+  const currencyConfig = useSystemConfigStore((state) => state.config.currency)
   const queryClient = useQueryClient()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [content, setContent] = useState('')
   const [image, setImage] = useState<File | null>(null)
   const [quoteMode, setQuoteMode] = useState(false)
-  const [selectedOrder, setSelectedOrder] = useState<SupportOrderQuote | null>(null)
+  const [selectedOrder, setSelectedOrder] = useState<SupportOrderQuote | null>(
+    null
+  )
   const [quota, setQuota] = useState('')
   const [planId, setPlanId] = useState('')
   const [adminNote, setAdminNote] = useState('')
@@ -353,22 +371,35 @@ export function Support() {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const debouncedKeyword = useDebounce(searchKeyword, 300)
+  const quotaInputValue = Number(quota)
+  const quotaUnits = parseQuotaFromDollars(quotaInputValue)
+  const canGrantQuota =
+    quota.trim() !== '' &&
+    Number.isFinite(quotaInputValue) &&
+    quotaInputValue > 0 &&
+    quotaUnits > 0
+  const quotaPlaceholder =
+    currencyConfig.quotaDisplayType === 'TOKENS'
+      ? t('Enter quota in tokens')
+      : t('Enter quota in {{currency}}', { currency: getCurrencyLabel() })
 
   const userConversationQuery = useQuery({
     queryKey: ['support-conversation', userId],
     queryFn: getSupportConversation,
-    enabled: !isAdmin,
+    enabled: supportEnabled && !isAdmin,
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
     staleTime: 0,
+    retry: false,
   })
   const adminConversationsQuery = useQuery({
     queryKey: ['support-admin-conversations', debouncedKeyword],
     queryFn: () => getAdminSupportConversations(debouncedKeyword),
-    enabled: isAdmin,
+    enabled: supportEnabled && isAdmin,
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
     staleTime: 0,
+    retry: false,
   })
   const conversations = useMemo(() => {
     if (isAdmin) return adminConversationsQuery.data?.data?.items || []
@@ -376,37 +407,45 @@ export function Support() {
     return conversation ? [conversation] : []
   }, [adminConversationsQuery.data, isAdmin, userConversationQuery.data])
   useEffect(() => {
-    if (!isAdmin && conversations[0]) setSelectedId(conversations[0].id)
-    if (isAdmin && selectedId === null && conversations[0]) {
-      setSelectedId(conversations[0].id)
-    }
+    const conversationId = conversations[0]?.id
+    if (!conversationId) return
+    if (isAdmin && selectedId !== null) return
+    if (!isAdmin && selectedId === conversationId) return
+    // The conversation arrives asynchronously; sync the selection once it exists.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedId(conversationId)
   }, [conversations, isAdmin, selectedId])
 
-  const selectedConversation = conversations.find((item) => item.id === selectedId)
+  const selectedConversation = conversations.find(
+    (item) => item.id === selectedId
+  )
   const conversationQuery = useQuery({
     queryKey: ['support-conversation-detail', selectedId, isAdmin],
     queryFn: () =>
       isAdmin
         ? getAdminSupportConversation(selectedId || 0)
         : getSupportConversation(),
-    enabled: selectedId !== null,
+    enabled: supportEnabled && selectedId !== null,
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
     staleTime: 0,
+    retry: false,
   })
   const ordersQuery = useQuery({
     queryKey: ['support-orders', userId],
     queryFn: getSupportOrders,
-    enabled: !isAdmin && quoteMode,
+    enabled: supportEnabled && !isAdmin && quoteMode,
     staleTime: 30_000,
   })
   const plansQuery = useQuery({
     queryKey: ['support-admin-plans'],
     queryFn: async () => {
-      const response = await import('@/features/subscriptions/api').then((module) => module.getAdminPlans())
+      const response = await import('@/features/subscriptions/api').then(
+        (module) => module.getAdminPlans()
+      )
       return (response.data || []).map((record) => record.plan)
     },
-    enabled: isAdmin,
+    enabled: supportEnabled && isAdmin,
     staleTime: 60_000,
   })
   const orderItems = useMemo(
@@ -418,14 +457,23 @@ export function Support() {
     [ordersQuery.data?.data, t]
   )
   const planItems = useMemo(
-    () => (plansQuery.data || []).map((plan) => ({ value: String(plan.id), label: plan.title })),
+    () =>
+      (plansQuery.data || []).map((plan) => ({
+        value: String(plan.id),
+        label: plan.title,
+      })),
     [plansQuery.data]
   )
 
   const invalidateSupport = () => {
+    if (!supportEnabled) return
     void queryClient.invalidateQueries({ queryKey: ['support-conversation'] })
-    void queryClient.invalidateQueries({ queryKey: ['support-conversation-detail'] })
-    void queryClient.invalidateQueries({ queryKey: ['support-admin-conversations'] })
+    void queryClient.invalidateQueries({
+      queryKey: ['support-conversation-detail'],
+    })
+    void queryClient.invalidateQueries({
+      queryKey: ['support-admin-conversations'],
+    })
     void queryClient.invalidateQueries({ queryKey: ['support-unread'] })
   }
   const sendMutation = useMutation({
@@ -460,40 +508,58 @@ export function Support() {
       setQuoteMode(false)
       invalidateSupport()
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : t('Unable to send message')),
+    onError: (error) =>
+      toast.error(
+        error instanceof Error ? error.message : t('Unable to send message')
+      ),
   })
   const quotaMutation = useMutation({
-    mutationFn: () =>
-      grantSupportQuota(
-        selectedId || 0,
-        parseQuotaFromDollars(Number(quota)),
-        adminNote
-      ),
+    mutationFn: () => grantSupportQuota(selectedId || 0, quotaUnits, adminNote),
     onSuccess: (response) => {
-      if (!response.success) return toast.error(response.message || t('Unable to grant quota'))
+      if (!response.success) {
+        return toast.error(response.message || t('Unable to grant quota'))
+      }
       setQuota('')
       setAdminNote('')
       invalidateSupport()
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : t('Unable to grant quota')),
+    onError: (error) =>
+      toast.error(
+        error instanceof Error ? error.message : t('Unable to grant quota')
+      ),
   })
   const subscriptionMutation = useMutation({
-    mutationFn: () => grantSupportSubscription(selectedId || 0, Number(planId), adminNote),
+    mutationFn: () =>
+      grantSupportSubscription(selectedId || 0, Number(planId), adminNote),
     onSuccess: (response) => {
-      if (!response.success) return toast.error(response.message || t('Unable to grant subscription'))
+      if (!response.success) {
+        return toast.error(
+          response.message || t('Unable to grant subscription')
+        )
+      }
       setPlanId('')
       setAdminNote('')
       invalidateSupport()
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : t('Unable to grant subscription')),
+    onError: (error) =>
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Unable to grant subscription')
+      ),
   })
   const completeMutation = useMutation({
     mutationFn: (message: SupportMessage) => completeSupportOrder(message.id),
     onSuccess: (response) => {
-      if (!response.success) return toast.error(response.message || t('Unable to complete order'))
+      if (!response.success) {
+        return toast.error(response.message || t('Unable to complete order'))
+      }
       invalidateSupport()
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : t('Unable to complete order')),
+    onError: (error) =>
+      toast.error(
+        error instanceof Error ? error.message : t('Unable to complete order')
+      ),
   })
 
   const messages = conversationQuery.data?.data?.messages || []
@@ -503,17 +569,24 @@ export function Support() {
     sendMutation.mutate()
   }
 
+  if (!supportEnabled) return null
+
   return (
     <SectionPageLayout fixedContent>
       <SectionPageLayout.Title>{t('Support')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
-        <Button type='button' variant='outline' size='sm' onClick={invalidateSupport}>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={invalidateSupport}
+        >
           <RefreshCw className='size-4' />
           {t('Refresh')}
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <div className='flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card md:flex-row'>
+        <div className='bg-card flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border md:flex-row'>
           <ConversationList
             conversations={conversations}
             selectedId={selectedId}
@@ -527,7 +600,9 @@ export function Support() {
               <div className='min-w-0'>
                 <h3 className='truncate text-sm font-semibold'>
                   {isAdmin
-                    ? selectedConversation?.display_name || selectedConversation?.username || t('Select a conversation')
+                    ? selectedConversation?.display_name ||
+                      selectedConversation?.username ||
+                      t('Select a conversation')
                     : t('Service support')}
                 </h3>
                 {selectedConversation && isAdmin && (
@@ -536,7 +611,9 @@ export function Support() {
                   </p>
                 )}
               </div>
-              {conversationQuery.isFetching && <Loader2 className='text-muted-foreground size-4 animate-spin' />}
+              {conversationQuery.isFetching && (
+                <Loader2 className='text-muted-foreground size-4 animate-spin' />
+              )}
             </header>
             {selectedId === null ? (
               <div className='text-muted-foreground flex flex-1 items-center justify-center text-sm'>
@@ -555,17 +632,24 @@ export function Support() {
                     <div className='mb-3 flex items-center gap-2'>
                       <Select
                         items={orderItems}
-                        value={selectedOrder ? `${selectedOrder.order_type}:${selectedOrder.order_id}` : null}
+                        value={
+                          selectedOrder
+                            ? `${selectedOrder.order_type}:${selectedOrder.order_id}`
+                            : null
+                        }
                         onValueChange={(value) => {
                           const order = (ordersQuery.data?.data || []).find(
-                            (item) => `${item.order_type}:${item.order_id}` === value
+                            (item) =>
+                              `${item.order_type}:${item.order_id}` === value
                           )
                           if (order) setImage(null)
                           setSelectedOrder(order || null)
                         }}
                       >
                         <SelectTrigger className='min-w-0 flex-1'>
-                          <SelectValue placeholder={t('Select an order to quote')} />
+                          <SelectValue
+                            placeholder={t('Select an order to quote')}
+                          />
                         </SelectTrigger>
                         <SelectContent alignItemWithTrigger={false}>
                           <SelectGroup>
@@ -580,16 +664,39 @@ export function Support() {
                           </SelectGroup>
                         </SelectContent>
                       </Select>
-                      <Button type='button' variant='ghost' size='icon-sm' aria-label={t('Cancel')} onClick={() => { setQuoteMode(false); setSelectedOrder(null) }}>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon-sm'
+                        aria-label={t('Cancel')}
+                        onClick={() => {
+                          setQuoteMode(false)
+                          setSelectedOrder(null)
+                        }}
+                      >
                         <X className='size-4' />
                       </Button>
                     </div>
                   )}
                   {isAdmin && (
-                    <div className='mb-3 grid gap-2 rounded-md border bg-muted/20 p-2 sm:grid-cols-[1fr_1fr_auto]'>
+                    <div className='bg-muted/20 mb-3 grid gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1fr_auto]'>
                       <div className='flex items-center gap-2'>
-                        <Input value={quota} onChange={(event) => setQuota(event.target.value)} type='number' min='0' step='any' placeholder={t('Quota amount')} />
-                        <Button type='button' variant='secondary' size='sm' disabled={!quota || quotaMutation.isPending} onClick={() => quotaMutation.mutate()}>
+                        <Input
+                          value={quota}
+                          onChange={(event) => setQuota(event.target.value)}
+                          type='number'
+                          min='0'
+                          step='any'
+                          placeholder={quotaPlaceholder}
+                          aria-label={t('Quota amount')}
+                        />
+                        <Button
+                          type='button'
+                          variant='secondary'
+                          size='sm'
+                          disabled={!canGrantQuota || quotaMutation.isPending}
+                          onClick={() => quotaMutation.mutate()}
+                        >
                           <Gift className='size-4' />
                           {t('Grant quota')}
                         </Button>
@@ -612,34 +719,99 @@ export function Support() {
                           </SelectGroup>
                         </SelectContent>
                       </Select>
-                      <Button type='button' variant='secondary' size='sm' disabled={!planId || subscriptionMutation.isPending} onClick={() => subscriptionMutation.mutate()}>
+                      <Button
+                        type='button'
+                        variant='secondary'
+                        size='sm'
+                        disabled={!planId || subscriptionMutation.isPending}
+                        onClick={() => subscriptionMutation.mutate()}
+                      >
                         <TicketCheck className='size-4' />
                         {t('Grant subscription')}
                       </Button>
                     </div>
                   )}
                   {isAdmin && (quota || planId) && (
-                    <Input value={adminNote} onChange={(event) => setAdminNote(event.target.value)} placeholder={t('Optional grant note')} className='mb-2' />
+                    <Input
+                      value={adminNote}
+                      onChange={(event) => setAdminNote(event.target.value)}
+                      placeholder={t('Optional grant note')}
+                      className='mb-2'
+                    />
                   )}
                   <div className='flex items-end gap-2'>
-                    <input ref={fileInputRef} type='file' accept='image/*' className='hidden' onChange={(event) => setImage(event.target.files?.[0] || null)} />
-                    <Button type='button' variant='outline' size='icon' aria-label={t('Attach image')} disabled={busy || Boolean(selectedOrder)} onClick={() => fileInputRef.current?.click()}>
+                    <input
+                      ref={fileInputRef}
+                      type='file'
+                      accept='image/*'
+                      className='hidden'
+                      onChange={(event) =>
+                        setImage(event.target.files?.[0] || null)
+                      }
+                    />
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='icon'
+                      aria-label={t('Attach image')}
+                      disabled={busy || Boolean(selectedOrder)}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       <Paperclip className='size-4' />
                     </Button>
                     {!isAdmin && (
-                      <Button type='button' variant={quoteMode ? 'secondary' : 'outline'} size='icon' aria-label={t('Quote order')} onClick={() => setQuoteMode((value) => !value)}>
+                      <Button
+                        type='button'
+                        variant={quoteMode ? 'secondary' : 'outline'}
+                        size='icon'
+                        aria-label={t('Quote order')}
+                        onClick={() => setQuoteMode((value) => !value)}
+                      >
                         <FileText className='size-4' />
                       </Button>
                     )}
-                    <Textarea value={content} onChange={(event) => setContent(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); handleSend() } }} placeholder={t('Write a message...')} className='min-h-10 max-h-28 resize-none' />
-                    <Button type='button' size='icon' aria-label={t('Send message')} disabled={busy || (!content.trim() && !image && !selectedOrder)} onClick={handleSend}>
-                      {busy ? <Loader2 className='size-4 animate-spin' /> : <Send className='size-4' />}
+                    <Textarea
+                      value={content}
+                      onChange={(event) => setContent(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault()
+                          handleSend()
+                        }
+                      }}
+                      placeholder={t('Write a message...')}
+                      className='max-h-28 min-h-10 resize-none'
+                    />
+                    <Button
+                      type='button'
+                      size='icon'
+                      aria-label={t('Send message')}
+                      disabled={
+                        busy || (!content.trim() && !image && !selectedOrder)
+                      }
+                      onClick={handleSend}
+                    >
+                      {busy ? (
+                        <Loader2 className='size-4 animate-spin' />
+                      ) : (
+                        <Send className='size-4' />
+                      )}
                     </Button>
                   </div>
                   {(image || selectedOrder) && (
                     <div className='text-muted-foreground mt-2 flex items-center gap-2 text-xs'>
-                      {image ? <><ImagePlus className='size-3.5' />{image.name}</> : null}
-                      {selectedOrder ? <><FileText className='size-3.5' />{orderLabel(selectedOrder, t)}</> : null}
+                      {image ? (
+                        <>
+                          <ImagePlus className='size-3.5' />
+                          {image.name}
+                        </>
+                      ) : null}
+                      {selectedOrder ? (
+                        <>
+                          <FileText className='size-3.5' />
+                          {orderLabel(selectedOrder, t)}
+                        </>
+                      ) : null}
                     </div>
                   )}
                 </div>

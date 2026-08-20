@@ -44,6 +44,7 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { ModelGroupSelector } from '@/components/model-group-selector'
 import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import {
@@ -51,6 +52,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -72,15 +81,6 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { ModelGroupSelector } from '@/components/model-group-selector'
 import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
@@ -148,13 +148,6 @@ export function ApiKeysMutateDrawer({
     staleTime: 0,
   })
 
-  const { data: autoModelsData } = useQuery({
-    queryKey: ['user-models', 'auto'],
-    queryFn: () => getUserModels('auto'),
-    enabled: open,
-    staleTime: 0,
-  })
-
   // Fetch groups
   const {
     data: groupsData,
@@ -200,8 +193,14 @@ export function ApiKeysMutateDrawer({
     staleTime: 0,
   })
 
+  const { data: routeModelsData, isFetching: routeModelsFetching } = useQuery({
+    queryKey: ['user-models', routeGroup],
+    queryFn: () => getUserModels(routeGroup),
+    enabled: open && routeEditorOpen && routeGroup !== '',
+    staleTime: 0,
+  })
+
   const models = modelsData?.data || []
-  const autoModels = autoModelsData?.data || models
   const groups = useMemo<ApiKeyGroupOption[]>(
     () =>
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
@@ -417,8 +416,12 @@ export function ApiKeysMutateDrawer({
   const unlimitedQuota = form.watch('unlimited_quota')
   const autoRoutes = form.watch('auto_routes')
   const routeModelOptions = useMemo(
-    () => autoModels.map((model) => ({ label: model, value: model })),
-    [autoModels]
+    () =>
+      (routeModelsData?.data || []).map((model) => ({
+        label: model,
+        value: model,
+      })),
+    [routeModelsData]
   )
   const routeGroupOptions = useMemo(
     () =>
@@ -426,15 +429,22 @@ export function ApiKeysMutateDrawer({
         .filter((group) => group.value !== 'auto')
         .map((group) => ({
           ...group,
-          ratio:
-            typeof group.ratio === 'number' ? group.ratio : undefined,
+          ratio: typeof group.ratio === 'number' ? group.ratio : undefined,
         })),
     [groups]
   )
 
   useEffect(() => {
-    if (!routeGroup && routeGroupOptions.length > 0) {
+    if (routeGroupOptions.length === 0) {
+      if (routeGroup) setRouteGroup('')
+      return
+    }
+    if (
+      !routeGroup ||
+      !routeGroupOptions.some((group) => group.value === routeGroup)
+    ) {
       setRouteGroup(routeGroupOptions[0].value)
+      setRouteModel('')
     }
   }, [routeGroup, routeGroupOptions])
 
@@ -483,517 +493,525 @@ export function ApiKeysMutateDrawer({
   return (
     <>
       <Sheet
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v)
-        if (!v) {
-          form.reset()
-        }
-      }}
-    >
-      <SheetContent
-        className={sideDrawerContentClassName('max-w-none sm:!max-w-[620px]')}
+        open={open}
+        onOpenChange={(v) => {
+          onOpenChange(v)
+          if (!v) {
+            form.reset()
+          }
+        }}
       >
-        <SheetHeader className={sideDrawerHeaderClassName()}>
-          <SheetTitle>
-            {isUpdate ? t('Update API Key') : t('Create API Key')}
-          </SheetTitle>
-          <SheetDescription>
-            {isUpdate
-              ? t('Update the API key by providing necessary info.')
-              : t('Add a new API key by providing necessary info.')}
-          </SheetDescription>
-        </SheetHeader>
-        <Form {...form}>
-          <form
-            id='api-key-form'
-            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
-            aria-busy={!isFormInitialized}
-            inert={!isFormInitialized || isSubmitting ? true : undefined}
-            className={sideDrawerFormClassName('gap-5')}
-          >
-            <SideDrawerSection>
-              <SideDrawerSectionHeader
-                title={t('Basic Information')}
-                description={t('Set API key basic information')}
-                icon={<KeyRound className='size-4' />}
-                iconTone='info'
-              />
-              <FormField
-                control={form.control}
-                name='name'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Name')}</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder={t('Enter a name')} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='group'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Group')}</FormLabel>
-                    <FormControl>
-                      <ApiKeyGroupCombobox
-                        options={groups}
-                        value={field.value}
-                        onValueChange={(group) => {
-                          field.onChange(group)
-                          if (group === 'auto') {
-                            form.setValue('cross_group_retry', true, {
-                              shouldDirty: true,
-                            })
-                            return
-                          }
-                          form.setValue('cross_group_retry', false, {
-                            shouldDirty: true,
-                          })
-                          form.setValue('auto_routes', {}, {
-                            shouldDirty: true,
-                          })
-                        }}
-                        placeholder={t('Select a group')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {selectedGroup === 'auto' && (
+        <SheetContent
+          className={sideDrawerContentClassName('max-w-none sm:!max-w-[620px]')}
+        >
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>
+              {isUpdate ? t('Update API Key') : t('Create API Key')}
+            </SheetTitle>
+            <SheetDescription>
+              {isUpdate
+                ? t('Update the API key by providing necessary info.')
+                : t('Add a new API key by providing necessary info.')}
+            </SheetDescription>
+          </SheetHeader>
+          <Form {...form}>
+            <form
+              id='api-key-form'
+              onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+              aria-busy={!isFormInitialized}
+              inert={!isFormInitialized || isSubmitting ? true : undefined}
+              className={sideDrawerFormClassName('gap-5')}
+            >
+              <SideDrawerSection>
+                <SideDrawerSectionHeader
+                  title={t('Basic Information')}
+                  description={t('Set API key basic information')}
+                  icon={<KeyRound className='size-4' />}
+                  iconTone='info'
+                />
                 <FormField
                   control={form.control}
-                  name='auto_groups'
+                  name='name'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Auto group order')}</FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Choose and order the groups this API key will try.'
-                        )}
-                      </FormDescription>
+                      <FormLabel>{t('Name')}</FormLabel>
                       <FormControl>
-                        <AutoGroupOrderEditor
-                          value={field.value}
-                          mode={autoGroupsMode}
+                        <Input {...field} placeholder={t('Enter a name')} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='group'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Group')}</FormLabel>
+                      <FormControl>
+                        <ApiKeyGroupCombobox
                           options={groups}
-                          globalOptions={globalAutoGroupOptions}
-                          maxCount={maxAutoGroups}
-                          onChange={(value) => {
-                            form.setValue('auto_groups_mode', value.mode, {
+                          value={field.value}
+                          onValueChange={(group) => {
+                            field.onChange(group)
+                            if (group === 'auto') {
+                              form.setValue('cross_group_retry', true, {
+                                shouldDirty: true,
+                              })
+                              return
+                            }
+                            form.setValue('cross_group_retry', false, {
                               shouldDirty: true,
-                              shouldValidate: false,
                             })
                             form.setValue(
-                              'auto_groups',
-                              value.groups.slice(0, maxAutoGroups),
+                              'auto_routes',
+                              {},
                               {
                                 shouldDirty: true,
-                                shouldValidate: true,
                               }
                             )
                           }}
+                          placeholder={t('Select a group')}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
 
-              {selectedGroup === 'auto' && (
+                {selectedGroup === 'auto' && (
+                  <FormField
+                    control={form.control}
+                    name='auto_groups'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Auto group order')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Choose and order the groups this API key will try.'
+                          )}
+                        </FormDescription>
+                        <FormControl>
+                          <AutoGroupOrderEditor
+                            value={field.value}
+                            mode={autoGroupsMode}
+                            options={groups}
+                            globalOptions={globalAutoGroupOptions}
+                            maxCount={maxAutoGroups}
+                            onChange={(value) => {
+                              form.setValue('auto_groups_mode', value.mode, {
+                                shouldDirty: true,
+                                shouldValidate: false,
+                              })
+                              form.setValue(
+                                'auto_groups',
+                                value.groups.slice(0, maxAutoGroups),
+                                {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                }
+                              )
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {selectedGroup === 'auto' && (
+                  <FormField
+                    control={form.control}
+                    name='auto_routes'
+                    render={({ field }) => {
+                      const routes = field.value || {}
+                      const entries = Object.entries(routes)
+                      return (
+                        <FormItem>
+                          <div className='flex items-start justify-between gap-3'>
+                            <div>
+                              <FormLabel>{t('Virtual model routes')}</FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Create auto/ models with an ordered fallback chain.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <Button
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              onClick={() => openRouteEditor()}
+                            >
+                              <Plus className='size-4' />
+                              {t('Add virtual model')}
+                            </Button>
+                          </div>
+                          <FormControl>
+                            <div className='overflow-hidden rounded-lg border'>
+                              <table className='w-full text-sm'>
+                                <thead className='bg-muted/50 text-left text-xs'>
+                                  <tr>
+                                    <th className='px-3 py-2 font-medium'>
+                                      {t('Model name')}
+                                    </th>
+                                    <th className='px-3 py-2 font-medium'>
+                                      {t('Route models')}
+                                    </th>
+                                    <th className='px-3 py-2 text-right font-medium'>
+                                      {t('Options')}
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className='divide-y'>
+                                  {entries.length === 0 ? (
+                                    <tr>
+                                      <td
+                                        colSpan={3}
+                                        className='text-muted-foreground px-3 py-5 text-center text-xs'
+                                      >
+                                        {t('No virtual models configured')}
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    entries.map(([virtualModel, chain]) => (
+                                      <tr key={virtualModel}>
+                                        <td className='px-3 py-2 font-medium'>
+                                          {virtualModel}
+                                        </td>
+                                        <td className='text-muted-foreground px-3 py-2 tabular-nums'>
+                                          {chain.length}
+                                        </td>
+                                        <td className='px-3 py-2'>
+                                          <div className='flex justify-end gap-1'>
+                                            <Button
+                                              type='button'
+                                              variant='ghost'
+                                              size='icon-sm'
+                                              aria-label={t('Edit route')}
+                                              onClick={() =>
+                                                openRouteEditor(virtualModel)
+                                              }
+                                            >
+                                              <Edit className='size-4' />
+                                            </Button>
+                                            <Button
+                                              type='button'
+                                              variant='ghost'
+                                              size='icon-sm'
+                                              aria-label={t(
+                                                'Delete virtual model'
+                                              )}
+                                              className='text-destructive hover:text-destructive'
+                                              onClick={() =>
+                                                deleteRoute(virtualModel)
+                                              }
+                                            >
+                                              <Trash2 className='size-4' />
+                                            </Button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
+                  />
+                )}
+
+                {selectedGroup === 'auto' && (
+                  <FormField
+                    control={form.control}
+                    name='cross_group_retry'
+                    render={({ field }) => (
+                      <FormItem className={sideDrawerSwitchItemClassName()}>
+                        <div className='flex flex-col gap-0.5'>
+                          <FormLabel className='text-sm'>
+                            {t('Cross-group retry')}
+                          </FormLabel>
+                          <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
+                            {t(
+                              'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={!!field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 <FormField
                   control={form.control}
-                  name='auto_routes'
-                  render={({ field }) => {
-                    const routes = field.value || {}
-                    const entries = Object.entries(routes)
-                    return (
-                      <FormItem>
-                        <div className='flex items-start justify-between gap-3'>
-                          <div>
-                            <FormLabel>{t('Virtual model routes')}</FormLabel>
-                            <FormDescription>
-                              {t(
-                                'Create auto/ models with an ordered fallback chain.'
-                              )}
-                            </FormDescription>
-                          </div>
+                  name='expired_time'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Expiration Time')}</FormLabel>
+                      <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+                        <FormControl>
+                          <DateTimePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder={t('Never expires')}
+                            className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
+                          />
+                        </FormControl>
+                        <div className='grid grid-cols-4 gap-2 sm:flex'>
                           <Button
                             type='button'
                             variant='outline'
                             size='sm'
-                            onClick={() => openRouteEditor()}
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(0, 0, 0)}
                           >
-                            <Plus className='size-4' />
-                            {t('Add virtual model')}
+                            {t('Never')}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(1, 0, 0)}
+                          >
+                            {t('1 Month')}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(0, 1, 0)}
+                          >
+                            {t('1 Day')}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(0, 0, 1)}
+                          >
+                            {t('1 Hour')}
                           </Button>
                         </div>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {!isUpdate && (
+                  <FormField
+                    control={form.control}
+                    name='tokenCount'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Quantity')}</FormLabel>
                         <FormControl>
-                          <div className='overflow-hidden rounded-lg border'>
-                            <table className='w-full text-sm'>
-                              <thead className='bg-muted/50 text-left text-xs'>
-                                <tr>
-                                  <th className='px-3 py-2 font-medium'>
-                                    {t('Model name')}
-                                  </th>
-                                  <th className='px-3 py-2 font-medium'>
-                                    {t('Route models')}
-                                  </th>
-                                  <th className='px-3 py-2 text-right font-medium'>
-                                    {t('Options')}
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className='divide-y'>
-                                {entries.length === 0 ? (
-                                  <tr>
-                                    <td
-                                      colSpan={3}
-                                      className='text-muted-foreground px-3 py-5 text-center text-xs'
-                                    >
-                                      {t('No virtual models configured')}
-                                    </td>
-                                  </tr>
-                                ) : (
-                                  entries.map(([virtualModel, chain]) => (
-                                    <tr key={virtualModel}>
-                                      <td className='px-3 py-2 font-medium'>
-                                        {virtualModel}
-                                      </td>
-                                      <td className='text-muted-foreground px-3 py-2 tabular-nums'>
-                                        {chain.length}
-                                      </td>
-                                      <td className='px-3 py-2'>
-                                        <div className='flex justify-end gap-1'>
-                                          <Button
-                                            type='button'
-                                            variant='ghost'
-                                            size='icon-sm'
-                                            aria-label={t('Edit route')}
-                                            onClick={() =>
-                                              openRouteEditor(virtualModel)
-                                            }
-                                          >
-                                            <Edit className='size-4' />
-                                          </Button>
-                                          <Button
-                                            type='button'
-                                            variant='ghost'
-                                            size='icon-sm'
-                                            aria-label={t('Delete virtual model')}
-                                            className='text-destructive hover:text-destructive'
-                                            onClick={() =>
-                                              deleteRoute(virtualModel)
-                                            }
-                                          >
-                                            <Trash2 className='size-4' />
-                                          </Button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
+                          <Input
+                            {...field}
+                            type='number'
+                            min='1'
+                            placeholder={t('Number of keys to create')}
+                            onChange={(e) =>
+                              field.onChange(
+                                Number.parseInt(e.target.value, 10) || 1
+                              )
+                            }
+                          />
                         </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Create multiple API keys at once (random suffix will be added to names)'
+                          )}
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
-                    )
-                  }}
-                />
-              )}
+                    )}
+                  />
+                )}
+              </SideDrawerSection>
 
-              {selectedGroup === 'auto' && (
+              <SideDrawerSection>
+                <SideDrawerSectionHeader
+                  title={t('Quota Settings')}
+                  description={t('Set quota amount and limits')}
+                  icon={<WalletCards className='size-4' />}
+                  iconTone='success'
+                />
+                {!unlimitedQuota && (
+                  <FormField
+                    control={form.control}
+                    name='remain_quota_dollars'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{quotaLabel}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            step={tokensOnly ? 1 : 0.01}
+                            placeholder={quotaPlaceholder}
+                            onChange={(e) =>
+                              field.onChange(
+                                Number.parseFloat(e.target.value) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {tokensOnly
+                            ? t('Enter the quota amount in tokens')
+                            : t('Enter the quota amount in {{currency}}', {
+                                currency: currencyLabel,
+                              })}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 <FormField
                   control={form.control}
-                  name='cross_group_retry'
+                  name='unlimited_quota'
                   render={({ field }) => (
                     <FormItem className={sideDrawerSwitchItemClassName()}>
                       <div className='flex flex-col gap-0.5'>
                         <FormLabel className='text-sm'>
-                          {t('Cross-group retry')}
+                          {t('Unlimited Quota')}
                         </FormLabel>
-                        <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
-                          {t(
-                            'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
-                          )}
+                        <FormDescription className='text-xs'>
+                          {t('Enable unlimited quota for this API key')}
                         </FormDescription>
                       </div>
                       <FormControl>
                         <Switch
-                          checked={!!field.value}
+                          checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
                     </FormItem>
                   )}
                 />
-              )}
-
-              <FormField
-                control={form.control}
-                name='expired_time'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Expiration Time')}</FormLabel>
-                    <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
-                      <FormControl>
-                        <DateTimePicker
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder={t('Never expires')}
-                          className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
-                        />
-                      </FormControl>
-                      <div className='grid grid-cols-4 gap-2 sm:flex'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(0, 0, 0)}
-                        >
-                          {t('Never')}
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(1, 0, 0)}
-                        >
-                          {t('1 Month')}
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(0, 1, 0)}
-                        >
-                          {t('1 Day')}
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(0, 0, 1)}
-                        >
-                          {t('1 Hour')}
-                        </Button>
-                      </div>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {!isUpdate && (
-                <FormField
-                  control={form.control}
-                  name='tokenCount'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Quantity')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='number'
-                          min='1'
-                          placeholder={t('Number of keys to create')}
-                          onChange={(e) =>
-                            field.onChange(
-                              Number.parseInt(e.target.value, 10) || 1
-                            )
-                          }
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          'Create multiple API keys at once (random suffix will be added to names)'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-            </SideDrawerSection>
-
-            <SideDrawerSection>
-              <SideDrawerSectionHeader
-                title={t('Quota Settings')}
-                description={t('Set quota amount and limits')}
-                icon={<WalletCards className='size-4' />}
-                iconTone='success'
-              />
-              {!unlimitedQuota && (
-                <FormField
-                  control={form.control}
-                  name='remain_quota_dollars'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{quotaLabel}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='number'
-                          step={tokensOnly ? 1 : 0.01}
-                          placeholder={quotaPlaceholder}
-                          onChange={(e) =>
-                            field.onChange(
-                              Number.parseFloat(e.target.value) || 0
-                            )
-                          }
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {tokensOnly
-                          ? t('Enter the quota amount in tokens')
-                          : t('Enter the quota amount in {{currency}}', {
-                              currency: currencyLabel,
-                            })}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              <FormField
-                control={form.control}
-                name='unlimited_quota'
-                render={({ field }) => (
-                  <FormItem className={sideDrawerSwitchItemClassName()}>
-                    <div className='flex flex-col gap-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('Unlimited Quota')}
-                      </FormLabel>
-                      <FormDescription className='text-xs'>
-                        {t('Enable unlimited quota for this API key')}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </SideDrawerSection>
-
-            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-              <SideDrawerSection>
-                <CollapsibleTrigger
-                  render={
-                    <button
-                      type='button'
-                      className='hover:bg-muted/40 flex w-full items-center gap-3 rounded-md py-1.5 text-left transition-colors'
-                    />
-                  }
-                >
-                  <SideDrawerSectionHeader
-                    className='flex-1'
-                    title={t('Advanced Settings')}
-                    description={t('Set API key access restrictions')}
-                    icon={<Settings2 className='size-4' />}
-                  />
-                  <ChevronDown
-                    className={cn(
-                      'text-muted-foreground size-4 shrink-0 transition-transform',
-                      advancedOpen && 'rotate-180'
-                    )}
-                  />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className='flex flex-col gap-4 pt-2'>
-                    <FormField
-                      control={form.control}
-                      name='model_limits'
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('Model Limits')}</FormLabel>
-                          <FormControl>
-                            <MultiSelect
-                              options={models.map((m) => ({
-                                label: m,
-                                value: m,
-                              }))}
-                              selected={field.value}
-                              onChange={field.onChange}
-                              placeholder={t(
-                                'Select models (empty for allow all)'
-                              )}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            {t('Limit which models can be used with this key')}
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name='allow_ips'
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            {t('IP Whitelist (supports CIDR)')}
-                          </FormLabel>
-                          <FormControl>
-                            <Textarea
-                              {...field}
-                              className='min-h-20 resize-none'
-                              placeholder={t(
-                                'One IP per line (empty for no restriction)'
-                              )}
-                              rows={3}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            {t(
-                              'Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.'
-                            )}
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CollapsibleContent>
               </SideDrawerSection>
-            </Collapsible>
-          </form>
-        </Form>
-        <SheetFooter className={sideDrawerFooterClassName()}>
-          <SheetClose
-            render={<Button variant='outline' className='w-full sm:w-auto' />}
-          >
-            {t('Close')}
-          </SheetClose>
-          <Button
-            type='button'
-            onClick={form.handleSubmit(onSubmit, onInvalid)}
-            disabled={!isFormInitialized || isSubmitting}
-            className='w-full sm:w-auto'
-          >
-            {isSubmitting ? t('Saving...') : t('Save changes')}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
+
+              <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+                <SideDrawerSection>
+                  <CollapsibleTrigger
+                    render={
+                      <button
+                        type='button'
+                        className='hover:bg-muted/40 flex w-full items-center gap-3 rounded-md py-1.5 text-left transition-colors'
+                      />
+                    }
+                  >
+                    <SideDrawerSectionHeader
+                      className='flex-1'
+                      title={t('Advanced Settings')}
+                      description={t('Set API key access restrictions')}
+                      icon={<Settings2 className='size-4' />}
+                    />
+                    <ChevronDown
+                      className={cn(
+                        'text-muted-foreground size-4 shrink-0 transition-transform',
+                        advancedOpen && 'rotate-180'
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className='flex flex-col gap-4 pt-2'>
+                      <FormField
+                        control={form.control}
+                        name='model_limits'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Model Limits')}</FormLabel>
+                            <FormControl>
+                              <MultiSelect
+                                options={models.map((m) => ({
+                                  label: m,
+                                  value: m,
+                                }))}
+                                selected={field.value}
+                                onChange={field.onChange}
+                                placeholder={t(
+                                  'Select models (empty for allow all)'
+                                )}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Limit which models can be used with this key'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='allow_ips'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('IP Whitelist (supports CIDR)')}
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                className='min-h-20 resize-none'
+                                placeholder={t(
+                                  'One IP per line (empty for no restriction)'
+                                )}
+                                rows={3}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </SideDrawerSection>
+              </Collapsible>
+            </form>
+          </Form>
+          <SheetFooter className={sideDrawerFooterClassName()}>
+            <SheetClose
+              render={<Button variant='outline' className='w-full sm:w-auto' />}
+            >
+              {t('Close')}
+            </SheetClose>
+            <Button
+              type='button'
+              onClick={form.handleSubmit(onSubmit, onInvalid)}
+              disabled={!isFormInitialized || isSubmitting}
+              className='w-full sm:w-auto'
+            >
+              {isSubmitting ? t('Saving...') : t('Save changes')}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
       </Sheet>
       <Dialog open={routeEditorOpen} onOpenChange={setRouteEditorOpen}>
         <DialogContent className='max-w-[calc(100%-2rem)] sm:max-w-xl'>
@@ -1005,7 +1023,10 @@ export function ApiKeysMutateDrawer({
           </DialogHeader>
           <div className='space-y-4'>
             <div className='space-y-2'>
-              <label htmlFor='virtual-model-name' className='text-sm font-medium'>
+              <label
+                htmlFor='virtual-model-name'
+                className='text-sm font-medium'
+              >
                 {t('Model name')}
               </label>
               <Input
@@ -1017,7 +1038,9 @@ export function ApiKeysMutateDrawer({
               />
             </div>
             <div className='space-y-2'>
-              <span className='text-sm font-medium'>{t('Add route model')}</span>
+              <span className='text-sm font-medium'>
+                {t('Add route model')}
+              </span>
               <div className='flex items-center gap-2'>
                 <ModelGroupSelector
                   selectedModel={routeModel}
@@ -1025,9 +1048,12 @@ export function ApiKeysMutateDrawer({
                   onModelChange={setRouteModel}
                   selectedGroup={routeGroup}
                   groups={routeGroupOptions}
-                  onGroupChange={setRouteGroup}
+                  onGroupChange={(group) => {
+                    setRouteGroup(group)
+                    setRouteModel('')
+                  }}
                   className='min-w-0 flex-1'
-                  disabled={routeModelOptions.length === 0}
+                  disabled={routeModelsFetching}
                 />
                 <Button
                   type='button'
@@ -1110,7 +1136,9 @@ export function ApiKeysMutateDrawer({
                         className='text-destructive hover:text-destructive'
                         onClick={() =>
                           setRouteChain((current) =>
-                            current.filter((_, itemIndex) => itemIndex !== index)
+                            current.filter(
+                              (_, itemIndex) => itemIndex !== index
+                            )
                           )
                         }
                       >

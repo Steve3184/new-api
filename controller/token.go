@@ -60,6 +60,8 @@ type tokenResponse struct {
 	RPM        int                 `json:"rpm"`
 }
 
+const maxTokenRPMIDs = 100
+
 func buildMaskedTokenResponseWithStats(token *model.Token, rpm int) *tokenResponse {
 	if token == nil {
 		return nil
@@ -87,7 +89,7 @@ func buildMaskedTokenResponseWithStats(token *model.Token, rpm int) *tokenRespon
 	}
 	// Virtual model routes are deliberately omitted from list and detail
 	// responses. They are loaded through the token-scoped endpoint only when
-	// the editor is opened, so the 5-second RPM refresh stays lightweight.
+	// the editor is opened, while RPM remains a one-time list snapshot.
 	return &tokenResponse{Token: &maskedToken, AutoGroups: autoGroups, TotalQuota: totalQuota, RPM: rpm}
 }
 
@@ -251,6 +253,46 @@ func SearchTokens(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens, rpms))
 	common.ApiSuccess(c, pageInfo)
+}
+
+func GetTokenRPM(c *gin.Context) {
+	ids, err := parseTokenRPMIDs(c.QueryArray("ids"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	rpms, err := model.GetUserTokenRPM(c.GetInt("id"), ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"rpms": rpms})
+}
+
+func parseTokenRPMIDs(values []string) ([]int, error) {
+	ids := make([]int, 0, len(values))
+	seen := make(map[int]struct{}, len(values))
+	for _, value := range values {
+		for _, rawID := range strings.Split(value, ",") {
+			rawID = strings.TrimSpace(rawID)
+			if rawID == "" {
+				continue
+			}
+			id, err := strconv.Atoi(rawID)
+			if err != nil || id <= 0 {
+				return nil, fmt.Errorf("令牌 ID 无效: %s", rawID)
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+			if len(ids) > maxTokenRPMIDs {
+				return nil, fmt.Errorf("一次最多查询 %d 个令牌", maxTokenRPMIDs)
+			}
+		}
+	}
+	return ids, nil
 }
 
 func GetToken(c *gin.Context) {
