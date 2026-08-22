@@ -26,6 +26,9 @@ func shouldUseResponsesAPI(info *relaycommon.RelayInfo) bool {
 	if info.ChannelType == constant.ChannelTypeOpenAI && info.ChannelSetting.UseResponsesAPI {
 		return true
 	}
+	if info.ChannelType == constant.ChannelTypeCodex {
+		return true
+	}
 	return service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName)
 }
 

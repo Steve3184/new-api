@@ -857,6 +857,7 @@ function GroupPricingSection(props: {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
+  modelSquareGroups: readonly string[]
   autoGroups: string[]
   priceRate: number
   usdExchangeRate: number
@@ -867,8 +868,13 @@ function GroupPricingSection(props: {
   const showRechargePrice = props.showRechargePrice ?? false
 
   const availableGroups = useMemo(
-    () => getAvailableGroups(props.model, props.usableGroup || {}),
-    [props.model, props.usableGroup]
+    () =>
+      getAvailableGroups(
+        props.model,
+        props.usableGroup || {},
+        props.modelSquareGroups
+      ),
+    [props.model, props.modelSquareGroups, props.usableGroup]
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
@@ -1134,6 +1140,7 @@ export interface ModelDetailsContentProps {
   model: PricingModel
   groupRatio: Record<string, number>
   usableGroup: Record<string, { desc: string; ratio: number }>
+  modelSquareGroups: readonly string[]
   endpointMap: Record<string, { path?: string; method?: string }>
   autoGroups: string[]
   priceRate: number
@@ -1190,6 +1197,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               model={props.model}
               groupRatio={props.groupRatio}
               usableGroup={props.usableGroup}
+              modelSquareGroups={props.modelSquareGroups}
               autoGroups={props.autoGroups}
               priceRate={props.priceRate}
               usdExchangeRate={props.usdExchangeRate}
@@ -1259,6 +1267,7 @@ export function ModelDetails() {
     models,
     groupRatio,
     usableGroup,
+    modelSquareGroups,
     endpointMap,
     autoGroups,
     isLoading,
@@ -1338,6 +1347,7 @@ export function ModelDetails() {
           model={model}
           groupRatio={groupRatio || {}}
           usableGroup={usableGroup || {}}
+          modelSquareGroups={modelSquareGroups || []}
           autoGroups={autoGroups || []}
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}

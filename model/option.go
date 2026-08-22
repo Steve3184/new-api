@@ -271,6 +271,14 @@ func validateOptionValue(key string, value string) error {
 	if err := console_setting.ValidatePublicOption(key, value); err != nil {
 		return err
 	}
+	if key == "console_setting.model_square_visible_groups" {
+		_, err := console_setting.NormalizeModelSquareVisibleGroups(value)
+		return err
+	}
+	if key == "console_setting.group_access_rules" {
+		_, err := console_setting.NormalizeGroupAccessRules(value)
+		return err
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
@@ -299,7 +307,23 @@ func validateOptionValue(key string, value string) error {
 	return nil
 }
 
+func normalizeOptionValue(key, value string) (string, error) {
+	switch key {
+	case "console_setting.model_square_visible_groups":
+		return console_setting.NormalizeModelSquareVisibleGroups(value)
+	case "console_setting.group_access_rules":
+		return console_setting.NormalizeGroupAccessRules(value)
+	default:
+		return value, nil
+	}
+}
+
 func UpdateOption(key string, value string) error {
+	normalizedValue, err := normalizeOptionValue(key, value)
+	if err != nil {
+		return err
+	}
+	value = normalizedValue
 	if err := validateOptionValue(key, value); err != nil {
 		return err
 	}
@@ -328,6 +352,12 @@ func UpdateOptionsBulk(values map[string]string) error {
 		return nil
 	}
 	for key, value := range values {
+		normalizedValue, err := normalizeOptionValue(key, value)
+		if err != nil {
+			return err
+		}
+		values[key] = normalizedValue
+		value = normalizedValue
 		if err := validateOptionValue(key, value); err != nil {
 			return err
 		}

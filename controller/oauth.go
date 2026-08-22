@@ -276,7 +276,11 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model
 	} else {
 		// Built-in provider: 只更新绑定列。完整快照的 user.Update 会把读取时刻的
 		// role/status/group 一并写回，覆盖并发发生的封禁、降权或分组变更。
-		err = model.UpdateUserBindColumn(userId, provider.ProviderUserIDColumn(), oauthUser.ProviderUserID)
+		if provider.ProviderUserIDColumn() == "github_id" {
+			err = model.UpdateUserGitHubBinding(userId, oauthUser.ProviderUserID, oauthUser.RegisteredAt)
+		} else {
+			err = model.UpdateUserBindColumn(userId, provider.ProviderUserIDColumn(), oauthUser.ProviderUserID)
+		}
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -302,6 +306,12 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if user.Id == 0 {
 			return nil, &OAuthUserDeletedError{}
 		}
+		if provider.ProviderUserIDColumn() == "github_id" && user.GitHubCreatedAt == 0 && oauthUser.RegisteredAt > 0 {
+			if err := model.UpdateUserGitHubBinding(user.Id, oauthUser.ProviderUserID, oauthUser.RegisteredAt); err != nil {
+				return nil, err
+			}
+			user.GitHubCreatedAt = oauthUser.RegisteredAt
+		}
 		return user, nil
 	}
 
@@ -316,7 +326,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				// Found user with legacy ID, migrate to new ID
 				common.SysLog(fmt.Sprintf("[OAuth] Migrating user %d from legacy_id=%s to new_id=%s",
 					user.Id, legacyID, oauthUser.ProviderUserID))
-				if err := user.UpdateGitHubId(oauthUser.ProviderUserID); err != nil {
+				if err := model.UpdateUserGitHubBinding(user.Id, oauthUser.ProviderUserID, oauthUser.RegisteredAt); err != nil {
 					common.SysError(fmt.Sprintf("[OAuth] Failed to migrate user %d: %s", user.Id, err.Error()))
 					// Continue with login even if migration fails
 				}
@@ -405,13 +415,17 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 			// Set the provider user ID on the user model and update
 			provider.SetProviderUserID(user, oauthUser.ProviderUserID)
+			if provider.ProviderUserIDColumn() == "github_id" && oauthUser.RegisteredAt > 0 {
+				user.GitHubCreatedAt = oauthUser.RegisteredAt
+			}
 			if err := tx.Model(user).Updates(map[string]interface{}{
-				"github_id":   user.GitHubId,
-				"discord_id":  user.DiscordId,
-				"oidc_id":     user.OidcId,
-				"linux_do_id": user.LinuxDOId,
-				"wechat_id":   user.WeChatId,
-				"telegram_id": user.TelegramId,
+				"github_id":         user.GitHubId,
+				"github_created_at": user.GitHubCreatedAt,
+				"discord_id":        user.DiscordId,
+				"oidc_id":           user.OidcId,
+				"linux_do_id":       user.LinuxDOId,
+				"wechat_id":         user.WeChatId,
+				"telegram_id":       user.TelegramId,
 			}).Error; err != nil {
 				return err
 			}

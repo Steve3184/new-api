@@ -142,7 +142,7 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 			return false
 		}
 		seen[group] = struct{}{}
-		if !service.IsUserSelectableGroup(userGroup, group) {
+		if !service.IsUserSelectableGroupForUser(c.GetInt("id"), userGroup, group) {
 			common.ApiErrorI18n(c, i18n.MsgTokenAutoGroupsInvalid, map[string]any{"Group": group})
 			return false
 		}
@@ -178,7 +178,7 @@ func setTokenAutoRoutes(c *gin.Context, token *model.Token, routes map[string][]
 		return false
 	}
 	if len(autoGroups) == 0 {
-		autoGroups = service.GetUserAutoGroup(userGroup)
+		autoGroups = service.GetUserAutoGroupForUser(c.GetInt("id"), userGroup)
 	}
 	availableModels := make(map[string]struct{})
 	for _, modelName := range service.GetGroupsEnabledModels(autoGroups) {
@@ -372,7 +372,7 @@ func GetTokenAutoRouteStatus(c *gin.Context) {
 		return
 	}
 	if len(autoGroups) == 0 {
-		autoGroups = service.GetUserAutoGroup(userGroup)
+		autoGroups = service.GetUserAutoGroupForUser(c.GetInt("id"), userGroup)
 	}
 	virtualModels := make([]string, 0, len(routes))
 	for virtualModel := range routes {
@@ -442,7 +442,7 @@ func GetTokenAutoGroups(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, gin.H{
-		"groups":    service.GetUserAutoGroup(userGroup),
+		"groups":    service.GetUserAutoGroupForUser(c.GetInt("id"), userGroup),
 		"max_count": setting.GetMaxTokenAutoGroups(),
 	})
 }

@@ -25,6 +25,16 @@ func TestShouldUseResponsesAPIHonorsOpenAIChannelSetting(t *testing.T) {
 	require.False(t, shouldUseResponsesAPI(info))
 }
 
+func TestShouldUseResponsesAPIIncludesCodexChannels(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeCodex,
+		},
+	}
+
+	require.True(t, shouldUseResponsesAPI(info))
+}
+
 func TestIsResponsesEventStreamContentType(t *testing.T) {
 	tests := []struct {
 		name        string

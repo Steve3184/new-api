@@ -31,7 +31,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { deleteUser, manageUser } from '../api'
+import { batchManageUsers } from '../api'
 import type { User } from '../types'
 import { useUsers } from './users-provider'
 
@@ -52,21 +52,13 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
 
   const runManageAction = async (action: 'enable' | 'disable') => {
     try {
-      const results = await Promise.all(
-        selectedIds.map((id) => manageUser(id, action))
+      const result = await batchManageUsers(selectedIds, action)
+      if (!result.success) throw new Error(result.message)
+      toast.success(
+        action === 'enable'
+          ? t('User enabled successfully')
+          : t('User disabled successfully')
       )
-      const failed = results.find((result) => !result.success)
-      if (failed) {
-        toast.error(
-          failed.message || t('Failed to {{action}} user', { action })
-        )
-      } else {
-        toast.success(
-          action === 'enable'
-            ? t('User enabled successfully')
-            : t('User disabled successfully')
-        )
-      }
       triggerRefresh()
       clearSelection()
     } catch {
@@ -76,13 +68,9 @@ export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
 
   const runDeleteAction = async () => {
     try {
-      const results = await Promise.all(selectedIds.map((id) => deleteUser(id)))
-      const failed = results.find((result) => !result.success)
-      if (failed) {
-        toast.error(failed.message || t('Failed to delete user'))
-      } else {
-        toast.success(t('Users deleted successfully'))
-      }
+      const result = await batchManageUsers(selectedIds, 'delete')
+      if (!result.success) throw new Error(result.message)
+      toast.success(t('Users deleted successfully'))
       setShowDeleteConfirm(false)
       triggerRefresh()
       clearSelection()

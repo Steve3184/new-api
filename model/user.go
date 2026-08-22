@@ -91,6 +91,7 @@ type User struct {
 	Email            string                     `json:"email" gorm:"index" validate:"max=50"`
 	RegisterIp       string                     `json:"register_ip" gorm:"type:varchar(64);column:register_ip;index"`
 	GitHubId         string                     `json:"github_id" gorm:"column:github_id;index"`
+	GitHubCreatedAt  int64                      `json:"-" gorm:"column:github_created_at;index"`
 	DiscordId        string                     `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
 	WeChatId         string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
@@ -217,6 +218,22 @@ func UpdateUserBindColumn(userId int, column string, value string) error {
 		return fmt.Errorf("invalid user bind column: %s", column)
 	}
 	return DB.Model(&User{}).Where("id = ?", userId).Update(column, value).Error
+}
+
+// UpdateUserGitHubBinding updates the GitHub identity and the provider's
+// account creation timestamp without writing back the rest of a user snapshot.
+func UpdateUserGitHubBinding(userId int, providerUserID string, createdAt int64) error {
+	if userId <= 0 {
+		return errors.New("id 为空！")
+	}
+	if strings.TrimSpace(providerUserID) == "" {
+		return errors.New("GitHub id 为空！")
+	}
+	updates := map[string]interface{}{"github_id": providerUserID}
+	if createdAt > 0 {
+		updates["github_created_at"] = createdAt
+	}
+	return DB.Model(&User{}).Where("id = ?", userId).Updates(updates).Error
 }
 
 // 根据用户角色生成默认的边栏配置
@@ -541,6 +558,50 @@ func HardDeleteUserById(id int) error {
 	}
 	user := User{Id: id}
 	return user.HardDelete()
+}
+
+// BatchUpdateUserStatus changes several users in one transaction. Auth
+// versions are bumped together so disabled users cannot keep using stale
+// session or token cache entries after the request completes.
+func BatchUpdateUserStatus(ids []int, status int) error {
+	if len(ids) == 0 {
+		return errors.New("用户列表不能为空")
+	}
+	if status != common.UserStatusEnabled && status != common.UserStatusDisabled {
+		return errors.New("无效的用户状态")
+	}
+	changed := make([]int, 0, len(ids))
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, id := range ids {
+			var user User
+			if err := tx.Unscoped().Where("id = ?", id).First(&user).Error; err != nil {
+				return err
+			}
+			if _, err := IncrementUserAuthVersionWithTx(tx, id); err != nil {
+				return err
+			}
+			if err := tx.Model(&User{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+				return err
+			}
+			changed = append(changed, id)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, id := range changed {
+		if err := PublishUserAuthCache(id); err != nil {
+			return err
+		}
+		if _, err := RevokeAllUserSessions(id, "admin_status_batch"); err != nil {
+			return err
+		}
+		if err := InvalidateUserTokensCache(id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func inviteUser(inviterId int) error {

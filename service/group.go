@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -53,6 +54,39 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 	return groupsCopy
 }
 
+// GetUserUsableGroupsForUser applies the optional per-group access expressions
+// after the existing user-group and special-group rules have been resolved.
+func GetUserUsableGroupsForUser(userID int, userGroup string) map[string]string {
+	groups := GetUserUsableGroups(userGroup)
+	rules := GetGroupAccessRulesByGroup()
+	if len(rules) == 0 {
+		return groups
+	}
+	accessUser, err := loadGroupAccessUser(userID)
+	if err != nil {
+		for group := range rules {
+			delete(groups, group)
+		}
+		return groups
+	}
+	for group, rule := range rules {
+		if !accessUser.evaluateRule(rule) {
+			delete(groups, group)
+		}
+	}
+	return groups
+}
+
+func GetGroupAccessRulesByGroup() map[string]console_setting.GroupAccessRule {
+	rules := make(map[string]console_setting.GroupAccessRule)
+	for _, rule := range console_setting.GetGroupAccessRules() {
+		if rule.Group != "" {
+			rules[rule.Group] = rule
+		}
+	}
+	return rules
+}
+
 func GroupInUserUsableGroups(userGroup, groupName string) bool {
 	_, ok := GetUserUsableGroups(userGroup)[groupName]
 	return ok
@@ -65,6 +99,12 @@ func ResolveUserGroupAccess(userGroup string) UserGroupAccess {
 		UsableGroups: usableGroups,
 		AutoGroups:   autoGroups,
 	}
+}
+
+func ResolveUserGroupAccessForUser(userID int, userGroup string) UserGroupAccess {
+	usableGroups := GetUserUsableGroupsForUser(userID, userGroup)
+	autoGroups := filterAutoGroups(setting.GetAutoGroups(), usableGroups)
+	return UserGroupAccess{UsableGroups: usableGroups, AutoGroups: autoGroups}
 }
 
 func filterAutoGroups(configuredGroups []string, usableGroups map[string]string) []string {
@@ -90,6 +130,14 @@ func IsUserSelectableGroup(userGroup, groupName string) bool {
 	return GroupInUserUsableGroups(userGroup, groupName) && ratio_setting.ContainsGroupRatio(groupName)
 }
 
+func IsUserSelectableGroupForUser(userID int, userGroup, groupName string) bool {
+	if groupName == "" || groupName == "auto" {
+		return false
+	}
+	_, ok := GetUserUsableGroupsForUser(userID, userGroup)[groupName]
+	return ok && ratio_setting.ContainsGroupRatio(groupName)
+}
+
 // GetUserAutoGroup 根据用户分组获取自动分组设置
 func GetUserAutoGroup(userGroup string) []string {
 	autoGroups := make([]string, 0)
@@ -107,13 +155,30 @@ func GetUserAutoGroup(userGroup string) []string {
 	return autoGroups
 }
 
+func GetUserAutoGroupForUser(userID int, userGroup string) []string {
+	usableGroups := GetUserUsableGroupsForUser(userID, userGroup)
+	autoGroups := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, group := range setting.GetAutoGroups() {
+		if _, ok := usableGroups[group]; !ok || !ratio_setting.ContainsGroupRatio(group) {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		autoGroups = append(autoGroups, group)
+	}
+	return autoGroups
+}
+
 func GetRequestUserGroupAccess(c *gin.Context) UserGroupAccess {
 	if cached, ok := common.GetContextKey(c, constant.ContextKeyUserGroupAccess); ok {
 		if access, valid := cached.(UserGroupAccess); valid {
 			return access
 		}
 	}
-	access := ResolveUserGroupAccess(common.GetContextKeyString(c, constant.ContextKeyUserGroup))
+	access := ResolveUserGroupAccessForUser(c.GetInt("id"), common.GetContextKeyString(c, constant.ContextKeyUserGroup))
 	common.SetContextKey(c, constant.ContextKeyUserGroupAccess, access)
 	return access
 }
@@ -121,11 +186,15 @@ func GetRequestUserGroupAccess(c *gin.Context) UserGroupAccess {
 // FilterUserTokenAutoGroups applies current permissions before the current
 // per-token limit. It intentionally does not fall back to the global Auto list.
 func FilterUserTokenAutoGroups(userGroup string, groups []string) []string {
+	return FilterUserTokenAutoGroupsForUser(0, userGroup, groups)
+}
+
+func FilterUserTokenAutoGroupsForUser(userID int, userGroup string, groups []string) []string {
 	maxCount := setting.GetMaxTokenAutoGroups()
 	filtered := make([]string, 0, min(len(groups), maxCount))
 	seen := make(map[string]struct{})
 	for _, group := range groups {
-		if !IsUserSelectableGroup(userGroup, group) {
+		if !IsUserSelectableGroupForUser(userID, userGroup, group) {
 			continue
 		}
 		if _, ok := seen[group]; ok {
@@ -146,13 +215,13 @@ func FilterUserTokenAutoGroups(userGroup string, groups []string) []string {
 func GetRequestAutoGroups(c *gin.Context, userGroup string) []string {
 	value, ok := common.GetContextKey(c, constant.ContextKeyTokenAutoGroups)
 	if !ok {
-		return GetUserAutoGroup(userGroup)
+		return GetUserAutoGroupForUser(c.GetInt("id"), userGroup)
 	}
 	groups, ok := value.([]string)
 	if !ok {
 		return []string{}
 	}
-	return FilterUserTokenAutoGroups(userGroup, groups)
+	return FilterUserTokenAutoGroupsForUser(c.GetInt("id"), userGroup, groups)
 }
 
 // GetRequestAutoRoute returns the token-scoped candidate chain for a virtual

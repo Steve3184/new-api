@@ -368,6 +368,8 @@ export type BillingSettings = {
   'group_ratio_setting.group_special_usable_group': string
   GroupDefaultModel: string
   GroupRetryTimes: string
+  'console_setting.model_square_visible_groups': string
+  'console_setting.group_access_rules': string
   PayAddress: string
   EpayId: string
   EpayKey: string

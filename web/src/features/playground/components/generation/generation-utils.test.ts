@@ -11,11 +11,13 @@ import {
 
 const groups = [
   { label: 'default', value: 'default', ratio: 1 },
+  { label: 'auto', value: 'auto', ratio: 1 },
   { label: 'image', value: 'image', ratio: 1 },
   { label: 'speech', value: 'speech', ratio: 1 },
 ]
 const groupModels = {
   default: ['gpt-image-2', 'tts-1'],
+  auto: ['gpt-image-2'],
   image: ['gpt-image-2'],
   speech: ['tts-1'],
 }

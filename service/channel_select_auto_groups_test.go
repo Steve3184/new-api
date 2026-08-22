@@ -127,3 +127,51 @@ func TestCacheGetRandomSatisfiedChannelUsesTokenAutoGroupsWhenGlobalAutoIsEmpty(
 	assert.Equal(t, "default", selectedGroup)
 	assert.Equal(t, "default", common.GetContextKeyString(ctx, constant.ContextKeyAutoGroup))
 }
+
+func TestCacheGetRandomSatisfiedChannelSkipsAutoGroupWithoutVirtualMapping(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const virtualModel = "auto/terra"
+	createChannelSelectAutoGroupsChannel(t, db, 2111, "vip", virtualModel)
+	mapped := `{"auto/terra":"openai/gpt-5.6-terra"}`
+	priority := int64(0)
+	weight := uint(100)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:           2112,
+		Type:         constant.ChannelTypeOpenAI,
+		Key:          "key-2112",
+		Status:       common.ChannelStatusEnabled,
+		Name:         "channel-2112",
+		Weight:       &weight,
+		Models:       virtualModel,
+		ModelMapping: &mapped,
+		Group:        "default",
+		Priority:     &priority,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     virtualModel,
+		ChannelId: 2112,
+		Enabled:   true,
+		Priority:  &priority,
+		Weight:    weight,
+	}).Error)
+	model.InitChannelCache()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenAutoGroups, []string{"vip", "default"})
+
+	retry := 0
+	channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:         ctx,
+		TokenGroup:  "auto",
+		ModelName:   virtualModel,
+		RequestPath: "/v1/responses",
+		Retry:       &retry,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.Equal(t, 2112, channel.Id)
+	assert.Equal(t, "default", selectedGroup)
+}

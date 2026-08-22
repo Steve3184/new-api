@@ -1,7 +1,7 @@
 /* Copyright (C) 2023-2026 QuantumNous */
 import { describe, expect, test } from 'vitest'
 
-import { getDisplayGroupRatio } from './model-helpers'
+import { getAvailableGroups, getDisplayGroupRatio } from './model-helpers'
 
 const model = {
   id: 1,
@@ -37,5 +37,17 @@ describe('model square display group ratio', () => {
 
   test('falls back to the base ratio without usable group prices', () => {
     expect(getDisplayGroupRatio({ ...model, group_ratio: {} })).toBe(1)
+  })
+})
+
+describe('model square group visibility', () => {
+  test('includes visible-only groups in model details', () => {
+    expect(
+      getAvailableGroups(
+        model,
+        { default: { desc: 'Default', ratio: 1 } },
+        ['vip']
+      )
+    ).toEqual(['default', 'vip'])
   })
 })

@@ -33,6 +33,8 @@ type ConsoleSetting struct {
 	ModelSquareDefaultView   string `json:"model_square_default_view"`
 	ModelSquareCardPageSize  int    `json:"model_square_card_page_size"`
 	ModelSquareTablePageSize int    `json:"model_square_table_page_size"`
+	ModelSquareVisibleGroups string `json:"model_square_visible_groups"`
+	GroupAccessRules         string `json:"group_access_rules"`
 	SPAMetaDescription       string `json:"spa_meta_description"`
 	SPAMetaOGType            string `json:"spa_meta_og_type"`
 	SPAMetaOGDescription     string `json:"spa_meta_og_description"`
@@ -61,6 +63,8 @@ var defaultConsoleSetting = ConsoleSetting{
 	ModelSquareDefaultView:   "card",
 	ModelSquareCardPageSize:  18,
 	ModelSquareTablePageSize: 20,
+	ModelSquareVisibleGroups: "[]",
+	GroupAccessRules:         "[]",
 	SPAMetaDescription:       "Unified AI API gateway and admin dashboard.",
 	SPAMetaOGType:            "website",
 	SPAMetaOGDescription:     "Unified AI API gateway and admin dashboard.",

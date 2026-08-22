@@ -4,6 +4,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -55,24 +57,39 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 
-	usableGroup = service.GetUserUsableGroups(group)
-	pricing = filterPricingByUsableGroups(pricing, usableGroup)
+	userID := 0
+	if exists {
+		userID, _ = userId.(int)
+	}
+	usableGroup = service.GetUserUsableGroupsForUser(userID, group)
+	visibleGroups := console_setting.GetModelSquareVisibleGroups()
+	pricingGroups := make(map[string]string, len(usableGroup)+len(visibleGroups))
+	for groupName, description := range usableGroup {
+		pricingGroups[groupName] = description
+	}
+	for _, groupName := range visibleGroups {
+		if _, exists := pricingGroups[groupName]; !exists {
+			pricingGroups[groupName] = setting.GetUsableGroupDescription(groupName)
+		}
+	}
+	pricing = filterPricingByUsableGroups(pricing, pricingGroups)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
-		if _, ok := usableGroup[group]; !ok {
+		if _, ok := pricingGroups[group]; !ok {
 			delete(groupRatio, group)
 		}
 	}
 
 	c.JSON(200, gin.H{
-		"success":            true,
-		"data":               pricing,
-		"vendors":            model.GetVendors(),
-		"group_ratio":        groupRatio,
-		"usable_group":       usableGroup,
-		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
-		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
+		"success":             true,
+		"data":                pricing,
+		"vendors":             model.GetVendors(),
+		"group_ratio":         groupRatio,
+		"usable_group":        usableGroup,
+		"model_square_groups": visibleGroups,
+		"supported_endpoint":  model.GetSupportedEndpointMap(),
+		"auto_groups":         service.GetUserAutoGroupForUser(userID, group),
+		"pricing_version":     "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }
 

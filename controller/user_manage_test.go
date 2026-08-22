@@ -61,6 +61,78 @@ func performManageUserRequest(t *testing.T, body string) *httptest.ResponseRecor
 	return recorder
 }
 
+func performBatchManageUserRequest(t *testing.T, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/manage/batch", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("id", 9999)
+	c.Set("role", common.RoleRootUser)
+	c.Set("username", "root-operator")
+	BatchManageUsers(c)
+	return recorder
+}
+
+func TestBatchManageUsersDisablesAllSelectedUsersAndRevokesSessions(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	now := time.Now().Unix()
+	users := make([]model.User, 0, 2)
+	for index := 0; index < 2; index++ {
+		user := model.User{
+			Username: fmt.Sprintf("batch-disable-user-%d", index), Password: "password",
+			Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+			Group: "default", AuthVersion: 1, AffCode: fmt.Sprintf("batch-disable-aff-%d", index),
+		}
+		require.NoError(t, db.Create(&user).Error)
+		require.NoError(t, db.Create(&model.UserSession{
+			SID: fmt.Sprintf("batch-disable-session-%d", index), UserID: user.Id,
+			Version: 1, UserAuthVersion: 1, Status: model.UserSessionStatusActive,
+			RefreshHash: fmt.Sprintf("batch-refresh-%d", index), LoginMethod: "password",
+			LastActiveAt: now, ExpiresAt: now + 3600,
+		}).Error)
+		users = append(users, user)
+	}
+
+	recorder := performBatchManageUserRequest(t, fmt.Sprintf(`{"ids":[%d,%d],"action":"disable"}`, users[0].Id, users[1].Id))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+
+	for index, user := range users {
+		var updated model.User
+		require.NoError(t, db.First(&updated, user.Id).Error)
+		assert.Equal(t, common.UserStatusDisabled, updated.Status)
+		assert.EqualValues(t, 2, updated.AuthVersion)
+
+		var session model.UserSession
+		require.NoError(t, db.First(&session, "sid = ?", fmt.Sprintf("batch-disable-session-%d", index)).Error)
+		assert.Equal(t, model.UserSessionStatusRevoked, session.Status)
+	}
+}
+
+func TestBatchManageUsersRejectsRootTargetBeforeMutatingOtherUsers(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	commonUser := model.User{
+		Username: "batch-root-guard-common", Password: "password", Role: common.RoleCommonUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "batch-root-guard-common-aff",
+	}
+	rootUser := model.User{
+		Username: "batch-root-guard-root", Password: "password", Role: common.RoleRootUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "batch-root-guard-root-aff",
+	}
+	require.NoError(t, db.Create(&commonUser).Error)
+	require.NoError(t, db.Create(&rootUser).Error)
+
+	recorder := performBatchManageUserRequest(t, fmt.Sprintf(`{"ids":[%d,%d],"action":"disable"}`, commonUser.Id, rootUser.Id))
+	assert.Contains(t, recorder.Body.String(), `"success":false`)
+
+	var unchanged model.User
+	require.NoError(t, db.First(&unchanged, commonUser.Id).Error)
+	assert.Equal(t, common.UserStatusEnabled, unchanged.Status)
+	assert.EqualValues(t, 1, unchanged.AuthVersion)
+}
+
 func TestManageUserDisableAdvancesAuthVersionOnceAndRevokesSession(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	now := time.Now().Unix()

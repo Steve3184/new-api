@@ -21,6 +21,7 @@ import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
+import { GroupAccessRulesSection } from '../general/group-access-rules-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
@@ -53,6 +54,8 @@ const getGroupDefaults = (settings: BillingSettings) => ({
     settings['group_ratio_setting.group_special_usable_group'],
   GroupDefaultModel: settings.GroupDefaultModel,
   GroupRetryTimes: settings.GroupRetryTimes,
+  ModelSquareVisibleGroups:
+    settings['console_setting.model_square_visible_groups'],
 })
 
 const BILLING_SECTIONS = [
@@ -128,6 +131,15 @@ const BILLING_SECTIONS = [
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
         visibleTabs={['groups']}
+      />
+    ),
+  },
+  {
+    id: 'group-access',
+    titleKey: 'Group Access Thresholds',
+    build: (settings: BillingSettings) => (
+      <GroupAccessRulesSection
+        defaultValue={settings['console_setting.group_access_rules']}
       />
     ),
   },

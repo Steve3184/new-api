@@ -129,6 +129,14 @@ export async function manageUser(
   return res.data
 }
 
+export async function batchManageUsers(
+  ids: number[],
+  action: Extract<ManageUserAction, 'enable' | 'disable' | 'delete'>
+): Promise<ApiResponse<number>> {
+  const res = await api.post('/api/user/manage/batch', { ids, action })
+  return res.data
+}
+
 /**
  * Adjust user quota atomically (add/subtract/override)
  */

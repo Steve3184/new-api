@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -71,6 +72,21 @@ func (p *RetryParam) routeModelAndRetry() (string, int) {
 		modelRetry = 0
 	}
 	return p.SelectedModel, modelRetry
+}
+
+func ChannelSupportsVirtualModel(channel *model.Channel, modelName string) bool {
+	if channel == nil || !strings.HasPrefix(modelName, "auto/") {
+		return channel != nil
+	}
+	mapping := strings.TrimSpace(channel.GetModelMapping())
+	if mapping == "" || mapping == "{}" {
+		return false
+	}
+	modelMap := make(map[string]string)
+	if err := common.Unmarshal([]byte(mapping), &modelMap); err != nil {
+		return false
+	}
+	return strings.TrimSpace(modelMap[modelName]) != ""
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -145,6 +161,13 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
 			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, selectionModel, priorityRetry, param.RequestPath)
+			// A token auto route may resolve selectionModel to a concrete model,
+			// but the channel still needs an explicit rewrite for the original
+			// virtual model. Otherwise the first group can accept the concrete
+			// model while forwarding an unmapped virtual request downstream.
+			if !ChannelSupportsVirtualModel(channel, param.ModelName) {
+				channel = nil
+			}
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -186,6 +209,9 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, selectionModel, modelRetry, param.RequestPath)
 		if err != nil {
 			return nil, param.TokenGroup, err
+		}
+		if !ChannelSupportsVirtualModel(channel, param.ModelName) {
+			channel = nil
 		}
 	}
 	return channel, selectGroup, nil

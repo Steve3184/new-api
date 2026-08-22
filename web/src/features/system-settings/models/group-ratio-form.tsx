@@ -78,6 +78,7 @@ type GroupFormValues = {
   GroupSpecialUsableGroup: string
   GroupDefaultModel: string
   GroupRetryTimes: string
+  ModelSquareVisibleGroups: string
 }
 
 type GroupRatioFormProps = {
@@ -168,6 +169,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               groupRatio={form.watch('GroupRatio')}
               topupGroupRatio={form.watch('TopupGroupRatio')}
               userUsableGroups={form.watch('UserUsableGroups')}
+              modelSquareVisibleGroups={form.watch('ModelSquareVisibleGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
               maxTokenAutoGroupsField={

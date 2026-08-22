@@ -655,7 +655,7 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+	groups := service.GetUserUsableGroupsForUser(id, user.Group)
 	group := c.Query("group")
 	var groupsToQuery []string
 	switch {
@@ -666,7 +666,7 @@ func GetUserModels(c *gin.Context) {
 	case group == "auto":
 		// auto is a virtual group resolved from the user's selectable groups;
 		// it is not required to be present in the usable-group map itself.
-		groupsToQuery = service.GetUserAutoGroup(user.Group)
+		groupsToQuery = service.GetUserAutoGroupForUser(id, user.Group)
 	default:
 		if _, ok := groups[group]; ok {
 			groupsToQuery = []string{group}
@@ -1096,6 +1096,93 @@ type ManageRequest struct {
 	Action string `json:"action"`
 	Value  int    `json:"value"`
 	Mode   string `json:"mode"`
+}
+
+type BatchManageRequest struct {
+	Ids    []int  `json:"ids"`
+	Action string `json:"action"`
+}
+
+// BatchManageUsers performs one backend operation for all selected users.
+// This keeps authorization, auth-cache invalidation, and audit behavior on
+// the server instead of making the browser fan out manage requests.
+func BatchManageUsers(c *gin.Context) {
+	var req BatchManageRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || len(req.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if len(req.Ids) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
+		return
+	}
+	seen := make(map[int]struct{}, len(req.Ids))
+	ids := make([]int, 0, len(req.Ids))
+	for _, id := range req.Ids {
+		if id <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if req.Action != "enable" && req.Action != "disable" && req.Action != "delete" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	myRole := c.GetInt("role")
+	users := make([]*model.User, 0, len(ids))
+	for _, id := range ids {
+		user, err := model.GetUserById(id, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !canManageTargetRole(myRole, user.Role) {
+			common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+			return
+		}
+		if (req.Action == "disable" || req.Action == "delete") && user.Role == common.RoleRootUser {
+			if req.Action == "disable" {
+				common.ApiErrorI18n(c, i18n.MsgUserCannotDisableRootUser)
+			} else {
+				common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
+			}
+			return
+		}
+		users = append(users, user)
+	}
+
+	if req.Action == "delete" {
+		for _, user := range users {
+			if err := model.HardDeleteUserById(user.Id); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+	} else {
+		status := common.UserStatusEnabled
+		if req.Action == "disable" {
+			status = common.UserStatusDisabled
+		}
+		if err := model.BatchUpdateUserStatus(ids, status); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	auditParams := map[string]interface{}{
+		"action": req.Action,
+		"count":  len(ids),
+	}
+	recordManageAudit(c, "user.batch_manage", auditParams)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    len(ids),
+	})
 }
 
 // ManageUser Only admin user can do this

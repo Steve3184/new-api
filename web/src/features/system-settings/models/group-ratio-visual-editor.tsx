@@ -81,6 +81,7 @@ type GroupRatioVisualEditorProps = {
   groupRatio: string
   topupGroupRatio: string
   userUsableGroups: string
+  modelSquareVisibleGroups: string
   groupGroupRatio: string
   autoGroups: string
   maxTokenAutoGroupsField: ReactNode
@@ -96,6 +97,7 @@ type GroupPricingRow = {
   topupRatio: string
   retryTimes: string
   selectable: boolean
+  modelSquareVisible: boolean
   description: string
 }
 
@@ -133,6 +135,13 @@ function parseUsableMap(value: string): Record<string, string> {
   })
 }
 
+function parseVisibleGroups(value: string): string[] {
+  return safeJsonParse<string[]>(value, {
+    fallback: [],
+    silent: true,
+  })
+}
+
 function parseNestedRatioMap(
   value: string
 ): Record<string, Record<string, number>> {
@@ -145,11 +154,13 @@ function parseNestedRatioMap(
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
+  modelSquareVisibleGroups: string,
   topupGroupRatio: string,
   groupRetryTimes: string
 ): GroupPricingRow[] {
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
+  const visibleGroups = new Set(parseVisibleGroups(modelSquareVisibleGroups))
   const topupMap = parseRatioMap(topupGroupRatio)
   const retryTimesMap = parseRatioMap(groupRetryTimes)
   const names = new Set([
@@ -157,6 +168,7 @@ function buildGroupPricingRows(
     ...Object.keys(usableMap),
     ...Object.keys(topupMap),
     ...Object.keys(retryTimesMap),
+    ...visibleGroups,
   ])
 
   return [...names].map((name) => ({
@@ -168,6 +180,7 @@ function buildGroupPricingRows(
       ? String(retryTimesMap[name])
       : '',
     selectable: Object.hasOwn(usableMap, name),
+    modelSquareVisible: visibleGroups.has(name),
     description: String(usableMap[name] ?? ''),
   }))
 }
@@ -177,6 +190,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const userUsableGroups: Record<string, string> = {}
   const topupGroupRatio: Record<string, number> = {}
   const groupRetryTimes: Record<string, number> = {}
+  const modelSquareVisibleGroups: string[] = []
 
   for (const row of rows) {
     const name = row.name.trim()
@@ -184,6 +198,9 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     groupRatio[name] = normalizeRatio(row.ratio)
     if (row.selectable) {
       userUsableGroups[name] = row.description
+    }
+    if (row.modelSquareVisible) {
+      modelSquareVisibleGroups.push(name)
     }
     const topup = row.topupRatio.trim()
     if (topup !== '' && Number.isFinite(Number(topup))) {
@@ -200,6 +217,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
     TopupGroupRatio: JSON.stringify(topupGroupRatio, null, 2),
     GroupRetryTimes: JSON.stringify(groupRetryTimes, null, 2),
+    ModelSquareVisibleGroups: JSON.stringify(modelSquareVisibleGroups, null, 2),
   }
 }
 
@@ -210,6 +228,9 @@ function groupPricingSignature(rows: GroupPricingRow[]): string {
     userUsableGroups: parseUsableMap(serialized.UserUsableGroups),
     topupGroupRatio: parseRatioMap(serialized.TopupGroupRatio),
     groupRetryTimes: parseRatioMap(serialized.GroupRetryTimes),
+    modelSquareVisibleGroups: parseVisibleGroups(
+      serialized.ModelSquareVisibleGroups
+    ),
   })
 }
 
@@ -217,13 +238,15 @@ function sourceGroupPricingSignature(
   groupRatio: string,
   userUsableGroups: string,
   topupGroupRatio: string,
-  groupRetryTimes: string
+  groupRetryTimes: string,
+  modelSquareVisibleGroups: string
 ): string {
   return JSON.stringify({
     groupRatio: parseRatioMap(groupRatio),
     userUsableGroups: parseUsableMap(userUsableGroups),
     topupGroupRatio: parseRatioMap(topupGroupRatio),
     groupRetryTimes: parseRatioMap(groupRetryTimes),
+    modelSquareVisibleGroups: parseVisibleGroups(modelSquareVisibleGroups),
   })
 }
 
@@ -280,6 +303,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   groupRatio,
   topupGroupRatio,
   userUsableGroups,
+  modelSquareVisibleGroups,
   groupGroupRatio,
   autoGroups,
   maxTokenAutoGroupsField,
@@ -357,6 +381,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       <GroupPricingTable
         groupRatio={groupRatio}
         userUsableGroups={userUsableGroups}
+        modelSquareVisibleGroups={modelSquareVisibleGroups}
         topupGroupRatio={topupGroupRatio}
         groupRetryTimes={groupRetryTimes}
         onChange={onChange}
@@ -450,6 +475,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
 type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
+  modelSquareVisibleGroups: string
   topupGroupRatio: string
   groupRetryTimes: string
   onChange: (field: string, value: string) => void
@@ -461,6 +487,7 @@ function GroupPricingTable({
   userUsableGroups,
   topupGroupRatio,
   groupRetryTimes,
+  modelSquareVisibleGroups,
   onChange,
   onShowDetail,
 }: GroupPricingTableProps) {
@@ -469,6 +496,7 @@ function GroupPricingTable({
     buildGroupPricingRows(
       groupRatio,
       userUsableGroups,
+      modelSquareVisibleGroups,
       topupGroupRatio,
       groupRetryTimes
     )
@@ -479,7 +507,8 @@ function GroupPricingTable({
       groupRatio,
       userUsableGroups,
       topupGroupRatio,
-      groupRetryTimes
+      groupRetryTimes,
+      modelSquareVisibleGroups
     )
     setRows((currentRows) => {
       if (groupPricingSignature(currentRows) === incomingSignature) {
@@ -488,11 +517,18 @@ function GroupPricingTable({
       return buildGroupPricingRows(
         groupRatio,
         userUsableGroups,
+        modelSquareVisibleGroups,
         topupGroupRatio,
         groupRetryTimes
       )
     })
-  }, [groupRatio, userUsableGroups, topupGroupRatio, groupRetryTimes])
+  }, [
+    groupRatio,
+    userUsableGroups,
+    modelSquareVisibleGroups,
+    topupGroupRatio,
+    groupRetryTimes,
+  ])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -502,6 +538,7 @@ function GroupPricingTable({
       onChange('UserUsableGroups', serialized.UserUsableGroups)
       onChange('TopupGroupRatio', serialized.TopupGroupRatio)
       onChange('GroupRetryTimes', serialized.GroupRetryTimes)
+      onChange('ModelSquareVisibleGroups', serialized.ModelSquareVisibleGroups)
     },
     [onChange]
   )
@@ -536,6 +573,7 @@ function GroupPricingTable({
         topupRatio: '',
         retryTimes: '',
         selectable: true,
+        modelSquareVisible: false,
         description: '',
       },
     ])
@@ -663,6 +701,22 @@ function GroupPricingTable({
                         updateRow(row._id, 'selectable', checked === true)
                       }
                       aria-label={t('User selectable')}
+                    />
+                  </div>
+                ),
+              },
+              {
+                id: 'model-square-visible',
+                header: t('Model plaza visible'),
+                className: 'w-32 text-center',
+                cell: (row) => (
+                  <div className='flex justify-center'>
+                    <Checkbox
+                      checked={row.modelSquareVisible}
+                      onCheckedChange={(checked) =>
+                        updateRow(row._id, 'modelSquareVisible', checked === true)
+                      }
+                      aria-label={t('Model plaza visible')}
                     />
                   </div>
                 ),

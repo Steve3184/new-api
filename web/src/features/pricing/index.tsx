@@ -49,6 +49,7 @@ export function Pricing() {
     vendors,
     groupRatio,
     usableGroup,
+    modelSquareGroups,
     endpointMap,
     autoGroups,
     isLoading,
@@ -101,10 +102,13 @@ export function Pricing() {
 
   const availableGroups = useMemo(
     () =>
-      Object.keys(usableGroup || {}).filter(
-        (g) => !EXCLUDED_GROUPS.includes(g)
-      ),
-    [usableGroup]
+      [
+        ...new Set([
+          ...Object.keys(usableGroup || {}),
+          ...(modelSquareGroups || []),
+        ]),
+      ].filter((g) => !EXCLUDED_GROUPS.includes(g)),
+    [modelSquareGroups, usableGroup]
   )
 
   const handleClearAll = useCallback(() => {
@@ -259,6 +263,7 @@ export function Pricing() {
               model={selectedModel}
               groupRatio={groupRatio || {}}
               usableGroup={usableGroup || {}}
+              modelSquareGroups={modelSquareGroups || []}
               endpointMap={
                 (endpointMap as Record<
                   string,
