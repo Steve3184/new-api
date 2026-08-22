@@ -27,6 +27,7 @@ import i18next from 'i18next'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { telegramLogin } from '@/features/auth/api'
 import { getBannedLoginResponse } from '@/features/auth/components/banned-login-response'
 import { BannedUserDialog } from '@/features/auth/components/banned-user-dialog'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
@@ -44,6 +45,7 @@ import {
   getOAuthSessionStorage,
   resolveOAuthCallbackMode,
 } from '@/features/auth/lib/oauth-callback-mode'
+import { pickTelegramAuthorization } from '@/features/auth/lib/telegram-login'
 import { api, applyAuthBundle, isAuthBundle } from '@/lib/api'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
 
@@ -74,6 +76,14 @@ function OAuthCallback() {
     telegram_bind?: string
     flow_token?: string
     error_code?: string
+    id?: string
+    auth_date?: string
+    hash?: string
+    first_name?: string
+    last_name?: string
+    username?: string
+    photo_url?: string
+    lang?: string
   }
   const callbackState = search.state ?? ''
   const isTelegramBindCallback =
@@ -184,6 +194,64 @@ function OAuthCallback() {
       void navigate({ href, replace: true })
     }
 
+    const telegramAuthorization =
+      provider === 'telegram'
+        ? pickTelegramAuthorization({
+            id: search.id,
+            auth_date: search.auth_date,
+            hash: search.hash,
+            first_name: search.first_name,
+            last_name: search.last_name,
+            username: search.username,
+            photo_url: search.photo_url,
+            lang: search.lang,
+          })
+        : null
+    if (telegramAuthorization) {
+      void (async () => {
+        try {
+          const response = await telegramLogin(telegramAuthorization)
+          if (response.success && isAuthBundle(response.data)) {
+            applyAuthBundle(response.data)
+            safeNavigate(search.redirect)
+            toast.success(i18next.t('Signed in successfully!'))
+            return
+          }
+          const banned = getBannedLoginResponse(response)
+          if (banned) {
+            setBannedHtml(banned.html)
+            return
+          }
+          const messageKey = getServerErrorMessageKey(response)
+          toast.error(
+            messageKey
+              ? i18next.t(messageKey)
+              : response.message || i18next.t('OAuth failed')
+          )
+        } catch (error: unknown) {
+          const banned = getBannedLoginResponse(error)
+          if (banned) {
+            setBannedHtml(banned.html)
+            return
+          }
+          const messageKey = getServerErrorMessageKey(error)
+          const responseMessage = (
+            error as { response?: { data?: { message?: string } } }
+          ).response?.data?.message
+          if (!messageKey) {
+            toast.error(
+              responseMessage ||
+                (error instanceof Error
+                  ? error.message
+                  : i18next.t('OAuth failed'))
+            )
+          }
+        }
+        safeNavigate('/sign-in', '/sign-in')
+      })()
+      return
+    }
+
     if (!code && !search.error) {
       toast.error(i18next.t('Missing code'))
       safeNavigate('/sign-in', '/sign-in')
@@ -246,13 +314,21 @@ function OAuthCallback() {
     mode,
     navigate,
     provider,
+    search.auth_date,
     search.code,
     search.error,
     search.error_code,
     search.error_description,
     search.flow_token,
+    search.first_name,
+    search.hash,
+    search.id,
+    search.lang,
+    search.last_name,
+    search.photo_url,
     search.redirect,
     search.telegram_bind,
+    search.username,
   ])
 
   return (

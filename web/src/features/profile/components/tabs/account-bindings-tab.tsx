@@ -49,6 +49,7 @@ import {
   buildOIDCOAuthUrl,
   type CustomOAuthBinding,
 } from '@/lib/oauth'
+import { formatDate } from '@/lib/time'
 
 import { getSelfOAuthBindings, unbindCustomOAuth } from '../../api'
 import type { UserProfile, BindingItem } from '../../types'
@@ -321,12 +322,13 @@ export function AccountBindingsTab({
         id: 'github',
         label: t('GitHub'),
         icon: SiGithub,
-        value: (profile as unknown as Record<string, unknown>).github_id as
-          | string
-          | undefined,
-        isBound: Boolean(
-          (profile as unknown as Record<string, unknown>).github_id
-        ),
+        value: profile.github_id,
+        secondaryValue: profile.github_created_at
+          ? t('GitHub account created on {{date}}', {
+              date: formatDate(profile.github_created_at),
+            })
+          : undefined,
+        isBound: Boolean(profile.github_id),
         isEnabled: status?.github_oauth || false,
         onBind: () => {
           const clientId = status?.github_client_id
@@ -451,6 +453,11 @@ export function AccountBindingsTab({
                   <p className='text-muted-foreground truncate text-xs'>
                     {binding.value || t('Not bound')}
                   </p>
+                  {binding.secondaryValue && (
+                    <p className='text-muted-foreground text-xs'>
+                      {binding.secondaryValue}
+                    </p>
+                  )}
                 </div>
               </div>
               <Button

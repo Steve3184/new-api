@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -180,6 +181,9 @@ func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin
 	if user.Status != common.UserStatusEnabled {
 		writeUserBannedResponse(c)
 		return
+	}
+	if err := oauth.RefreshGitHubCreatedAt(c.Request.Context(), user); err != nil {
+		common.SysError(fmt.Sprintf("failed to refresh GitHub registration time for user %d: %s", user.Id, err.Error()))
 	}
 	currentUser, err := model.GetUserById(user.Id, false)
 	if err != nil {
@@ -533,6 +537,7 @@ func buildSelfUserData(user *model.User) map[string]interface{} {
 		"status":            user.Status,
 		"email":             user.Email,
 		"github_id":         user.GitHubId,
+		"github_created_at": user.GitHubCreatedAt,
 		"discord_id":        user.DiscordId,
 		"oidc_id":           user.OidcId,
 		"wechat_id":         user.WeChatId,

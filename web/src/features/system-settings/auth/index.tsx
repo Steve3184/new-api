@@ -37,6 +37,7 @@ const defaultAuthSettings: AuthSettings = {
   GitHubOAuthEnabled: false,
   GitHubClientId: '',
   GitHubClientSecret: '',
+  GitHubAPIToken: '',
   'discord.enabled': false,
   'discord.client_id': '',
   'discord.client_secret': '',

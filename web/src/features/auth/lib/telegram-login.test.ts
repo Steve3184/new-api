@@ -21,6 +21,22 @@ import { describe, expect, test } from 'vitest'
 import { pickTelegramAuthorization } from './telegram-login'
 
 describe('Telegram login authorization', () => {
+  test('accepts the URL query shape used by the /oauth/telegram callback route', () => {
+    expect(
+      pickTelegramAuthorization({
+        id: '12345',
+        auth_date: '1900000000',
+        hash: 'signed-hash',
+        username: 'telegram_user',
+      })
+    ).toEqual({
+      id: '12345',
+      auth_date: '1900000000',
+      hash: 'signed-hash',
+      username: 'telegram_user',
+    })
+  })
+
   test('keeps only fields signed by the Telegram login contract', () => {
     expect(
       pickTelegramAuthorization({

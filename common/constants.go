@@ -114,6 +114,7 @@ var EmailVerificationTemplate = DefaultEmailVerificationTemplate
 
 var GitHubClientId = ""
 var GitHubClientSecret = ""
+var GitHubAPIToken = ""
 var LinuxDOClientId = ""
 var LinuxDOClientSecret = ""
 var LinuxDOMinimumTrustLevel = 0

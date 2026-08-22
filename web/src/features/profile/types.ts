@@ -73,6 +73,8 @@ export interface UserProfile {
   wechat_id?: string
   /** GitHub ID (OAuth) */
   github_id?: string
+  /** GitHub account creation timestamp */
+  github_created_at?: number
   /** Discord ID (OAuth) */
   discord_id?: string
   /** OIDC ID (OAuth) */
@@ -162,6 +164,7 @@ export interface BindingItem {
   label: string
   icon: React.ElementType
   value?: string
+  secondaryValue?: string
   isBound: boolean
   isEnabled: boolean
   onBind: () => void
