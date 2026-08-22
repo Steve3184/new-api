@@ -112,7 +112,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			}
 		}
 		var closer io.Closer
-		requestBody, closer, err = prepareClaudePassThroughBody(storage, info)
+		requestBody, closer, err = prepareMappedPassThroughBody(c, storage, info, true)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}

@@ -10,7 +10,7 @@ export function filterGenerationGroups(
 ): GroupOption[] {
   const allowedModels = new Set(models.map((model) => model.value))
   return groups.filter((group) => {
-    if (group.value === 'default' || group.value === 'auto') return false
+    if (group.value === 'auto') return false
     const availableModels = groupModels[group.value] ?? []
     return availableModels.some((model) => allowedModels.has(model))
   })

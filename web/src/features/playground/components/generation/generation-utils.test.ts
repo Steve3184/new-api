@@ -23,20 +23,25 @@ const groupModels = {
 }
 
 describe('generation group filtering', () => {
-  test('shows eligible generation groups without exposing the default group', () => {
+  test('shows user-selectable generation groups including default', () => {
     expect(
       filterGenerationGroups(groups, groupModels, [
         { label: 'GPT Image 2', value: 'gpt-image-2' },
         { label: 'TTS', value: 'tts-1' },
       ]).map((group) => group.value)
-    ).toEqual(['image', 'speech'])
+    ).toEqual(['default', 'image', 'speech'])
   })
 
   test('hides groups without any allowed generation model before selection', () => {
     expect(
-      filterGenerationGroups(groups, groupModels, [
-        { label: 'TTS', value: 'tts-1' },
-      ]).map((group) => group.value)
+      filterGenerationGroups(
+        groups,
+        {
+          ...groupModels,
+          default: ['gpt-image-2'],
+        },
+        [{ label: 'TTS', value: 'tts-1' }]
+      ).map((group) => group.value)
     ).toEqual(['speech'])
   })
 
@@ -48,7 +53,7 @@ describe('generation group filtering', () => {
         [{ label: 'GPT Image 2', value: 'gpt-image-2' }],
         'speech'
       )
-    ).toBe('image')
+    ).toBe('default')
   })
 
   test('keeps an eligible selected group when it has a different allowed model', () => {
@@ -65,21 +70,19 @@ describe('generation group filtering', () => {
     ).toBe('speech')
   })
 
-  test('does not fall back to default when no selectable group is available', () => {
+  test('returns no group when no generation model is available', () => {
     const defaultOnlyGroups = [groups[0]]
     const models = [{ label: 'GPT Image 2', value: 'gpt-image-2' }]
 
     expect(
       resolveGenerationGroup(
         defaultOnlyGroups,
-        groupModels,
+        { default: [] },
         models,
         'default'
       )
     ).toBe('')
-    expect(
-      filterGenerationModelsForGroup(models, groupModels, '')
-    ).toEqual([])
+    expect(filterGenerationModelsForGroup(models, groupModels, '')).toEqual([])
   })
 
   test('limits the model list to models available in the selected group', () => {
