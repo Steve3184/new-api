@@ -68,6 +68,44 @@ export type WaffoPancakePaymentResponse = ApiResponse<
 export type MoneroPaymentResponse = ApiResponse<MoneroInvoice>
 export type MoneroPaymentStatusResponse = ApiResponse<MoneroPaymentStatus>
 
+export type RedemptionPurchaseAmountResponse = ApiResponse<string>
+export type RedemptionPurchaseResponse = ApiResponse<unknown> & {
+  url?: string
+}
+
+export interface RedemptionPurchaseRequest {
+  unit_amount: number
+  quantity: number
+  payment_method: string
+  pay_method_index?: number
+}
+
+export interface UserRedemption {
+  id: number
+  user_id: number
+  owner_id: number
+  name: string
+  key: string
+  status: number
+  quota: number
+  purchase_amount: number
+  purchase_trade_no: string
+  created_time: number
+  redeemed_time: number
+  expired_time: number
+  refunded_time: number
+  used_user_id: number
+}
+
+export interface UserRedemptionPage {
+  items: UserRedemption[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export type UserRedemptionsResponse = ApiResponse<UserRedemptionPage>
+
 export interface MoneroInvoice {
   address: string
   quota_amount: number
@@ -181,6 +219,10 @@ export interface TopupInfo {
   waffo_pancake_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
+  /** Whether users may purchase redemption codes */
+  enable_redemption_purchase?: boolean
+  /** Payment method types allowed for redemption purchases */
+  redemption_purchase_methods?: string[]
   /** Whether compliance confirmation has been completed */
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */

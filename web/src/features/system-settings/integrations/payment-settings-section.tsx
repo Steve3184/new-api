@@ -142,6 +142,7 @@ const paymentSchema = z.object({
       })
     }
   }),
+  RedemptionPurchaseEnabled: z.boolean(),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
@@ -450,6 +451,7 @@ export function PaymentSettingsSection({
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
+      RedemptionPurchaseEnabled: values.RedemptionPurchaseEnabled,
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
@@ -506,6 +508,8 @@ export function PaymentSettingsSection({
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
+      RedemptionPurchaseEnabled:
+        initialRef.current.RedemptionPurchaseEnabled,
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
@@ -609,6 +613,16 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_discount',
         value: sanitized.AmountDiscount,
+      })
+    }
+
+    if (
+      sanitized.RedemptionPurchaseEnabled !==
+      initial.RedemptionPurchaseEnabled
+    ) {
+      updates.push({
+        key: 'payment_setting.redemption_purchase_enabled',
+        value: sanitized.RedemptionPurchaseEnabled,
       })
     }
 
@@ -1025,6 +1039,29 @@ export function PaymentSettingsSection({
                     {t('Shared configuration for all payment gateways')}
                   </p>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name='RedemptionPurchaseEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Allow redemption code purchases')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Users can buy codes only through configured external payment methods; wallet balance is never used.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
 
                 <div className='grid gap-6 md:grid-cols-2'>
                   <FormField

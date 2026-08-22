@@ -41,6 +41,10 @@ import type {
   WaffoPancakePaymentResponse,
   MoneroPaymentResponse,
   MoneroPaymentStatusResponse,
+  RedemptionPurchaseAmountResponse,
+  RedemptionPurchaseRequest,
+  RedemptionPurchaseResponse,
+  UserRedemptionsResponse,
 } from './types'
 
 // ============================================================================
@@ -206,6 +210,41 @@ export async function getMoneroPaymentStatus(
       skipBusinessError: true,
     } as Record<string, unknown>
   )
+  return res.data
+}
+
+export async function calculateRedemptionPurchaseAmount(
+  request: RedemptionPurchaseRequest
+): Promise<RedemptionPurchaseAmountResponse> {
+  const res = await api.post('/api/user/redemption/purchase/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function requestRedemptionPurchase(
+  request: RedemptionPurchaseRequest
+): Promise<RedemptionPurchaseResponse> {
+  const res = await api.post('/api/user/redemption/purchase', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getUserRedemptions(
+  page = 1,
+  pageSize = 20
+): Promise<UserRedemptionsResponse> {
+  const res = await api.get(
+    `/api/user/redemption/self?p=${page}&page_size=${pageSize}`
+  )
+  return res.data
+}
+
+export async function refundUserRedemption(
+  id: number
+): Promise<ApiResponse<{ quota: number }>> {
+  const res = await api.post(`/api/user/redemption/${id}/refund`)
   return res.data
 }
 

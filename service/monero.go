@@ -563,6 +563,41 @@ func moneroQuoteUSD(amount int64, group string) (decimal.Decimal, error) {
 }
 
 func CreateMoneroInvoice(ctx context.Context, userID int, amount int64) (*MoneroInvoice, error) {
+	return createMoneroInvoice(ctx, userID, amount, nil)
+}
+
+func CreateMoneroRedemptionInvoice(ctx context.Context, userID int, unitAmount int64, quantity int) (*MoneroInvoice, error) {
+	if unitAmount <= 0 || quantity <= 0 || quantity > model.MaxRedemptionPurchaseCount {
+		return nil, errors.New("invalid redemption purchase amount")
+	}
+	if unitAmount > int64(^uint64(0)>>1)/int64(quantity) {
+		return nil, errors.New("redemption purchase amount is outside the supported range")
+	}
+	unitQuota := decimal.NewFromInt(unitAmount)
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		// Token-denominated top-ups use the same whole-unit normalization as
+		// the regular top-up path, so Monero and external gateways mint the
+		// same code quota for a given denomination.
+		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		unitQuota = decimal.NewFromInt(unitQuota.Div(quotaPerUnit).IntPart()).Mul(quotaPerUnit)
+	} else {
+		unitQuota = unitQuota.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	}
+	quota, err := common.QuotaFromDecimalStrict(unitQuota)
+	if err != nil || quota <= 0 {
+		return nil, errors.New("invalid redemption unit quota")
+	}
+	total := unitAmount * int64(quantity)
+	return createMoneroInvoice(ctx, userID, total, &model.TopUp{
+		OrderType:        model.OrderTypeRedemption,
+		RedemptionQuota:  quota,
+		RedemptionCount:  quantity,
+		RedemptionAmount: unitAmount,
+		RedemptionName:   fmt.Sprintf("Code %d", unitAmount),
+	})
+}
+
+func createMoneroInvoice(ctx context.Context, userID int, amount int64, orderOptions *model.TopUp) (*MoneroInvoice, error) {
 	if !IsMoneroTopUpEnabled() {
 		return nil, errors.New("monero topup is not configured")
 	}
@@ -641,6 +676,13 @@ func CreateMoneroInvoice(ctx context.Context, userID int, amount int64) (*Monero
 			PaymentProvider: model.PaymentProviderMonero,
 			CreateTime:      now,
 			Status:          common.TopUpStatusPending,
+		}
+		if orderOptions != nil {
+			topUp.OrderType = orderOptions.OrderType
+			topUp.RedemptionQuota = orderOptions.RedemptionQuota
+			topUp.RedemptionCount = orderOptions.RedemptionCount
+			topUp.RedemptionAmount = orderOptions.RedemptionAmount
+			topUp.RedemptionName = orderOptions.RedemptionName
 		}
 		if err := model.CreateMoneroPaymentInvoice(topUp, candidatePayment); err != nil {
 			if errors.Is(err, model.ErrMoneroPaymentAddressConflict) {

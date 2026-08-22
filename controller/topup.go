@@ -123,6 +123,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
 		"enable_monero_topup":              enableMonero,
 		"enable_redemption":                complianceConfirmed,
+		"enable_redemption_purchase":       complianceConfirmed && operation_setting.GetPaymentSetting().RedemptionPurchaseEnabled,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
 		"waffo_pay_methods": func() interface{} {
@@ -131,16 +132,17 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			return nil
 		}(),
-		"creem_products":          setting.CreemProducts,
-		"pay_methods":             payMethods,
-		"min_topup":               operation_setting.MinTopUp,
-		"stripe_min_topup":        setting.StripeMinTopUp,
-		"waffo_min_topup":         setting.WaffoMinTopUp,
-		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
-		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":              common.TopUpLink,
-		"payment_announcement":    common.PaymentAnnouncement,
+		"creem_products":              setting.CreemProducts,
+		"pay_methods":                 payMethods,
+		"min_topup":                   operation_setting.MinTopUp,
+		"stripe_min_topup":            setting.StripeMinTopUp,
+		"waffo_min_topup":             setting.WaffoMinTopUp,
+		"waffo_pancake_min_topup":     setting.WaffoPancakeMinTopUp,
+		"amount_options":              operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":                    operation_setting.GetPaymentSetting().AmountDiscount,
+		"redemption_purchase_methods": redemptionPurchasePaymentMethods(),
+		"topup_link":                  common.TopUpLink,
+		"payment_announcement":        common.PaymentAnnouncement,
 	}
 	common.ApiSuccess(c, data)
 }

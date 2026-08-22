@@ -38,6 +38,7 @@ import { MoneroPaymentDialog } from './components/dialogs/monero-payment-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
+import { RedemptionPurchaseCard } from './components/redemption-purchase-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from './constants'
@@ -474,6 +475,15 @@ export function Wallet(props: WalletProps) {
                 onPurchaseSuccess={fetchUser}
               />
             </div>
+
+            <RedemptionPurchaseCard
+              topupInfo={topupInfo}
+              onMoneroInvoice={(invoice) => {
+                setMoneroInvoice(invoice)
+                setMoneroDialogOpen(true)
+              }}
+              onRefreshUser={fetchUser}
+            />
 
             <AffiliateRewardsCard
               user={user}

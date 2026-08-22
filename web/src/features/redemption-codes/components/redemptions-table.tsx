@@ -35,6 +35,7 @@ import { getRedemptions, searchRedemptions } from '../api'
 import {
   ERROR_MESSAGES,
   REDEMPTION_STATUS,
+  getRedemptionCreatorOptions,
   getRedemptionStatusOptions,
 } from '../constants'
 import { isRedemptionExpired } from '../lib'
@@ -72,13 +73,21 @@ export function RedemptionsTable() {
     navigate: route.useNavigate(),
     pagination: { defaultPage: 1, defaultPageSize: isMobile ? 10 : 20 },
     globalFilter: { enabled: true, key: 'filter' },
-    columnFilters: [{ columnId: 'status', searchKey: 'status', type: 'array' }],
+    columnFilters: [
+      { columnId: 'status', searchKey: 'status', type: 'array' },
+      { columnId: 'creator_type', searchKey: 'creator_type', type: 'array' },
+    ],
   })
   const statusFilter =
     (columnFilters.find((filter) => filter.id === 'status')?.value as
       | string[]
       | undefined) ?? []
   const statusFilterValue = statusFilter[0] ?? ''
+  const creatorFilter =
+    (columnFilters.find((filter) => filter.id === 'creator_type')?.value as
+      | string[]
+      | undefined) ?? []
+  const creatorFilterValue = creatorFilter[0] ?? ''
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -88,22 +97,25 @@ export function RedemptionsTable() {
       pagination.pageSize,
       globalFilter,
       statusFilterValue,
+      creatorFilterValue,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
       const hasStatusFilter = statusFilterValue !== ''
+      const hasCreatorFilter = creatorFilterValue !== ''
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
       }
 
       const result =
-        hasFilter || hasStatusFilter
+        hasFilter || hasStatusFilter || hasCreatorFilter
           ? await searchRedemptions({
               ...params,
               keyword: globalFilter,
               status: statusFilterValue,
+              creator_type: creatorFilterValue,
             })
           : await getRedemptions(params)
 
@@ -111,7 +123,7 @@ export function RedemptionsTable() {
         toast.error(
           result.message ||
             t(
-              hasFilter || hasStatusFilter
+                hasFilter || hasStatusFilter || hasCreatorFilter
                 ? ERROR_MESSAGES.SEARCH_FAILED
                 : ERROR_MESSAGES.LOAD_FAILED
             )
@@ -156,6 +168,10 @@ export function RedemptionsTable() {
     () => getRedemptionStatusOptions(t),
     [t]
   )
+  const redemptionCreatorOptions = useMemo(
+    () => getRedemptionCreatorOptions(t),
+    [t]
+  )
 
   return (
     <DataTablePage
@@ -177,6 +193,12 @@ export function RedemptionsTable() {
             columnId: 'status',
             title: t('Status'),
             options: redemptionStatusOptions,
+            singleSelect: true,
+          },
+          {
+            columnId: 'creator_type',
+            title: t('Creator'),
+            options: redemptionCreatorOptions,
             singleSelect: true,
           },
         ],

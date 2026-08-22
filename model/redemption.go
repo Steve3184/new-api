@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -25,9 +26,24 @@ type Redemption struct {
 	RedeemedTime       int64          `json:"redeemed_time" gorm:"bigint"`
 	Count              int            `json:"count" gorm:"-:all"` // only for api request
 	UsedUserId         int            `json:"used_user_id"`
+	CreatorType        string         `json:"creator_type" gorm:"type:varchar(16);index"`
+	OwnerId            int            `json:"owner_id" gorm:"index"`
+	PurchaseTradeNo    string         `json:"purchase_trade_no" gorm:"type:varchar(255);index"`
+	PurchaseAmount     int64          `json:"purchase_amount"`
+	RefundedTime       int64          `json:"refunded_time" gorm:"bigint"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 	ExpiredTime        int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
 }
+
+const (
+	RedemptionCreatorAdmin = "admin"
+	RedemptionCreatorUser  = "user"
+)
+
+var (
+	ErrRedemptionRefundNotAllowed = errors.New("兑换码不可退款")
+	ErrRedemptionNotOwned         = errors.New("兑换码不属于当前用户")
+)
 
 type RedemptionResult struct {
 	Quota                 int
@@ -41,7 +57,7 @@ func normalizeSubscriptionRedemptionQuotas() error {
 		Update("quota", 0).Error
 }
 
-func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+func GetAllRedemptions(startIdx int, num int, creatorType ...string) (redemptions []*Redemption, total int64, err error) {
 	// 开始事务
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -54,14 +70,15 @@ func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total 
 	}()
 
 	// 获取总数
-	err = tx.Model(&Redemption{}).Count(&total).Error
+	query := applyRedemptionCreatorFilter(tx.Model(&Redemption{}), creatorType)
+	err = query.Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
 	// 获取分页数据
-	err = tx.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
+	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&redemptions).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -75,7 +92,7 @@ func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total 
 	return redemptions, total, nil
 }
 
-func SearchRedemptions(keyword string, status string, startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
+func SearchRedemptions(keyword string, status string, startIdx int, num int, creatorType ...string) (redemptions []*Redemption, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -87,6 +104,7 @@ func SearchRedemptions(keyword string, status string, startIdx int, num int) (re
 	}()
 
 	query := tx.Model(&Redemption{})
+	query = applyRedemptionCreatorFilter(query, creatorType)
 
 	if keyword != "" {
 		if id, err := strconv.Atoi(keyword); err == nil {
@@ -137,6 +155,21 @@ func SearchRedemptions(keyword string, status string, startIdx int, num int) (re
 	}
 
 	return redemptions, total, nil
+}
+
+func applyRedemptionCreatorFilter(query *gorm.DB, creatorType []string) *gorm.DB {
+	if len(creatorType) == 0 || strings.TrimSpace(creatorType[0]) == "" || creatorType[0] == "all" {
+		return query
+	}
+	switch strings.TrimSpace(creatorType[0]) {
+	case RedemptionCreatorUser:
+		return query.Where("creator_type = ?", RedemptionCreatorUser)
+	case RedemptionCreatorAdmin:
+		// Legacy rows predate creator_type and were all administrator-created.
+		return query.Where("(creator_type = ? OR creator_type = '')", RedemptionCreatorAdmin)
+	default:
+		return query
+	}
 }
 
 func GetRedemptionById(id int) (*Redemption, error) {
@@ -296,6 +329,11 @@ func (redemption *Redemption) Insert() error {
 		"created_time":         redemption.CreatedTime,
 		"redeemed_time":        redemption.RedeemedTime,
 		"used_user_id":         redemption.UsedUserId,
+		"creator_type":         redemption.CreatorType,
+		"owner_id":             redemption.OwnerId,
+		"purchase_trade_no":    redemption.PurchaseTradeNo,
+		"purchase_amount":      redemption.PurchaseAmount,
+		"refunded_time":        redemption.RefundedTime,
 		"expired_time":         redemption.ExpiredTime,
 	}).Error
 }
@@ -310,6 +348,89 @@ func (redemption *Redemption) Update() error {
 	var err error
 	err = DB.Model(redemption).Select("name", "status", "quota", "subscription_plan_id", "redeemed_time", "expired_time").Updates(redemption).Error
 	return err
+}
+
+func CreatePurchasedRedemptionsTx(tx *gorm.DB, userId int, name string, quota int, purchaseAmount int64, count int, tradeNo string) ([]*Redemption, error) {
+	if userId <= 0 || quota <= 0 || purchaseAmount <= 0 || count <= 0 || count > MaxRedemptionPurchaseCount || strings.TrimSpace(tradeNo) == "" {
+		return nil, errors.New("兑换码购买参数无效")
+	}
+	name = strings.TrimSpace(name)
+	if utf8.RuneCountInString(name) == 0 {
+		name = "Purchased code"
+	}
+	if utf8.RuneCountInString(name) > 20 {
+		name = string([]rune(name)[:20])
+	}
+	redemptions := make([]*Redemption, 0, count)
+	for i := 0; i < count; i++ {
+		redemptions = append(redemptions, &Redemption{
+			UserId:          userId,
+			OwnerId:         userId,
+			CreatorType:     RedemptionCreatorUser,
+			Name:            name,
+			Key:             common.GetUUID(),
+			Status:          common.RedemptionCodeStatusEnabled,
+			Quota:           quota,
+			CreatedTime:     common.GetTimestamp(),
+			PurchaseTradeNo: tradeNo,
+			PurchaseAmount:  purchaseAmount,
+		})
+	}
+	if err := tx.Create(&redemptions).Error; err != nil {
+		return nil, err
+	}
+	return redemptions, nil
+}
+
+func GetUserRedemptions(userId int, pageInfo *common.PageInfo) (redemptions []*Redemption, total int64, err error) {
+	query := DB.Model(&Redemption{}).Where("owner_id = ? AND creator_type = ?", userId, RedemptionCreatorUser)
+	if err = query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&redemptions).Error
+	return redemptions, total, err
+}
+
+func RefundPurchasedRedemption(id int, userId int) (int, error) {
+	if id <= 0 || userId <= 0 {
+		return 0, ErrRedemptionRefundNotAllowed
+	}
+	var quota int
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		redemption := &Redemption{}
+		if err := lockForUpdate(tx).Where("id = ?", id).First(redemption).Error; err != nil {
+			return ErrRedemptionRefundNotAllowed
+		}
+		if redemption.OwnerId != userId || redemption.CreatorType != RedemptionCreatorUser {
+			return ErrRedemptionNotOwned
+		}
+		if redemption.PurchaseTradeNo == "" || redemption.Status != common.RedemptionCodeStatusEnabled || redemption.RefundedTime != 0 || redemption.Quota <= 0 {
+			return ErrRedemptionRefundNotAllowed
+		}
+		quota = redemption.Quota
+		if err := creditTopUpQuota(tx, userId, quota, nil); err != nil {
+			return err
+		}
+		result := tx.Model(&Redemption{}).
+			Where("id = ? AND owner_id = ? AND status = ? AND refunded_time = 0", id, userId, common.RedemptionCodeStatusEnabled).
+			Updates(map[string]interface{}{
+				"status":        common.RedemptionCodeStatusDisabled,
+				"refunded_time": common.GetTimestamp(),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrRedemptionRefundNotAllowed
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	syncCreditUserQuotaCache(userId, quota, "redemption refund")
+	RecordLog(userId, LogTypeRefund, fmt.Sprintf("兑换码退款到账 %s，兑换码ID %d", logger.LogQuota(quota), id))
+	return quota, nil
 }
 
 func (redemption *Redemption) Delete() error {

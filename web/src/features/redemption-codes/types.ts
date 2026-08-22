@@ -34,6 +34,11 @@ export const redemptionSchema = z.object({
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
   used_user_id: z.number(),
+  creator_type: z.string().optional().default('admin'),
+  owner_id: z.number().optional().default(0),
+  purchase_trade_no: z.string().optional().default(''),
+  purchase_amount: z.number().optional().default(0),
+  refunded_time: z.number().optional().default(0),
 })
 
 export type Redemption = z.infer<typeof redemptionSchema>
@@ -67,6 +72,7 @@ export interface GetRedemptionsResponse {
 export interface SearchRedemptionsParams {
   keyword?: string
   status?: string
+  creator_type?: string
   p?: number
   page_size?: number
 }

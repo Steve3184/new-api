@@ -102,6 +102,10 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/aff", controller.GetAffCode)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
+				selfRoute.GET("/redemption/self", controller.GetUserRedemptions)
+				selfRoute.POST("/redemption/purchase/amount", middleware.CriticalRateLimit(), controller.RequestRedemptionPurchaseAmount)
+				selfRoute.POST("/redemption/purchase", middleware.CriticalRateLimit(), controller.RequestRedemptionPurchase)
+				selfRoute.POST("/redemption/:id/refund", middleware.UserCriticalRateLimit("redemption-refund"), controller.RefundUserRedemption)
 				// Redemption is keyed to the authenticated user so one busy shared IP
 				// cannot exhaust the bucket for unrelated users.
 				selfRoute.POST("/topup", middleware.UserCriticalRateLimit("redemption"), middleware.CaptchaCheckRedemption(), controller.TopUp)

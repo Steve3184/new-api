@@ -83,6 +83,13 @@ export function getRedemptionStatusOptions(t: TFunction) {
   ]
 }
 
+export function getRedemptionCreatorOptions(t: TFunction) {
+  return [
+    { label: t('Administrator-created'), value: 'admin' },
+    { label: t('User-purchased'), value: 'user' },
+  ]
+}
+
 // ============================================================================
 // Validation Constants
 // ============================================================================

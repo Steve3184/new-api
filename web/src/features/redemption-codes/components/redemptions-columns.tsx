@@ -176,6 +176,26 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       size: 150,
     },
     {
+      accessorKey: 'creator_type',
+      header: t('Creator'),
+      meta: { mobileHidden: true },
+      cell: ({ row }) => {
+        const creatorType = row.original.creator_type || 'admin'
+        return (
+          <StatusBadge
+            label={
+              creatorType === 'user'
+                ? t('User-purchased')
+                : t('Administrator-created')
+            }
+            variant={creatorType === 'user' ? 'info' : 'neutral'}
+            copyable={false}
+          />
+        )
+      },
+      size: 170,
+    },
+    {
       accessorKey: 'quota',
       header: t('Quota'),
       cell: ({ row }) => {

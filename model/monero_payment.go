@@ -215,7 +215,8 @@ func SettleMoneroPayment(paymentID int, receivedAtomic string, transactionIDs []
 		if err := tx.Save(payment).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		quotaToAdd, err = settleTopUp(tx, topUp, quotaToAdd, nil)
+		if err != nil {
 			return err
 		}
 		settled = &MoneroPaymentInvoice{TopUp: topUp, Payment: payment}

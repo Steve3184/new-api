@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -399,6 +400,68 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		return "", err
 	}
 
+	return result.URL, nil
+}
+
+// genStripeAmountLink creates a one-time Checkout line item with an explicit
+// amount. Redemption purchases use this path because the configured Stripe
+// PriceId represents the regular wallet top-up unit price and cannot encode a
+// purchase-specific amount discount.
+func genStripeAmountLink(referenceId string, customerId string, email string, amount float64, productName string, successURL string, cancelURL string) (string, error) {
+	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+		return "", fmt.Errorf("无效的Stripe API密钥")
+	}
+	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount < 0.01 || amount > float64(math.MaxInt64)/100 {
+		return "", fmt.Errorf("无效的Stripe支付金额")
+	}
+	amountCents := int64(math.Round(amount * 100))
+	if amountCents <= 0 {
+		return "", fmt.Errorf("无效的Stripe支付金额")
+	}
+
+	stripe.Key = setting.StripeApiSecret
+	if successURL == "" {
+		successURL = paymentReturnPath("/wallet")
+	}
+	if cancelURL == "" {
+		cancelURL = paymentReturnPath("/wallet")
+	}
+	if strings.TrimSpace(productName) == "" {
+		productName = "Redemption codes"
+	}
+
+	params := &stripe.CheckoutSessionParams{
+		ClientReferenceID: stripe.String(referenceId),
+		SuccessURL:        stripe.String(successURL),
+		CancelURL:         stripe.String(cancelURL),
+		LineItems: []*stripe.CheckoutSessionLineItemParams{
+			{
+				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+					Currency:   stripe.String("usd"),
+					UnitAmount: stripe.Int64(amountCents),
+					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+						Name: stripe.String(productName),
+					},
+				},
+				Quantity: stripe.Int64(1),
+			},
+		},
+		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
+		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
+	}
+	if customerId == "" {
+		if email != "" {
+			params.CustomerEmail = stripe.String(email)
+		}
+		params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
+	} else {
+		params.Customer = stripe.String(customerId)
+	}
+
+	result, err := session.New(params)
+	if err != nil {
+		return "", err
+	}
 	return result.URL, nil
 }
 

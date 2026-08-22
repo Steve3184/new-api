@@ -16,7 +16,7 @@ import (
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.Query("creator_type"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -30,8 +30,9 @@ func GetAllRedemptions(c *gin.Context) {
 func SearchRedemptions(c *gin.Context) {
 	keyword := c.Query("keyword")
 	status := c.Query("status")
+	creatorType := c.Query("creator_type")
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.SearchRedemptions(keyword, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, total, err := model.SearchRedemptions(keyword, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), creatorType)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -109,6 +110,7 @@ func AddRedemption(c *gin.Context) {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
 			UserId:             c.GetInt("id"),
+			CreatorType:        model.RedemptionCreatorAdmin,
 			Name:               redemption.Name,
 			Key:                key,
 			CreatedTime:        common.GetTimestamp(),
