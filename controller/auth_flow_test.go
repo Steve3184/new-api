@@ -54,7 +54,7 @@ func setupAuthFlowControllerTest(t *testing.T) *authFlowTestOAuthProvider {
 	previousType := common.MainDatabaseType()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.AuthFlow{}))
+	require.NoError(t, db.AutoMigrate(&model.AuthFlow{}, &model.User{}))
 	model.DB = db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	provider := &authFlowTestOAuthProvider{}
@@ -94,6 +94,35 @@ func TestGenerateOAuthCodeCarriesAffiliateInLoginFlow(t *testing.T) {
 	assert.Equal(t, "invite-code", payload.AffiliateCode)
 	assert.Zero(t, flow.UserId)
 	assert.Empty(t, flow.SessionId)
+}
+
+func TestFindOrCreateOAuthUserPersistsAffiliateInviter(t *testing.T) {
+	provider := setupAuthFlowControllerTest(t)
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+	inviter := &model.User{
+		Username: "oauth-inviter",
+		Password: "password",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		AffCode:  "oauth-invite-code",
+	}
+	require.NoError(t, model.DB.Create(inviter).Error)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test", nil)
+
+	created, err := findOrCreateOAuthUser(c, provider, &oauth.OAuthUser{
+		ProviderUserID: "oauth-new-user",
+	}, inviter.AffCode)
+	require.NoError(t, err)
+	assert.Equal(t, inviter.Id, created.InviterId)
+
+	var persisted model.User
+	require.NoError(t, model.DB.First(&persisted, created.Id).Error)
+	assert.Equal(t, inviter.Id, persisted.InviterId)
 }
 
 func TestGenerateOAuthCodeBindsFlowToAuthenticatedSession(t *testing.T) {
