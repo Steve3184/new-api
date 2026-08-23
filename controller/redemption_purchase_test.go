@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -39,4 +40,26 @@ func TestValidateRedemptionPurchaseRejectsDisabledFeatureAndWalletBalance(t *tes
 		PaymentMethod: model.PaymentMethodBalance,
 	})
 	assert.EqualError(t, err, "兑换码购买不能使用余额")
+}
+
+func TestRedemptionPurchaseMinAmountUsesConfiguredEpayMethodMinimum(t *testing.T) {
+	originalMinTopUp := operation_setting.MinTopUp
+	originalPayMethods := operation_setting.PayMethods
+	originalStripeMinTopUp := setting.StripeMinTopUp
+	t.Cleanup(func() {
+		operation_setting.MinTopUp = originalMinTopUp
+		operation_setting.PayMethods = originalPayMethods
+		setting.StripeMinTopUp = originalStripeMinTopUp
+	})
+
+	operation_setting.MinTopUp = 5
+	setting.StripeMinTopUp = 1
+	operation_setting.PayMethods = []map[string]string{
+		{"type": "alipay", "min_topup": "20"},
+		{"type": "wxpay", "min_topup": "3"},
+	}
+
+	assert.Equal(t, int64(20), redemptionPurchaseMinAmount("alipay"))
+	assert.Equal(t, int64(5), redemptionPurchaseMinAmount("wxpay"))
+	assert.Equal(t, int64(1), redemptionPurchaseMinAmount(model.PaymentMethodStripe))
 }

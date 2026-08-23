@@ -478,6 +478,9 @@ export function Wallet(props: WalletProps) {
 
             <RedemptionPurchaseCard
               topupInfo={topupInfo}
+              presetAmounts={presetAmounts}
+              priceRatio={(status?.price as number) || 1}
+              usdExchangeRate={effectiveUsdExchangeRate}
               onMoneroInvoice={(invoice) => {
                 setMoneroInvoice(invoice)
                 setMoneroDialogOpen(true)

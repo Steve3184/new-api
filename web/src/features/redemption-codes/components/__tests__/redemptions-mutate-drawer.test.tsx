@@ -81,6 +81,11 @@ function redemption(id: number, quota = 500001): Redemption {
     redeemed_time: 0,
     expired_time: 0,
     used_user_id: 0,
+    creator_type: 'admin',
+    owner_id: 0,
+    purchase_trade_no: '',
+    purchase_amount: 0,
+    refunded_time: 0,
   }
 }
 

@@ -183,6 +183,42 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 }
 
 /**
+ * Get the minimum purchase amount for one payment method. Redemption code
+ * purchases use the same method-level limits as wallet top-ups, but apply the
+ * limit to the whole order (denomination multiplied by quantity).
+ */
+export function getPaymentMethodMinTopup(
+  method: PaymentMethod,
+  topupInfo: TopupInfo | null
+): number {
+  let fallback = topupInfo?.min_topup || DEFAULT_MIN_TOPUP
+
+  switch (method.type) {
+    case PAYMENT_TYPES.STRIPE:
+      fallback = topupInfo?.stripe_min_topup || fallback
+      break
+    case PAYMENT_TYPES.WAFFO:
+      fallback = topupInfo?.waffo_min_topup || fallback
+      break
+    case PAYMENT_TYPES.WAFFO_PANCAKE:
+      fallback = topupInfo?.waffo_pancake_min_topup || fallback
+      break
+    case PAYMENT_TYPES.MONERO:
+      fallback = topupInfo?.min_topup || fallback
+      break
+    default:
+      break
+  }
+
+  const configured = Number(method.min_topup)
+  if (Number.isFinite(configured) && configured > fallback) {
+    fallback = configured
+  }
+
+  return Math.max(DEFAULT_MIN_TOPUP, fallback)
+}
+
+/**
  * Generate preset amounts based on minimum topup
  */
 export function generatePresetAmounts(minAmount: number): PresetAmount[] {

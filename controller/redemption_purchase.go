@@ -91,6 +91,7 @@ func isRedemptionPurchasePaymentMethodAvailable(method string) bool {
 }
 
 func redemptionPurchaseMinAmount(method string) int64 {
+	minAmount := getMinTopup()
 	switch method {
 	case model.PaymentMethodStripe:
 		return getStripeMinTopup()
@@ -100,9 +101,20 @@ func redemptionPurchaseMinAmount(method string) int64 {
 		return int64(setting.WaffoPancakeMinTopUp)
 	case model.PaymentMethodMonero:
 		return int64(operation_setting.MinTopUp)
-	default:
-		return getMinTopup()
 	}
+
+	for _, configuredMethod := range operation_setting.PayMethods {
+		if configuredMethod["type"] != method {
+			continue
+		}
+		configuredMin, err := strconv.ParseInt(configuredMethod["min_topup"], 10, 64)
+		if err == nil && configuredMin > minAmount {
+			minAmount = configuredMin
+		}
+		break
+	}
+
+	return minAmount
 }
 
 func normalizeRedemptionPurchaseAmount(req RedemptionPurchaseRequest) (int64, error) {
