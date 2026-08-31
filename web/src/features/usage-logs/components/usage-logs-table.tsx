@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -37,7 +36,6 @@ import {
   LOG_TYPE_ALL_VALUE,
   LOG_TYPE_ENUM,
 } from '../constants'
-import { getUsageLogsAutoRefreshInterval } from '../lib/auto-refresh'
 import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
 import { fetchLogsByCategory } from '../lib/utils'
@@ -45,12 +43,12 @@ import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
-import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
+import { useLogsViewScope, type LogsViewAccess } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 const logTypeRowTint: Record<number, string> = {
-  [LOG_TYPE_ENUM.ERROR]: '!bg-rose-500/10 dark:!bg-rose-400/10',
+  [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
   [LOG_TYPE_ENUM.REFUND]: 'bg-blue-50/30 dark:bg-blue-950/15',
 }
 
@@ -60,9 +58,9 @@ const quotaSaturationRowTint = 'bg-amber-50/60 dark:bg-amber-950/25'
 
 function getColumnVisibilityStorageKey(
   logCategory: LogCategory,
-  isAdmin: boolean
+  viewAccess: LogsViewAccess
 ): string {
-  return `usage-logs:${logCategory}:${isAdmin ? 'admin' : 'user'}:column-visibility`
+  return `usage-logs:${logCategory}:${viewAccess}:column-visibility`
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
@@ -81,8 +79,11 @@ interface UsageLogsTableProps {
 
 export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
-  const { isAdminView: isAdmin } = useLogsViewScope()
-  const { autoRefreshEnabled, setAutoRefreshEnabled } = useUsageLogsContext()
+  const {
+    isAdminView: isAdmin,
+    isRootView: isRoot,
+    viewAccess,
+  } = useLogsViewScope()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
 
@@ -124,32 +125,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ],
   })
 
-  useEffect(() => {
-    if (
-      autoRefreshEnabled &&
-      logCategory === 'common' &&
-      pagination.pageIndex > 0
-    ) {
-      setAutoRefreshEnabled(false)
-    }
-  }, [
-    autoRefreshEnabled,
-    logCategory,
-    pagination.pageIndex,
-    setAutoRefreshEnabled,
-  ])
-
-  const autoRefreshInterval = getUsageLogsAutoRefreshInterval(
-    autoRefreshEnabled,
-    logCategory,
-    pagination.pageIndex
-  )
-
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'logs',
       logCategory,
-      isAdmin,
+      viewAccess,
       pagination.pageIndex + 1,
       pagination.pageSize,
       columnFilters,
@@ -174,17 +154,18 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       return result.data || DEFAULT_LOGS_DATA
     },
     placeholderData: (previousData, previousQuery) => {
-      if (previousQuery?.queryKey[1] === logCategory) {
+      if (
+        previousQuery?.queryKey[1] === logCategory &&
+        previousQuery.queryKey[2] === viewAccess
+      ) {
         return previousData
       }
       return undefined
     },
-    refetchInterval: autoRefreshInterval,
-    refetchIntervalInBackground: false,
   })
 
   const logs = data?.items || []
-  const columns = useColumnsByCategory(logCategory, isAdmin)
+  const columns = useColumnsByCategory(logCategory, isAdmin, isRoot)
   const isLoadingData = isLoading || (isFetching && !data)
 
   const { table } = useDataTable({
@@ -193,7 +174,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     columnFilters,
     columnVisibilityStorageKey: getColumnVisibilityStorageKey(
       logCategory,
-      isAdmin
+      viewAccess
     ),
     pagination,
     enableRowSelection: false,
@@ -220,7 +201,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       skeletonKeyPrefix='usage-log-skeleton'
       applyHeaderSize
       tableClassName={cn(
-        '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table-body]>tr]:h-15 [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
+        '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
       )}
       mobile={
         <UsageLogsMobileList

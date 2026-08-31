@@ -109,6 +109,12 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, params TokenP
 		"image_resolution": func() string {
 			return normalizedImageResolution(request.Body)
 		},
+		"u": func(name string) interface{} {
+			if request.Usage == nil {
+				return nil
+			}
+			return request.Usage[strings.TrimSpace(name)]
+		},
 		"has": func(source interface{}, substr string) bool {
 			if source == nil || substr == "" {
 				return false

@@ -265,16 +265,10 @@ func RedeemWithResult(key string, userId int) (result *RedemptionResult, err err
 				return nil
 			}
 			result.Quota = redemption.Quota
-			quotaUpdate := tx.Model(&User{}).
-				Where("id = ?", userId).
-				Update("quota", gorm.Expr("quota + ?", redemption.Quota))
-			if quotaUpdate.Error != nil {
-				return quotaUpdate.Error
+			if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
+				return err
 			}
-			if quotaUpdate.RowsAffected == 0 {
-				return errors.New("用户不存在")
-			}
-			return nil
+			return creditTopUpQuota(tx, userId, redemption.Quota, nil)
 		})
 		if err == nil {
 			if result.SubscriptionPlanId > 0 {
@@ -311,6 +305,12 @@ func isRetryableRedemptionError(err error) bool {
 
 func (redemption *Redemption) Insert() error {
 	if redemption.SubscriptionPlanId <= 0 {
+		if redemption.Quota <= 0 {
+			return errors.New("redemption quota must be positive")
+		}
+		if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
+			return err
+		}
 		return DB.Create(redemption).Error
 	}
 
@@ -345,6 +345,16 @@ func (redemption *Redemption) SelectUpdate() error {
 
 // Update writes every editable field explicitly, including zero values.
 func (redemption *Redemption) Update() error {
+	if redemption.SubscriptionPlanId > 0 {
+		redemption.Quota = 0
+	} else {
+		if redemption.Quota <= 0 {
+			return errors.New("redemption quota must be positive")
+		}
+		if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
+			return err
+		}
+	}
 	var err error
 	err = DB.Model(redemption).Select("name", "status", "quota", "subscription_plan_id", "redeemed_time", "expired_time").Updates(redemption).Error
 	return err

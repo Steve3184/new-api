@@ -115,6 +115,8 @@ func GetStatus(c *gin.Context) {
 		"site_appearance":               console_setting.GetAppearanceSetting(),
 		"spa_meta":                      console_setting.GetSPAMetaSetting(),
 
+		"password_login_encryption_enabled": common.PasswordLoginEncryptionEnabled,
+
 		"usd_exchange_rate": operation_setting.USDExchangeRate,
 		"price":             operation_setting.Price,
 		"stripe_unit_price": setting.StripeUnitPrice,

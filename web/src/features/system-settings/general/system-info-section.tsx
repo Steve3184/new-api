@@ -31,8 +31,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -45,23 +45,13 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
-
-function isPublicImageURL(value: string) {
-  if (value === '') return true
-  if (value.startsWith('/') && !value.startsWith('//')) return true
-
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
+import { isValidTaskPublicAddress } from './task-public-address'
 
 const _systemInfoSchema = z.object({
   SystemName: z.string().min(1),
   ServerAddress: z.string().optional(),
-  Logo: z.string().refine(isPublicImageURL),
+  TaskPublicAddress: z.string().refine(isValidTaskPublicAddress),
+  Logo: z.string().url().optional().or(z.literal('')),
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
@@ -90,6 +80,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const normalizedDefaults: SystemInfoFormValues = {
     SystemName: normalizeValue(defaultValues.SystemName),
     ServerAddress: normalizeValue(defaultValues.ServerAddress),
+    TaskPublicAddress: normalizeValue(defaultValues.TaskPublicAddress),
     Logo: normalizeValue(defaultValues.Logo),
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
@@ -106,9 +97,13 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       error: () => t('System name is required'),
     }),
     ServerAddress: z.string().optional(),
-    Logo: z.string().refine(isPublicImageURL, {
-      error: () => t('Use an HTTP(S) URL or a path starting with /'),
+    TaskPublicAddress: z.string().refine(isValidTaskPublicAddress, {
+      error: () =>
+        t(
+          'Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments'
+        ),
     }),
+    Logo: z.string().url().optional().or(z.literal('')),
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
@@ -130,7 +125,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       onSubmit: async (_data, changedFields) => {
         for (const [key, value] of Object.entries(changedFields)) {
           let v = normalizeValue(value)
-          if (key === 'ServerAddress') {
+          if (key === 'ServerAddress' || key === 'TaskPublicAddress') {
             v = v.replace(/\/+$/, '')
           }
           await updateOption.mutateAsync({
@@ -188,6 +183,28 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <FormDescription>
                       {t(
                         'The public URL of your server, used for OAuth callbacks, webhooks, and other external integrations'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='TaskPublicAddress'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Async Task Public Address')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='https://media.example.com/tasks'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Public base URL for async task media. Supports a dedicated media domain, port, or Nginx path prefix; falls back to Server Address when empty.'
                       )}
                     </FormDescription>
                     <FormMessage />
@@ -290,24 +307,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
 
               <FormField
                 control={form.control}
-                name='HideUpstreamRequestID'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between gap-4 rounded-md border p-4'>
-                    <div>
-                      <FormLabel>{t('Hide upstream request IDs')}</FormLabel>
-                      <FormDescription>
-                        {t('Do not show upstream request IDs to regular users in usage logs.')}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name='legal.user_agreement'
                 render={({ field }) => (
                   <FormItem>
@@ -327,6 +326,29 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                       )}
                     </FormDescription>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='HideUpstreamRequestID'
+                render={({ field }) => (
+                  <FormItem className='flex items-center justify-between gap-4 rounded-md border p-4'>
+                    <div>
+                      <FormLabel>{t('Hide upstream request IDs')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Do not show upstream request IDs to regular users in usage logs.'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
@@ -97,9 +98,15 @@ func AddRedemption(c *gin.Context) {
 			return
 		}
 		redemption.Quota = 0
-	} else if redemption.Quota < 0 {
-		common.ApiErrorMsg(c, "额度不能为负数")
-		return
+	} else {
+		if redemption.Quota <= 0 {
+			common.ApiError(c, errors.New("redemption quota must be positive"))
+			return
+		}
+		if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
@@ -225,7 +232,6 @@ func UpdateRedemption(c *gin.Context) {
 	if statusOnly == "" {
 		if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
 			common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
-			return
 		}
 		requestedPlanID := cleanRedemption.SubscriptionPlanId
 		if redemption.SubscriptionPlanId != nil {
@@ -242,9 +248,15 @@ func UpdateRedemption(c *gin.Context) {
 				return
 			}
 			redemption.Quota = 0
-		} else if redemption.Quota < 0 {
-			common.ApiErrorMsg(c, "额度不能为负数")
-			return
+		} else {
+			if redemption.Quota <= 0 {
+				common.ApiError(c, errors.New("redemption quota must be positive"))
+				return
+			}
+			if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
+				common.ApiError(c, err)
+				return
+			}
 		}
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})

@@ -214,6 +214,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'agnes-video-v2.0,agnes-video-2.5,agnes-video-2.5-flash',
     },
   },
+  64: {
+    id: 64,
+    name: CHANNEL_TYPES[64],
+    icon: 'plugin',
+    hints: {
+      baseUrl: 'Task plugin service URL',
+      key: 'Task plugin channel key',
+      models: 'Models exposed by the task plugin',
+    },
+  },
 }
 
 /**

@@ -21,6 +21,10 @@ import axios from 'axios'
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
+import {
+  clearPasswordEncryptionCache,
+  encryptPassword,
+} from './lib/password-encryption'
 import { getAffiliateCode } from './lib/storage'
 import type { TelegramAuthorization } from './lib/telegram-login'
 import type {
@@ -41,29 +45,47 @@ import type {
 // ----------------------------------------------------------------------------
 
 // User login with username and password
-export async function login(payload: LoginPayload) {
+export async function login(payload: LoginPayload): Promise<LoginResponse> {
   let params: Record<string, string> = { turnstile: payload.turnstile ?? '' }
   if (payload.cap_token) {
     params = { cap_token: payload.cap_token }
   } else if (payload.hcaptcha) {
     params = { hcaptcha: payload.hcaptcha }
   }
-  const res = await api.post<LoginResponse>(
-    '/api/user/login',
-    {
-      username: payload.username,
-      password: payload.password,
-    },
-    { params, skipAuthRefresh: true, skipBusinessError: true }
-  )
-  return res.data
+  try {
+    let passwordFields:
+      | { password: string }
+      | { password_encrypted: string; encryption_key_id: string }
+    if (payload.passwordEncryptionEnabled) {
+      const encryptedPassword = await encryptPassword(payload.password)
+      passwordFields = {
+        password_encrypted: encryptedPassword.password_encrypted,
+        encryption_key_id: encryptedPassword.encryption_key_id,
+      }
+    } else {
+      passwordFields = { password: payload.password }
+    }
+    const res = await api.post<LoginResponse>(
+      '/api/user/login',
+      { username: payload.username, ...passwordFields },
+      { params, skipAuthRefresh: true, skipBusinessError: true }
+    )
+    if (payload.passwordEncryptionEnabled && !res.data?.success) {
+      clearPasswordEncryptionCache()
+    }
+    return res.data
+  } catch (error: unknown) {
+    if (payload.passwordEncryptionEnabled) {
+      clearPasswordEncryptionCache()
+    }
+    throw error
+  }
 }
 
 // Two-factor authentication login
 export async function login2fa(payload: TwoFAPayload) {
   const res = await api.post<Login2FAResponse>('/api/user/login/2fa', payload, {
     skipAuthRefresh: true,
-    skipBusinessError: true,
   })
   return res.data
 }
@@ -126,7 +148,7 @@ export async function logout(): Promise<ApiResponse> {
 export async function sendPasswordResetEmail(
   email: string,
   captchaToken?: string,
-  captchaParamName: string = 'turnstile'
+  captchaParamName = 'turnstile'
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
     params: { email, [captchaParamName]: captchaToken },
@@ -166,10 +188,7 @@ export async function createOAuthFlow(
 
 // WeChat login by authorization code
 export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
-  const res = await api.get('/api/oauth/wechat', {
-    params: { code },
-    skipBusinessError: true,
-  })
+  const res = await api.get('/api/oauth/wechat', { params: { code } })
   return res.data
 }
 
@@ -192,13 +211,11 @@ export async function telegramLogin(
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  let captchaParams: Record<string, string> = {
-    turnstile: payload.turnstile ?? '',
-  }
+  let params: Record<string, string> = { turnstile: payload.turnstile ?? '' }
   if (payload.cap_token) {
-    captchaParams = { cap_token: payload.cap_token }
+    params = { cap_token: payload.cap_token }
   } else if (payload.hcaptcha) {
-    captchaParams = { hcaptcha: payload.hcaptcha }
+    params = { hcaptcha: payload.hcaptcha }
   }
   const {
     cap_token: _capToken,
@@ -207,7 +224,7 @@ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
     ...body
   } = payload
   const res = await api.post(`/api/user/register`, body, {
-    params: captchaParams,
+    params,
   })
   return res.data
 }
@@ -216,7 +233,7 @@ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
 export async function sendEmailVerification(
   email: string,
   captchaToken?: string,
-  captchaParamName: string = 'turnstile'
+  captchaParamName = 'turnstile'
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
     params: { email, [captchaParamName]: captchaToken },

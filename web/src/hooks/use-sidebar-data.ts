@@ -16,18 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
   Box,
   CreditCard,
-  Cpu,
   FileText,
   FlaskConical,
   Key,
   LayoutDashboard,
   ListTodo,
   MessageSquare,
+  PlugZap,
   Radio,
   ServerCog,
   Settings,
@@ -36,16 +35,10 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { SidebarData } from '@/components/layout/types'
-import { getSupportUnreadCount } from '@/features/support/api'
-import { getCustomTabIcon, parseCustomTabs } from '@/lib/custom-tabs'
+import { type SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
-import { useAuthStore } from '@/stores/auth-store'
-
-import { useStatus } from './use-status'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -55,175 +48,123 @@ import { useStatus } from './use-status'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
-  const { status } = useStatus()
-  const user = useAuthStore((state) => state.auth.user)
-  const isAdmin = (user?.role ?? ROLE.GUEST) >= ROLE.ADMIN
-  const supportEnabled = status !== null && status.support_enabled !== false
-  const supportUnreadQuery = useQuery({
-    queryKey: ['support-unread', user?.id, isAdmin],
-    queryFn: getSupportUnreadCount,
-    enabled: status !== null && Boolean(user?.id) && supportEnabled,
-    refetchInterval: 5000,
-    refetchIntervalInBackground: false,
-    staleTime: 0,
-    retry: false,
-  })
-  const supportUnreadCount = supportUnreadQuery.data?.data?.count || 0
 
-  const customTabs = useMemo(
-    () => parseCustomTabs(status?.custom_tabs),
-    [status?.custom_tabs]
-  )
-
-  return useMemo(() => {
-    const toNavItem = (tab: (typeof customTabs)[number]) => ({
-      title: tab.label,
-      url: tab.external ? tab.url : `/custom-tab/${tab.id}`,
-      icon: getCustomTabIcon(tab.icon),
-      external: tab.external,
-    })
-
-    return {
-      navGroups: [
-        {
-          id: 'chat',
-          title: t('Chat'),
-          items: [
-            {
-              title: t('Playground'),
-              url: '/playground',
-              icon: FlaskConical,
-            },
-            {
-              title: t('Chat'),
-              icon: MessageSquare,
-              type: 'chat-presets',
-            },
-            ...customTabs
-              .filter((tab) => tab.category === 'chat')
-              .map(toNavItem),
-          ],
-        },
-        {
-          id: 'general',
-          title: t('General'),
-          items: [
-            {
-              title: t('Overview'),
-              url: '/dashboard/overview',
-              icon: Activity,
-            },
-            {
-              title: t('Status Check'),
-              url: '/status',
-              icon: Cpu,
-            },
-            {
-              title: t('Dashboard'),
-              url: '/dashboard/models',
-              icon: LayoutDashboard,
-            },
-            {
-              title: t('API Keys'),
-              url: '/keys',
-              icon: Key,
-            },
-            {
-              title: t('Usage Logs'),
-              url: '/usage-logs/common',
-              icon: FileText,
-            },
-            {
-              title: t('Task Logs'),
-              url: '/usage-logs/task',
-              activeUrls: ['/usage-logs/drawing'],
-              configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
-              icon: ListTodo,
-            },
-            ...customTabs
-              .filter((tab) => tab.category === 'general')
-              .map(toNavItem),
-          ],
-        },
-        {
-          id: 'personal',
-          title: t('Personal'),
-          items: [
-            {
-              title: t('Wallet'),
-              url: '/wallet',
-              icon: Wallet,
-            },
-            ...(supportEnabled
-              ? [
-                  {
-                    title: t('Support'),
-                    url: '/support',
-                    icon: MessageSquare,
-                    badge:
-                      supportUnreadCount > 0
-                        ? String(supportUnreadCount)
-                        : undefined,
-                  },
-                ]
-              : []),
-            {
-              title: t('Profile'),
-              url: '/profile',
-              icon: User,
-            },
-            ...customTabs
-              .filter((tab) => tab.category === 'personal')
-              .map(toNavItem),
-          ],
-        },
-        {
-          id: 'admin',
-          title: t('Admin'),
-          items: [
-            {
-              title: t('Channels'),
-              url: '/channels',
-              icon: Radio,
-            },
-            {
-              title: t('Models'),
-              url: '/models/metadata',
-              icon: Box,
-            },
-            {
-              title: t('Users'),
-              url: '/users',
-              icon: Users,
-            },
-            {
-              title: t('Redemption Codes'),
-              url: '/redemption-codes',
-              icon: Ticket,
-            },
-            {
-              title: t('Subscriptions'),
-              url: '/subscriptions',
-              icon: CreditCard,
-            },
-            {
-              title: t('System Info'),
-              url: '/system-info',
-              icon: ServerCog,
-              requiredRole: ROLE.SUPER_ADMIN,
-            },
-            {
-              title: t('System Settings'),
-              url: '/system-settings/site',
-              activeUrls: ['/system-settings'],
-              icon: Settings,
-            },
-            ...customTabs
-              .filter((tab) => tab.category === 'admin')
-              .map(toNavItem),
-          ],
-        },
-      ],
-    }
-  }, [customTabs, supportEnabled, supportUnreadCount, t])
+  return {
+    navGroups: [
+      {
+        id: 'chat',
+        title: t('Chat'),
+        items: [
+          {
+            title: t('Playground'),
+            url: '/playground',
+            icon: FlaskConical,
+          },
+          {
+            title: t('Chat'),
+            icon: MessageSquare,
+            type: 'chat-presets',
+          },
+        ],
+      },
+      {
+        id: 'general',
+        title: t('General'),
+        items: [
+          {
+            title: t('Overview'),
+            url: '/dashboard/overview',
+            icon: Activity,
+          },
+          {
+            title: t('Dashboard'),
+            url: '/dashboard/models',
+            icon: LayoutDashboard,
+          },
+          {
+            title: t('API Keys'),
+            url: '/keys',
+            icon: Key,
+          },
+          {
+            title: t('Usage Logs'),
+            url: '/usage-logs/common',
+            icon: FileText,
+          },
+          {
+            title: t('Task Logs'),
+            url: '/usage-logs/task',
+            activeUrls: ['/usage-logs/drawing'],
+            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
+            icon: ListTodo,
+          },
+        ],
+      },
+      {
+        id: 'personal',
+        title: t('Personal'),
+        items: [
+          {
+            title: t('Wallet'),
+            url: '/wallet',
+            icon: Wallet,
+          },
+          {
+            title: t('Profile'),
+            url: '/profile',
+            icon: User,
+          },
+        ],
+      },
+      {
+        id: 'admin',
+        title: t('Admin'),
+        items: [
+          {
+            title: t('Channels'),
+            url: '/channels',
+            icon: Radio,
+          },
+          {
+            title: t('Models'),
+            url: '/models/metadata',
+            icon: Box,
+          },
+          {
+            title: t('Users'),
+            url: '/users',
+            icon: Users,
+          },
+          {
+            title: t('Redemption Codes'),
+            url: '/redemption-codes',
+            icon: Ticket,
+          },
+          {
+            title: t('Subscriptions'),
+            url: '/subscriptions',
+            icon: CreditCard,
+          },
+          {
+            title: t('System Info'),
+            url: '/system-info',
+            icon: ServerCog,
+            requiredRole: ROLE.SUPER_ADMIN,
+          },
+          {
+            title: t('Task Plugins'),
+            url: '/task-plugins',
+            icon: PlugZap,
+            requiredRole: ROLE.SUPER_ADMIN,
+          },
+          {
+            title: t('System Settings'),
+            url: '/system-settings/site',
+            activeUrls: ['/system-settings'],
+            icon: Settings,
+          },
+        ],
+      },
+    ],
+  }
 }

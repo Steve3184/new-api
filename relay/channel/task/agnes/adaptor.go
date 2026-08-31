@@ -28,13 +28,21 @@ type TaskAdaptor struct {
 	baseURL string
 }
 
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *taskdto.TaskError) {
+	id, data, err := a.DoResponse(c, resp, info)
+	if err != nil {
+		return nil, err
+	}
+	return &channel.TaskSubmitResponse{UpstreamTaskID: id, TaskData: data}, nil
+}
+
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 	a.baseURL = strings.TrimRight(info.ChannelBaseUrl, "/")
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
-	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
+	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionTextToVideo); err != nil {
 		return err
 	}
 	req, err := relaycommon.GetTaskRequest(c)
@@ -72,7 +80,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 			return service.TaskErrorWrapperLocal(fmt.Errorf("Agnes 2.5 supports at most 5 reference images"), "invalid_images", http.StatusBadRequest)
 		}
 	}
-	info.Action = constant.TaskActionGenerate
+	info.Action = constant.TaskActionTextToVideo
 	return nil
 }
 

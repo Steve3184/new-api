@@ -26,6 +26,14 @@ type TaskAdaptor struct {
 	baseURL string
 }
 
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *dto.TaskError) {
+	id, data, err := a.DoResponse(c, resp, info)
+	if err != nil {
+		return nil, err
+	}
+	return &channel.TaskSubmitResponse{UpstreamTaskID: id, TaskData: data}, nil
+}
+
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 	a.baseURL = strings.TrimRight(info.ChannelBaseUrl, "/")

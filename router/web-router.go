@@ -118,29 +118,32 @@ func renderSPAIndex(indexPage []byte, logo, systemName string, meta console_sett
 	return output.Bytes(), nil
 }
 
-func SetWebRouter(router *gin.Engine, assets WebAssets) {
+func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
 
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
-	router.Use(middleware.GlobalWebRateLimit())
-	router.Use(middleware.Cache())
-	router.Use(static.Serve("/", frontendFS))
-	router.NoRoute(func(c *gin.Context) {
-		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
-			controller.RelayNotFound(c)
-			return
-		}
-		c.Header("Cache-Control", "no-cache")
-		common.OptionMapRWMutex.RLock()
-		logo := common.Logo
-		systemName := common.SystemName
-		meta := console_setting.GetSPAMetaSetting()
-		common.OptionMapRWMutex.RUnlock()
-		indexPage, err := renderSPAIndex(assets.IndexPage, logo, systemName, meta)
-		if err != nil || indexPage == nil {
-			indexPage = assets.IndexPage
-		}
-		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
-	})
+	router.NoRoute(
+		pluginDispatcher,
+		middleware.RouteTag("web"),
+		gzip.Gzip(gzip.DefaultCompression),
+		middleware.GlobalWebRateLimit(),
+		middleware.Cache(),
+		static.Serve("/", frontendFS),
+		func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+				controller.RelayNotFound(c)
+				return
+			}
+			c.Header("Cache-Control", "no-cache")
+			common.OptionMapRWMutex.RLock()
+			logo := common.Logo
+			systemName := common.SystemName
+			meta := console_setting.GetSPAMetaSetting()
+			common.OptionMapRWMutex.RUnlock()
+			indexPage, err := renderSPAIndex(assets.IndexPage, logo, systemName, meta)
+			if err != nil || indexPage == nil {
+				indexPage = assets.IndexPage
+			}
+			c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
+		},
+	)
 }

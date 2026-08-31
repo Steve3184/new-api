@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 )
 
 type tokenAutoGroupsInput struct {
@@ -61,6 +62,16 @@ type tokenResponse struct {
 }
 
 const maxTokenRPMIDs = 100
+
+func maxTokenQuota() int {
+	quota, err := common.WalletQuotaFromDecimalStrict(
+		decimal.NewFromInt(1_000_000_000).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
+	)
+	if err != nil {
+		return common.MaxWalletQuota
+	}
+	return quota
+}
 
 func buildMaskedTokenResponseWithStats(token *model.Token, rpm int) *tokenResponse {
 	if token == nil {
@@ -555,7 +566,7 @@ func AddToken(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
 			return
 		}
-		maxQuotaValue := common.QuotaFromFloat(1000000000 * common.QuotaPerUnit)
+		maxQuotaValue := maxTokenQuota()
 		if token.RemainQuota > maxQuotaValue {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
 			return
@@ -655,7 +666,7 @@ func UpdateToken(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
 			return
 		}
-		maxQuotaValue := common.QuotaFromFloat(1000000000 * common.QuotaPerUnit)
+		maxQuotaValue := maxTokenQuota()
 		if token.RemainQuota > maxQuotaValue {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
 			return
