@@ -20,6 +20,7 @@ import {
   Activity,
   Box,
   CreditCard,
+  Cpu,
   FileText,
   FlaskConical,
   Key,
@@ -90,6 +91,11 @@ export function useSidebarData(): SidebarData {
             title: t('Overview'),
             url: '/dashboard/overview',
             icon: Activity,
+          },
+          {
+            title: t('Status Check'),
+            url: '/status',
+            icon: Cpu,
           },
           {
             title: t('Dashboard'),

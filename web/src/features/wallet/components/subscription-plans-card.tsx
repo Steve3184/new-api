@@ -584,6 +584,22 @@ export function SubscriptionPlansCard({
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              const configuredGroups = (plan.wallet_only_groups || '')
+                .split(',')
+                .map((group) => group.trim())
+                .filter(Boolean)
+              let groupAvailability: string | null = null
+              if (plan.wallet_only_groups_enabled) {
+                const groupLabel =
+                  plan.wallet_only_groups_mode === 'whitelist'
+                    ? t('Available Groups')
+                    : t('Unavailable Groups')
+                const groupList =
+                  configuredGroups.length > 0
+                    ? configuredGroups.join(', ')
+                    : t('None')
+                groupAvailability = `${groupLabel}: ${groupList}`
+              }
 
               const usageLimitBenefits = [
                 {
@@ -611,6 +627,7 @@ export function SubscriptionPlansCard({
                   ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
                 ...usageLimitBenefits,
+                groupAvailability,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
