@@ -6,6 +6,7 @@ export const playgroundFeatureSchema = z.enum([
   'image',
   'speech',
   'three_d',
+  'video',
 ])
 export const playgroundSettingsSchema = z.object({
   enabled_features: z.array(playgroundFeatureSchema).min(1),
@@ -14,6 +15,7 @@ export const playgroundSettingsSchema = z.object({
     image: z.array(z.string()),
     speech: z.array(z.string()),
     three_d: z.array(z.string()),
+    video: z.array(z.string()),
   }),
   speech_model_types: z.record(
     z.string(),
@@ -26,7 +28,7 @@ export type PlaygroundFeature = z.infer<typeof playgroundFeatureSchema>
 
 export const DEFAULT_PLAYGROUND_SETTINGS: PlaygroundSettingsValue = {
   enabled_features: ['chat'],
-  models: { chat: [], image: [], speech: [], three_d: [] },
+  models: { chat: [], image: [], speech: [], three_d: [], video: [] },
   speech_model_types: {},
 }
 
@@ -34,7 +36,9 @@ export function parsePlaygroundSettings(
   value: string
 ): PlaygroundSettingsValue {
   try {
-    return playgroundSettingsSchema.parse(JSON.parse(value))
+    const parsed = JSON.parse(value) as { models?: Record<string, unknown> }
+    if (parsed.models && !Array.isArray(parsed.models.video)) parsed.models.video = []
+    return playgroundSettingsSchema.parse(parsed)
   } catch {
     return DEFAULT_PLAYGROUND_SETTINGS
   }

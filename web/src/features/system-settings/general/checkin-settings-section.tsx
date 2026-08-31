@@ -48,6 +48,7 @@ const schema = z.object({
   minQuota: z.coerce.number().int().min(0),
   maxQuota: z.coerce.number().int().min(0),
   minUserQuota: z.coerce.number().int().min(0),
+  deductibleGroups: z.string(),
 })
 
 type Values = z.infer<typeof schema>
@@ -60,6 +61,7 @@ export function CheckinSettingsSection({
     minQuota: number
     maxQuota: number
     minUserQuota: number
+    deductibleGroups: string
   }
 }) {
   const { t } = useTranslation()
@@ -72,6 +74,7 @@ export function CheckinSettingsSection({
       minQuota: defaultValues.minQuota,
       maxQuota: defaultValues.maxQuota,
       minUserQuota: defaultValues.minUserQuota,
+      deductibleGroups: defaultValues.deductibleGroups ?? '',
     },
   })
 
@@ -106,6 +109,13 @@ export function CheckinSettingsSection({
       updates.push({
         key: 'checkin_setting.min_user_quota',
         value: String(values.minUserQuota),
+      })
+    }
+
+    if (values.deductibleGroups !== (defaultValues.deductibleGroups ?? '')) {
+      updates.push({
+        key: 'checkin_setting.deductible_groups',
+        value: values.deductibleGroups,
       })
     }
 
@@ -156,7 +166,7 @@ export function CheckinSettingsSection({
           />
 
           {enabled && (
-            <div className='grid gap-6 md:grid-cols-3'>
+            <div className='grid gap-6 md:grid-cols-2 lg:grid-cols-4'>
               <FormField
                 control={form.control}
                 name='minQuota'
@@ -216,6 +226,22 @@ export function CheckinSettingsSection({
                       {t(
                         'Set to 0 to disable. Eligible users must have a balance greater than this quota value.'
                       )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='deductibleGroups'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Check-in deductible groups')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t('group-a, group-b')} {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Comma-separated groups where check-in credit is used before wallet balance.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

@@ -36,10 +36,7 @@ export function NoticePopup(props: NoticePopupProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
   const markNoticeRead = useNotificationStore((state) => state.markNoticeRead)
-  const closedUntilDate = useNotificationStore((state) => state.closedUntilDate)
-  const setClosedUntilDate = useNotificationStore(
-    (state) => state.setClosedUntilDate
-  )
+  const lastReadNotice = useNotificationStore((state) => state.lastReadNotice)
   const [open, setOpen] = useState(false)
   const hasOpenedRef = useRef(false)
   const popupEnabled = Boolean(status?.notice_popup_enabled)
@@ -48,7 +45,6 @@ export function NoticePopup(props: NoticePopupProps) {
     (status?.notice_popup_on_dashboard ? 'both' : 'home')
   const placementEnabled = popupMode === 'both' || popupMode === props.placement
   const enabled = popupEnabled && placementEnabled
-  const isClosedToday = closedUntilDate === new Date().toDateString()
   const { data } = useQuery({
     queryKey: ['notice'],
     queryFn: getNotice,
@@ -58,14 +54,14 @@ export function NoticePopup(props: NoticePopupProps) {
   const notice = data?.success ? (data.data || '').trim() : ''
 
   useEffect(() => {
-    if (!enabled || !notice || isClosedToday || hasOpenedRef.current) return
+    if (!enabled || !notice || lastReadNotice === notice || hasOpenedRef.current) return
 
     hasOpenedRef.current = true
     markNoticeRead(notice)
     setOpen(true)
-  }, [enabled, isClosedToday, markNoticeRead, notice])
+  }, [enabled, lastReadNotice, markNoticeRead, notice])
 
-  if (!enabled || !notice || isClosedToday) return null
+  if (!enabled || !notice || lastReadNotice === notice) return null
 
   const isHtml = isLikelyHtml(notice)
 
@@ -77,15 +73,8 @@ export function NoticePopup(props: NoticePopupProps) {
       contentClassName='sm:max-w-3xl'
       contentHeight='min(65vh, 36rem)'
       footer={
-        <Button
-          type='button'
-          variant='outline'
-          onClick={() => {
-            setClosedUntilDate(new Date().toDateString())
-            setOpen(false)
-          }}
-        >
-          {t('Close Today')}
+        <Button type='button' variant='outline' onClick={() => setOpen(false)}>
+          {t('Close')}
         </Button>
       }
       showCloseButton

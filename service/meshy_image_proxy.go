@@ -44,6 +44,22 @@ func MeshyImageProxyEnabled() bool {
 		strings.TrimSpace(system_setting.WorkerMeshyImageProxyAPIKey) != ""
 }
 
+// MeshyImageProxyConfigured reports whether the proxy has connection details.
+// Channel-scoped consumers may opt in without enabling global rewriting.
+func MeshyImageProxyConfigured() bool {
+	return strings.TrimSpace(system_setting.WorkerMeshyImageProxyBaseURL) != "" &&
+		strings.TrimSpace(system_setting.WorkerMeshyImageProxyAPIKey) != ""
+}
+
+// UploadMeshyBase64ImageForChannel performs one proxy upload for a provider
+// that explicitly opts in to URL conversion, independent of the global toggle.
+func UploadMeshyBase64ImageForChannel(c *gin.Context, value string) (string, error) {
+	if !MeshyImageProxyConfigured() {
+		return "", errors.New("Meshy image proxy is not configured")
+	}
+	return uploadMeshyBase64Image(c, value)
+}
+
 func isMeshyImageProxyPath(requestPath string) bool {
 	requestPath = strings.TrimSpace(requestPath)
 	switch requestPath {

@@ -23,6 +23,7 @@ type GroupAccessCondition struct {
 	Providers []string `json:"providers,omitempty"`
 	Days      int      `json:"days,omitempty"`
 	MinQuota  int      `json:"min_quota,omitempty"`
+	MinSpend  int      `json:"min_spend,omitempty"`
 }
 
 // GroupAccessRule supports nested boolean expressions. A rule may contain
@@ -75,6 +76,11 @@ func normalizeCondition(condition GroupAccessCondition) (GroupAccessCondition, e
 		condition.Type = "balance"
 		if condition.MinQuota < 0 || condition.MinQuota > maxGroupAccessQuota {
 			return GroupAccessCondition{}, fmt.Errorf("minimum balance must be between 0 and %d", maxGroupAccessQuota)
+		}
+	case "spend", "min_spend", "user_spend":
+		condition.Type = "spend"
+		if condition.MinSpend < 0 || condition.MinSpend > maxGroupAccessQuota {
+			return GroupAccessCondition{}, fmt.Errorf("minimum spend must be between 0 and %d", maxGroupAccessQuota)
 		}
 	default:
 		return GroupAccessCondition{}, fmt.Errorf("unsupported group access condition %q", condition.Type)

@@ -52,6 +52,7 @@ type RankedModel struct {
 	Rank         int     `json:"rank"`
 	PreviousRank *int    `json:"previous_rank,omitempty"`
 	ModelName    string  `json:"model_name"`
+	ModelIcon    string  `json:"model_icon,omitempty"`
 	Vendor       string  `json:"vendor"`
 	VendorIcon   string  `json:"vendor_icon,omitempty"`
 	Category     string  `json:"category"`
@@ -73,6 +74,7 @@ type RankedVendor struct {
 
 type RankingMover struct {
 	ModelName   string  `json:"model_name"`
+	ModelIcon   string  `json:"model_icon,omitempty"`
 	Vendor      string  `json:"vendor"`
 	VendorIcon  string  `json:"vendor_icon,omitempty"`
 	RankDelta   int     `json:"rank_delta"`
@@ -141,6 +143,7 @@ type userRankingCacheItem struct {
 type rankingModelMeta struct {
 	vendor     string
 	vendorIcon string
+	modelIcon  string
 }
 
 type vendorAggregate struct {
@@ -376,6 +379,7 @@ func buildRankingModelMeta() map[string]rankingModelMeta {
 	meta := make(map[string]rankingModelMeta)
 	for _, pricing := range model.GetPricing() {
 		item := rankingModelMeta{vendor: rankingUnknownVendor}
+		item.modelIcon = pricing.Icon
 		if vendor, ok := vendorByID[pricing.VendorID]; ok {
 			item.vendor = vendor.Name
 			item.vendorIcon = vendor.Icon
@@ -413,6 +417,7 @@ func buildRankedModels(totals []model.RankingQuotaTotal, totalTokens int64, prev
 			ModelName:    item.ModelName,
 			Vendor:       modelMeta.vendor,
 			VendorIcon:   modelMeta.vendorIcon,
+			ModelIcon:    modelMeta.modelIcon,
 			Category:     "all",
 			TotalTokens:  item.TotalTokens,
 			Share:        rankingShare(item.TotalTokens, totalTokens),
@@ -620,6 +625,7 @@ func buildRankingMovers(models []RankedModel) ([]RankingMover, []RankingMover) {
 			ModelName:   item.ModelName,
 			Vendor:      item.Vendor,
 			VendorIcon:  item.VendorIcon,
+			ModelIcon:   item.ModelIcon,
 			RankDelta:   delta,
 			CurrentRank: item.Rank,
 			GrowthPct:   item.GrowthPct,

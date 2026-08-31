@@ -79,6 +79,12 @@ const FEATURE_ROWS: Array<{
     labelKey: '3D generation',
     descriptionKey: 'Enable asynchronous 3D generation in Playground.',
   },
+  {
+    feature: 'video',
+    modelKey: 'video',
+    labelKey: 'Video generation',
+    descriptionKey: 'Enable video generation in Playground.',
+  },
 ]
 
 type PlaygroundSettingsCardProps = {
@@ -226,11 +232,9 @@ export function PlaygroundSettingsCard(props: PlaygroundSettingsCardProps) {
                             >
                               <SelectTrigger>
                                 <SelectValue>
-                                  {modelType === 'openai'
-                                    ? 'OpenAI'
-                                    : modelType === 'azure'
-                                      ? 'Azure'
-                                      : 'UnrealSpeech'}
+                                  {modelType === 'openai' && 'OpenAI'}
+                                  {modelType === 'azure' && 'Azure'}
+                                  {modelType === 'unrealspeech' && 'UnrealSpeech'}
                                 </SelectValue>
                               </SelectTrigger>
                               <SelectContent alignItemWithTrigger={false}>

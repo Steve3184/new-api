@@ -99,6 +99,7 @@ type User struct {
 	VerificationCode string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken      *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int                        `json:"quota" gorm:"type:int;default:0"`
+	CheckinQuota     int                        `json:"checkin_quota" gorm:"type:int;default:0"`
 	UsedQuota        int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group            string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
@@ -1503,6 +1504,34 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 		return nil
 	}
 	return decreaseUserQuota(id, quota)
+}
+
+// TryReserveUserCheckinQuota atomically reserves deductible check-in credit.
+func TryReserveUserCheckinQuota(id int, quota int) (bool, error) {
+	if quota < 0 {
+		return false, errors.New("checkin quota 不能为负数")
+	}
+	if quota == 0 {
+		return true, nil
+	}
+	result := DB.Model(&User{}).Where("id = ? AND checkin_quota >= ?", id, quota).
+		Update("checkin_quota", gorm.Expr("checkin_quota - ?", quota))
+	return result.RowsAffected == 1, result.Error
+}
+
+func IncreaseUserCheckinQuota(id int, quota int) error {
+	if quota < 0 {
+		return errors.New("checkin quota 不能为负数")
+	}
+	if quota == 0 {
+		return nil
+	}
+	return DB.Model(&User{}).Where("id = ?", id).Update("checkin_quota", gorm.Expr("checkin_quota + ?", quota)).Error
+}
+
+func GetUserCheckinQuota(id int) (quota int, err error) {
+	err = DB.Model(&User{}).Where("id = ?", id).Select("checkin_quota").Scan(&quota).Error
+	return quota, err
 }
 
 func decreaseUserQuota(id int, quota int) (err error) {

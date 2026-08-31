@@ -17,6 +17,7 @@ const (
 	FeatureImage  Feature = "image"
 	FeatureSpeech Feature = "speech"
 	FeatureThreeD Feature = "three_d"
+	FeatureVideo  Feature = "video"
 )
 
 const (
@@ -30,6 +31,7 @@ type ModelAllowlist struct {
 	Image  []string `json:"image"`
 	Speech []string `json:"speech"`
 	ThreeD []string `json:"three_d"`
+	Video  []string `json:"video"`
 }
 
 type Settings struct {
@@ -51,6 +53,7 @@ func defaultSettings() Settings {
 			Image:  []string{},
 			Speech: []string{},
 			ThreeD: []string{},
+			Video:  []string{},
 		},
 		SpeechModelTypes: map[string]string{},
 	}
@@ -65,7 +68,7 @@ func Get() Settings {
 func ToJSONString() string {
 	data, err := common.Marshal(Get())
 	if err != nil {
-		return `{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[]},"speech_model_types":{}}`
+		return `{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[],"video":[]},"speech_model_types":{}}`
 	}
 	return string(data)
 }
@@ -125,6 +128,8 @@ func IsModelAllowed(feature Feature, modelName string) bool {
 		allowed = current.Models.Speech
 	case FeatureThreeD:
 		allowed = current.Models.ThreeD
+	case FeatureVideo:
+		allowed = current.Models.Video
 	default:
 		return false
 	}
@@ -149,7 +154,7 @@ func GetSpeechModelType(modelName string) string {
 
 func normalize(value *Settings) error {
 	knownFeatures := map[Feature]struct{}{
-		FeatureChat: {}, FeatureImage: {}, FeatureSpeech: {}, FeatureThreeD: {},
+		FeatureChat: {}, FeatureImage: {}, FeatureSpeech: {}, FeatureThreeD: {}, FeatureVideo: {},
 	}
 	features := make([]Feature, 0, len(value.EnabledFeatures))
 	seenFeatures := make(map[Feature]struct{}, len(value.EnabledFeatures))
@@ -171,6 +176,7 @@ func normalize(value *Settings) error {
 	value.Models.Image = normalizeModels(value.Models.Image)
 	value.Models.Speech = normalizeModels(value.Models.Speech)
 	value.Models.ThreeD = normalizeModels(value.Models.ThreeD)
+	value.Models.Video = normalizeModels(value.Models.Video)
 
 	modelTypes := make(map[string]string, len(value.SpeechModelTypes))
 	for modelName, modelType := range value.SpeechModelTypes {
@@ -219,6 +225,7 @@ func cloneSettings(source Settings) Settings {
 	result.Models.Image = append([]string(nil), source.Models.Image...)
 	result.Models.Speech = append([]string(nil), source.Models.Speech...)
 	result.Models.ThreeD = append([]string(nil), source.Models.ThreeD...)
+	result.Models.Video = append([]string(nil), source.Models.Video...)
 	result.SpeechModelTypes = make(map[string]string, len(source.SpeechModelTypes))
 	for modelName, modelType := range source.SpeechModelTypes {
 		result.SpeechModelTypes[modelName] = modelType

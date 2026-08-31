@@ -8,6 +8,7 @@ type CheckinSetting struct {
 	MinQuota     int  `json:"min_quota"`      // 签到最小额度奖励
 	MaxQuota     int  `json:"max_quota"`      // 签到最大额度奖励
 	MinUserQuota int  `json:"min_user_quota"` // 签到所需最低用户余额，0 表示不限制
+	DeductibleGroups string `json:"deductible_groups"` // 允许抵扣签到额度的分组，逗号分隔；空表示不启用抵扣
 }
 
 // 默认配置
@@ -16,6 +17,7 @@ var checkinSetting = CheckinSetting{
 	MinQuota:     1000,  // 默认最小额度 1000 (约 0.002 USD)
 	MaxQuota:     10000, // 默认最大额度 10000 (约 0.02 USD)
 	MinUserQuota: 0,
+	DeductibleGroups: "",
 }
 
 func init() {

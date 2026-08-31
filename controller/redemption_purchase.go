@@ -196,8 +196,8 @@ func validateRedemptionPurchase(c *gin.Context, req RedemptionPurchaseRequest) (
 	return ctx, nil
 }
 
-func redemptionPurchaseName(unitAmount int64) string {
-	name := fmt.Sprintf("Code %d", unitAmount)
+func redemptionPurchaseName(unitAmount int64, userID int) string {
+	name := fmt.Sprintf("Code %d U%d", unitAmount, userID)
 	if len(name) > 20 {
 		return "Purchased code"
 	}
@@ -218,7 +218,7 @@ func newRedemptionTopUp(ctx *redemptionPurchaseContext, tradeNo string, provider
 		RedemptionQuota:  ctx.UnitQuota,
 		RedemptionCount:  ctx.Request.Quantity,
 		RedemptionAmount: ctx.Request.UnitAmount,
-		RedemptionName:   redemptionPurchaseName(ctx.Request.UnitAmount),
+		RedemptionName:   redemptionPurchaseName(ctx.Request.UnitAmount, ctx.User.Id),
 	}
 }
 
@@ -311,7 +311,7 @@ func requestRedemptionStripePurchase(c *gin.Context, ctx *redemptionPurchaseCont
 		ctx.User.StripeCustomer,
 		ctx.User.Email,
 		ctx.PayMoney,
-		redemptionPurchaseName(ctx.Request.UnitAmount),
+		redemptionPurchaseName(ctx.Request.UnitAmount, ctx.User.Id),
 		"",
 		"",
 	)

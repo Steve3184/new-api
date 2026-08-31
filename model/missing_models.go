@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 // GetMissingModels returns model names that are referenced in the system
 func GetMissingModels() ([]string, error) {
 	// 1. 获取所有已启用模型（去重）
@@ -27,4 +29,29 @@ func GetMissingModels() ([]string, error) {
 		}
 	}
 	return missing, nil
+}
+
+// DeleteUnusedDescribedModels removes metadata-only models that are not
+// referenced by any enabled channel/ability. It returns the number removed.
+func DeleteUnusedDescribedModels() (int64, error) {
+	used := make(map[string]struct{})
+	for _, name := range GetEnabledModels() {
+		used[strings.TrimSpace(name)] = struct{}{}
+	}
+	var candidates []Model
+	if err := DB.Where("description <> '' AND description IS NOT NULL").Find(&candidates).Error; err != nil {
+		return 0, err
+	}
+	var deleted int64
+	for _, item := range candidates {
+		if _, ok := used[item.ModelName]; ok {
+			continue
+		}
+		result := DB.Delete(&Model{}, item.Id)
+		if result.Error != nil {
+			return deleted, result.Error
+		}
+		deleted += result.RowsAffected
+	}
+	return deleted, nil
 }

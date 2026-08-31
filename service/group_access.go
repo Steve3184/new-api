@@ -83,6 +83,8 @@ func (u *groupAccessUser) evaluateCondition(condition console_setting.GroupAcces
 		return age > time.Duration(condition.Days)*24*time.Hour
 	case "balance", "min_quota":
 		return u.user.Quota >= condition.MinQuota
+	case "spend", "min_spend", "user_spend":
+		return u.user.UsedQuota >= condition.MinSpend
 	default:
 		return false
 	}

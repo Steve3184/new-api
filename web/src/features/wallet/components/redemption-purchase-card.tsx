@@ -152,7 +152,7 @@ export function RedemptionPurchaseCard({
     (method) => method.type === 'waffo'
   )
   const waffoPayMethods = topupInfo?.waffo_pay_methods ?? []
-  const initialMethod = purchaseMethods[0]?.type ?? ''
+  const initialMethod = ''
   const minimumAmount = Math.max(1, topupInfo?.min_topup ?? 1)
   const [unitAmountText, setUnitAmountText] = useState(String(minimumAmount))
   const [quantityText, setQuantityText] = useState('1')
@@ -703,7 +703,7 @@ export function RedemptionPurchaseCard({
                             {hasDiscount && savedAmount > 0 && (
                               <span className='text-green-600'>
                                 {' '}
-                                • {t('Save')} {formatCurrency(savedAmount)}
+                                • {t('Save amount')} {formatCurrency(savedAmount)}
                               </span>
                             )}
                           </div>

@@ -542,6 +542,9 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	token := request.Token
+	// User API keys remain valid until explicitly reset; expiry is reserved for
+	// server-managed channel tokens.
+	token.ExpiredTime = -1
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
@@ -642,6 +645,7 @@ func UpdateToken(c *gin.Context) {
 		return
 	}
 	token := request.Token
+	token.ExpiredTime = -1
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return

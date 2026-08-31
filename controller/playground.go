@@ -122,3 +122,15 @@ func PlaygroundThreeDFetch(c *gin.Context) {
 	}
 	RelayTaskFetch(c)
 }
+
+func PlaygroundVideo(c *gin.Context) {
+	Playground(c, playground_setting.FeatureVideo, types.RelayFormatTask, RelayTask)
+}
+
+func PlaygroundVideoFetch(c *gin.Context) {
+	if !playground_setting.IsFeatureEnabled(playground_setting.FeatureVideo) {
+		c.JSON(403, gin.H{"error": gin.H{"message": "playground feature is disabled", "type": "access_denied"}})
+		return
+	}
+	RelayTaskFetch(c)
+}

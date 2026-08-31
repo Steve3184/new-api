@@ -95,6 +95,7 @@ export interface ChannelSettings {
 }
 
 export interface ChannelOtherSettings {
+  agnes_auto_image_url?: boolean
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
   openrouter_enterprise?: boolean

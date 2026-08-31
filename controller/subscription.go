@@ -53,24 +53,39 @@ func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
 			return fmt.Errorf("月限额必须介于 0 和 %d 之间", common.MaxQuota)
 		}
 	}
-	normalizedRateLimits, rateLimits, err := model.NormalizeSubscriptionRateLimitGroups(plan.RateLimitGroups)
+	_, rateLimits, err := model.NormalizeSubscriptionRateLimitGroups(plan.RateLimitGroups)
 	if err != nil {
 		return err
 	}
-	plan.RateLimitGroups = normalizedRateLimits
+	groups := ratio_setting.GetGroupRatioCopy()
+	filteredRateLimits := make([]model.SubscriptionRateLimitGroup, 0, len(rateLimits))
 	for _, rateLimit := range rateLimits {
-		if _, ok := ratio_setting.GetGroupRatioCopy()[rateLimit.Group]; !ok {
-			return fmt.Errorf("RPM 分组不存在: %s", rateLimit.Group)
+		if _, ok := groups[rateLimit.Group]; ok {
+			filteredRateLimits = append(filteredRateLimits, rateLimit)
 		}
 	}
+	encoded, encodeErr := common.Marshal(filteredRateLimits)
+	if encodeErr != nil {
+		return encodeErr
+	}
+	plan.RateLimitGroups = string(encoded)
+	walletGroups := make([]string, 0)
+	seenWallet := make(map[string]struct{})
 	for _, group := range strings.Split(plan.WalletOnlyGroups, ",") {
+		group = strings.TrimSpace(group)
 		if group == "" {
 			continue
 		}
-		if _, ok := ratio_setting.GetGroupRatioCopy()[group]; !ok {
-			return fmt.Errorf("钱包专用分组不存在: %s", group)
+		if _, ok := groups[group]; !ok {
+			continue
 		}
+		if _, exists := seenWallet[group]; exists {
+			continue
+		}
+		seenWallet[group] = struct{}{}
+		walletGroups = append(walletGroups, group)
 	}
+	plan.WalletOnlyGroups = strings.Join(walletGroups, ",")
 	return nil
 }
 

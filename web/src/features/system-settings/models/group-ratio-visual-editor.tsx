@@ -641,7 +641,7 @@ function GroupPricingTable({
               {
                 id: 'ratio',
                 header: t('Ratio'),
-                className: 'w-28',
+                className: 'w-32 min-w-32',
                 cell: (row) => (
                   <Input
                     type='number'
@@ -657,7 +657,7 @@ function GroupPricingTable({
               {
                 id: 'topup-ratio',
                 header: t('Top-up ratio'),
-                className: 'w-28',
+                className: 'w-32 min-w-32',
                 cell: (row) => (
                   <Input
                     type='number'

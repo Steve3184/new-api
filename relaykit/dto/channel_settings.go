@@ -74,6 +74,7 @@ const (
 )
 
 type ChannelOtherSettings struct {
+	AgnesAutoImageURL                     bool                  `json:"agnes_auto_image_url,omitempty"`
 	AzureResponsesVersion                 string                `json:"azure_responses_version,omitempty"`
 	VertexKeyType                         VertexKeyType         `json:"vertex_key_type,omitempty"` // "json" or "api_key"
 	OpenRouterEnterprise                  *bool                 `json:"openrouter_enterprise,omitempty"`

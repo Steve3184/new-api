@@ -101,8 +101,12 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 		}
 
 		// 步骤2: 在事务中增加用户额度
+		column := "quota"
+		if setting := operation_setting.GetCheckinSetting(); setting.DeductibleGroups != "" {
+			column = "checkin_quota"
+		}
 		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota + ?", quotaAwarded)).Error; err != nil {
+			Update(column, gorm.Expr(column+" + ?", quotaAwarded)).Error; err != nil {
 			return errors.New("签到失败：更新额度出错")
 		}
 
@@ -114,9 +118,9 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 	}
 
 	// 事务成功后，异步更新缓存
-	go func() {
-		_ = cacheIncrUserQuota(userId, int64(quotaAwarded))
-	}()
+	if operation_setting.GetCheckinSetting().DeductibleGroups == "" {
+		go func() { _ = cacheIncrUserQuota(userId, int64(quotaAwarded)) }()
+	}
 
 	return checkin, nil
 }
@@ -131,7 +135,12 @@ func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded in
 
 	// 步骤2: 增加用户额度
 	// 使用 db=true 强制直接写入数据库，不使用批量更新
-	if err := IncreaseUserQuota(userId, quotaAwarded, true); err != nil {
+	if operation_setting.GetCheckinSetting().DeductibleGroups == "" {
+		if err := IncreaseUserQuota(userId, quotaAwarded, true); err != nil {
+			DB.Delete(checkin)
+			return nil, errors.New("签到失败：更新额度出错")
+		}
+	} else if err := IncreaseUserCheckinQuota(userId, quotaAwarded); err != nil {
 		// 如果增加额度失败，需要回滚签到记录
 		DB.Delete(checkin)
 		return nil, errors.New("签到失败：更新额度出错")

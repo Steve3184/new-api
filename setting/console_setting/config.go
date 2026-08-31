@@ -38,6 +38,7 @@ type ConsoleSetting struct {
 	SPAMetaDescription       string `json:"spa_meta_description"`
 	SPAMetaOGType            string `json:"spa_meta_og_type"`
 	SPAMetaOGDescription     string `json:"spa_meta_og_description"`
+	HideUpstreamRequestID    bool   `json:"hide_upstream_request_id"`
 }
 
 // 默认配置
@@ -68,6 +69,7 @@ var defaultConsoleSetting = ConsoleSetting{
 	SPAMetaDescription:       "Unified AI API gateway and admin dashboard.",
 	SPAMetaOGType:            "website",
 	SPAMetaOGDescription:     "Unified AI API gateway and admin dashboard.",
+	HideUpstreamRequestID:    false,
 }
 
 // 全局实例

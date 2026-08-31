@@ -29,9 +29,12 @@ import { VCHART_OPTION } from '@/lib/vchart'
 
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
-function formatHourLabel(iso: string): string {
+function formatHourLabel(iso: string, includeMinutes = false): string {
   const date = new Date(iso)
   const hours = date.getHours()
+  if (includeMinutes) {
+    return `${String(hours).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
   return `${String(hours).padStart(2, '0')}:00`
 }
 
@@ -103,8 +106,10 @@ export function LatencyTrendChart(props: {
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
+    const timestamps = props.series.map((point) => Date.parse(point.timestamp)).filter(Number.isFinite)
+    const compactTimeRange = timestamps.length > 1 && Math.max(...timestamps) - Math.min(...timestamps) < 60 * 60 * 1000
     const data = props.series.map((point) => ({
-      time: formatHourLabel(point.timestamp),
+      time: formatHourLabel(point.timestamp, compactTimeRange),
       group: point.group,
       ttft: point.ttft_ms,
     }))

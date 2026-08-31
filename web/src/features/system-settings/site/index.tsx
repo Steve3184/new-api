@@ -59,6 +59,7 @@ const defaultSiteSettings: SiteSettings = {
   'console_setting.spa_meta_og_type': 'website',
   'console_setting.spa_meta_og_description':
     'Unified AI API gateway and admin dashboard.',
+  'console_setting.hide_upstream_request_id': false,
 }
 
 export function SiteSettings() {

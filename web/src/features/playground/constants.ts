@@ -40,6 +40,7 @@ export const API_ENDPOINTS = {
   SPEECH: '/pg/audio/speech',
   SPEECH_TASKS: '/pg/audio/speech/tasks',
   THREE_D: '/pg/3d',
+  VIDEOS: '/pg/videos',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const

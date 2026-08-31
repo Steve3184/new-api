@@ -98,12 +98,7 @@ export function TelegramLoginDialog(props: TelegramLoginDialogProps) {
         {widgetState === 'failed' && (
           <p className='text-destructive text-sm'>{t('Login failed')}</p>
         )}
-        <div
-          ref={widgetContainer}
-          className={
-            widgetState === 'ready' && !props.pending ? 'block' : 'hidden'
-          }
-        />
+        <div ref={widgetContainer} className='block' />
       </div>
     </Dialog>
   )

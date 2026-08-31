@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -65,6 +66,7 @@ type Log struct {
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
 	ModelName         string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
+	ModelIcon         string `json:"model_icon,omitempty" gorm:"-"`
 	Quota             int    `json:"quota" gorm:"default:0"`
 	PromptTokens      int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens  int    `json:"completion_tokens" gorm:"default:0"`
@@ -555,6 +557,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 			logs[i].ChannelName = channelMap[logs[i].ChannelId]
 		}
 	}
+	fillLogModelIcons(logs)
 
 	return logs, total, err
 }
@@ -606,7 +609,45 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 
 	formatUserLogs(logs, startIdx)
+	fillLogModelIcons(logs)
+	if console_setting.GetConsoleSetting().HideUpstreamRequestID {
+		for _, entry := range logs {
+			entry.UpstreamRequestId = ""
+		}
+	}
 	return logs, total, err
+}
+
+func fillLogModelIcons(logs []*Log) {
+	if len(logs) == 0 || DB == nil {
+		return
+	}
+	names := make([]string, 0, len(logs))
+	seen := make(map[string]struct{}, len(logs))
+	for _, entry := range logs {
+		if entry.ModelName == "" {
+			continue
+		}
+		if _, ok := seen[entry.ModelName]; ok {
+			continue
+		}
+		seen[entry.ModelName] = struct{}{}
+		names = append(names, entry.ModelName)
+	}
+	if len(names) == 0 {
+		return
+	}
+	var models []Model
+	if err := DB.Select("model_name", "icon").Where("model_name IN ?", names).Find(&models).Error; err != nil {
+		return
+	}
+	icons := make(map[string]string, len(models))
+	for _, item := range models {
+		icons[item.ModelName] = item.Icon
+	}
+	for _, entry := range logs {
+		entry.ModelIcon = icons[entry.ModelName]
+	}
 }
 
 type Stat struct {

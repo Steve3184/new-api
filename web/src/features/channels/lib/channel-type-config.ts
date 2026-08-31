@@ -198,6 +198,22 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  63: {
+    id: 63,
+    name: CHANNEL_TYPES[63],
+    icon: 'openai',
+    defaultBaseUrl: 'https://apihub.agnes-ai.com',
+    supportedModels: [
+      'agnes-video-v2.0',
+      'agnes-video-2.5',
+      'agnes-video-2.5-flash',
+    ],
+    hints: {
+      baseUrl: 'Default: https://apihub.agnes-ai.com',
+      key: 'Agnes API key',
+      models: 'agnes-video-v2.0,agnes-video-2.5,agnes-video-2.5-flash',
+    },
+  },
 }
 
 /**

@@ -226,6 +226,8 @@ export interface CheckinStatusResponse {
   enabled: boolean
   /** Minimum user quota required for check-in; zero disables the gate */
   min_user_quota: number
+  eligible?: boolean
+  current_quota?: number
   /** Check-in statistics */
   stats: CheckinStats
 }

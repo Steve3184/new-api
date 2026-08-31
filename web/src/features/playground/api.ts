@@ -31,6 +31,8 @@ import type {
   SpeechGenerationTaskResponse,
   ThreeDGenerationRequest,
   ThreeDGenerationResponse,
+  VideoGenerationRequest,
+  VideoGenerationResponse,
 } from './types'
 
 /**
@@ -177,6 +179,28 @@ export async function getThreeDTask(
   signal?: AbortSignal
 ): Promise<ThreeDGenerationResponse> {
   const res = await api.get(`${API_ENDPOINTS.THREE_D}/${taskId}`, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function generateVideo(
+  payload: VideoGenerationRequest,
+  signal?: AbortSignal
+): Promise<VideoGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.VIDEOS, payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getVideoTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<VideoGenerationResponse> {
+  const res = await api.get(`${API_ENDPOINTS.VIDEOS}/${taskId}`, {
     signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)

@@ -26,7 +26,7 @@ import {
 
 const defaultContentSettings: ContentSettings = {
   PlaygroundSettings:
-    '{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[]},"speech_model_types":{}}',
+    '{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[],"video":[]},"speech_model_types":{}}',
   StatusCheckGroups: '[]',
   StatusCheckCacheExcludedModels: '[]',
   StatusCheckAnnouncement: '',

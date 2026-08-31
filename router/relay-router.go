@@ -72,10 +72,12 @@ func SetRelayRouter(router *gin.Engine) {
 		playgroundRelayRouter.POST("/audio/speech", controller.PlaygroundSpeech)
 		playgroundRelayRouter.POST("/audio/speech/tasks", controller.PlaygroundSpeechTask)
 		playgroundRelayRouter.POST("/3d", controller.PlaygroundThreeD)
+		playgroundRelayRouter.POST("/videos", controller.PlaygroundVideo)
 		playgroundRouter.GET("/audio/speech/tasks/:task_id", controller.PlaygroundSpeechTaskFetch)
 		playgroundRouter.GET("/audio/speech/tasks/:task_id/content", controller.PlaygroundSpeechContent)
 		playgroundRouter.GET("/audio/speech/tasks/:task_id/timestamps", controller.PlaygroundSpeechTimestamps)
 		playgroundRouter.GET("/3d/:task_id", controller.PlaygroundThreeDFetch)
+		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))

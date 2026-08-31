@@ -289,6 +289,7 @@ export const channelFormSchema = z
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
     claude_cache_control: z.boolean().optional(), // Anthropic: stable prefix cache control
     disable_task_polling_sleep: z.boolean().optional(),
+    agnes_auto_image_url: z.boolean().optional(),
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -466,6 +467,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   claude_beta_query: false,
   claude_cache_control: false,
   disable_task_polling_sleep: false,
+  agnes_auto_image_url: false,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -542,6 +544,7 @@ export function transformChannelToFormDefaults(
   let claudeBetaQuery = false
   let claudeCacheControl = false
   let disableTaskPollingSleep = false
+  let agnesAutoImageURL = false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -563,6 +566,7 @@ export function transformChannelToFormDefaults(
       claudeBetaQuery = parsed.claude_beta_query === true
       claudeCacheControl = parsed.claude_cache_control === true
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
+      agnesAutoImageURL = parsed.agnes_auto_image_url === true
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -622,6 +626,7 @@ export function transformChannelToFormDefaults(
     claude_beta_query: claudeBetaQuery,
     claude_cache_control: claudeCacheControl,
     disable_task_polling_sleep: disableTaskPollingSleep,
+    agnes_auto_image_url: agnesAutoImageURL,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -772,6 +777,11 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
 
   settingsObj.disable_task_polling_sleep =
     formData.disable_task_polling_sleep === true
+  if (formData.type === 63) {
+    settingsObj.agnes_auto_image_url = formData.agnes_auto_image_url === true
+  } else if ('agnes_auto_image_url' in settingsObj) {
+    delete settingsObj.agnes_auto_image_url
+  }
 
   // Upstream model update settings (for model-fetchable channel types)
   if (MODEL_FETCHABLE_TYPES.has(formData.type)) {

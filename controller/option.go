@@ -256,6 +256,11 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorMsg(c, "Check-in minimum user quota must be a non-negative integer")
 			return
 		}
+	case "checkin_setting.deductible_groups":
+		if len(strings.TrimSpace(option.Value.(string))) > 1024 {
+			common.ApiErrorMsg(c, "Check-in deductible groups is too long")
+			return
+		}
 	case "CapServerURL":
 		if option.Value != "" {
 			parsedURL, parseErr := url.ParseRequestURI(option.Value.(string))

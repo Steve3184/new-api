@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Box, ImageIcon, MessageSquare, Volume2 } from 'lucide-react'
+import { Box, ImageIcon, MessageSquare, Volume2, Video } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,6 +28,7 @@ import { filterGenerationModels } from './components/generation/generation-utils
 import { ImagePlayground } from './components/generation/image-playground'
 import { SpeechPlayground } from './components/generation/speech-playground'
 import { ThreeDPlayground } from './components/generation/three-d-playground'
+import { VideoPlayground } from './components/generation/video-playground'
 import { PlaygroundInput } from './components/input/playground-input'
 import {
   useChatHandler,
@@ -44,7 +45,7 @@ import type { PlaygroundFeature, PlaygroundPublicSettings } from './types'
 
 const DEFAULT_PLAYGROUND_SETTINGS: PlaygroundPublicSettings = {
   enabled_features: ['chat'],
-  models: { chat: [], image: [], speech: [], three_d: [] },
+  models: { chat: [], image: [], speech: [], three_d: [], video: [] },
   speech_model_types: {},
 }
 
@@ -122,6 +123,10 @@ export function Playground() {
     generationOptions.models,
     playgroundSettings.models.three_d ?? []
   )
+  const videoModels = filterGenerationModels(
+    generationOptions.models,
+    playgroundSettings.models.video ?? []
+  )
   const chatGroups = useMemo(() => filterChatGroups(groups), [groups])
 
   useEffect(() => {
@@ -147,6 +152,7 @@ export function Playground() {
     { feature: 'image' as const, label: t('Image'), icon: ImageIcon },
     { feature: 'speech' as const, label: t('Speech'), icon: Volume2 },
     { feature: 'three_d' as const, label: t('3D'), icon: Box },
+    { feature: 'video' as const, label: t('Video'), icon: Video },
   ].filter((item) => enabledFeatures.includes(item.feature))
 
   return (
@@ -237,6 +243,15 @@ export function Playground() {
       <TabsContent value='three_d' className='min-h-0 flex-1 overflow-hidden'>
         <ThreeDPlayground
           models={threeDModels}
+          groups={groups}
+          group={config.group}
+          onGroupChange={(value) => updateConfig('group', value)}
+          groupModels={generationOptions.groupModels}
+        />
+      </TabsContent>
+      <TabsContent value='video' className='min-h-0 flex-1 overflow-hidden'>
+        <VideoPlayground
+          models={videoModels}
           groups={groups}
           group={config.group}
           onGroupChange={(value) => updateConfig('group', value)}

@@ -22,6 +22,8 @@ func GetCheckinStatus(c *gin.Context) {
 	userId := c.GetInt("id")
 	// 获取月份参数，默认为当前月份
 	month := c.DefaultQuery("month", time.Now().Format("2006-01"))
+	userQuota, _ := model.GetUserQuota(userId, true)
+	eligible := setting.MinUserQuota <= 0 || userQuota > setting.MinUserQuota
 
 	stats, err := model.GetUserCheckinStats(userId, month)
 	if err != nil {
@@ -39,6 +41,9 @@ func GetCheckinStatus(c *gin.Context) {
 			"min_quota":      setting.MinQuota,
 			"max_quota":      setting.MaxQuota,
 			"min_user_quota": setting.MinUserQuota,
+			"deductible_groups": setting.DeductibleGroups,
+			"eligible": eligible,
+			"current_quota": userQuota,
 			"stats":          stats,
 		},
 	})

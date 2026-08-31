@@ -269,7 +269,12 @@ export function AppearanceSection({ defaultValues }: AppearanceSectionProps) {
                           onValueChange={field.onChange}
                         >
                           <SelectTrigger className='w-full'>
-                            <SelectValue placeholder={t(config.options.find(([v]) => v === field.value)?.[1] || String(field.value))} />
+                          <SelectValue>
+                            {t(
+                              config.options.find(([v]) => v === field.value)?.[1] ||
+                                String(field.value)
+                            )}
+                          </SelectValue>
                           </SelectTrigger>
                           <SelectContent alignItemWithTrigger={false}>
                             <SelectGroup>

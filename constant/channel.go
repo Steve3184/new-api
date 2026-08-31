@@ -60,6 +60,7 @@ const (
 	ChannelTypeUnrealSpeech   = 60
 	ChannelTypeSub2API        = 61
 	ChannelTypeNewAPI         = 62
+	ChannelTypeAgnes          = 63
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -129,6 +130,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //60
 	"",                                          //61
 	"",                                          //62
+	"https://apihub.agnes-ai.com",               //63
 }
 
 var ChannelTypeNames = map[int]string{
@@ -191,6 +193,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeUnrealSpeech:   "UnrealSpeech",
 	ChannelTypeSub2API:        "Sub2API",
 	ChannelTypeNewAPI:         "New API",
+	ChannelTypeAgnes:          "Agnes",
 }
 
 func GetChannelTypeName(channelType int) string {

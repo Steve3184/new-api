@@ -25,6 +25,8 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -37,10 +39,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 import { useModels } from './models-provider'
+import { deleteUnusedModels } from '../api'
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
+  const queryClient = useQueryClient()
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -61,6 +65,17 @@ export function ModelsPrimaryButtons() {
 
   const handleManageVendors = () => {
     setOpen('manage-vendors')
+  }
+
+  const handleDeleteUnused = async () => {
+    if (!window.confirm(t('Delete unused described models?'))) return
+    try {
+      const result = await deleteUnusedModels()
+      toast.success(t('Deleted {{count}} unused models', { count: result.data?.deleted ?? 0 }))
+      await queryClient.invalidateQueries({ queryKey: ['models'] })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Delete failed'))
+    }
   }
 
   return (
@@ -90,6 +105,9 @@ export function ModelsPrimaryButtons() {
             <DropdownMenuShortcut>
               <AlertCircle className='h-4 w-4' />
             </DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void handleDeleteUnused()}>
+            {t('Delete unused models')}
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={handleSync}>

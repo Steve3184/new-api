@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -88,6 +88,14 @@ export function RedemptionsTable() {
       | string[]
       | undefined) ?? []
   const creatorFilterValue = creatorFilter[0] ?? ''
+
+  useEffect(() => {
+    if (creatorFilterValue) return
+    onColumnFiltersChange((current) => [
+      ...current.filter((item) => item.id !== 'creator_type'),
+      { id: 'creator_type', value: ['admin'] },
+    ])
+  }, [creatorFilterValue, onColumnFiltersChange])
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({

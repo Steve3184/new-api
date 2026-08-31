@@ -161,7 +161,7 @@ export interface GroupOption {
   desc?: string
 }
 
-export type PlaygroundFeature = 'chat' | 'image' | 'speech' | 'three_d'
+export type PlaygroundFeature = 'chat' | 'image' | 'speech' | 'three_d' | 'video'
 export type SpeechModelType = 'openai' | 'azure' | 'unrealspeech'
 
 export interface PlaygroundPublicSettings {
@@ -239,5 +239,26 @@ export interface ThreeDGenerationResponse {
   created_at: number
   completed_at?: number
   data?: { format: string; url: string }
+  error?: { message: string; code: string }
+}
+
+export interface VideoGenerationRequest {
+  model: string
+  group: string
+  prompt: string
+  images?: string[]
+  mode?: string
+  size?: string
+  duration?: number
+}
+
+export interface VideoGenerationResponse {
+  id: string
+  object: 'video'
+  model: string
+  status: 'queued' | 'in_progress' | 'completed' | 'failed'
+  progress: number
+  created_at: number
+  data?: { url: string }
   error?: { message: string; code: string }
 }

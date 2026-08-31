@@ -33,3 +33,16 @@ func TestNormalizeGroupAccessRulesRejectsInvalidCondition(t *testing.T) {
 	_, err := NormalizeGroupAccessRules(`[{"group":"default","conditions":[{"type":"unknown"}]}]`)
 	assert.Error(t, err)
 }
+
+func TestNormalizeGroupAccessRulesSupportsSpendCondition(t *testing.T) {
+	previous := ratio_setting.GetGroupRatioCopy()
+	t.Cleanup(func() {
+		data, err := common.Marshal(previous)
+		require.NoError(t, err)
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(string(data)))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+	normalized, err := NormalizeGroupAccessRules(`[{"group":"default","conditions":[{"type":"spend","min_spend":100}]}]`)
+	require.NoError(t, err)
+	assert.Contains(t, normalized, `"type":"spend"`)
+}

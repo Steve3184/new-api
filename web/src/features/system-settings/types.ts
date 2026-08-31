@@ -169,6 +169,7 @@ export type SiteSettings = {
   'console_setting.spa_meta_description': string
   'console_setting.spa_meta_og_type': string
   'console_setting.spa_meta_og_description': string
+  'console_setting.hide_upstream_request_id': boolean
 }
 
 export type AuthSettings = {
@@ -432,6 +433,7 @@ export type BillingSettings = {
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
   'checkin_setting.min_user_quota': number
+  'checkin_setting.deductible_groups': string
   PaymentAnnouncement: string
 }
 

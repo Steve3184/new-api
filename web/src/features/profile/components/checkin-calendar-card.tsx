@@ -131,12 +131,22 @@ export function CheckinCalendarCard({
 
   const checkedToday = checkinData?.stats?.checked_in_today === true
   const todayAward = checkinRecordsMap[todayString]
+  let checkinSummary = t('Check in daily to receive random quota rewards')
+  if (checkinData?.eligible === false) {
+    checkinSummary = t('Check-in requires a balance greater than {{quota}}.', {
+      quota: formatQuotaWithCurrency(checkinData.min_user_quota, {
+        digitsLarge: 0,
+      }),
+    })
+  } else if (checkedToday && todayAward !== undefined) {
+    checkinSummary = `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
+  }
 
   useEffect(() => {
     if (initialLoaded) return
     if (isLoading) return
     if (!checkinData) return
-    setCollapsed(checkedToday)
+    setCollapsed(checkedToday || checkinData.eligible === false)
     setInitialLoaded(true)
   }, [checkinData, checkedToday, initialLoaded, isLoading])
 
@@ -378,9 +388,7 @@ export function CheckinCalendarCard({
                   </span>
                 </div>
                 <p className='text-muted-foreground mt-1 line-clamp-2 text-xs sm:text-sm'>
-                  {checkedToday && todayAward !== undefined
-                    ? `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
-                    : t('Check in daily to receive random quota rewards')}
+                  {checkinSummary}
                 </p>
               </div>
             </button>

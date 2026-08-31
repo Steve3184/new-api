@@ -10,11 +10,11 @@ import (
 func TestPlaygroundSettingsDefaultAndModelAllowlist(t *testing.T) {
 	require.NoError(t, UpdateByJSONString(`{
 		"enabled_features":["chat","image","speech"],
-		"models":{"chat":[],"image":["gpt-image-2","gpt-image-2"],"speech":["azure-tts","unreal-speech-v8"],"three_d":[]},
+		"models":{"chat":[],"image":["gpt-image-2","gpt-image-2"],"speech":["azure-tts","unreal-speech-v8"],"three_d":[],"video":[]},
 		"speech_model_types":{"azure-tts":"azure","unreal-speech-v8":"unrealspeech"}
 	}`))
 	t.Cleanup(func() {
-		require.NoError(t, UpdateByJSONString(`{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[]},"speech_model_types":{}}`))
+		require.NoError(t, UpdateByJSONString(`{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[],"video":[]},"speech_model_types":{}}`))
 	})
 
 	assert.True(t, IsFeatureEnabled(FeatureChat))
@@ -27,7 +27,7 @@ func TestPlaygroundSettingsDefaultAndModelAllowlist(t *testing.T) {
 }
 
 func TestPlaygroundSettingsRejectUnsupportedValues(t *testing.T) {
-	assert.Error(t, UpdateByJSONString(`{"enabled_features":["video"]}`))
+	assert.NoError(t, UpdateByJSONString(`{"enabled_features":["video"],"models":{"chat":[],"image":[],"speech":[],"three_d":[],"video":[]}}`))
 	assert.Error(t, UpdateByJSONString(`{"enabled_features":[]}`))
 	assert.Error(t, UpdateByJSONString(`{"enabled_features":["speech"],"speech_model_types":{"tts":"unknown"}}`))
 	assert.NoError(t, ValidateJSONString(`{"enabled_features":["chat"],"models":{"chat":[],"image":[],"speech":[],"three_d":[]}}`))

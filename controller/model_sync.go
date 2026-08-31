@@ -235,6 +235,8 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 }
 
 func ensureVendorID(vendorName string, vendorByName map[string]upstreamVendor, vendorIDCache map[string]int, createdVendors *int) int {
+	_ = vendorByName
+	_ = createdVendors
 	if vendorName == "" {
 		return 0
 	}
@@ -245,18 +247,6 @@ func ensureVendorID(vendorName string, vendorByName map[string]upstreamVendor, v
 	if err := model.DB.Where("name = ?", vendorName).First(&existing).Error; err == nil {
 		vendorIDCache[vendorName] = existing.Id
 		return existing.Id
-	}
-	uv := vendorByName[vendorName]
-	v := &model.Vendor{
-		Name:        vendorName,
-		Description: uv.Description,
-		Icon:        coalesce(uv.Icon, ""),
-		Status:      chooseStatus(uv.Status, 1),
-	}
-	if err := v.Insert(); err == nil {
-		*createdVendors++
-		vendorIDCache[vendorName] = v.Id
-		return v.Id
 	}
 	vendorIDCache[vendorName] = 0
 	return 0

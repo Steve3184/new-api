@@ -1955,6 +1955,44 @@ Files:
 - `web/src/hooks/use-system-config.ts`
 - `web/src/features/system-settings/site/spa-meta-section.tsx`
 
+## Current feature bundle (2026-08)
+
+This fork adds an Agnes asynchronous video channel and Playground video
+workspace. Agnes creation always uses `/v1/videos`; status polling uses the
+channel-prefixed `/v1/agnesapi?video_id=...` endpoint (with `model_name` for
+Agnes 2.5 models). The Playground accepts up to five reference images and can
+insert Agnes `<Picture N>` references into the prompt. A channel-level option
+can upload incoming base64 images through the configured Meshy2API image proxy
+without enabling the global image rewrite switch.
+
+Check-in rewards can be configured as deductible credit for selected groups.
+Eligible requests consume that credit before wallet quota, and settlement or
+refund paths restore the correct source. The check-in panel reports the
+configured balance threshold and starts collapsed when the user is ineligible.
+
+Additional additive changes include filtering removed groups from subscription
+rate-limit and wallet-only settings, spend-based group access conditions with a
+visual editor, model-icon lookup from system metadata in rankings and logs,
+translucent error-row tinting, sub-hour model-square chart labels, mobile
+Model Square/Rankings tabs, permanent user API keys until reset, a 45-day login
+session refresh lifetime, per-user hiding of upstream request IDs, and a
+one-display-per-notice-content popup policy. The Models tab can remove
+described metadata that is not referenced by an enabled ability; providers are
+never created automatically while syncing model metadata.
+
+User redemption purchases include the user ID in generated names, default the
+admin redemption list to administrator-created codes, and leave payment
+methods unselected until the user chooses one. Subscription saves silently
+drop groups that no longer exist. The homepage style/preset work requested for
+items 26-27 is intentionally deferred until acceptance and is not included in
+this bundle.
+
+Files added for the Agnes channel and Playground video flow:
+
+- `relay/channel/agnes/`
+- `relay/channel/task/agnes/`
+- `web/src/features/playground/components/generation/video-playground.tsx`
+
 ## Upstream sync checklist
 
 1. Fetch and merge `upstream/main` on a temporary sync branch.
@@ -1976,9 +2014,9 @@ Files:
    screen-capture, and attachment-only submissions.
 11. Verify that only usage-log rows retain the fixed height and that user search
     commits after the debounce without delaying visible typing.
-12. Test notice popup behavior on `/` and `/dashboard/overview`, including X
-    dismissal, **Close Today** persistence, empty notices, and both option
-    combinations.
+12. Test notice popup behavior on `/` and `/dashboard/overview`, including
+    one-display-per-content persistence, changed-content re-display, empty
+    notices, and all placement options.
 13. If upstream changes stream event parsing, re-audit TTFT so lifecycle events
     are not accidentally treated as model tokens without an explicit metric
     decision.

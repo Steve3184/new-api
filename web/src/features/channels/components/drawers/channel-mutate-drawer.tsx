@@ -305,6 +305,7 @@ const SENSITIVE_FORM_FIELDS = [
   'claude_beta_query',
   'claude_cache_control',
   'disable_task_polling_sleep',
+  'agnes_auto_image_url',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
@@ -360,7 +361,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.claude_cache_control ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
-    values.upstream_model_update_ignored_models?.trim()
+    values.upstream_model_update_ignored_models?.trim() ||
+    values.agnes_auto_image_url
   )
 }
 
@@ -4271,6 +4273,32 @@ export function ChannelMutateDrawer({
                                   </FormItem>
                                 )}
                               />
+
+                              {currentType === 63 && (
+                                <FormField
+                                  control={form.control}
+                                  name='agnes_auto_image_url'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Automatically convert base64 images to URLs')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t('Upload incoming base64 images through the configured Meshy2API image proxy for Agnes')}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value === true}
+                                          onCheckedChange={field.onChange}
+                                          disabled={sensitiveLocked}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
                             </div>
 
                             <FormField

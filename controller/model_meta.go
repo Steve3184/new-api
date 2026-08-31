@@ -169,6 +169,16 @@ func DeleteModelMeta(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
+func DeleteUnusedModelsMeta(c *gin.Context) {
+	deleted, err := model.DeleteUnusedDescribedModels()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.RefreshPricing()
+	common.ApiSuccess(c, gin.H{"deleted": deleted})
+}
+
 // enrichModels 批量填充附加信息：端点、渠道、分组、计费类型，避免 N+1 查询
 func enrichModels(models []*model.Model) {
 	if len(models) == 0 {

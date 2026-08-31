@@ -32,6 +32,7 @@ interface ModelBadgeProps {
   modelName: string
   actualModel?: string
   className?: string
+  modelIcon?: string
 }
 
 interface ModelProvider {
@@ -124,6 +125,10 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
 
 function ModelBadgeContent(props: ModelBadgeProps) {
   const provider = resolveModelProvider(props.modelName)
+  const configuredIcon = props.modelIcon
+    ? getLobeIcon(props.modelIcon, 18)
+    : null
+  const providerLabel = provider?.label || props.modelName
 
   return (
     <StatusBadge
@@ -138,13 +143,13 @@ function ModelBadgeContent(props: ModelBadgeProps) {
       )}
     >
       <span className='flex max-w-none items-center gap-1.5'>
-        {provider && (
+        {(configuredIcon || provider) && (
           <span
             className='flex h-[18px] w-[18px] shrink-0 items-center justify-center'
-            title={provider.label}
-            aria-label={provider.label}
+            title={props.modelIcon || providerLabel}
+            aria-label={props.modelIcon || providerLabel}
           >
-            {getLobeIcon(provider.icon, 18)}
+            {configuredIcon || (provider ? getLobeIcon(provider.icon, 18) : null)}
           </span>
         )}
         <span className='whitespace-nowrap'>{props.modelName}</span>

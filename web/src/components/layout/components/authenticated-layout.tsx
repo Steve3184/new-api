@@ -24,6 +24,9 @@ import { SearchProvider } from '@/context/search-provider'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
+import { Link, useRouterState } from '@tanstack/react-router'
+import { Store, Trophy } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
@@ -33,6 +36,8 @@ type AuthenticatedLayoutProps = {
 }
 
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
+  const { t } = useTranslation()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { appearance } = useSystemConfig()
   const savedSidebarState = getCookie('sidebar_state')
   const defaultOpen = savedSidebarState
@@ -90,6 +95,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                   '@container/content',
                   'h-[calc(100svh-var(--app-header-height,0px))]',
                   'min-h-0 overflow-hidden',
+                  'pb-14 md:pb-0',
                   'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]',
                   backgroundImage && 'backdrop-blur-sm'
                 )}
@@ -105,6 +111,30 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                 {props.children ?? <AnimatedOutlet />}
               </SidebarInset>
             </div>
+            <nav className='bg-background/95 fixed inset-x-0 bottom-0 z-50 grid h-14 grid-cols-2 border-t backdrop-blur md:hidden'>
+              <Link
+                to='/pricing'
+                className={cn(
+                  'text-muted-foreground flex flex-col items-center justify-center gap-0.5 text-[11px]',
+                  pathname.startsWith('/pricing') && 'text-primary'
+                )}
+                aria-label={t('Model Square')}
+              >
+                <Store className='size-4' aria-hidden='true' />
+                {t('Model Square')}
+              </Link>
+              <Link
+                to='/rankings'
+                className={cn(
+                  'text-muted-foreground flex flex-col items-center justify-center gap-0.5 text-[11px]',
+                  pathname.startsWith('/rankings') && 'text-primary'
+                )}
+                aria-label={t('Rankings')}
+              >
+                <Trophy className='size-4' aria-hidden='true' />
+                {t('Rankings')}
+              </Link>
+            </nav>
           </SidebarProvider>
         </SearchProvider>
       </LayoutProvider>

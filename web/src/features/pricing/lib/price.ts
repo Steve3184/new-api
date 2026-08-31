@@ -17,10 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD } from '@/lib/currency'
+import { t } from 'i18next'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
+
+const FREE_REQUEST_PRICE_THRESHOLD_USD = 0.000002
 
 // ----------------------------------------------------------------------------
 // Price Calculation Utilities
@@ -157,6 +160,7 @@ export function formatPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   let priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
+  if (priceInUSD === 0) return t('Free')
   priceInUSD = applyRechargeRate(
     priceInUSD,
     showWithRecharge,
@@ -191,6 +195,7 @@ export function formatGroupPrice(
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
   let priceInUSD = calculateTokenPrice(model, type, ratio)
+  if (priceInUSD === 0) return t('Free')
 
   priceInUSD = applyRechargeRate(
     priceInUSD,
@@ -224,6 +229,7 @@ export function formatFixedPrice(
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
   let priceInUSD = (model.model_price || 0) * ratio
+  if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) return t('Free')
 
   priceInUSD = applyRechargeRate(
     priceInUSD,
@@ -256,6 +262,7 @@ export function formatRequestPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   let priceInUSD = (model.model_price || 0) * displayGroupRatio
+  if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) return t('Free')
 
   priceInUSD = applyRechargeRate(
     priceInUSD,
