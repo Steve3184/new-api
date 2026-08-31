@@ -201,7 +201,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   63: {
     id: 63,
     name: CHANNEL_TYPES[63],
-    icon: 'openai',
+    icon: 'AgnesAI',
     defaultBaseUrl: 'https://apihub.agnes-ai.com',
     supportedModels: [
       'agnes-video-v2.0',

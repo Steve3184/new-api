@@ -238,6 +238,19 @@ func getTaskAdaptorForRequest(c *gin.Context, platform constant.TaskPlatform) (c
 			return platform, nil
 		}
 	}
+	// These task providers are implemented in-process and must be resolved
+	// before looking up the JS plugin registry. In particular, Agnes uses a
+	// numeric channel type (63), which is also a valid task platform.
+	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
+		switch channelType {
+		case constant.ChannelTypeAgnes:
+			return platform, &taskagnes.TaskAdaptor{}
+		case constant.ChannelTypeMeshy2API:
+			return platform, &meshy.TaskAdaptor{}
+		case constant.ChannelTypeUnrealSpeech:
+			return platform, &taskunrealspeech.TaskAdaptor{}
+		}
+	}
 	generation := pluginruntime.DefaultRegistry.Generation()
 	plugin, ok := ResolveTaskPluginForPlatform(generation, platform)
 	if !ok {

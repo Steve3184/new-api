@@ -106,7 +106,7 @@ export function getChannelTypeIcon(type: number): string {
     56: 'Replicate', // Replicate
     59: 'Meshy', // Meshy2API
     60: 'OpenAI', // UnrealSpeech
-    63: 'OpenAI', // Agnes
+    63: 'AgnesAI', // Agnes
     64: 'OpenAI', // Task Plugin
 
     // Tools & Platforms

@@ -96,3 +96,17 @@ func TestGetTaskAdaptorForRequestPinsLegacyMappedPlugin(t *testing.T) {
 	assert.Equal(t, "sora", pinned.Plugin.Meta.Key)
 	assert.Same(t, pinned.Generation, pluginruntime.DefaultRegistry.Generation())
 }
+
+func TestGetTaskAdaptorForRequestUsesBuiltInAgnesAdaptor(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/pg/videos", nil)
+
+	platform, adaptor := getTaskAdaptorForRequest(
+		c,
+		constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeAgnes)),
+	)
+
+	require.NotNil(t, adaptor)
+	assert.Equal(t, constant.TaskPlatform("63"), platform)
+	assert.Equal(t, "Agnes", adaptor.GetChannelName())
+}

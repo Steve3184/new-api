@@ -622,19 +622,21 @@ export function RedemptionPurchaseCard({
       iconTone='warning'
       disableHoverEffect
       action={
-        <Button
-          type='button'
-          variant='outline'
-          size='icon'
-          onClick={() => void loadCodes(codesPage)}
-          disabled={codesLoading}
-          aria-label={t('Refresh redemption codes')}
-          title={t('Refresh redemption codes')}
-        >
-          <RefreshCw
-            className={codesLoading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'}
-          />
-        </Button>
+        <div className='flex justify-end sm:block'>
+          <Button
+            type='button'
+            variant='outline'
+            size='icon'
+            onClick={() => void loadCodes(codesPage)}
+            disabled={codesLoading}
+            aria-label={t('Refresh redemption codes')}
+            title={t('Refresh redemption codes')}
+          >
+            <RefreshCw
+              className={codesLoading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'}
+            />
+          </Button>
+        </div>
       }
       contentClassName='space-y-5'
     >
@@ -703,7 +705,8 @@ export function RedemptionPurchaseCard({
                             {hasDiscount && savedAmount > 0 && (
                               <span className='text-green-600'>
                                 {' '}
-                                • {t('Save amount')} {formatCurrency(savedAmount)}
+                                • {t('Save amount')}{' '}
+                                {formatCurrency(savedAmount)}
                               </span>
                             )}
                           </div>

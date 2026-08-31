@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,6 +24,7 @@ import { BadgeCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 
 import { formatDuration, formatResetPeriod } from '../lib'
@@ -69,7 +70,10 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         header: t('Price'),
         cell: ({ row }) => (
           <span className='font-semibold text-emerald-600'>
-            ${Number(row.original.plan.price_amount || 0).toFixed(2)}
+            {formatBillingCurrencyFromUSD(
+              Number(row.original.plan.price_amount || 0),
+              { digitsLarge: 2, digitsSmall: 2, abbreviate: false }
+            )}
           </span>
         ),
         size: 100,
@@ -166,15 +170,13 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         meta: { mobileHidden: true },
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
-          return (
-            <span className='text-muted-foreground'>
-              {total > 0
-                ? formatQuota(total)
-                : total < 0
-                  ? t('Benefits only')
-                  : t('Unlimited')}
-            </span>
-          )
+          let label = t('Unlimited')
+          if (total > 0) {
+            label = formatQuota(total)
+          } else if (total < 0) {
+            label = t('Benefits only')
+          }
+          return <span className='text-muted-foreground'>{label}</span>
         },
         size: 150,
       },

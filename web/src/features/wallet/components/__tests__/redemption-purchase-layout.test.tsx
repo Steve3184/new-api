@@ -100,4 +100,19 @@ describe('redemption purchase layout', () => {
       await screen.findByText('Review your payment details')
     ).toBeInTheDocument()
   })
+
+  test('aligns the refresh action to the right on the mobile card header', async () => {
+    renderCard()
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Refresh redemption codes' })
+      ).toBeInTheDocument()
+    )
+
+    const refreshButton = screen.getByRole('button', {
+      name: 'Refresh redemption codes',
+    })
+    expect(refreshButton.parentElement?.className).toContain('justify-end')
+  })
 })

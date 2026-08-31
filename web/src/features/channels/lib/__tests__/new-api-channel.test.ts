@@ -88,4 +88,9 @@ describe('New API channel', () => {
 
     expect(result.success).toBe(true)
   })
+
+  test('uses Agnes branding for the Agnes channel type', () => {
+    expect(getChannelTypeIcon(63)).toBe('AgnesAI')
+    expect(getChannelTypeConfig(63).icon).toBe('AgnesAI')
+  })
 })
