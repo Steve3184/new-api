@@ -20,6 +20,7 @@ import i18next from 'i18next'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { isHttpUrl } from '@/lib/content-format'
 
 import { getHomePageContent } from '../api'
@@ -32,6 +33,7 @@ const STORAGE_KEY = 'home_page_content'
  * Supports both Markdown/HTML content and iframe URLs
  */
 export function useHomePageContent(): HomePageContentResult {
+  const { homepage, loading: configLoading } = useSystemConfig()
   const [content, setContent] = useState<string>('')
   const [isLoaded, setIsLoaded] = useState(false)
 
@@ -78,7 +80,13 @@ export function useHomePageContent(): HomePageContentResult {
     }
   }, [])
 
-  const isUrl = isHttpUrl(content)
+  const configuredContent = homepage.style === 'custom' ? content : ''
+  const isUrl = isHttpUrl(configuredContent)
 
-  return { content, isLoaded, isUrl }
+  return {
+    content: configuredContent,
+    isLoaded: !configLoading && isLoaded,
+    isUrl,
+    style: homepage.style,
+  }
 }

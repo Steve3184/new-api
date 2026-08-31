@@ -28,6 +28,9 @@ import {
   DEFAULT_CURRENCY_CONFIG,
   DEFAULT_SITE_APPEARANCE,
   DEFAULT_SPA_META,
+  DEFAULT_HOMEPAGE_CONFIG,
+  type HomepageConfig,
+  type HomepageStyle,
   type SiteAppearanceConfig,
 } from '@/stores/system-config-store'
 
@@ -70,6 +73,12 @@ interface StatusApiResponse {
       description?: string
       og_type?: string
       og_description?: string
+    }
+    homepage?: {
+      style?: string
+      preset_title_mode?: string
+      preset_sla_enabled?: boolean
+      preset_sla_text?: string
     }
   }
 }
@@ -221,6 +230,23 @@ export function mapStatusDataToConfig(
       ogType: data.spa_meta?.og_type || DEFAULT_SPA_META.ogType,
       ogDescription:
         data.spa_meta?.og_description ?? DEFAULT_SPA_META.ogDescription,
+    },
+    homepage: {
+      style: enumValue(
+        data.homepage?.style,
+        ['default', 'custom', 'preset-1'],
+        DEFAULT_HOMEPAGE_CONFIG.style
+      ) as HomepageStyle,
+      presetTitleMode: enumValue(
+        data.homepage?.preset_title_mode,
+        ['i18n', 'english'],
+        DEFAULT_HOMEPAGE_CONFIG.presetTitleMode
+      ) as HomepageConfig['presetTitleMode'],
+      presetSlaEnabled:
+        data.homepage?.preset_sla_enabled ??
+        DEFAULT_HOMEPAGE_CONFIG.presetSlaEnabled,
+      presetSlaText:
+        data.homepage?.preset_sla_text ?? DEFAULT_HOMEPAGE_CONFIG.presetSlaText,
     },
   }
 }

@@ -113,6 +113,7 @@ func GetStatus(c *gin.Context) {
 		"default_use_auto_group":        setting.DefaultUseAutoGroup,
 		"support_enabled":               common.SupportEnabled,
 		"site_appearance":               console_setting.GetAppearanceSetting(),
+		"homepage":                      console_setting.GetHomepageSetting(),
 		"spa_meta":                      console_setting.GetSPAMetaSetting(),
 
 		"password_login_encryption_enabled": common.PasswordLoginEncryptionEnabled,

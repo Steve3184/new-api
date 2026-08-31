@@ -45,6 +45,7 @@ func TestValidatePublicOption(t *testing.T) {
 func TestPublicSettingsDefaults(t *testing.T) {
 	appearance := GetAppearanceSetting()
 	meta := GetSPAMetaSetting()
+	homepage := GetHomepageSetting()
 
 	assert.Equal(t, "system", appearance.DefaultTheme)
 	assert.Equal(t, 40, appearance.BackgroundBlurOpacity)
@@ -52,4 +53,8 @@ func TestPublicSettingsDefaults(t *testing.T) {
 	assert.Equal(t, 18, appearance.ModelSquareCardPageSize)
 	assert.Equal(t, 20, appearance.ModelSquareTablePageSize)
 	assert.Equal(t, "website", meta.OGType)
+	assert.Equal(t, "default", homepage.Style)
+	assert.Equal(t, "i18n", homepage.PresetTitleMode)
+	assert.True(t, homepage.PresetSLAEnabled)
+	assert.Equal(t, "99% SLA guarantee", homepage.PresetSLAText)
 }

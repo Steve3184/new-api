@@ -35,6 +35,10 @@ type ConsoleSetting struct {
 	ModelSquareTablePageSize int    `json:"model_square_table_page_size"`
 	ModelSquareVisibleGroups string `json:"model_square_visible_groups"`
 	GroupAccessRules         string `json:"group_access_rules"`
+	HomepageStyle            string `json:"homepage_style"`
+	HomepagePresetTitleMode  string `json:"homepage_preset_title_mode"`
+	HomepagePresetSLAEnabled bool   `json:"homepage_preset_sla_enabled"`
+	HomepagePresetSLAText    string `json:"homepage_preset_sla_text"`
 	SPAMetaDescription       string `json:"spa_meta_description"`
 	SPAMetaOGType            string `json:"spa_meta_og_type"`
 	SPAMetaOGDescription     string `json:"spa_meta_og_description"`
@@ -66,6 +70,10 @@ var defaultConsoleSetting = ConsoleSetting{
 	ModelSquareTablePageSize: 20,
 	ModelSquareVisibleGroups: "[]",
 	GroupAccessRules:         "[]",
+	HomepageStyle:            "default",
+	HomepagePresetTitleMode:  "i18n",
+	HomepagePresetSLAEnabled: true,
+	HomepagePresetSLAText:    "99% SLA guarantee",
 	SPAMetaDescription:       "Unified AI API gateway and admin dashboard.",
 	SPAMetaOGType:            "website",
 	SPAMetaOGDescription:     "Unified AI API gateway and admin dashboard.",
@@ -106,6 +114,22 @@ type SPAMetaSetting struct {
 	Description   string `json:"description"`
 	OGType        string `json:"og_type"`
 	OGDescription string `json:"og_description"`
+}
+
+type HomepageSetting struct {
+	Style            string `json:"style"`
+	PresetTitleMode  string `json:"preset_title_mode"`
+	PresetSLAEnabled bool   `json:"preset_sla_enabled"`
+	PresetSLAText    string `json:"preset_sla_text"`
+}
+
+func GetHomepageSetting() HomepageSetting {
+	return HomepageSetting{
+		Style:            consoleSetting.HomepageStyle,
+		PresetTitleMode:  consoleSetting.HomepagePresetTitleMode,
+		PresetSLAEnabled: consoleSetting.HomepagePresetSLAEnabled,
+		PresetSLAText:    consoleSetting.HomepagePresetSLAText,
+	}
 }
 
 func GetAppearanceSetting() AppearanceSetting {
@@ -215,6 +239,14 @@ func ValidatePublicOption(key, value string) error {
 		parsed, err := strconv.Atoi(strings.TrimSpace(value))
 		if err != nil || parsed < 5 || parsed > 100 {
 			return fmt.Errorf("model square table page size must be between 5 and 100")
+		}
+	case "homepage_style":
+		return validateEnum(value, "default", "custom", "preset-1")
+	case "homepage_preset_title_mode":
+		return validateEnum(value, "i18n", "english")
+	case "homepage_preset_sla_text":
+		if len(value) > 120 {
+			return fmt.Errorf("homepage SLA text is too long")
 		}
 	case "spa_meta_description", "spa_meta_og_description":
 		if len(value) > 500 {

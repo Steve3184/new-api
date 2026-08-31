@@ -81,6 +81,10 @@ const STATUS_RELATED_KEYS = new Set([
   'console_setting.spa_meta_description',
   'console_setting.spa_meta_og_type',
   'console_setting.spa_meta_og_description',
+  'console_setting.homepage_style',
+  'console_setting.homepage_preset_title_mode',
+  'console_setting.homepage_preset_sla_enabled',
+  'console_setting.homepage_preset_sla_text',
 ])
 
 const STATUS_CHECK_RELATED_KEYS = new Set([

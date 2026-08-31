@@ -60,6 +60,10 @@ const defaultSiteSettings: SiteSettings = {
   'console_setting.spa_meta_og_type': 'website',
   'console_setting.spa_meta_og_description':
     'Unified AI API gateway and admin dashboard.',
+  'console_setting.homepage_style': 'default',
+  'console_setting.homepage_preset_title_mode': 'i18n',
+  'console_setting.homepage_preset_sla_enabled': true,
+  'console_setting.homepage_preset_sla_text': '99% SLA guarantee',
 }
 
 export function SiteSettings() {

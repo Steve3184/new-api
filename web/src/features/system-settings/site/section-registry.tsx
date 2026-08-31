@@ -29,6 +29,7 @@ import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AppearanceSection } from './appearance-section'
+import { HomepageSection } from './homepage-section'
 import { SPAMetaSection } from './spa-meta-section'
 
 const SITE_SECTIONS = [
@@ -42,13 +43,30 @@ const SITE_SECTIONS = [
           Logo: settings.Logo,
           Footer: settings.Footer,
           About: settings.About,
-          HomePageContent: settings.HomePageContent,
           ServerAddress: settings.ServerAddress,
           TaskPublicAddress: settings.TaskPublicAddress,
           legal: {
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],
           },
+        }}
+      />
+    ),
+  },
+  {
+    id: 'homepage',
+    titleKey: 'Homepage',
+    build: (settings: SiteSettings) => (
+      <HomepageSection
+        defaultValues={{
+          HomePageContent: settings.HomePageContent,
+          HomepageStyle: settings['console_setting.homepage_style'],
+          HomepagePresetTitleMode:
+            settings['console_setting.homepage_preset_title_mode'],
+          HomepagePresetSLAEnabled:
+            settings['console_setting.homepage_preset_sla_enabled'],
+          HomepagePresetSLAText:
+            settings['console_setting.homepage_preset_sla_text'],
         }}
       />
     ),

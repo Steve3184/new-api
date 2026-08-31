@@ -20,6 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 // Home Page Types
 // ============================================================================
 
+import type { HomepageStyle } from '@/stores/system-config-store'
+
 /**
  * Response from home page content API
  */
@@ -36,4 +38,5 @@ export interface HomePageContentResult {
   content: string
   isLoaded: boolean
   isUrl: boolean
+  style: HomepageStyle
 }

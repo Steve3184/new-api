@@ -74,6 +74,15 @@ export interface SPAMetaConfig {
   ogDescription: string
 }
 
+export type HomepageStyle = 'default' | 'custom' | 'preset-1'
+
+export interface HomepageConfig {
+  style: HomepageStyle
+  presetTitleMode: 'i18n' | 'english'
+  presetSlaEnabled: boolean
+  presetSlaText: string
+}
+
 export interface SystemConfig {
   systemName: string
   logo: string
@@ -83,6 +92,7 @@ export interface SystemConfig {
   currency: CurrencyConfig
   appearance: SiteAppearanceConfig
   spaMeta: SPAMetaConfig
+  homepage: HomepageConfig
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
@@ -117,6 +127,13 @@ export const DEFAULT_SPA_META: SPAMetaConfig = {
   ogDescription: 'Unified AI API gateway and admin dashboard.',
 }
 
+export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
+  style: 'default',
+  presetTitleMode: 'i18n',
+  presetSlaEnabled: true,
+  presetSlaText: '99% SLA guarantee',
+}
+
 interface SystemConfigState {
   config: SystemConfig
   loading: boolean
@@ -139,6 +156,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
         currency: { ...DEFAULT_CURRENCY_CONFIG },
         appearance: { ...DEFAULT_SITE_APPEARANCE },
         spaMeta: { ...DEFAULT_SPA_META },
+        homepage: { ...DEFAULT_HOMEPAGE_CONFIG },
       },
       loading: true,
       loadedLogoUrl: DEFAULT_LOGO,
@@ -158,6 +176,10 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             spaMeta: {
               ...(state.config.spaMeta ?? DEFAULT_SPA_META),
               ...newConfig.spaMeta,
+            },
+            homepage: {
+              ...(state.config.homepage ?? DEFAULT_HOMEPAGE_CONFIG),
+              ...newConfig.homepage,
             },
           },
         })),
@@ -185,6 +207,10 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             spaMeta: {
               ...DEFAULT_SPA_META,
               ...saved.config?.spaMeta,
+            },
+            homepage: {
+              ...DEFAULT_HOMEPAGE_CONFIG,
+              ...saved.config?.homepage,
             },
           },
         }

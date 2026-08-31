@@ -27,6 +27,7 @@ import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import { PresetOne } from './components/preset-one'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -35,7 +36,7 @@ export function Home() {
   const { resolvedTheme } = useTheme()
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
-  const { content, isLoaded, isUrl } = useHomePageContent()
+  const { content, isLoaded, isUrl, style } = useHomePageContent()
 
   const syncIframePreferences = useCallback(() => {
     try {
@@ -66,6 +67,10 @@ export function Home() {
         </main>
       </PublicLayout>
     )
+  }
+
+  if (style === 'preset-1') {
+    return <PresetOne />
   }
 
   if (content) {

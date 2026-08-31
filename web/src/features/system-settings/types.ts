@@ -170,6 +170,10 @@ export type SiteSettings = {
   'console_setting.spa_meta_description': string
   'console_setting.spa_meta_og_type': string
   'console_setting.spa_meta_og_description': string
+  'console_setting.homepage_style': 'default' | 'custom' | 'preset-1'
+  'console_setting.homepage_preset_title_mode': 'i18n' | 'english'
+  'console_setting.homepage_preset_sla_enabled': boolean
+  'console_setting.homepage_preset_sla_text': string
 }
 
 export type AuthSettings = {
