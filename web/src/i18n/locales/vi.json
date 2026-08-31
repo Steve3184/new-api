@@ -2294,7 +2294,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "Chuyển tiếp các yêu cầu trực tiếp đến các nhà cung cấp ngược dòng mà không cần xử lý hậu kỳ nào.",
     "Forwarding Routes": "Route chuyển tiếp",
     "Frames per second": "Khung hình / giây",
-    "Free": "Trống",
+    "Free": "Miễn phí",
     "Free: {{free}} / Total: {{total}}": "Còn trống: {{free}} / Tổng: {{total}}",
     "French": "Tiếng Pháp",
     "Frequency Penalty": "Phạt tần suất",

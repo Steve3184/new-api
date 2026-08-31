@@ -67,6 +67,7 @@ type Log struct {
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
 	ModelName         string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
 	ModelIcon         string `json:"model_icon,omitempty" gorm:"-"`
+	ProviderIcon      string `json:"provider_icon,omitempty" gorm:"-"`
 	Quota             int    `json:"quota" gorm:"default:0"`
 	PromptTokens      int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens  int    `json:"completion_tokens" gorm:"default:0"`
@@ -155,6 +156,7 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	}
 	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order(order).Limit(common.MaxRecentItems).Find(&logs).Error
 	formatUserLogs(logs, 0)
+	fillLogModelIcons(logs)
 	return logs, err
 }
 
@@ -653,15 +655,38 @@ func fillLogModelIcons(logs []*Log) {
 		return
 	}
 	var models []Model
-	if err := DB.Select("model_name", "icon").Where("model_name IN ?", names).Find(&models).Error; err != nil {
+	if err := DB.Select("model_name", "icon", "vendor_id").Where("model_name IN ?", names).Find(&models).Error; err != nil {
 		return
 	}
 	icons := make(map[string]string, len(models))
+	vendorIDs := make([]int, 0, len(models))
+	seenVendors := make(map[int]struct{})
 	for _, item := range models {
 		icons[item.ModelName] = item.Icon
+		if item.VendorID > 0 {
+			if _, ok := seenVendors[item.VendorID]; !ok {
+				seenVendors[item.VendorID] = struct{}{}
+				vendorIDs = append(vendorIDs, item.VendorID)
+			}
+		}
+	}
+	vendorIcons := make(map[int]string, len(vendorIDs))
+	if len(vendorIDs) > 0 {
+		var vendors []Vendor
+		if err := DB.Select("id", "icon").Where("id IN ?", vendorIDs).Find(&vendors).Error; err == nil {
+			for _, vendor := range vendors {
+				vendorIcons[vendor.Id] = vendor.Icon
+			}
+		}
 	}
 	for _, entry := range logs {
 		entry.ModelIcon = icons[entry.ModelName]
+		for _, item := range models {
+			if item.ModelName == entry.ModelName {
+				entry.ProviderIcon = vendorIcons[item.VendorID]
+				break
+			}
+		}
 	}
 }
 

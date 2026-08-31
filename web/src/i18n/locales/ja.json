@@ -2294,7 +2294,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "ポストプロセスなしで、リクエストをアップストリームプロバイダーに直接転送します。",
     "Forwarding Routes": "転送ルート",
     "Frames per second": "フレームレート",
-    "Free": "空き",
+    "Free": "無料",
     "Free: {{free}} / Total: {{total}}": "空き容量: {{free}} / 合計: {{total}}",
     "French": "フランス語",
     "Frequency Penalty": "頻度ペナルティ",

@@ -49,8 +49,6 @@ const SITE_SECTIONS = [
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],
           },
-          HideUpstreamRequestID:
-            settings['console_setting.hide_upstream_request_id'],
         }}
       />
     ),

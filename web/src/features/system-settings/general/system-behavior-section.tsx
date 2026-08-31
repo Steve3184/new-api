@@ -44,6 +44,7 @@ const behaviorSchema = z.object({
   DefaultCollapseSidebar: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
+  HideUpstreamRequestID: z.boolean(),
 })
 
 type BehaviorFormValues = z.infer<typeof behaviorSchema>
@@ -71,7 +72,13 @@ export function SystemBehaviorSection({
     )
 
     for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value })
+      await updateOption.mutateAsync({
+        key:
+          key === 'HideUpstreamRequestID'
+            ? 'console_setting.hide_upstream_request_id'
+            : key,
+        value,
+      })
     }
   }
 
@@ -134,6 +141,29 @@ export function SystemBehaviorSection({
                   <FormLabel>{t('Self-Use Mode')}</FormLabel>
                   <FormDescription>
                     {t('Optimize system for self-hosted single-user usage')}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='HideUpstreamRequestID'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Hide upstream request IDs')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Do not show upstream request IDs to regular users in usage logs.'
+                    )}
                   </FormDescription>
                 </SettingsSwitchContent>
                 <FormControl>

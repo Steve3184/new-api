@@ -2294,7 +2294,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "将请求直接转发给上游提供商，不进行任何后处理。",
     "Forwarding Routes": "路由转发",
     "Frames per second": "帧率",
-    "Free": "可用",
+    "Free": "免费",
     "Free: {{free}} / Total: {{total}}": "可用空间: {{free}} / 总空间: {{total}}",
     "French": "法语",
     "Frequency Penalty": "频率惩罚",

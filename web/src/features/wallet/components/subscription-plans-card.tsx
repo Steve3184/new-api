@@ -233,6 +233,11 @@ export function SubscriptionPlansCard({
     return Math.round((used / total) * 100)
   }
 
+  const getLimitUsagePercent = (used: number, limit: number) => {
+    if (limit <= 0) return 0
+    return Math.min(100, Math.max(0, Math.round((used / limit) * 100)))
+  }
+
   if (loading) {
     return (
       <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
@@ -411,6 +416,23 @@ export function SubscriptionPlansCard({
                   const isActive =
                     subscription?.status === 'active' && !isExpired
                   const nextResetTime = subscription?.next_reset_time ?? 0
+                  const usageLimits = [
+                    {
+                      key: 'five-hour',
+                      label: t('5-hour Quota Limit'),
+                      limit: Number(subscription?.five_hour_limit || 0),
+                      used: Number(subscription?.five_hour_used || 0),
+                      nextResetTime:
+                        subscription?.five_hour_next_reset_time ?? 0,
+                    },
+                    {
+                      key: 'weekly',
+                      label: t('Weekly Quota Limit'),
+                      limit: Number(subscription?.weekly_limit || 0),
+                      used: Number(subscription?.weekly_used || 0),
+                      nextResetTime: subscription?.weekly_next_reset_time ?? 0,
+                    },
+                  ].filter((limit) => limit.limit > 0)
                   let statusBadge = (
                     <StatusBadge
                       label={t('Expired')}
@@ -477,6 +499,37 @@ export function SubscriptionPlansCard({
                           {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
+                      {usageLimits.map((limit) => {
+                        const remaining = Math.max(0, limit.limit - limit.used)
+                        const usage = getLimitUsagePercent(
+                          limit.used,
+                          limit.limit
+                        )
+                        return (
+                          <div
+                            key={limit.key}
+                            className='text-muted-foreground mt-1'
+                          >
+                            {limit.label}: {formatQuota(limit.used)}/
+                            {formatQuota(limit.limit)} · {t('Remaining')}{' '}
+                            {formatQuota(remaining)}
+                            <span className='ml-2'>
+                              {t('Used')} {usage}%
+                            </span>
+                            {isActive && limit.nextResetTime > 0 && (
+                              <span className='ml-2'>
+                                {t('Next reset')}:{' '}
+                                {new Date(
+                                  limit.nextResetTime * 1000
+                                ).toLocaleString()}
+                              </span>
+                            )}
+                            {isActive && (
+                              <Progress value={usage} className='mt-2 h-1.5' />
+                            )}
+                          </div>
+                        )
+                      })}
                       <div className='text-muted-foreground mt-1'>
                         {t('Total Quota')}:{' '}
                         {totalAmount > 0 ? (
@@ -532,6 +585,23 @@ export function SubscriptionPlansCard({
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
 
+              const usageLimitBenefits = [
+                {
+                  label: t('5-hour Quota Limit'),
+                  limit: Number(plan.five_hour_limit || 0),
+                },
+                {
+                  label: t('Weekly Quota Limit'),
+                  limit: Number(plan.weekly_limit || 0),
+                },
+                {
+                  label: t('Monthly Quota Limit'),
+                  limit: Number(plan.monthly_limit || 0),
+                },
+              ]
+                .filter((item) => item.limit > 0)
+                .map((item) => `${item.label}: ${formatQuota(item.limit)}`)
+
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
                 formatResetPeriod(plan, t) !== t('No Reset')
@@ -540,6 +610,7 @@ export function SubscriptionPlansCard({
                 totalAmount > 0
                   ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
+                ...usageLimitBenefits,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`

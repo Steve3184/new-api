@@ -38,6 +38,8 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+          HideUpstreamRequestID:
+            settings['console_setting.hide_upstream_request_id'],
         }}
       />
     ),

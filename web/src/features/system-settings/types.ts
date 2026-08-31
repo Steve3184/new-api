@@ -170,7 +170,6 @@ export type SiteSettings = {
   'console_setting.spa_meta_description': string
   'console_setting.spa_meta_og_type': string
   'console_setting.spa_meta_og_description': string
-  'console_setting.hide_upstream_request_id': boolean
 }
 
 export type AuthSettings = {
@@ -442,6 +441,7 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'console_setting.hide_upstream_request_id': boolean
   'error_rewrite.enabled': boolean
   'error_rewrite.rules': string
   QuotaRemindEnabled: boolean

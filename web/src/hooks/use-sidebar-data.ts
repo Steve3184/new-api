@@ -37,7 +37,9 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
+import { useStatus } from '@/hooks/use-status'
+import { getCustomTabIcon, parseCustomTabs } from '@/lib/custom-tabs'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -48,6 +50,18 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const customTabs = parseCustomTabs(status?.custom_tabs)
+
+  const customItems = (category: string) =>
+    customTabs
+      .filter((tab) => tab.category === category)
+      .map((tab) => ({
+        title: tab.label,
+        url: tab.external ? tab.url : `/custom-tab/${tab.id}`,
+        icon: getCustomTabIcon(tab.icon),
+        external: tab.external,
+      }))
 
   return {
     navGroups: [
@@ -65,6 +79,7 @@ export function useSidebarData(): SidebarData {
             icon: MessageSquare,
             type: 'chat-presets',
           },
+          ...customItems('chat'),
         ],
       },
       {
@@ -98,6 +113,7 @@ export function useSidebarData(): SidebarData {
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
           },
+          ...customItems('general'),
         ],
       },
       {
@@ -114,6 +130,7 @@ export function useSidebarData(): SidebarData {
             url: '/profile',
             icon: User,
           },
+          ...customItems('personal'),
         ],
       },
       {
@@ -163,6 +180,7 @@ export function useSidebarData(): SidebarData {
             activeUrls: ['/system-settings'],
             icon: Settings,
           },
+          ...customItems('admin'),
         ],
       },
     ],

@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatCurrencyFromUSD } from '@/lib/currency'
 import { t } from 'i18next'
+
+import { formatCurrencyFromUSD } from '@/lib/currency'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
@@ -160,6 +161,16 @@ export function formatPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   let priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
+  // A token model is free when either its input or output price for the
+  // displayed million-token unit is below the public free threshold. Keep the
+  // label consistent across both columns/cards when one side is effectively
+  // free.
+  if (
+    (type === 'input' || type === 'output') &&
+    isTokenPriceFree(model, displayGroupRatio)
+  ) {
+    return t('Free')
+  }
   if (priceInUSD === 0) return t('Free')
   priceInUSD = applyRechargeRate(
     priceInUSD,
@@ -195,6 +206,12 @@ export function formatGroupPrice(
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
   let priceInUSD = calculateTokenPrice(model, type, ratio)
+  if (
+    (type === 'input' || type === 'output') &&
+    isTokenPriceFree(model, ratio)
+  ) {
+    return t('Free')
+  }
   if (priceInUSD === 0) return t('Free')
 
   priceInUSD = applyRechargeRate(
@@ -210,6 +227,17 @@ export function formatGroupPrice(
     digitsSmall: 6,
     abbreviate: false,
   })
+}
+
+/** Whether a token model should be presented as free for the selected group. */
+export function isTokenPriceFree(model: PricingModel, ratio: number): boolean {
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) return false
+  const input = calculateTokenPrice(model, 'input', ratio)
+  const output = calculateTokenPrice(model, 'output', ratio)
+  return [input, output].some(
+    (price) =>
+      Number.isFinite(price) && price < FREE_REQUEST_PRICE_THRESHOLD_USD
+  )
 }
 
 /**

@@ -30,6 +30,7 @@ const defaultOperationsSettings: OperationsSettings = {
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
+  'console_setting.hide_upstream_request_id': false,
   'error_rewrite.enabled': false,
   'error_rewrite.rules': '[]',
   QuotaRemindEnabled: true,

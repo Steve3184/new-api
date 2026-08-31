@@ -16,9 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link, useRouterState } from '@tanstack/react-router'
+import { Store, Trophy } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 
-import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  useSidebar,
+} from '@/components/ui/sidebar'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarView } from '@/hooks/use-sidebar-view'
 import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
@@ -47,6 +59,11 @@ export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { key, view, navGroups } = useSidebarView()
   const shouldReduce = useReducedMotion()
+  const { setOpenMobile } = useSidebar()
+  const { t } = useTranslation()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
 
   return (
     <Sidebar
@@ -74,6 +91,35 @@ export function AppSidebar() {
           </motion.div>
         </AnimatePresence>
       </SidebarContent>
+
+      <SidebarFooter className='mt-auto border-t md:hidden'>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname.startsWith('/pricing')}
+              tooltip={t('Model Square')}
+              render={
+                <Link to='/pricing' onClick={() => setOpenMobile(false)} />
+              }
+            >
+              <Store className='shrink-0' />
+              <span>{t('Model Square')}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname.startsWith('/rankings')}
+              tooltip={t('Rankings')}
+              render={
+                <Link to='/rankings' onClick={() => setOpenMobile(false)} />
+              }
+            >
+              <Trophy className='shrink-0' />
+              <span>{t('Rankings')}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

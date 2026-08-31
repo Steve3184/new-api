@@ -624,6 +624,7 @@ export function useCommonLogsColumns(
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
               modelIcon={log.model_icon}
+              providerIcon={log.provider_icon}
             />
           </div>
         )

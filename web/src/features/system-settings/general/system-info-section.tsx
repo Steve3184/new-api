@@ -31,7 +31,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
@@ -55,7 +54,6 @@ const _systemInfoSchema = z.object({
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
-  HideUpstreamRequestID: z.boolean(),
   legal: z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
@@ -85,7 +83,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
     HomePageContent: normalizeValue(defaultValues.HomePageContent),
-    HideUpstreamRequestID: Boolean(defaultValues.HideUpstreamRequestID),
     legal: {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
@@ -107,7 +104,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
-    HideUpstreamRequestID: z.boolean(),
     legal: z.object({
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
@@ -129,10 +125,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             v = v.replace(/\/+$/, '')
           }
           await updateOption.mutateAsync({
-            key:
-              key === 'HideUpstreamRequestID'
-                ? 'console_setting.hide_upstream_request_id'
-                : key,
+            key,
             value: v,
           })
         }
@@ -326,29 +319,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                       )}
                     </FormDescription>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='HideUpstreamRequestID'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between gap-4 rounded-md border p-4'>
-                    <div>
-                      <FormLabel>{t('Hide upstream request IDs')}</FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Do not show upstream request IDs to regular users in usage logs.'
-                        )}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
                   </FormItem>
                 )}
               />

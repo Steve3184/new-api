@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
   MoreHorizontal,
@@ -24,10 +25,11 @@ import {
   Building2,
   AlertCircle,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useQueryClient } from '@tanstack/react-query'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -38,13 +40,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import { useModels } from './models-provider'
 import { deleteUnusedModels } from '../api'
+import { useModels } from './models-provider'
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
   const queryClient = useQueryClient()
+  const [deleteUnusedOpen, setDeleteUnusedOpen] = useState(false)
+  const [isDeletingUnused, setIsDeletingUnused] = useState(false)
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -68,13 +72,20 @@ export function ModelsPrimaryButtons() {
   }
 
   const handleDeleteUnused = async () => {
-    if (!window.confirm(t('Delete unused described models?'))) return
+    setIsDeletingUnused(true)
     try {
       const result = await deleteUnusedModels()
-      toast.success(t('Deleted {{count}} unused models', { count: result.data?.deleted ?? 0 }))
+      toast.success(
+        t('Deleted {{count}} unused models', {
+          count: result.data?.deleted ?? 0,
+        })
+      )
       await queryClient.invalidateQueries({ queryKey: ['models'] })
+      setDeleteUnusedOpen(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('Delete failed'))
+    } finally {
+      setIsDeletingUnused(false)
     }
   }
 
@@ -106,7 +117,7 @@ export function ModelsPrimaryButtons() {
               <AlertCircle className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void handleDeleteUnused()}>
+          <DropdownMenuItem onClick={() => setDeleteUnusedOpen(true)}>
             {t('Delete unused models')}
           </DropdownMenuItem>
 
@@ -134,6 +145,16 @@ export function ModelsPrimaryButtons() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ConfirmDialog
+        open={deleteUnusedOpen}
+        onOpenChange={setDeleteUnusedOpen}
+        title={t('Delete unused models')}
+        desc={t('Delete unused described models?')}
+        destructive
+        isLoading={isDeletingUnused}
+        handleConfirm={() => void handleDeleteUnused()}
+        confirmText={t('Delete')}
+      />
     </div>
   )
 }
