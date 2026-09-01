@@ -179,6 +179,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if mode == "" {
 			mode = "text"
 		}
+		delete(body, "image")
+		delete(body, "images")
+		delete(body, "first_frame")
+		delete(body, "last_frame")
 		if body["seconds"] == nil || strings.TrimSpace(fmt.Sprint(body["seconds"])) == "" {
 			body["seconds"] = "5"
 		}
@@ -198,6 +202,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			body["images"] = req.Images
 		}
 	} else if len(req.Images) > 0 {
+		delete(body, "images")
 		body["image"] = req.Images[0]
 		if len(req.Images) > 1 {
 			body["extra_body"] = map[string]interface{}{"image": req.Images}

@@ -130,3 +130,26 @@ func TestBuildRequestBodyDefaultsAgnes25Seconds(t *testing.T) {
 	assert.NotContains(t, payload, "duration")
 	assert.Equal(t, "720P", payload["size"])
 }
+
+func TestBuildRequestBodyUsesAgnes25ReferenceFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("task_request", relaycommon.TaskSubmitReq{
+		Model:  "agnes-video-2.5-flash",
+		Prompt: "animate the reference",
+		Mode:   "reference",
+		Image:  "data:image/png;base64,abc",
+		Images: []string{"https://example.test/reference.png"},
+	})
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "agnes-video-2.5-flash"}}
+
+	bodyReader, err := (&TaskAdaptor{}).BuildRequestBody(c, info)
+	require.NoError(t, err)
+	body, err := io.ReadAll(bodyReader)
+	require.NoError(t, err)
+	var payload map[string]interface{}
+	require.NoError(t, common.Unmarshal(body, &payload))
+	assert.NotContains(t, payload, "image")
+	assert.Equal(t, []interface{}{"https://example.test/reference.png"}, payload["images"])
+	assert.Equal(t, "reference", payload["mode"])
+}
