@@ -15,6 +15,9 @@ import (
 type Adaptor struct{ openai.Adaptor }
 
 func (a *Adaptor) Init(info *common.RelayInfo) {
+	if info == nil || info.ChannelMeta == nil {
+		return
+	}
 	if strings.TrimSpace(info.ChannelBaseUrl) == "" {
 		info.ChannelBaseUrl = constant.GetChannelBaseURL(constant.ChannelTypeAgnes)
 	}

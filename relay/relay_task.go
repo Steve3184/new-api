@@ -236,6 +236,15 @@ func ApplyOriginTaskAffinity(c *gin.Context, info *relaycommon.RelayInfo) *dto.T
 // 构建/发送/解析上游请求 → 提交后计费调整(AdjustBillingOnSubmit)。
 // 共享控制器编排负责未落库退款、最终额度预留、落库和结算。
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
+	if c == nil || c.Request == nil {
+		return nil, service.TaskErrorWrapperLocal(errors.New("task context is missing"), "invalid_task_context", http.StatusInternalServerError)
+	}
+	if info == nil {
+		return nil, service.TaskErrorWrapperLocal(errors.New("relay info is missing"), "invalid_relay_info", http.StatusInternalServerError)
+	}
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
 	info.InitChannelMeta(c)
 
 	// 1. 确定 platform → 创建适配器 → 验证请求

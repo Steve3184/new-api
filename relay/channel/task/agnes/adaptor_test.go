@@ -153,3 +153,36 @@ func TestBuildRequestBodyUsesAgnes25ReferenceFields(t *testing.T) {
 	assert.Equal(t, []interface{}{"https://example.test/reference.png"}, payload["images"])
 	assert.Equal(t, "reference", payload["mode"])
 }
+
+func TestTaskAdaptorRejectsNilRelayInfo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "a calm ocean", Model: "agnes-video-v2.0"})
+
+	taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, nil)
+	require.NotNil(t, taskErr)
+	require.Equal(t, "invalid_relay_info", taskErr.Code)
+}
+
+func TestTaskAdaptorInitHandlesMissingChannelMeta(t *testing.T) {
+	assert.NotPanics(t, func() {
+		(&TaskAdaptor{}).Init(&relaycommon.RelayInfo{})
+		(&TaskAdaptor{}).Init(nil)
+	})
+}
+
+func TestBuildRequestBodyRejectsNilRelayInfo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "a calm ocean", Model: "agnes-video-v2.0"})
+
+	_, err := (&TaskAdaptor{}).BuildRequestBody(c, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "relay info is missing")
+}
+
+func TestDoResponseRejectsMissingResponse(t *testing.T) {
+	_, _, taskErr := (&TaskAdaptor{}).DoResponse(nil, nil, nil)
+	require.NotNil(t, taskErr)
+	require.Equal(t, "invalid_response", taskErr.Code)
+}

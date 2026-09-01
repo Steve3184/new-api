@@ -50,7 +50,8 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
-	if info == nil {
+	a.apiKey = ""
+	if info == nil || info.ChannelMeta == nil {
 		a.baseURL = normalizeAgnesHostURL("")
 		return
 	}
@@ -59,6 +60,9 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
+	if info == nil {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("relay info is missing"), "invalid_relay_info", http.StatusInternalServerError)
+	}
 	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionTextToVideo); err != nil {
 		return err
 	}
@@ -142,6 +146,9 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
+	if req == nil {
+		return fmt.Errorf("task request is missing")
+	}
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
@@ -149,6 +156,12 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if info == nil {
+		return nil, fmt.Errorf("relay info is missing")
+	}
+	if c == nil {
+		return nil, fmt.Errorf("task context is missing")
+	}
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil, err
@@ -166,7 +179,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	delete(body, "input_reference")
 	delete(body, "source_task_id")
 	delete(body, "duration")
-	modelName := info.UpstreamModelName
+	modelName := ""
+	if info.ChannelMeta != nil {
+		modelName = info.UpstreamModelName
+	}
 	if modelName == "" {
 		modelName = req.Model
 	}
@@ -208,7 +224,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			body["extra_body"] = map[string]interface{}{"image": req.Images}
 		}
 	}
-	if info.ChannelOtherSettings.AgnesAutoImageURL {
+	if info.ChannelMeta != nil && info.ChannelOtherSettings.AgnesAutoImageURL {
 		if err := rewriteImagesForAgnes(c, body); err != nil {
 			return nil, err
 		}
@@ -257,6 +273,9 @@ func isImageDataURL(value string) bool {
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (*http.Response, error) {
+	if info == nil {
+		return nil, fmt.Errorf("relay info is missing")
+	}
 	return channel.DoTaskApiRequest(a, c, info, body)
 }
 
@@ -267,6 +286,9 @@ type createResponse struct {
 }
 
 func (a *TaskAdaptor) DoResponse(_ *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (string, []byte, *taskdto.TaskError) {
+	if resp == nil || resp.Body == nil {
+		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("Agnes response is missing"), "invalid_response", http.StatusBadGateway)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusBadGateway)

@@ -127,6 +127,15 @@ func TestRelayTaskSubmitEmptyOriginKeepsLateMapping(t *testing.T) {
 	assert.True(t, info.IsModelMapped)
 }
 
+func TestRelayTaskSubmitRejectsNilRelayInfo(t *testing.T) {
+	c, _ := newTaskSubmitContext(t, "agnes-video-v2.0", "")
+
+	result, taskErr := RelayTaskSubmit(c, nil)
+	require.Nil(t, result)
+	require.NotNil(t, taskErr)
+	require.Equal(t, "invalid_relay_info", taskErr.Code)
+}
+
 const billingFallbackPlugin = `
 export const meta = {apiVersion:1,key:"bill-fallback",name:"Bill Fallback",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task"};
 export function buildSubmitRequest(ctx) {
