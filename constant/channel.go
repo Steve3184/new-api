@@ -129,11 +129,11 @@ var ChannelBaseURLs = []string{
 	"",                                          //58
 	"",                                          //59
 	"https://api.v8.unrealspeech.com",           //60
-	"",                                          //60
 	"",                                          //61
 	"",                                          //62
 	"https://apihub.agnes-ai.com",               //63
 	"",                                          //64
+	"",                                          //65
 }
 
 func GetChannelBaseURL(channelType int) string {

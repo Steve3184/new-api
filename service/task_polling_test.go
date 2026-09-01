@@ -25,6 +25,7 @@ import (
 type taskPollingFetchAdaptor struct {
 	mu           sync.Mutex
 	taskIDs      []string
+	models       []string
 	fetched      chan string
 	blockTaskID  string
 	blockStarted chan struct{}
@@ -60,6 +61,7 @@ func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
 	taskID, _ := body["task_id"].(string)
+	modelName, _ := body["model"].(string)
 	if taskID == a.blockTaskID && a.releaseBlock != nil {
 		a.blockOnce.Do(func() {
 			if a.blockStarted != nil {
@@ -71,6 +73,7 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]
 
 	a.mu.Lock()
 	a.taskIDs = append(a.taskIDs, taskID)
+	a.models = append(a.models, modelName)
 	a.mu.Unlock()
 	if a.fetched != nil {
 		select {
@@ -115,6 +118,12 @@ func (a *taskPollingFetchAdaptor) fetchedTaskIDs() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]string(nil), a.taskIDs...)
+}
+
+func (a *taskPollingFetchAdaptor) fetchedModels() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.models...)
 }
 
 func TestRedactVideoResponseBodyPreservesPollingPayloadShape(t *testing.T) {
@@ -245,6 +254,30 @@ func TestDispatchPlatformUpdateUsesFetchMode(t *testing.T) {
 	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return nil }
 	assert.NotPanics(t, func() { DispatchPlatformUpdate(context.Background(), "missing-plugin", taskChannels, tasks) })
 	GetTaskAdaptorFunc = previousFactory
+}
+
+func TestDispatchPlatformUpdatePassesUpstreamModelToFetcher(t *testing.T) {
+	truncate(t)
+
+	const channelID = 110
+	seedTaskPollingChannel(t, channelID, true)
+	task := seedPollingTask(t, channelID, "task_public_model", "upstream_model")
+	task.Properties = model.Properties{
+		UpstreamModelName: "agnes-video-2.5-flash",
+		OriginModelName:   "agnes-video-2.5-flash",
+	}
+	require.NoError(t, task.Update())
+
+	adaptor := &taskPollingFetchAdaptor{}
+	previousFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+	t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+	DispatchPlatformUpdate(context.Background(), constant.TaskPlatform("agnes"), map[int][]string{
+		channelID: {task.GetUpstreamTaskID()},
+	}, map[string]*model.Task{task.GetUpstreamTaskID(): task})
+
+	require.Equal(t, []string{"agnes-video-2.5-flash"}, adaptor.fetchedModels())
 }
 
 func TestUpdateBatchTasksSettlesTieredUsageForTerminalStates(t *testing.T) {

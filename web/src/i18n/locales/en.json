@@ -6155,6 +6155,7 @@
     "Upstream services": "Upstream services",
     "Usage clarity": "Usage clarity",
     "Use one familiar API for the models you already run.": "Use one familiar API for the models you already run.",
-    "Vendor lock-in": "Vendor lock-in"
+    "Vendor lock-in": "Vendor lock-in",
+    "Convert Responses requests to Chat Completions for this channel": "Convert Responses requests to Chat Completions for this channel"
   }
 }

@@ -6155,6 +6155,7 @@
     "Upstream services": "上流サービス",
     "Usage clarity": "明確な利用状況",
     "Use one familiar API for the models you already run.": "使い慣れた API で、すでに利用しているモデルに接続できます。",
-    "Vendor lock-in": "ベンダーロックイン"
+    "Vendor lock-in": "ベンダーロックイン",
+    "Convert Responses requests to Chat Completions for this channel": "このチャネルでは Responses リクエストを Chat Completions に変換"
   }
 }

@@ -6155,6 +6155,7 @@
     "Upstream services": "Внешние сервисы",
     "Usage clarity": "Прозрачное использование",
     "Use one familiar API for the models you already run.": "Используйте знакомый API для моделей, которые уже запускаете.",
-    "Vendor lock-in": "Привязка к поставщику"
+    "Vendor lock-in": "Привязка к поставщику",
+    "Convert Responses requests to Chat Completions for this channel": "Преобразовывать запросы Responses в Chat Completions для этого канала"
   }
 }

@@ -83,6 +83,7 @@ export interface ChannelSettings {
   force_format?: boolean
   thinking_to_content?: boolean
   use_responses_api?: boolean
+  responses_to_chat_completions?: boolean
   fake_non_stream?: boolean
   simulate_remote_compact_v2?: boolean
   proxy?: string

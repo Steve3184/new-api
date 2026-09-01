@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -17,7 +16,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	relaydto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +24,21 @@ type TaskAdaptor struct {
 	taskcommon.BaseBilling
 	apiKey  string
 	baseURL string
+}
+
+func normalizeAgnesHostURL(baseURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(strings.ToLower(baseURL), "/v1") {
+		baseURL = strings.TrimRight(baseURL[:len(baseURL)-len("/v1")], "/")
+	}
+	if baseURL == "" {
+		baseURL = constant.GetChannelBaseURL(constant.ChannelTypeAgnes)
+	}
+	return baseURL
+}
+
+func agnesV1URL(baseURL, path string) string {
+	return normalizeAgnesHostURL(baseURL) + "/v1" + path
 }
 
 func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *taskdto.TaskError) {
@@ -37,8 +50,12 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
+	if info == nil {
+		a.baseURL = normalizeAgnesHostURL("")
+		return
+	}
 	a.apiKey = info.ApiKey
-	a.baseURL = strings.TrimRight(info.ChannelBaseUrl, "/")
+	a.baseURL = normalizeAgnesHostURL(info.ChannelBaseUrl)
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
@@ -79,8 +96,31 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		if imageCount > 5 {
 			return service.TaskErrorWrapperLocal(fmt.Errorf("Agnes 2.5 supports at most 5 reference images"), "invalid_images", http.StatusBadRequest)
 		}
+		if taskErr := validateAgnes25Seconds(req); taskErr != nil {
+			return taskErr
+		}
 	}
 	info.Action = constant.TaskActionTextToVideo
+	return nil
+}
+
+func validateAgnes25Seconds(req relaycommon.TaskSubmitReq) *taskdto.TaskError {
+	seconds := req.Duration
+	provided := seconds != 0
+	if raw := strings.TrimSpace(req.Seconds); raw != "" {
+		provided = true
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("Agnes 2.5 seconds must be an integer between 4 and 12"), "invalid_seconds", http.StatusBadRequest)
+		}
+		seconds = parsed
+	}
+	if !provided {
+		return nil
+	}
+	if seconds < 4 || seconds > 12 {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("Agnes 2.5 seconds must be between 4 and 12"), "invalid_seconds", http.StatusBadRequest)
+	}
 	return nil
 }
 
@@ -94,7 +134,11 @@ func containsModel(name string) bool {
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	return a.baseURL + "/v1/videos", nil
+	baseURL := a.baseURL
+	if baseURL == "" && info != nil && info.ChannelMeta != nil {
+		baseURL = info.ChannelMeta.ChannelBaseUrl
+	}
+	return agnesV1URL(baseURL, "/videos"), nil
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
@@ -121,18 +165,28 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	delete(body, "input_reference")
 	delete(body, "source_task_id")
-	body["model"] = info.UpstreamModelName
+	delete(body, "duration")
+	modelName := info.UpstreamModelName
+	if modelName == "" {
+		modelName = req.Model
+	}
+	body["model"] = modelName
 	if req.Duration > 0 && body["seconds"] == nil {
 		body["seconds"] = strconv.Itoa(req.Duration)
 	}
-	if strings.Contains(info.UpstreamModelName, "2.5") {
+	if strings.Contains(modelName, "2.5") {
+		mode := strings.ToLower(strings.TrimSpace(req.Mode))
+		if mode == "" {
+			mode = "text"
+		}
+		if body["seconds"] == nil || strings.TrimSpace(fmt.Sprint(body["seconds"])) == "" {
+			body["seconds"] = "5"
+		}
 		if req.Size == "" {
 			body["size"] = "720P"
 		}
-		if req.Mode == "" {
-			body["mode"] = "text"
-		}
-		if strings.EqualFold(req.Mode, "keyframe") {
+		body["mode"] = mode
+		if mode == "keyframe" {
 			delete(body, "images")
 			if len(req.Images) > 0 {
 				body["first_frame"] = req.Images[0]
@@ -207,7 +261,7 @@ type createResponse struct {
 	VideoID string `json:"video_id"`
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (string, []byte, *taskdto.TaskError) {
+func (a *TaskAdaptor) DoResponse(_ *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (string, []byte, *taskdto.TaskError) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusBadGateway)
@@ -227,12 +281,6 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if taskID == "" {
 		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("Agnes response has no task id"), "invalid_response", http.StatusBadGateway)
 	}
-	video := relaydto.NewOpenAIVideo()
-	video.ID = info.PublicTaskID
-	video.TaskID = info.PublicTaskID
-	video.Model = info.OriginModelName
-	video.CreatedAt = time.Now().Unix()
-	c.JSON(http.StatusOK, video)
 	return taskID, body, nil
 }
 
@@ -245,7 +293,7 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid Agnes task id")
 	}
 	modelName, _ := body["model"].(string)
-	endpoint := strings.TrimRight(baseURL, "/") + "/v1/agnesapi?video_id=" + url.QueryEscape(id)
+	endpoint := agnesV1URL(baseURL, "/agnesapi") + "?video_id=" + url.QueryEscape(id)
 	if strings.Contains(modelName, "2.5") {
 		endpoint += "&model_name=" + url.QueryEscape(modelName)
 	}

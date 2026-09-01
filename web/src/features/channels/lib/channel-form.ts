@@ -259,6 +259,7 @@ export const channelFormSchema = z
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
     use_responses_api: z.boolean().optional(),
+    responses_to_chat_completions: z.boolean().optional(),
     fake_non_stream: z.boolean().optional(),
     simulate_remote_compact_v2: z.boolean().optional(),
     proxy: z
@@ -454,6 +455,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   force_format: false,
   thinking_to_content: false,
   use_responses_api: false,
+  responses_to_chat_completions: false,
   fake_non_stream: false,
   simulate_remote_compact_v2: false,
   proxy: '',
@@ -501,6 +503,7 @@ export function transformChannelToFormDefaults(
     force_format: false,
     thinking_to_content: false,
     use_responses_api: false,
+    responses_to_chat_completions: false,
     fake_non_stream: false,
     simulate_remote_compact_v2: false,
     proxy: '',
@@ -524,6 +527,8 @@ export function transformChannelToFormDefaults(
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
         use_responses_api: parsed.use_responses_api || false,
+        responses_to_chat_completions:
+          parsed.responses_to_chat_completions || false,
         fake_non_stream: parsed.fake_non_stream || false,
         simulate_remote_compact_v2: parsed.simulate_remote_compact_v2 || false,
         proxy: parsed.proxy || '',
@@ -661,6 +666,8 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     thinking_to_content: formData.thinking_to_content || false,
     use_responses_api:
       formData.type === 1 && formData.use_responses_api === true,
+    responses_to_chat_completions:
+      formData.type === 1 && formData.responses_to_chat_completions === true,
     fake_non_stream: formData.type === 1 && formData.fake_non_stream === true,
     simulate_remote_compact_v2: formData.simulate_remote_compact_v2 === true,
     proxy: formData.proxy?.trim() || '',

@@ -264,8 +264,8 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
             groupModels={props.groupModels}
           />
 
-          <div className='grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]'>
-            <Field className='flex min-h-64 flex-col lg:min-h-0'>
+          <div className='grid min-h-0 flex-1 grid-rows-[auto_auto] gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-1'>
+            <Field className='flex min-h-64 min-w-0 flex-col lg:min-h-0'>
               <FieldLabel htmlFor='playground-speech-input'>
                 {t('Text')}
               </FieldLabel>
@@ -280,7 +280,7 @@ export function SpeechPlayground(props: SpeechPlaygroundProps) {
               />
             </Field>
 
-            <div className='flex flex-col gap-5 lg:min-h-0'>
+            <div className='flex min-w-0 flex-col gap-5 lg:min-h-0'>
               <Field>
                 <FieldLabel htmlFor='playground-speech-voice'>
                   {t('Voice')}

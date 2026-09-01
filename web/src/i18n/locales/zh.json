@@ -6155,6 +6155,7 @@
     "Upstream services": "上游服务",
     "Usage clarity": "用量清晰可见",
     "Use one familiar API for the models you already run.": "用一套熟悉的 API 接入你正在使用的模型。",
-    "Vendor lock-in": "供应商锁定"
+    "Vendor lock-in": "供应商锁定",
+    "Convert Responses requests to Chat Completions for this channel": "将 Responses 请求转换为此渠道的 Chat Completions"
   }
 }

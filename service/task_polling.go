@@ -447,10 +447,19 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
+	fetchBody := map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  constant.NormalizeTaskAction(task.Action),
-	}, proxy)
+	}
+	// Providers that require the upstream model on status queries (such as
+	// Agnes 2.5) need the model persisted with the task. Prefer the resolved
+	// upstream name and fall back to the original request for older tasks.
+	if modelName := task.Properties.UpstreamModelName; modelName != "" {
+		fetchBody["model"] = modelName
+	} else if modelName := task.Properties.OriginModelName; modelName != "" {
+		fetchBody["model"] = modelName
+	}
+	resp, err := adaptor.FetchTask(baseURL, key, fetchBody, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}

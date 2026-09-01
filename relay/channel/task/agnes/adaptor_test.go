@@ -1,16 +1,36 @@
 package agnes
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseResponseDoesNotWriteToClient(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	response := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"id":"task_agnes_1","video_id":"video_agnes_1"}`))),
+	}
+
+	parsed, taskErr := (&TaskAdaptor{}).ParseResponse(c, response, &relaycommon.RelayInfo{})
+	require.Nil(t, taskErr)
+	require.NotNil(t, parsed)
+	require.Equal(t, "video_agnes_1", parsed.UpstreamTaskID)
+	require.False(t, c.Writer.Written(), "response parsing must not write the client response")
+	require.Empty(t, recorder.Body.Bytes())
+}
 
 func TestBuildURLs(t *testing.T) {
 	a := &TaskAdaptor{baseURL: "https://example.test"}
@@ -26,6 +46,18 @@ func TestBuildURLs(t *testing.T) {
 	}
 	// The request fails to connect, but the URL construction is validated by a local transport below.
 	require.Error(t, err)
+}
+
+func TestBuildURLUsesAgnesDefaultAndNormalizesVersion(t *testing.T) {
+	a := &TaskAdaptor{}
+	url, err := a.BuildRequestURL(&relaycommon.RelayInfo{})
+	require.NoError(t, err)
+	require.Equal(t, "https://apihub.agnes-ai.com/v1/videos", url)
+
+	a.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://example.test/v1"}})
+	url, err = a.BuildRequestURL(nil)
+	require.NoError(t, err)
+	require.Equal(t, "https://example.test/v1/videos", url)
 }
 
 func TestParseTaskResultProgressAndURL(t *testing.T) {
@@ -54,4 +86,47 @@ func TestFetchTaskUsesAgnesAPIPath(t *testing.T) {
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, "/v1/agnesapi?video_id=abc&model_name=agnes-video-2.5", gotPath)
+}
+
+func TestValidateAgnes25Seconds(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     relaycommon.TaskSubmitReq
+		wantErr string
+	}{
+		{name: "default", req: relaycommon.TaskSubmitReq{}},
+		{name: "valid string", req: relaycommon.TaskSubmitReq{Seconds: "12"}},
+		{name: "valid duration", req: relaycommon.TaskSubmitReq{Duration: 4}},
+		{name: "too short", req: relaycommon.TaskSubmitReq{Seconds: "3"}, wantErr: "invalid_seconds"},
+		{name: "too long", req: relaycommon.TaskSubmitReq{Duration: 13}, wantErr: "invalid_seconds"},
+		{name: "not numeric", req: relaycommon.TaskSubmitReq{Seconds: "five"}, wantErr: "invalid_seconds"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateAgnes25Seconds(test.req)
+			if test.wantErr == "" {
+				require.Nil(t, err)
+				return
+			}
+			require.NotNil(t, err)
+			assert.Equal(t, test.wantErr, err.Code)
+		})
+	}
+}
+
+func TestBuildRequestBodyDefaultsAgnes25Seconds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("task_request", relaycommon.TaskSubmitReq{Model: "agnes-video-2.5-flash", Prompt: "a calm ocean"})
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "agnes-video-2.5-flash"}}
+
+	bodyReader, err := (&TaskAdaptor{}).BuildRequestBody(c, info)
+	require.NoError(t, err)
+	body, err := io.ReadAll(bodyReader)
+	require.NoError(t, err)
+	var payload map[string]interface{}
+	require.NoError(t, common.Unmarshal(body, &payload))
+	assert.Equal(t, "5", payload["seconds"])
+	assert.NotContains(t, payload, "duration")
+	assert.Equal(t, "720P", payload["size"])
 }

@@ -6155,6 +6155,7 @@
     "Upstream services": "Dịch vụ thượng nguồn",
     "Usage clarity": "Minh bạch mức sử dụng",
     "Use one familiar API for the models you already run.": "Dùng một API quen thuộc cho các mô hình bạn đang vận hành.",
-    "Vendor lock-in": "Khóa nhà cung cấp"
+    "Vendor lock-in": "Khóa nhà cung cấp",
+    "Convert Responses requests to Chat Completions for this channel": "Chuyển đổi yêu cầu Responses sang Chat Completions cho kênh này"
   }
 }

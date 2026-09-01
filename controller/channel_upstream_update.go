@@ -18,7 +18,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
-	"github.com/QuantumNous/new-api/relay/channel/agnes"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -364,9 +363,32 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeAgnes {
-		// Agnes exposes task video endpoints but not an OpenAI-compatible
-		// /v1/models resource. Return the provider's supported catalog directly.
-		return normalizeModelNames(agnes.ModelList), nil
+		baseURL := constant.GetChannelBaseURL(channel.Type)
+		if channel.GetBaseURL() != "" {
+			baseURL = channel.GetBaseURL()
+		}
+		key, _, apiErr := channel.GetNextEnabledKey()
+		if apiErr != nil {
+			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		}
+		key = strings.TrimSpace(key)
+		baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+		if strings.HasSuffix(strings.ToLower(baseURL), "/v1") {
+			baseURL = strings.TrimRight(baseURL[:len(baseURL)-len("/v1")], "/")
+		}
+		if baseURL == "" {
+			baseURL = constant.GetChannelBaseURL(channel.Type)
+		}
+		url := baseURL + "/v1/models"
+		headers, err := buildFetchModelsHeaders(channel, key)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, key)
+		}
+		body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, key)
+		}
+		return parseOpenAIModelIDs(body)
 	}
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)

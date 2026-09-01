@@ -6155,6 +6155,7 @@
     "Upstream services": "Services en amont",
     "Usage clarity": "Visibilite de l usage",
     "Use one familiar API for the models you already run.": "Utilisez une API familière pour les modèles que vous exploitez déjà.",
-    "Vendor lock-in": "Dependance fournisseur"
+    "Vendor lock-in": "Dependance fournisseur",
+    "Convert Responses requests to Chat Completions for this channel": "Convertir les requêtes Responses en Chat Completions pour ce canal"
   }
 }

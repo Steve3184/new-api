@@ -53,6 +53,7 @@ const ADVANCED_SETTINGS_FIELDS = new Set<FieldPath<ChannelFormValues>>([
   'allow_include_obfuscation',
   'allow_inference_geo',
   'allow_speed',
+  'responses_to_chat_completions',
   'claude_beta_query',
   'claude_cache_control',
   'disable_task_polling_sleep',

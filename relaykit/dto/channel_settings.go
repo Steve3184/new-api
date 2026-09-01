@@ -15,6 +15,7 @@ type ChannelSettings struct {
 	ForceFormat                bool   `json:"force_format,omitempty"`
 	ThinkingToContent          bool   `json:"thinking_to_content,omitempty"`
 	UseResponsesAPI            bool   `json:"use_responses_api,omitempty"`
+	ResponsesToChatCompletions bool   `json:"responses_to_chat_completions,omitempty"`
 	FakeNonStream              bool   `json:"fake_non_stream,omitempty"`
 	SimulateRemoteCompactV2    bool   `json:"simulate_remote_compact_v2,omitempty"`
 	Proxy                      string `json:"proxy"`

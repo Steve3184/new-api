@@ -417,6 +417,28 @@ func TestFetchNewAPIModelsUsesOpenAIContract(t *testing.T) {
 	require.Equal(t, []string{"gpt-5", "gpt-5-mini"}, models)
 }
 
+func TestFetchAgnesModelsUsesUpstreamCatalog(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/models", r.URL.Path)
+		assert.Equal(t, "Bearer agnes-key", r.Header.Get("Authorization"))
+		_, err := w.Write([]byte(`{"data":[{"id":"agnes-2.5-flash"},{"id":"agnes-image-2.5-flash"},{"id":"agnes-video-2.5-flash"}]}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeAgnes,
+		Key:     "agnes-key",
+		BaseURL: &baseURL,
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"agnes-2.5-flash", "agnes-image-2.5-flash", "agnes-video-2.5-flash"}, models)
+}
+
 func TestNormalizeModelNames(t *testing.T) {
 	result := normalizeModelNames([]string{
 		" gpt-4o ",

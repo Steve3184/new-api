@@ -58,6 +58,13 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const pollRef = useRef<AbortController | null>(null)
+  const isAgnes25 = model.startsWith('agnes-video-2.5')
+
+  useEffect(() => {
+    if (isAgnes25) {
+      setDuration((current) => Math.max(4, Math.min(12, current)))
+    }
+  }, [isAgnes25])
 
   useEffect(() => () => pollRef.current?.abort(), [])
 
@@ -120,8 +127,8 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
         group,
         prompt: prompt.trim(),
         images: images.length ? images : undefined,
-        mode: model.includes('2.5') ? mode : undefined,
-        size: model.includes('2.5') ? size : undefined,
+        mode: isAgnes25 ? mode : undefined,
+        size: isAgnes25 ? size : undefined,
         duration,
       })
       setTask(next)
@@ -135,7 +142,6 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
     }
   }
 
-  const isAgnes25 = model.includes('2.5')
   return (
     <div className='grid size-full min-h-0 grid-rows-[max-content_minmax(30rem,1fr)] overflow-y-auto lg:grid-cols-[minmax(19rem,24rem)_1fr] lg:grid-rows-1 lg:overflow-hidden'>
       <section className='border-b p-4 sm:p-6 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0'>
@@ -168,6 +174,11 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
                 {t('Video mode')}
               </FieldLabel>
               <Select
+                items={[
+                  { value: 'text', label: t('Text') },
+                  { value: 'keyframe', label: t('Keyframe') },
+                  { value: 'reference', label: t('Reference') },
+                ]}
                 value={mode}
                 onValueChange={(value) => value && setMode(value)}
               >
@@ -177,7 +188,7 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
                 >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent alignItemWithTrigger={false}>
                   <SelectItem value='text'>{t('Text')}</SelectItem>
                   <SelectItem value='keyframe'>{t('Keyframe')}</SelectItem>
                   <SelectItem value='reference'>{t('Reference')}</SelectItem>
@@ -191,6 +202,7 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
                 {t('Size')}
               </FieldLabel>
               <Select
+                items={[{ value: '720P', label: '720P' }]}
                 value={size}
                 onValueChange={(value) => value && setSize(value)}
               >
@@ -200,7 +212,7 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
                 >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent alignItemWithTrigger={false}>
                   <SelectItem value='720P'>720P</SelectItem>
                 </SelectContent>
               </Select>
@@ -213,12 +225,18 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
             <Input
               id='playground-video-duration'
               type='number'
-              min={1}
-              max={3600}
+              min={isAgnes25 ? 4 : 1}
+              max={isAgnes25 ? 12 : 3600}
               value={duration}
               onChange={(event) =>
                 setDuration(
-                  Math.max(1, Math.min(3600, Number(event.target.value) || 1))
+                  Math.max(
+                    isAgnes25 ? 4 : 1,
+                    Math.min(
+                      isAgnes25 ? 12 : 3600,
+                      Number(event.target.value) || (isAgnes25 ? 4 : 1)
+                    )
+                  )
                 )
               }
             />
@@ -233,11 +251,11 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
               className='sr-only'
               onChange={(event) => void addImages(event.target.files)}
             />
-            <div className='flex flex-wrap gap-2'>
+            <div className='flex flex-wrap gap-3'>
               {images.map((image, index) => (
                 <div
                   key={image}
-                  className='relative size-16 overflow-hidden rounded border'
+                  className='relative size-20 overflow-hidden rounded border sm:size-24'
                 >
                   <img
                     src={image}

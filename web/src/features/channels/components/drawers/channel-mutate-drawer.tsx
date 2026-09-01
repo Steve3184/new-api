@@ -290,6 +290,7 @@ const SENSITIVE_FORM_FIELDS = [
   'force_format',
   'thinking_to_content',
   'use_responses_api',
+  'responses_to_chat_completions',
   'fake_non_stream',
   'simulate_remote_compact_v2',
   'proxy',
@@ -352,6 +353,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.force_format ||
     values.thinking_to_content ||
     values.use_responses_api ||
+    values.responses_to_chat_completions ||
     values.fake_non_stream ||
     values.simulate_remote_compact_v2 ||
     values.pass_through_body_enabled ||
@@ -769,6 +771,9 @@ export function ChannelMutateDrawer({
   const currentForceFormat = form.watch('force_format')
   const currentThinkingToContent = form.watch('thinking_to_content')
   const currentUseResponsesAPI = form.watch('use_responses_api')
+  const currentResponsesToChatCompletions = form.watch(
+    'responses_to_chat_completions'
+  )
   const currentFakeNonStream = form.watch('fake_non_stream')
   const currentSimulateRemoteCompactV2 = form.watch(
     'simulate_remote_compact_v2'
@@ -1057,6 +1062,7 @@ export function ChannelMutateDrawer({
     currentForceFormat ||
     currentThinkingToContent ||
     currentUseResponsesAPI ||
+    currentResponsesToChatCompletions ||
     currentFakeNonStream ||
     currentSimulateRemoteCompactV2 ||
     currentPassThroughBodyEnabled ||
@@ -4229,6 +4235,32 @@ export function ChannelMutateDrawer({
                                           <FormDescription>
                                             {t(
                                               'Route Chat Completions requests to the upstream Responses API'
+                                            )}
+                                          </FormDescription>
+                                        </div>
+                                        <FormControl>
+                                          <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                          />
+                                        </FormControl>
+                                      </FormItem>
+                                    )}
+                                  />
+                                  <FormField
+                                    control={form.control}
+                                    name='responses_to_chat_completions'
+                                    render={({ field }) => (
+                                      <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                        <div className='space-y-0.5'>
+                                          <FormLabel>
+                                            {t(
+                                              'Responses -> ChatCompletions Compatibility'
+                                            )}
+                                          </FormLabel>
+                                          <FormDescription>
+                                            {t(
+                                              'Convert Responses requests to Chat Completions for this channel'
                                             )}
                                           </FormDescription>
                                         </div>

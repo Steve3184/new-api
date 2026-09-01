@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -88,7 +89,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if info.RelayMode == relayconstant.RelayModeResponses &&
 		!remoteCompactV2.Modified &&
 		!passThroughGlobal && !info.ChannelSetting.PassThroughBodyEnabled &&
-		service.ShouldResponsesUseChatCompletionsGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
+		shouldUseResponsesChatCompletions(info) {
 		usage, newApiErr := responsesViaChatCompletions(c, info, request)
 		if newApiErr != nil {
 			return newApiErr
@@ -207,4 +208,14 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func shouldUseResponsesChatCompletions(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.ChannelType == constant.ChannelTypeOpenAI && info.ChannelSetting.ResponsesToChatCompletions {
+		return true
+	}
+	return service.ShouldResponsesUseChatCompletionsGlobal(info.ChannelId, info.ChannelType, info.OriginModelName)
 }
