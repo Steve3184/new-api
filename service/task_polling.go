@@ -451,6 +451,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  constant.NormalizeTaskAction(task.Action),
 	}
+	// Agnes v2.0 status queries require video_id, while older gateway builds
+	// persisted the response's internal task_id. Preserve the original submit
+	// response for the Agnes adaptor so it can recover video_id for those tasks.
+	if ch.Type == constant.ChannelTypeAgnes {
+		fetchBody["task_data"] = task.Data
+	}
 	// Providers that require the upstream model on status queries (such as
 	// Agnes 2.5) need the model persisted with the task. Prefer the resolved
 	// upstream name and fall back to the original request for older tasks.

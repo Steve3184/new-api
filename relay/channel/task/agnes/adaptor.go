@@ -2,6 +2,7 @@ package agnes
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -314,6 +315,9 @@ func (a *TaskAdaptor) DoResponse(_ *gin.Context, resp *http.Response, _ *relayco
 func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
 	id, ok := body["video_id"].(string)
 	if !ok || id == "" {
+		id = extractAgnesVideoID(body["task_data"])
+	}
+	if id == "" {
 		id, _ = body["task_id"].(string)
 	}
 	if id == "" {
@@ -335,6 +339,34 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 		return nil, err
 	}
 	return client.Do(req)
+}
+
+// extractAgnesVideoID handles both the raw upstream response and the wrapped
+// task response stored by the gateway. Agnes v2.0's status endpoint uses this
+// video_id, whereas its internal task_id is not accepted for polling.
+func extractAgnesVideoID(value any) string {
+	switch v := value.(type) {
+	case map[string]any:
+		if id, ok := v["video_id"].(string); ok && strings.TrimSpace(id) != "" {
+			return strings.TrimSpace(id)
+		}
+		for _, key := range []string{"data", "response", "result"} {
+			if id := extractAgnesVideoID(v[key]); id != "" {
+				return id
+			}
+		}
+	case []byte:
+		var decoded map[string]any
+		if common.Unmarshal(v, &decoded) == nil {
+			return extractAgnesVideoID(decoded)
+		}
+	case json.RawMessage:
+		var decoded map[string]any
+		if common.Unmarshal(v, &decoded) == nil {
+			return extractAgnesVideoID(decoded)
+		}
+	}
+	return ""
 }
 
 type statusResponse struct {

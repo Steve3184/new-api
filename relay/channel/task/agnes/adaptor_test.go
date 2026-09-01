@@ -2,6 +2,7 @@ package agnes
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -86,6 +87,26 @@ func TestFetchTaskUsesAgnesAPIPath(t *testing.T) {
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, "/v1/agnesapi?video_id=abc&model_name=agnes-video-2.5", gotPath)
+}
+
+func TestFetchTaskRecoversVideoIDFromPersistedSubmitResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.RequestURI()
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"status":"completed","video_id":"video_recovered"}`)
+	}))
+	defer server.Close()
+
+	a := &TaskAdaptor{}
+	resp, err := a.FetchTask(server.URL, "key", map[string]any{
+		"task_id":   "task_internal_only",
+		"task_data": json.RawMessage(`{"id":"task_internal_only","video_id":"video_recovered","status":"queued"}`),
+	}, "")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, "/v1/agnesapi?video_id=video_recovered", gotPath)
 }
 
 func TestValidateAgnes25Seconds(t *testing.T) {
