@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -26,6 +27,15 @@ func TestTaskModel2DtoNormalizesLegacyAction(t *testing.T) {
 
 	assert.Equal(t, constant.TaskActionFirstTailToVideo, dtoTask.Action)
 	assert.Equal(t, "firstTailGenerate", task.Action)
+}
+
+func TestRelayTaskFetchRejectsUnknownRelayModeWithoutPanicking(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	taskErr := RelayTaskFetch(c, relayconstant.RelayModeUnknown)
+	require.NotNil(t, taskErr)
+	assert.Equal(t, "invalid_relay_mode", taskErr.Code)
 }
 
 const mappingOrderSubmitPlugin = `

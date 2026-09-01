@@ -204,5 +204,56 @@ export async function getVideoTask(
     signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)
-  return res.data
+  return normalizeVideoTaskResponse(res.data)
+}
+
+type RecordValue = Record<string, unknown>
+
+function isRecord(value: unknown): value is RecordValue {
+  return typeof value === 'object' && value !== null
+}
+
+const videoTaskStatusMap: Record<string, VideoGenerationResponse['status']> = {
+  NOT_START: 'queued',
+  SUBMITTED: 'queued',
+  QUEUED: 'queued',
+  IN_PROGRESS: 'in_progress',
+  SUCCESS: 'completed',
+  FAILURE: 'failed',
+}
+
+export function normalizeVideoTaskResponse(
+  response: unknown
+): VideoGenerationResponse {
+  const envelope = isRecord(response) ? response : {}
+  const raw =
+    (envelope.success === true || envelope.code === 'success') &&
+    isRecord(envelope.data)
+      ? envelope.data
+      : envelope
+  const properties = isRecord(raw.properties) ? raw.properties : {}
+  const rawStatus = String(raw.status ?? '').toUpperCase()
+  const status = videoTaskStatusMap[rawStatus] ?? 'in_progress'
+  const progressValue = Number.parseInt(String(raw.progress ?? '0'), 10)
+  let resultURL: string | undefined
+  if (typeof raw.result_url === 'string') {
+    resultURL = raw.result_url
+  } else if (isRecord(raw.data) && typeof raw.data.url === 'string') {
+    resultURL = raw.data.url
+  }
+  const failReason = typeof raw.fail_reason === 'string' ? raw.fail_reason : ''
+
+  return {
+    id: String(raw.task_id ?? raw.id ?? ''),
+    object: 'video',
+    model: String(raw.model ?? properties.origin_model_name ?? ''),
+    status,
+    progress: Number.isFinite(progressValue) ? progressValue : 0,
+    created_at: Number(raw.created_at ?? 0),
+    ...(raw.finish_time
+      ? { completed_at: Number(raw.finish_time) }
+      : undefined),
+    ...(resultURL ? { data: { url: resultURL } } : undefined),
+    ...(failReason ? { error: { message: failReason, code: 'task_failed' } } : undefined),
+  }
 }

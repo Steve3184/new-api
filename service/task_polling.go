@@ -463,6 +463,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}
+	if resp == nil || resp.Body == nil {
+		return fmt.Errorf("fetchTask returned an empty response for task %s", taskId)
+	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {

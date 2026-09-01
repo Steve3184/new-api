@@ -17,6 +17,9 @@ func TestPath2RelayMode(t *testing.T) {
 		{path: "/v1/audio/speech/tasks/task_public", want: RelayModeAudioSpeechTaskFetchByID},
 		{path: "/v1/audio/speech/tasks/task_public/content", want: RelayModeAudioSpeechTaskFetchByID},
 		{path: "/v1/audio/speech/tasks/task_public/timestamps", want: RelayModeAudioSpeechTaskFetchByID},
+		{path: "/v1/videos", want: RelayModeVideoSubmit},
+		{path: "/v1/videos/task_public", want: RelayModeVideoFetchByID},
+		{path: "/pg/videos/task_public", want: RelayModeVideoFetchByID},
 		{path: "/v1/alpha/search", want: RelayModeAlphaSearch},
 		{path: "/v1/alpha/search?foo=1", want: RelayModeAlphaSearch},
 	}

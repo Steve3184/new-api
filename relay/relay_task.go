@@ -486,7 +486,7 @@ var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 	respBuilder, ok := fetchRespBuilders[relayMode]
 	if !ok {
-		taskResp = service.TaskErrorWrapperLocal(errors.New("invalid_relay_mode"), "invalid_relay_mode", http.StatusBadRequest)
+		return service.TaskErrorWrapperLocal(errors.New("invalid_relay_mode"), "invalid_relay_mode", http.StatusBadRequest)
 	}
 
 	respBody, taskErr := respBuilder(c)
