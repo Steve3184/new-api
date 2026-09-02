@@ -446,6 +446,27 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	privateData := task.PrivateData
 	if privateData.Key != "" {
 		key = privateData.Key
+	} else if ch.Type == constant.ChannelTypeAgnes && ch.ChannelInfo.IsMultiKey {
+		keys := ch.GetKeys()
+		requestID := ""
+		if privateData.Execution != nil {
+			requestID = privateData.Execution.RequestID
+		}
+		keyIndex, found, indexErr := model.GetLogMultiKeyIndex(requestID, ch.Id)
+		if indexErr != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("recover Agnes polling key index for task %s: %v", taskId, indexErr))
+		}
+		if found && keyIndex >= 0 && keyIndex < len(keys) {
+			key = keys[keyIndex]
+		} else {
+			// Old task logs may not include an index. Still select one enabled key
+			// instead of sending the newline-delimited channel payload.
+			selectedKey, _, keyErr := ch.GetNextEnabledKey()
+			if keyErr != nil {
+				return fmt.Errorf("get Agnes polling key for task %s: %w", taskId, keyErr)
+			}
+			key = selectedKey
+		}
 	}
 	fetchBody := map[string]any{
 		"task_id": task.GetUpstreamTaskID(),

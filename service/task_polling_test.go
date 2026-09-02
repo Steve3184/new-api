@@ -26,6 +26,7 @@ type taskPollingFetchAdaptor struct {
 	mu           sync.Mutex
 	taskIDs      []string
 	models       []string
+	keys         []string
 	fetched      chan string
 	blockTaskID  string
 	blockStarted chan struct{}
@@ -59,7 +60,7 @@ func (a *batchPollingAdaptor) ParseBatchResult([]byte) (map[string]*BatchTaskRes
 
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
-func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
+func (a *taskPollingFetchAdaptor) FetchTask(_ string, key string, body map[string]any, _ string) (*http.Response, error) {
 	taskID, _ := body["task_id"].(string)
 	modelName, _ := body["model"].(string)
 	if taskID == a.blockTaskID && a.releaseBlock != nil {
@@ -74,6 +75,7 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]
 	a.mu.Lock()
 	a.taskIDs = append(a.taskIDs, taskID)
 	a.models = append(a.models, modelName)
+	a.keys = append(a.keys, key)
 	a.mu.Unlock()
 	if a.fetched != nil {
 		select {
@@ -124,6 +126,12 @@ func (a *taskPollingFetchAdaptor) fetchedModels() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]string(nil), a.models...)
+}
+
+func (a *taskPollingFetchAdaptor) fetchedKeys() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.keys...)
 }
 
 func TestRedactVideoResponseBodyPreservesPollingPayloadShape(t *testing.T) {
@@ -278,6 +286,67 @@ func TestDispatchPlatformUpdatePassesUpstreamModelToFetcher(t *testing.T) {
 	}, map[string]*model.Task{task.GetUpstreamTaskID(): task})
 
 	require.Equal(t, []string{"agnes-video-2.5-flash"}, adaptor.fetchedModels())
+}
+
+func TestAgnesMultiKeyPollingUsesPersistedOrSingleFallbackKey(t *testing.T) {
+	testCases := []struct {
+		name         string
+		persistedKey string
+		loggedIndex  int
+		hasLogIndex  bool
+		wantKey      string
+	}{
+		{name: "persisted submit key", persistedKey: "agnes-selected", wantKey: "agnes-selected"},
+		{name: "legacy task log index", loggedIndex: 1, hasLogIndex: true, wantKey: "agnes-second"},
+		{name: "legacy task fallback", wantKey: "agnes-first"},
+	}
+
+	for index, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			truncate(t)
+			channelID := 120 + index
+			ch := &model.Channel{
+				Id:     channelID,
+				Type:   constant.ChannelTypeAgnes,
+				Name:   "agnes_multi_key",
+				Key:    "agnes-first\nagnes-second",
+				Status: common.ChannelStatusEnabled,
+				ChannelInfo: model.ChannelInfo{
+					IsMultiKey:   true,
+					MultiKeySize: 2,
+				},
+			}
+			require.NoError(t, model.DB.Create(ch).Error)
+			task := seedPollingTask(t, channelID, "task_public_agnes", "task_upstream_agnes")
+			task.Platform = constant.TaskPlatform("63")
+			task.PrivateData.Key = testCase.persistedKey
+			task.PrivateData.Execution = &model.TaskExecutionSnapshot{RequestID: "agnes-request"}
+			require.NoError(t, task.Update())
+			if testCase.hasLogIndex {
+				other, err := common.Marshal(map[string]any{
+					"admin_info": map[string]any{"multi_key_index": testCase.loggedIndex},
+				})
+				require.NoError(t, err)
+				require.NoError(t, model.LOG_DB.Create(&model.Log{
+					RequestId: "agnes-request",
+					ChannelId: channelID,
+					Type:      model.LogTypeConsume,
+					Other:     string(other),
+				}).Error)
+			}
+
+			adaptor := &taskPollingFetchAdaptor{}
+			previousFactory := GetTaskAdaptorFunc
+			GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+			t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+			DispatchPlatformUpdate(context.Background(), task.Platform, map[int][]string{
+				channelID: {task.GetUpstreamTaskID()},
+			}, map[string]*model.Task{task.GetUpstreamTaskID(): task})
+
+			require.Equal(t, []string{testCase.wantKey}, adaptor.fetchedKeys())
+		})
+	}
 }
 
 func TestUpdateBatchTasksSettlesTieredUsageForTerminalStates(t *testing.T) {

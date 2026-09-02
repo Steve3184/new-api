@@ -83,6 +83,37 @@ type Log struct {
 	Other             string `json:"other"`
 }
 
+// GetLogMultiKeyIndex returns the submit-time multi-key index recorded in a
+// task consumption log. It lets async polling recover the original credential
+// for tasks created before providers persisted their selected key.
+func GetLogMultiKeyIndex(requestID string, channelID int) (int, bool, error) {
+	if LOG_DB == nil || requestID == "" || channelID == 0 {
+		return 0, false, nil
+	}
+	var entry Log
+	err := LOG_DB.Select("other").
+		Where("request_id = ? AND channel_id = ? AND type = ?", requestID, channelID, LogTypeConsume).
+		Take(&entry).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	var payload struct {
+		AdminInfo struct {
+			MultiKeyIndex *int `json:"multi_key_index"`
+		} `json:"admin_info"`
+	}
+	if err := common.UnmarshalJsonStr(entry.Other, &payload); err != nil {
+		return 0, false, err
+	}
+	if payload.AdminInfo.MultiKeyIndex == nil {
+		return 0, false, nil
+	}
+	return *payload.AdminInfo.MultiKeyIndex, true, nil
+}
+
 // don't use iota, avoid change log type value
 const (
 	LogTypeUnknown = 0

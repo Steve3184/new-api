@@ -225,7 +225,8 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeMeshy2API ||
-			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeUnrealSpeech {
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeUnrealSpeech ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeAgnes {
 			privateData.Key = relayInfo.ChannelMeta.ApiKey
 		}
 		if relayInfo.UpstreamModelName != "" {

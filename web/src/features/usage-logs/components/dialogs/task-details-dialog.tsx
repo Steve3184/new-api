@@ -26,7 +26,11 @@ import { Label } from '@/components/ui/label'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import {
+  taskActionMapper,
+  taskPlatformMapper,
+  taskStatusMapper,
+} from '../../lib/mappers'
 import { resolveTaskDetailAccess } from '../../lib/task-details'
 import type { TaskLog } from '../../types'
 import { PluginAuthorLink } from '../plugin-author-link'
@@ -116,7 +120,15 @@ export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
       <div className='space-y-3'>
         <DetailSection label={t('Basic Information')}>
           <DetailRow label={t('Task ID')} value={props.log.task_id} mono />
-          <DetailRow label={t('Platform')} value={props.log.platform} mono />
+          <DetailRow
+            label={t('Platform')}
+            value={t(
+              taskPlatformMapper.getLabel(
+                props.log.platform,
+                props.log.platform
+              )
+            )}
+          />
           <DetailRow
             label={t('Action')}
             value={t(taskActionMapper.getLabel(props.log.action))}

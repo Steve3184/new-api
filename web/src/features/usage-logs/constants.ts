@@ -210,6 +210,9 @@ export const TASK_PLATFORMS = {
   RUNWAY: 'runway',
   LUMA: 'luma',
   VIGGLE: 'viggle',
+  MESHY2API: '59',
+  UNREALSPEECH: '60',
+  AGNES: '63',
 } as const
 
 // ============================================================================
@@ -326,6 +329,12 @@ export const TASK_PLATFORM_MAPPINGS: Record<string, StatusMapping> = {
   [TASK_PLATFORMS.RUNWAY]: { label: 'runway', variant: 'violet' },
   [TASK_PLATFORMS.LUMA]: { label: 'luma', variant: 'orange' },
   [TASK_PLATFORMS.VIGGLE]: { label: 'viggle', variant: 'pink' },
+  [TASK_PLATFORMS.MESHY2API]: { label: 'Meshy2API', variant: 'cyan' },
+  [TASK_PLATFORMS.UNREALSPEECH]: {
+    label: 'UnrealSpeech',
+    variant: 'orange',
+  },
+  [TASK_PLATFORMS.AGNES]: { label: 'Agnes', variant: 'violet' },
 }
 
 // ============================================================================
