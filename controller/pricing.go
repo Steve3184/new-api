@@ -67,16 +67,17 @@ func GetPricing(c *gin.Context) {
 	for groupName, description := range usableGroup {
 		pricingGroups[groupName] = description
 	}
+	visibleDescriptions := console_setting.GetModelSquareVisibleGroupDescriptions()
 	for _, groupName := range visibleGroups {
 		if _, exists := pricingGroups[groupName]; !exists {
-			pricingGroups[groupName] = setting.GetUsableGroupDescription(groupName)
+			if description, ok := visibleDescriptions[groupName]; ok && description != "" {
+				pricingGroups[groupName] = description
+			} else {
+				pricingGroups[groupName] = setting.GetUsableGroupDescription(groupName)
+			}
 		}
 	}
 	pricing = filterPricingByUsableGroups(pricing, pricingGroups)
-	groupDescriptions := setting.GetGroupDescriptionsCopy()
-	for groupName, description := range usableGroup {
-		groupDescriptions[groupName] = description
-	}
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := pricingGroups[group]; !ok {
@@ -90,8 +91,8 @@ func GetPricing(c *gin.Context) {
 		"vendors":             model.GetVendors(),
 		"group_ratio":         groupRatio,
 		"usable_group":        usableGroup,
-		"group_descriptions":  groupDescriptions,
 		"model_square_groups": visibleGroups,
+		"model_square_group_descriptions": visibleDescriptions,
 		"supported_endpoint":  model.GetSupportedEndpointMap(),
 		"auto_groups":         service.GetUserAutoGroupForUser(userID, group),
 		"pricing_version":     "a42d372ccf0b5dd13ecf71203521f9d2",

@@ -39,6 +39,8 @@ export const channelInfoSchema = z.object({
     )
     .optional(),
   multi_key_auto_retry: z.boolean().optional(),
+  multi_key_auto_recovery: z.boolean().optional(),
+  multi_key_recovery_interval_minutes: z.number().optional(),
 })
 
 export type ChannelInfo = z.infer<typeof channelInfoSchema>
@@ -95,6 +97,7 @@ export interface ChannelSettings {
   responses_to_chat_completions?: boolean
   fake_non_stream?: boolean
   simulate_remote_compact_v2?: boolean
+  proxy_image_urls?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean
   system_prompt?: string

@@ -178,6 +178,7 @@ import {
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
 import type { Channel } from '../../types'
+import { MultiKeyReliabilityEditor } from '../multi-key-reliability-editor'
 import { useChannels } from '../channels-provider'
 import { AdvancedCustomEditorDialog } from '../dialogs/advanced-custom-editor-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
@@ -293,6 +294,11 @@ const SENSITIVE_FORM_FIELDS = [
   'responses_to_chat_completions',
   'fake_non_stream',
   'simulate_remote_compact_v2',
+  'proxy_image_urls',
+  'multi_key_disable_rules',
+  'multi_key_auto_retry',
+  'multi_key_auto_recovery',
+  'multi_key_recovery_interval_minutes',
   'proxy',
   'http_protocol',
   'http2_connection_shards',
@@ -356,6 +362,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.responses_to_chat_completions ||
     values.fake_non_stream ||
     values.simulate_remote_compact_v2 ||
+    values.proxy_image_urls ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     (values.http_protocol && values.http_protocol !== 'auto') ||
@@ -778,6 +785,13 @@ export function ChannelMutateDrawer({
   const currentSimulateRemoteCompactV2 = form.watch(
     'simulate_remote_compact_v2'
   )
+  const currentProxyImageURLs = form.watch('proxy_image_urls')
+  const currentMultiKeyDisableRules = form.watch('multi_key_disable_rules')
+  const currentMultiKeyAutoRetry = form.watch('multi_key_auto_retry')
+  const currentMultiKeyAutoRecovery = form.watch('multi_key_auto_recovery')
+  const currentMultiKeyRecoveryInterval = form.watch(
+    'multi_key_recovery_interval_minutes'
+  )
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
@@ -1065,6 +1079,7 @@ export function ChannelMutateDrawer({
     currentResponsesToChatCompletions ||
     currentFakeNonStream ||
     currentSimulateRemoteCompactV2 ||
+    currentProxyImageURLs ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
@@ -3367,6 +3382,48 @@ export function ChannelMutateDrawer({
                                     )}
                                   />
                                 )}
+                              {(isMultiKeyChannel ||
+                                (!isEditing &&
+                                  multiKeyMode === 'multi_to_single')) && (
+                                <MultiKeyReliabilityEditor
+                                  rules={currentMultiKeyDisableRules || '[]'}
+                                  autoRetry={currentMultiKeyAutoRetry === true}
+                                  autoRecovery={
+                                    currentMultiKeyAutoRecovery === true
+                                  }
+                                  recoveryIntervalMinutes={
+                                    currentMultiKeyRecoveryInterval || 10
+                                  }
+                                  disabled={sensitiveLocked}
+                                  onRulesChange={(value) =>
+                                    form.setValue(
+                                      'multi_key_disable_rules',
+                                      value,
+                                      { shouldDirty: true, shouldValidate: true }
+                                    )
+                                  }
+                                  onAutoRetryChange={(value) =>
+                                    form.setValue('multi_key_auto_retry', value, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                  onAutoRecoveryChange={(value) =>
+                                    form.setValue(
+                                      'multi_key_auto_recovery',
+                                      value,
+                                      { shouldDirty: true, shouldValidate: true }
+                                    )
+                                  }
+                                  onRecoveryIntervalChange={(value) =>
+                                    form.setValue(
+                                      'multi_key_recovery_interval_minutes',
+                                      value,
+                                      { shouldDirty: true, shouldValidate: true }
+                                    )
+                                  }
+                                />
+                              )}
                             </ChannelAuthSection>
                           </fieldset>
                         </div>
@@ -4412,6 +4469,29 @@ export function ChannelMutateDrawer({
                                         </FormLabel>
                                         <FormDescription>
                                           {t('Upload incoming base64 images through the configured Meshy2API image proxy for Agnes')}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value === true}
+                                          onCheckedChange={field.onChange}
+                                          disabled={sensitiveLocked}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+                              {(currentType === 1 || currentType === 24) && (
+                                <FormField
+                                  control={form.control}
+                                  name='proxy_image_urls'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>{t('Proxy generated image URLs')}</FormLabel>
+                                        <FormDescription>
+                                          {t('Replace upstream image URLs in generation responses with short-lived site URLs.')}
                                         </FormDescription>
                                       </div>
                                       <FormControl>

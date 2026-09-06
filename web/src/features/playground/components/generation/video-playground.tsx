@@ -202,7 +202,7 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
                 {t('Size')}
               </FieldLabel>
               <Select
-                items={[{ value: '720P', label: '720P' }]}
+                items={[{ value: '720P', label: t('720P') }]}
                 value={size}
                 onValueChange={(value) => value && setSize(value)}
               >
@@ -213,7 +213,7 @@ export function VideoPlayground(props: VideoPlaygroundProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
-                  <SelectItem value='720P'>720P</SelectItem>
+                  <SelectItem value='720P'>{t('720P')}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>

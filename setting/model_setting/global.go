@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -65,7 +64,7 @@ type GlobalSettings struct {
 	ThinkingModelBlacklist           []string                                `json:"thinking_model_blacklist"`
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy        `json:"chat_completions_to_responses_policy"`
 	ResponsesToChatCompletionsPolicy ResponsesToChatCompletionsPolicy        `json:"responses_to_chat_completions_policy"`
-	EffortModelRoutes                map[string]map[string]map[string]string `json:"effort_model_routes"`
+	EffortModelRoutes                map[string]map[string]string             `json:"effort_model_routes"`
 }
 
 // 默认配置
@@ -83,30 +82,17 @@ var defaultOpenaiSettings = GlobalSettings{
 		Enabled:     false,
 		AllChannels: true,
 	},
-	EffortModelRoutes: map[string]map[string]map[string]string{},
+	EffortModelRoutes: map[string]map[string]string{},
 }
 
-func effortRouteCategory(channelType int) string {
-	switch channelType {
-	case constant.ChannelTypeOpenAI, constant.ChannelTypeOpenAIMax:
-		return "openai"
-	case constant.ChannelTypeAnthropic:
-		return "anthropic"
-	case constant.ChannelTypeGemini:
-		return "gemini"
-	default:
-		return ""
-	}
-}
-
-func (s *GlobalSettings) RouteModelByEffort(channelType int, modelName, effort string) (string, bool) {
-	category := effortRouteCategory(channelType)
-	if category == "" || strings.TrimSpace(modelName) == "" || strings.TrimSpace(effort) == "" {
+func (s *GlobalSettings) RouteModelByEffort(modelName, effort string) (string, bool) {
+	modelName = strings.TrimSpace(modelName)
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if modelName == "" || effort == "" {
 		return modelName, false
 	}
-	models := s.EffortModelRoutes[category]
-	efforts := models[modelName]
-	routed, ok := efforts[strings.ToLower(strings.TrimSpace(effort))]
+	efforts := s.EffortModelRoutes[modelName]
+	routed, ok := efforts[effort]
 	if !ok || strings.TrimSpace(routed) == "" {
 		return modelName, false
 	}
@@ -114,22 +100,17 @@ func (s *GlobalSettings) RouteModelByEffort(channelType int, modelName, effort s
 }
 
 func ValidateEffortModelRoutes(value string) error {
-	var routes map[string]map[string]map[string]string
+	var routes map[string]map[string]string
 	if err := common.UnmarshalJsonStr(value, &routes); err != nil {
 		return fmt.Errorf("effort model routes must be a JSON object: %w", err)
 	}
-	for category, models := range routes {
-		if category != "openai" && category != "anthropic" && category != "gemini" {
-			return fmt.Errorf("unsupported effort route category %q", category)
+	for modelName, efforts := range routes {
+		if strings.TrimSpace(modelName) == "" {
+			return fmt.Errorf("effort route model name cannot be empty")
 		}
-		for modelName, efforts := range models {
-			if strings.TrimSpace(modelName) == "" {
-				return fmt.Errorf("effort route model name cannot be empty")
-			}
-			for effort, target := range efforts {
-				if strings.TrimSpace(effort) == "" || strings.TrimSpace(target) == "" {
-					return fmt.Errorf("effort route entries require non-empty effort and target")
-				}
+		for effort, target := range efforts {
+			if strings.TrimSpace(effort) == "" || strings.TrimSpace(target) == "" {
+				return fmt.Errorf("effort route entries require non-empty effort and target")
 			}
 		}
 	}

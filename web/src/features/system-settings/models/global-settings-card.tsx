@@ -99,14 +99,10 @@ const responsesToChatCompletionsPolicyAllChannelsExample = JSON.stringify(
 
 const effortModelRoutesExample = JSON.stringify(
   {
-    gemini: {
-      'gemini-3.1-flash-lite': {
-        high: 'gemini-3.1-flash-lite-high',
-        low: 'gemini-3.1-flash-lite-low',
-      },
+    'gemini-3.1-flash-lite': {
+      high: 'gemini-3.1-flash-lite-high',
+      low: 'gemini-3.1-flash-lite-low',
     },
-    anthropic: {},
-    openai: {},
   },
   null,
   2
@@ -321,7 +317,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'Route models by channel type and reasoning effort. Keys are openai, anthropic, or gemini; each effort maps to an explicit upstream model.'
+                    'Route models by reasoning effort. Each model maps effort names such as high or low to an explicit upstream model.'
                   )}
                 </FormDescription>
                 <FormMessage />

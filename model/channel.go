@@ -60,15 +60,18 @@ type Channel struct {
 }
 
 type ChannelInfo struct {
-	IsMultiKey             bool                  `json:"is_multi_key"`                        // 是否多Key模式
-	MultiKeySize           int                   `json:"multi_key_size"`                      // 多Key模式下的Key数量
-	MultiKeyStatusList     map[int]int           `json:"multi_key_status_list"`               // key状态列表，key index -> status
-	MultiKeyDisabledReason map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key禁用原因列表，key index -> reason
-	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
-	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
-	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
-	MultiKeyDisableRules   []MultiKeyDisableRule `json:"multi_key_disable_rules,omitempty"`
-	MultiKeyAutoRetry      bool                  `json:"multi_key_auto_retry,omitempty"`
+	IsMultiKey                      bool                  `json:"is_multi_key"`                        // 是否多Key模式
+	MultiKeySize                    int                   `json:"multi_key_size"`                      // 多Key模式下的Key数量
+	MultiKeyStatusList              map[int]int           `json:"multi_key_status_list"`               // key状态列表，key index -> status
+	MultiKeyDisabledReason          map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key禁用原因列表，key index -> reason
+	MultiKeyDisabledTime            map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
+	MultiKeyPollingIndex            int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
+	MultiKeyMode                    constant.MultiKeyMode `json:"multi_key_mode"`
+	MultiKeyDisableRules            []MultiKeyDisableRule `json:"multi_key_disable_rules,omitempty"`
+	MultiKeyAutoRetry               bool                  `json:"multi_key_auto_retry,omitempty"`
+	MultiKeyAutoRecovery            bool                  `json:"multi_key_auto_recovery,omitempty"`
+	MultiKeyRecoveryIntervalMinutes int                   `json:"multi_key_recovery_interval_minutes,omitempty"`
+	MultiKeyLastRecoveryTime        int64                 `json:"multi_key_last_recovery_time,omitempty"`
 }
 
 type MultiKeyDisableRule struct {
@@ -754,6 +757,12 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		}
 		if status == common.ChannelStatusEnabled {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			if channel.ChannelInfo.MultiKeyDisabledReason != nil {
+				delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
+			}
+			if channel.ChannelInfo.MultiKeyDisabledTime != nil {
+				delete(channel.ChannelInfo.MultiKeyDisabledTime, keyIndex)
+			}
 		} else {
 			channel.ChannelInfo.MultiKeyStatusList[keyIndex] = status
 			if channel.ChannelInfo.MultiKeyDisabledReason == nil {
@@ -771,7 +780,7 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 			info["status_reason"] = "All keys are disabled"
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
-		} else if status == common.ChannelStatusEnabled {
+		} else if status == common.ChannelStatusEnabled && channel.Status == common.ChannelStatusAutoDisabled {
 			channel.Status = common.ChannelStatusEnabled
 		}
 	}
@@ -839,7 +848,7 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	if err != nil {
 		return false
 	} else {
-		if channel.Status == status {
+		if channel.Status == status && !channel.ChannelInfo.IsMultiKey {
 			return false
 		}
 

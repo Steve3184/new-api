@@ -27,11 +27,6 @@ func (access UserGroupAccess) Allows(group string) bool {
 
 func GetUserUsableGroups(userGroup string) map[string]string {
 	groupsCopy := setting.GetUserUsableGroupsCopy()
-	for group, description := range setting.GetGroupDescriptionsCopy() {
-		if _, usable := groupsCopy[group]; usable && strings.TrimSpace(description) != "" {
-			groupsCopy[group] = description
-		}
-	}
 	if userGroup != "" {
 		specialSettings, b := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup)
 		if b {

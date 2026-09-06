@@ -46,3 +46,17 @@ func TestNormalizeGroupAccessRulesSupportsSpendCondition(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, normalized, `"type":"spend"`)
 }
+
+func TestNormalizeModelSquareVisibleGroupsPreservesDescriptions(t *testing.T) {
+	previous := ratio_setting.GetGroupRatioCopy()
+	t.Cleanup(func() {
+		data, err := common.Marshal(previous)
+		require.NoError(t, err)
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(string(data)))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"hidden":2}`))
+
+	normalized, err := NormalizeModelSquareVisibleGroups(`{"hidden":"line one\nline two","missing":"drop me"}`)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"hidden":"line one\nline two"}`, normalized)
+}

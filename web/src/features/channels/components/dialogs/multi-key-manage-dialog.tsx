@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw, Trash2, Power, PowerOff, Save } from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, Power, PowerOff } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -36,8 +36,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
@@ -53,7 +51,6 @@ import {
   enableAllMultiKeys,
   disableAllMultiKeys,
   deleteDisabledMultiKeys,
-  manageMultiKeys,
 } from '../../api'
 import { MULTI_KEY_FILTER_OPTIONS } from '../../constants'
 import {
@@ -63,11 +60,7 @@ import {
   getMultiKeyConfirmMessage,
   isDestructiveAction,
 } from '../../lib'
-import type {
-  KeyStatus,
-  MultiKeyConfirmAction,
-  MultiKeyDisableRule,
-} from '../../types'
+import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
 import { useChannels } from '../channels-provider'
 import { StatisticsCard } from './multi-key-statistics-card'
 import { MultiKeyTableRowActions } from './multi-key-table-row-actions'
@@ -107,9 +100,6 @@ export function MultiKeyManageDialog({
   const [confirmAction, setConfirmAction] =
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
-  const [disableRulesText, setDisableRulesText] = useState('[]')
-  const [autoRetry, setAutoRetry] = useState(false)
-  const [isSavingRules, setIsSavingRules] = useState(false)
 
   // Reset and load data when dialog opens
   useEffect(() => {
@@ -146,10 +136,6 @@ export function MultiKeyManageDialog({
         setEnabledCount(response.data.enabled_count || 0)
         setManualDisabledCount(response.data.manual_disabled_count || 0)
         setAutoDisabledCount(response.data.auto_disabled_count || 0)
-        setDisableRulesText(
-          JSON.stringify(response.data.disable_rules || [], null, 2)
-        )
-        setAutoRetry(response.data.auto_retry === true)
       } else {
         toast.error(response.message || t('Failed to load key status'))
       }
@@ -159,51 +145,6 @@ export function MultiKeyManageDialog({
       )
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const saveRules = async () => {
-    if (!currentRow || !canEditSensitive) return
-    let rules: MultiKeyDisableRule[]
-    try {
-      const parsed: unknown = JSON.parse(disableRulesText || '[]')
-      if (
-        !Array.isArray(parsed) ||
-        !parsed.every(
-          (rule) =>
-            typeof rule === 'object' &&
-            rule !== null &&
-            !Array.isArray(rule) &&
-            (typeof (rule as Record<string, unknown>).status_code === 'number' ||
-              typeof (rule as Record<string, unknown>).message === 'string')
-        )
-      ) {
-        throw new Error(t('Disable rules must be a JSON array of objects'))
-      }
-      rules = parsed as MultiKeyDisableRule[]
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t('Invalid JSON format'))
-      return
-    }
-
-    setIsSavingRules(true)
-    try {
-      const response = await manageMultiKeys({
-        channel_id: currentRow.id,
-        action: 'update_rules',
-        disable_rules: rules,
-        auto_retry: autoRetry,
-      })
-      if (response.success) {
-        toast.success(t('Multi-key rules saved'))
-        await loadKeyStatus(currentPage, pageSize)
-      } else {
-        toast.error(response.message || t('Operation failed'))
-      }
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t('Operation failed'))
-    } finally {
-      setIsSavingRules(false)
     }
   }
 
@@ -432,42 +373,6 @@ export function MultiKeyManageDialog({
               {t('No permission to perform this action')}
             </p>
           )}
-
-          <div className='shrink-0 space-y-3 rounded-md border p-3'>
-            <div className='flex flex-wrap items-center justify-between gap-3'>
-              <div>
-                <div className='text-sm font-medium'>{t('Automatic key retry')}</div>
-                <p className='text-muted-foreground text-xs'>
-                  {t('When a disable rule matches, disable the current key and retry with another enabled key.')}
-                </p>
-              </div>
-              <Switch
-                checked={autoRetry}
-                onCheckedChange={setAutoRetry}
-                disabled={!canEditSensitive}
-              />
-            </div>
-            <Textarea
-              value={disableRulesText}
-              onChange={(event) => setDisableRulesText(event.target.value)}
-              disabled={!canEditSensitive}
-              rows={4}
-              placeholder='[{"status_code":429,"message":"Daily usage limit exceeded"}]'
-              aria-label={t('Multi-key disable rules')}
-              className='font-mono text-xs'
-            />
-            <div className='flex justify-end'>
-              <Button
-                type='button'
-                size='sm'
-                onClick={saveRules}
-                disabled={!canEditSensitive || isSavingRules}
-              >
-                <Save className='mr-2 size-4' />
-                {isSavingRules ? t('Saving...') : t('Save rules')}
-              </Button>
-            </div>
-          </div>
 
           {/* Table */}
           <div className='min-h-0 flex-1 overflow-auto rounded-md border'>

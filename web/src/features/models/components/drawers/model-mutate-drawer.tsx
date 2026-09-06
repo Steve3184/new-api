@@ -319,7 +319,6 @@ export function ModelMutateDrawer({
       TopupGroupRatio: '',
       GroupRatio: '',
       UserUsableGroups: '',
-      GroupDescriptions: '{}',
       GroupGroupRatio: '',
       AutoGroups: '',
       AutoGroupDescription: '',

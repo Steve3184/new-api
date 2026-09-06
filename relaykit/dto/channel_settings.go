@@ -18,6 +18,7 @@ type ChannelSettings struct {
 	ResponsesToChatCompletions bool   `json:"responses_to_chat_completions,omitempty"`
 	FakeNonStream              bool   `json:"fake_non_stream,omitempty"`
 	SimulateRemoteCompactV2    bool   `json:"simulate_remote_compact_v2,omitempty"`
+	ProxyImageURLs              bool   `json:"proxy_image_urls,omitempty"`
 	Proxy                      string `json:"proxy"`
 	PassThroughBodyEnabled     bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt               string `json:"system_prompt,omitempty"`

@@ -157,6 +157,28 @@ function isOptionalStatusCodeMapping(value: string | undefined): boolean {
   }
 }
 
+function isOptionalMultiKeyDisableRules(value: string | undefined): boolean {
+  try {
+    const parsed = parseOptionalJson(value)
+    if (parsed === undefined) return true
+    return (
+      Array.isArray(parsed) &&
+      parsed.every(
+        (item) =>
+          isJsonObjectValue(item) &&
+          (item.status_code === undefined ||
+            (typeof item.status_code === 'number' &&
+              Number.isInteger(item.status_code) &&
+              item.status_code >= 100 &&
+              item.status_code <= 599)) &&
+          (item.message === undefined || typeof item.message === 'string')
+      )
+    )
+  } catch {
+    return false
+  }
+}
+
 function isCodexCredential(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -253,6 +275,13 @@ export const channelFormSchema = z
     // Multi-key options (not sent to backend directly)
     multi_key_mode: z.enum(['single', 'batch', 'multi_to_single']).optional(),
     multi_key_type: z.enum(['random', 'polling']).optional(),
+    multi_key_disable_rules: z
+      .string()
+      .optional()
+      .refine(isOptionalMultiKeyDisableRules, ERROR_MESSAGES.INVALID_JSON),
+    multi_key_auto_retry: z.boolean().optional(),
+    multi_key_auto_recovery: z.boolean().optional(),
+    multi_key_recovery_interval_minutes: z.number().int().min(1).max(1440).optional(),
     batch_add_set_key_prefix_2_name: z.boolean().optional(),
     key_mode: z.enum(['append', 'replace']).optional(), // For editing multi-key channels
     // Channel extra settings (stored in setting JSON, not sent directly)
@@ -262,6 +291,7 @@ export const channelFormSchema = z
     responses_to_chat_completions: z.boolean().optional(),
     fake_non_stream: z.boolean().optional(),
     simulate_remote_compact_v2: z.boolean().optional(),
+    proxy_image_urls: z.boolean().optional(),
     proxy: z
       .string()
       .optional()
@@ -449,6 +479,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   other: '',
   multi_key_mode: 'single',
   multi_key_type: 'random',
+  multi_key_disable_rules: '[]',
+  multi_key_auto_retry: false,
+  multi_key_auto_recovery: false,
+  multi_key_recovery_interval_minutes: 10,
   batch_add_set_key_prefix_2_name: false,
   key_mode: 'append',
   // Channel extra settings
@@ -458,6 +492,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   responses_to_chat_completions: false,
   fake_non_stream: false,
   simulate_remote_compact_v2: false,
+  proxy_image_urls: false,
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
@@ -506,6 +541,7 @@ export function transformChannelToFormDefaults(
     responses_to_chat_completions: false,
     fake_non_stream: false,
     simulate_remote_compact_v2: false,
+    proxy_image_urls: false,
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
@@ -531,6 +567,7 @@ export function transformChannelToFormDefaults(
           parsed.responses_to_chat_completions || false,
         fake_non_stream: parsed.fake_non_stream || false,
         simulate_remote_compact_v2: parsed.simulate_remote_compact_v2 || false,
+        proxy_image_urls: parsed.proxy_image_urls === true,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
@@ -627,6 +664,10 @@ export function transformChannelToFormDefaults(
     other: channel.other || '',
     multi_key_mode: 'single',
     multi_key_type: channel.channel_info.multi_key_mode || 'random',
+    multi_key_disable_rules: JSON.stringify(channel.channel_info.multi_key_disable_rules || [], null, 2),
+    multi_key_auto_retry: channel.channel_info.multi_key_auto_retry === true,
+    multi_key_auto_recovery: channel.channel_info.multi_key_auto_recovery === true,
+    multi_key_recovery_interval_minutes: Math.max(1, Math.min(1440, channel.channel_info.multi_key_recovery_interval_minutes || 10)),
     batch_add_set_key_prefix_2_name: false,
     key_mode: 'append', // Default to append mode for editing multi-key channels
     // Channel extra settings
@@ -670,6 +711,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.type === 1 && formData.responses_to_chat_completions === true,
     fake_non_stream: formData.type === 1 && formData.fake_non_stream === true,
     simulate_remote_compact_v2: formData.simulate_remote_compact_v2 === true,
+    proxy_image_urls:
+      (formData.type === 1 || formData.type === 24) &&
+      formData.proxy_image_urls === true,
     proxy: formData.proxy?.trim() || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
@@ -886,6 +930,12 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
+    channel_info: {
+      multi_key_disable_rules: parseOptionalJson(formData.multi_key_disable_rules || '[]'),
+      multi_key_auto_retry: formData.multi_key_auto_retry === true,
+      multi_key_auto_recovery: formData.multi_key_auto_recovery === true,
+      multi_key_recovery_interval_minutes: Math.max(1, Math.min(1440, formData.multi_key_recovery_interval_minutes || 10)),
+    } as Channel['channel_info'],
   }
 
   // Clean up empty strings to null for optional fields
@@ -933,6 +983,12 @@ export function transformFormDataToUpdatePayload(
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
+    channel_info: {
+      multi_key_disable_rules: parseOptionalJson(formData.multi_key_disable_rules || '[]'),
+      multi_key_auto_retry: formData.multi_key_auto_retry === true,
+      multi_key_auto_recovery: formData.multi_key_auto_recovery === true,
+      multi_key_recovery_interval_minutes: Math.max(1, Math.min(1440, formData.multi_key_recovery_interval_minutes || 10)),
+    } as Channel['channel_info'],
   }
 
   // Only include key if it was changed (not empty)

@@ -49,7 +49,7 @@ export function Pricing() {
     vendors,
     groupRatio,
     usableGroup,
-    groupDescriptions,
+    modelSquareGroupDescriptions,
     modelSquareGroups,
     endpointMap,
     autoGroups,
@@ -118,7 +118,9 @@ export function Pricing() {
   }, [clearFilters, clearSearch])
 
   const selectedGroupDescription =
-    groupFilter !== FILTER_ALL ? groupDescriptions[groupFilter]?.trim() : ''
+    groupFilter !== FILTER_ALL
+      ? (usableGroup[groupFilter]?.desc || modelSquareGroupDescriptions[groupFilter] || '').trim()
+      : ''
 
   const renderPricingContent = () => {
     if (filteredModels.length === 0) {

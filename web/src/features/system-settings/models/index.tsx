@@ -60,7 +60,6 @@ const defaultModelSettings: ModelSettings = {
   TopupGroupRatio: '',
   GroupRatio: '',
   UserUsableGroups: '',
-  GroupDescriptions: '{}',
   GroupGroupRatio: '',
   AutoGroups: '',
   AutoGroupDescription: '',

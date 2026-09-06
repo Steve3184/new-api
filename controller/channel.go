@@ -988,6 +988,8 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
+	requestedChannelInfo := channel.ChannelInfo
+	_, channelInfoProvided := requestData["channel_info"]
 
 	if channel.Type == constant.ChannelTypeTaskPlugin &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
@@ -1025,6 +1027,12 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+	if channelInfoProvided {
+		channel.ChannelInfo.MultiKeyDisableRules = requestedChannelInfo.MultiKeyDisableRules
+		channel.ChannelInfo.MultiKeyAutoRetry = requestedChannelInfo.MultiKeyAutoRetry
+		channel.ChannelInfo.MultiKeyAutoRecovery = requestedChannelInfo.MultiKeyAutoRecovery
+		channel.ChannelInfo.MultiKeyRecoveryIntervalMinutes = requestedChannelInfo.MultiKeyRecoveryIntervalMinutes
+	}
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {

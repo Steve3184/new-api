@@ -51,6 +51,32 @@ func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex)
 }
 
+func TestUpdateChannelStatusRecoversKeyWhileChannelRemainsEnabled(t *testing.T) {
+	setupChannelStatusTest(t)
+
+	channel := Channel{
+		Name:   "multi-key-recovery",
+		Key:    "key-a\nkey-b",
+		Status: common.ChannelStatusEnabled,
+		ChannelInfo: ChannelInfo{
+			IsMultiKey:             true,
+			MultiKeySize:           2,
+			MultiKeyMode:           constant.MultiKeyModePolling,
+			MultiKeyStatusList:     map[int]int{0: common.ChannelStatusAutoDisabled},
+			MultiKeyDisabledReason: map[int]string{0: "rate limited"},
+		},
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+
+	changed := UpdateChannelStatus(channel.Id, "key-a", common.ChannelStatusEnabled, "recovery succeeded")
+	require.True(t, changed)
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, channel.Id).Error)
+	assert.NotContains(t, stored.ChannelInfo.MultiKeyStatusList, 0)
+	assert.NotContains(t, stored.ChannelInfo.MultiKeyDisabledReason, 0)
+}
+
 func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.T) {
 	setupChannelStatusTest(t)
 

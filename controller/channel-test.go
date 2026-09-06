@@ -70,6 +70,12 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return testChannelWithKey(ctx, channel, testUserID, testModel, endpointType, isStream, -1)
+}
+
+// testChannelWithKey is used by scheduled key recovery to probe one disabled
+// key while retaining the normal channel test path and billing/response checks.
+func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, forcedKeyIndex int) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -178,6 +184,11 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			localErr:    newAPIError,
 			newAPIError: newAPIError,
 		}
+	}
+	if forcedKeyIndex >= 0 && forcedKeyIndex < len(channel.GetKeys()) {
+		keys := channel.GetKeys()
+		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, forcedKeyIndex)
+		common.SetContextKey(c, constant.ContextKeyChannelKey, keys[forcedKeyIndex])
 	}
 
 	// Determine relay format based on endpoint type or request path
@@ -911,6 +922,79 @@ type channelTestSummary struct {
 	Failed    int `json:"failed"`
 	Disabled  int `json:"disabled"`
 	Enabled   int `json:"enabled"`
+}
+
+type multiKeyRecoverySummary struct {
+	Channels int `json:"channels"`
+	KeysTested int `json:"keys_tested"`
+	KeysRecovered int `json:"keys_recovered"`
+}
+
+func normalizeMultiKeyRecoveryInterval(minutes int) int {
+	if minutes < 1 {
+		return 10
+	}
+	if minutes > 1440 {
+		return 1440
+	}
+	return minutes
+}
+
+func runMultiKeyRecoveryTask(ctx context.Context) (multiKeyRecoverySummary, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	channels, err := model.GetAllChannels(0, 0, true, true)
+	if err != nil {
+		return multiKeyRecoverySummary{}, err
+	}
+	testUserID, err := resolveChannelTestUserID(nil)
+	if err != nil {
+		return multiKeyRecoverySummary{}, err
+	}
+	now := common.GetTimestamp()
+	summary := multiKeyRecoverySummary{}
+	for _, channel := range channels {
+		if ctx.Err() != nil {
+			return summary, ctx.Err()
+		}
+		if channel == nil || !channel.ChannelInfo.IsMultiKey || !channel.ChannelInfo.MultiKeyAutoRecovery || !hasAutoDisabledKey(channel) {
+			continue
+		}
+		interval := int64(normalizeMultiKeyRecoveryInterval(channel.ChannelInfo.MultiKeyRecoveryIntervalMinutes)) * 60
+		if channel.ChannelInfo.MultiKeyLastRecoveryTime > 0 && now-channel.ChannelInfo.MultiKeyLastRecoveryTime < interval {
+			continue
+		}
+		summary.Channels++
+		for index, status := range channel.ChannelInfo.MultiKeyStatusList {
+			if status != common.ChannelStatusAutoDisabled {
+				continue
+			}
+			if index < 0 || index >= len(channel.GetKeys()) {
+				continue
+			}
+			summary.KeysTested++
+			result := testChannelWithKey(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), index)
+			if result.localErr == nil && result.newAPIError == nil {
+				key := channel.GetKeys()[index]
+				if model.UpdateChannelStatus(channel.Id, key, common.ChannelStatusEnabled, "multi-key recovery succeeded") {
+					delete(channel.ChannelInfo.MultiKeyStatusList, index)
+					if channel.ChannelInfo.MultiKeyDisabledReason != nil {
+						delete(channel.ChannelInfo.MultiKeyDisabledReason, index)
+					}
+					if channel.ChannelInfo.MultiKeyDisabledTime != nil {
+						delete(channel.ChannelInfo.MultiKeyDisabledTime, index)
+					}
+					summary.KeysRecovered++
+				}
+			}
+		}
+		channel.ChannelInfo.MultiKeyLastRecoveryTime = now
+		if err := channel.SaveChannelInfo(); err != nil {
+			return summary, err
+		}
+	}
+	return summary, nil
 }
 
 func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, testUserID int, allowDisable bool, disableThreshold int64) channelTestSummary {

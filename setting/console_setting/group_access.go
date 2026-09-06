@@ -165,8 +165,8 @@ func GetGroupAccessRules() []GroupAccessRule {
 // GetModelSquareVisibleGroups returns only configured groups that still have
 // a pricing ratio. This keeps deleted groups from leaking into the public plaza.
 func GetModelSquareVisibleGroups() []string {
-	var groups []string
-	if err := common.UnmarshalJsonStr(consoleSetting.ModelSquareVisibleGroups, &groups); err != nil {
+	groups, _, err := parseModelSquareVisibleGroups(consoleSetting.ModelSquareVisibleGroups)
+	if err != nil {
 		common.SysLog("failed to parse model square visible groups: " + err.Error())
 		return nil
 	}
@@ -190,9 +190,59 @@ func GetModelSquareVisibleGroups() []string {
 	return result
 }
 
+// GetModelSquareVisibleGroupDescriptions returns descriptions carried by the
+// object form of model_square_visible_groups. The legacy array form has no
+// descriptions and remains fully supported.
+func GetModelSquareVisibleGroupDescriptions() map[string]string {
+	groups, descriptions, err := parseModelSquareVisibleGroups(consoleSetting.ModelSquareVisibleGroups)
+	if err != nil {
+		common.SysLog("failed to parse model square visible group descriptions: " + err.Error())
+		return map[string]string{}
+	}
+	valid := ratio_setting.GetGroupRatioCopy()
+	filtered := make(map[string]string, len(descriptions))
+	for _, group := range groups {
+		group = strings.TrimSpace(group)
+		if _, exists := valid[group]; !exists {
+			continue
+		}
+		if description, exists := descriptions[group]; exists {
+			filtered[group] = description
+		}
+	}
+	return filtered
+}
+
+func parseModelSquareVisibleGroups(value string) ([]string, map[string]string, error) {
+	var raw any
+	if err := common.UnmarshalJsonStr(value, &raw); err != nil {
+		return nil, nil, err
+	}
+	groups := make([]string, 0)
+	descriptions := make(map[string]string)
+	switch parsed := raw.(type) {
+	case []any:
+		for _, item := range parsed {
+			if group, ok := item.(string); ok {
+				groups = append(groups, group)
+			}
+		}
+	case map[string]any:
+		for group, description := range parsed {
+			groups = append(groups, group)
+			if text, ok := description.(string); ok {
+				descriptions[group] = text
+			}
+		}
+	default:
+		return nil, nil, fmt.Errorf("model square visible groups must be a JSON array or object")
+	}
+	return groups, descriptions, nil
+}
+
 func NormalizeModelSquareVisibleGroups(value string) (string, error) {
-	var groups []string
-	if err := common.UnmarshalJsonStr(value, &groups); err != nil {
+	groups, descriptions, err := parseModelSquareVisibleGroups(value)
+	if err != nil {
 		return "", err
 	}
 	valid := ratio_setting.GetGroupRatioCopy()
@@ -212,7 +262,20 @@ func NormalizeModelSquareVisibleGroups(value string) (string, error) {
 		seen[group] = struct{}{}
 		filtered = append(filtered, group)
 	}
-	data, err := common.Marshal(filtered)
+	var data []byte
+	if len(descriptions) > 0 {
+		filteredDescriptions := make(map[string]string, len(filtered))
+		for _, group := range filtered {
+			if description, ok := descriptions[group]; ok {
+				filteredDescriptions[group] = description
+			} else {
+				filteredDescriptions[group] = ""
+			}
+		}
+		data, err = common.Marshal(filteredDescriptions)
+	} else {
+		data, err = common.Marshal(filtered)
+	}
 	if err != nil {
 		return "", err
 	}

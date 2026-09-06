@@ -67,8 +67,15 @@ export function usePricingData(enabled = true) {
     models,
     vendors: data?.vendors ?? [],
     groupRatio: data?.group_ratio ?? {},
-    usableGroup: data?.usable_group ?? {},
-    groupDescriptions: data?.group_descriptions ?? {},
+    modelSquareGroupDescriptions: data?.model_square_group_descriptions ?? {},
+    usableGroup: Object.fromEntries(
+      Object.entries(data?.usable_group ?? {}).map(([group, value]) => [
+        group,
+        typeof value === 'string'
+          ? { desc: value, ratio: data?.group_ratio?.[group] ?? 1 }
+          : value,
+      ])
+    ),
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
     modelSquareGroups: data?.model_square_groups ?? [],
