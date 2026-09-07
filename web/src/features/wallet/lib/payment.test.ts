@@ -21,6 +21,8 @@ import { describe, expect, test } from 'vitest'
 import { PAYMENT_TYPES } from '../constants'
 import {
   dispatchSelectedPayment,
+  getMinTopupAmount,
+  isNowPaymentsPayment,
   isStripePayment,
   isWaffoPayment,
   isWaffoPancakePayment,
@@ -33,6 +35,24 @@ describe('payment type classification', () => {
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO_PANCAKE)).toBe(true)
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO)).toBe(false)
     expect(isStripePayment(PAYMENT_TYPES.STRIPE)).toBe(true)
+    expect(isNowPaymentsPayment(PAYMENT_TYPES.NOWPAYMENTS)).toBe(true)
+    expect(isNowPaymentsPayment(PAYMENT_TYPES.MONERO)).toBe(false)
+  })
+
+  test('uses the configured NOWPayments minimum for wallet presets', () => {
+    expect(
+      getMinTopupAmount({
+        enable_online_topup: false,
+        enable_stripe_topup: false,
+        pay_methods: [],
+        min_topup: 1,
+        stripe_min_topup: 1,
+        amount_options: [],
+        discount: {},
+        enable_nowpayments_topup: true,
+        nowpayments_min_topup: 25,
+      })
+    ).toBe(25)
   })
 })
 

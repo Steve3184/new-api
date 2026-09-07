@@ -97,6 +97,10 @@ export function isMoneroPayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.MONERO
 }
 
+export function isNowPaymentsPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.NOWPAYMENTS
+}
+
 export interface PaymentProcessors {
   regular: (topupAmount: number, paymentType: string) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
@@ -148,6 +152,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return PAYMENT_TYPES.WAFFO_PANCAKE
   }
 
+  if (topupInfo.enable_nowpayments_topup) {
+    return PAYMENT_TYPES.NOWPAYMENTS
+  }
+
   return DEFAULT_PAYMENT_TYPE
 }
 
@@ -179,6 +187,14 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
     return topupInfo.min_topup || DEFAULT_MIN_TOPUP
   }
 
+  if (topupInfo.enable_nowpayments_topup) {
+    return (
+      topupInfo.nowpayments_min_topup ||
+      topupInfo.min_topup ||
+      DEFAULT_MIN_TOPUP
+    )
+  }
+
   return DEFAULT_MIN_TOPUP
 }
 
@@ -205,6 +221,10 @@ export function getPaymentMethodMinTopup(
       break
     case PAYMENT_TYPES.MONERO:
       fallback = topupInfo?.min_topup || fallback
+      break
+    case PAYMENT_TYPES.NOWPAYMENTS:
+      fallback =
+        topupInfo?.nowpayments_min_topup || topupInfo?.min_topup || fallback
       break
     default:
       break

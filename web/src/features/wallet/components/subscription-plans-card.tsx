@@ -60,7 +60,8 @@ import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import type { PaymentMethod, TopupInfo } from '../types'
+import type { NowPaymentsInvoice, PaymentMethod, TopupInfo } from '../types'
+import { NowPaymentsPaymentDialog } from './dialogs/nowpayments-payment-dialog'
 
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
@@ -71,7 +72,11 @@ interface SubscriptionPlansCardProps {
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
   return payMethods.filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem'
+    (m) =>
+      m?.type &&
+      m.type !== 'stripe' &&
+      m.type !== 'creem' &&
+      m.type !== 'nowpayments'
   )
 }
 
@@ -115,10 +120,14 @@ export function SubscriptionPlansCard({
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
+  const [nowPaymentsInvoice, setNowPaymentsInvoice] =
+    useState<NowPaymentsInvoice | null>(null)
+  const [nowPaymentsDialogOpen, setNowPaymentsDialogOpen] = useState(false)
 
   const enableStripe = !!topupInfo?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
   const enableWaffoPancake = !!topupInfo?.enable_waffo_pancake_topup
+  const enableNowPayments = !!topupInfo?.enable_nowpayments_topup
   const enableOnlineTopUp = !!topupInfo?.enable_online_topup
   const epayMethods = useMemo(
     () => getEpayMethods(topupInfo?.pay_methods),
@@ -735,10 +744,16 @@ export function SubscriptionPlansCard({
         enableStripe={enableStripe}
         enableCreem={enableCreem}
         enableWaffoPancake={enableWaffoPancake}
+        enableNowPayments={enableNowPayments}
+        nowPaymentsCurrencies={topupInfo?.nowpayments_pay_currencies}
         enableOnlineTopUp={enableOnlineTopUp}
         epayMethods={epayMethods}
         userQuota={userQuota}
         onPurchaseSuccess={onPurchaseSuccess}
+        onNowPaymentsInvoice={(invoice) => {
+          setNowPaymentsInvoice(invoice)
+          setNowPaymentsDialogOpen(true)
+        }}
         purchaseLimit={
           selectedPlan?.plan?.max_purchase_per_user
             ? Number(selectedPlan.plan.max_purchase_per_user)
@@ -749,6 +764,15 @@ export function SubscriptionPlansCard({
             ? planPurchaseCountMap.get(selectedPlan.plan.id)
             : undefined
         }
+      />
+      <NowPaymentsPaymentDialog
+        open={nowPaymentsDialogOpen}
+        onOpenChange={setNowPaymentsDialogOpen}
+        invoice={nowPaymentsInvoice}
+        onPaymentSuccess={() => {
+          void fetchSelfSubscription()
+          void onPurchaseSuccess?.()
+        }}
       />
     </>
   )

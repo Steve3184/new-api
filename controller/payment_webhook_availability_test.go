@@ -167,3 +167,29 @@ func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	operation_setting.PayMethods = nil
 	require.False(t, isEpayWebhookEnabled())
 }
+
+func TestNowPaymentsWebhookEnabledRequiresCompleteConfiguration(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalEnabled := setting.NowPaymentsEnabled
+	originalAPIKey := setting.NowPaymentsAPIKey
+	originalSecret := setting.NowPaymentsIPNSecret
+	originalCurrencies := setting.NowPaymentsPayCurrencies
+	t.Cleanup(func() {
+		setting.NowPaymentsEnabled = originalEnabled
+		setting.NowPaymentsAPIKey = originalAPIKey
+		setting.NowPaymentsIPNSecret = originalSecret
+		setting.NowPaymentsPayCurrencies = originalCurrencies
+	})
+
+	setting.NowPaymentsEnabled = true
+	setting.NowPaymentsAPIKey = "api-key"
+	setting.NowPaymentsIPNSecret = ""
+	setting.NowPaymentsPayCurrencies = "btc"
+	require.False(t, isNowPaymentsWebhookEnabled())
+
+	setting.NowPaymentsIPNSecret = "ipn-secret"
+	require.True(t, isNowPaymentsWebhookEnabled())
+
+	setting.NowPaymentsPayCurrencies = ""
+	require.False(t, isNowPaymentsWebhookEnabled())
+}

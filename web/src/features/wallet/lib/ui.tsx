@@ -161,6 +161,13 @@ export function getPaymentIcon(
           style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.MONERO] }}
         />
       )
+    case PAYMENT_TYPES.NOWPAYMENTS:
+      return (
+        <Coins
+          className={className}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.NOWPAYMENTS] }}
+        />
+      )
     default:
       return <CreditCard className={className} />
   }

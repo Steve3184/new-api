@@ -70,6 +70,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'New API',
   'New API &lt;noreply@example.com&gt;',
   'NewAPI',
+  'NOWPayments',
   'OAuth Client Secret',
   'OhMyGPT',
   'Ollama',

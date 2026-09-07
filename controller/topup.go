@@ -115,13 +115,40 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableNowPayments := isNowPaymentsTopUpEnabled()
+	if enableNowPayments {
+		hasNowPayments := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodNowPayments {
+				hasNowPayments = true
+				break
+			}
+		}
+		if !hasNowPayments {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "NOWPayments",
+				"type":      model.PaymentMethodNowPayments,
+				"color":     "#111827",
+				"min_topup": strconv.Itoa(setting.NowPaymentsMinTopUp),
+			})
+		}
+	}
+
 	data := gin.H{
-		"enable_online_topup":              isEpayTopUpEnabled(),
-		"enable_stripe_topup":              isStripeTopUpEnabled(),
-		"enable_creem_topup":               isCreemTopUpEnabled(),
-		"enable_waffo_topup":               enableWaffo,
-		"enable_waffo_pancake_topup":       enableWaffoPancake,
-		"enable_monero_topup":              enableMonero,
+		"enable_online_topup":        isEpayTopUpEnabled(),
+		"enable_stripe_topup":        isStripeTopUpEnabled(),
+		"enable_creem_topup":         isCreemTopUpEnabled(),
+		"enable_waffo_topup":         enableWaffo,
+		"enable_waffo_pancake_topup": enableWaffoPancake,
+		"enable_monero_topup":        enableMonero,
+		"enable_nowpayments_topup":   enableNowPayments,
+		"nowpayments_min_topup":      setting.NowPaymentsMinTopUp,
+		"nowpayments_pay_currencies": func() interface{} {
+			if enableNowPayments {
+				return setting.GetNowPaymentsPayCurrencies()
+			}
+			return nil
+		}(),
 		"enable_redemption":                complianceConfirmed,
 		"enable_redemption_purchase":       complianceConfirmed && operation_setting.GetPaymentSetting().RedemptionPurchaseEnabled,
 		"payment_compliance_confirmed":     complianceConfirmed,

@@ -35,6 +35,7 @@ const (
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodMonero       = "monero"
+	PaymentMethodNowPayments  = "nowpayments"
 	PaymentMethodBalance      = "balance"
 )
 
@@ -45,6 +46,7 @@ const (
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
 	PaymentProviderMonero       = "monero"
+	PaymentProviderNowPayments  = "nowpayments"
 	PaymentProviderBalance      = "balance"
 )
 
@@ -563,8 +565,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("订单状态不是待支付，无法补单")
 		}
-		if topUp.PaymentProvider == PaymentProviderMonero {
-			return errors.New("Monero 订单只能在达到链上确认数后自动入账")
+		if topUp.PaymentProvider == PaymentProviderMonero || topUp.PaymentProvider == PaymentProviderNowPayments {
+			return errors.New("加密货币订单只能在支付网关确认后自动入账")
 		}
 
 		// 计算应充值额度：

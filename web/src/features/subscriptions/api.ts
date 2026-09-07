@@ -1,3 +1,4 @@
+import type { NowPaymentsInvoice } from '@/features/wallet/types'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -164,6 +165,14 @@ export async function paySubscriptionBalance(
   data: SubscriptionPayRequest
 ): Promise<SubscriptionPayResponse> {
   const res = await api.post('/api/subscription/balance/pay', data)
+  return res.data
+}
+
+export async function paySubscriptionNowPayments(data: {
+  plan_id: number
+  pay_currency: string
+}): Promise<ApiResponse<NowPaymentsInvoice>> {
+  const res = await api.post('/api/subscription/nowpayments/pay', data)
   return res.data
 }
 

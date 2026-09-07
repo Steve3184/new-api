@@ -434,6 +434,14 @@ export type BillingSettings = {
   MoneroConfirmations: number
   MoneroMaxSubaddresses: number
   MoneroUSDToCurrencyRate: number
+  NowPaymentsEnabled: boolean
+  NowPaymentsAPIKey: string
+  NowPaymentsIPNSecret: string
+  NowPaymentsAPIBaseURL: string
+  NowPaymentsPayCurrencies: string
+  NowPaymentsMinTopUp: number
+  NowPaymentsUSDToCurrencyRate: number
+  NowPaymentsPaymentExpirationMins: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

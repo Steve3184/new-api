@@ -67,6 +67,9 @@ export type WaffoPancakePaymentResponse = ApiResponse<
 >
 export type MoneroPaymentResponse = ApiResponse<MoneroInvoice>
 export type MoneroPaymentStatusResponse = ApiResponse<MoneroPaymentStatus>
+export type NowPaymentsPaymentResponse = ApiResponse<NowPaymentsInvoice>
+export type NowPaymentsPaymentStatusResponse =
+  ApiResponse<NowPaymentsPaymentStatus>
 
 export type RedemptionPurchaseAmountResponse = ApiResponse<string>
 export type RedemptionPurchaseResponse = ApiResponse<unknown> & {
@@ -123,6 +126,30 @@ export interface MoneroPaymentStatus {
   transaction_detected: boolean
   confirmations: number
   required_confirmations: number
+}
+
+export interface NowPaymentsInvoice {
+  payment_id: string
+  order_id: string
+  pay_address: string
+  payin_extra_id?: string
+  pay_amount: string
+  pay_currency: string
+  price_amount: string
+  price_currency: string
+  status: string
+  expires_at: number
+}
+
+export interface NowPaymentsPaymentStatus {
+  payment_id: string
+  order_id: string
+  status: 'pending' | 'success' | 'expired' | 'failed'
+  pay_currency: string
+  pay_amount: string
+  pay_address: string
+  payin_extra_id?: string
+  expires_at: number
 }
 
 /**
@@ -215,6 +242,12 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Whether Monero wallet-RPC topups are available */
   enable_monero_topup?: boolean
+  /** Whether NOWPayments cryptocurrency topups are available */
+  enable_nowpayments_topup?: boolean
+  /** Administrator-enabled NOWPayments currency codes */
+  nowpayments_pay_currencies?: string[]
+  /** Minimum top-up amount for NOWPayments */
+  nowpayments_min_topup?: number
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
   /** Whether redemption code usage is enabled */

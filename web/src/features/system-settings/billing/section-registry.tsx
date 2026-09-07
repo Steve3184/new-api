@@ -19,9 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { parseCurrencyDisplayType } from '@/lib/currency'
 
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
+import { GroupAccessRulesSection } from '../general/group-access-rules-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
-import { GroupAccessRulesSection } from '../general/group-access-rules-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
@@ -181,6 +181,24 @@ const BILLING_SECTIONS = [
           MoneroConfirmations: settings.MoneroConfirmations ?? 1,
           MoneroMaxSubaddresses: settings.MoneroMaxSubaddresses ?? 10000,
           MoneroUSDToCurrencyRate: settings.MoneroUSDToCurrencyRate ?? 0,
+          NowPaymentsEnabled: settings.NowPaymentsEnabled ?? false,
+          NowPaymentsAPIKey:
+            settings.NowPaymentsAPIKey === '***'
+              ? ''
+              : (settings.NowPaymentsAPIKey ?? ''),
+          NowPaymentsIPNSecret:
+            settings.NowPaymentsIPNSecret === '***'
+              ? ''
+              : (settings.NowPaymentsIPNSecret ?? ''),
+          NowPaymentsAPIBaseURL:
+            settings.NowPaymentsAPIBaseURL ?? 'https://api.nowpayments.io',
+          NowPaymentsPayCurrencies:
+            settings.NowPaymentsPayCurrencies ?? 'btc,usdtbsc',
+          NowPaymentsMinTopUp: settings.NowPaymentsMinTopUp ?? 1,
+          NowPaymentsUSDToCurrencyRate:
+            settings.NowPaymentsUSDToCurrencyRate ?? 0,
+          NowPaymentsPaymentExpirationMins:
+            settings.NowPaymentsPaymentExpirationMins ?? 60,
           PaymentAnnouncement: settings.PaymentAnnouncement ?? '',
         }}
         waffoDefaultValues={{

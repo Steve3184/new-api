@@ -169,7 +169,8 @@ const createGroupSchema = (t: Translate) =>
     }),
     ModelSquareVisibleGroups: createJsonStringField(t, {
       predicate: (parsed) =>
-        Array.isArray(parsed) && parsed.every((item) => typeof item === 'string'),
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === 'string'),
       predicateMessage: 'Expected a JSON array of group identifiers',
     }),
   })
@@ -453,8 +454,7 @@ export function RatioSettingsCard({
       const apiKeyMap: Record<string, string> = {
         GroupSpecialUsableGroup:
           'group_ratio_setting.group_special_usable_group',
-        ModelSquareVisibleGroups:
-          'console_setting.model_square_visible_groups',
+        ModelSquareVisibleGroups: 'console_setting.model_square_visible_groups',
       }
 
       const updates = (
@@ -463,13 +463,18 @@ export function RatioSettingsCard({
         (key) => normalized[key] !== groupNormalizedDefaults.current[key]
       )
 
+      if (updates.length === 0) {
+        toast.info(t('No changes to save'))
+        return
+      }
+
       for (const key of updates) {
         const apiKey = apiKeyMap[key] || key
         await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
       groupNormalizedDefaults.current = normalized
     },
-    [updateOption]
+    [t, updateOption]
   )
 
   const handleResetRatios = useCallback(() => {

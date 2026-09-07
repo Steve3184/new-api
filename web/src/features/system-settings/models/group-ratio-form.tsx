@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
+import type { FieldErrors, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import {
   sideDrawerContentClassName,
@@ -61,8 +62,8 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
-import { GroupCodingModelEditor } from './group-coding-model-editor'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { GroupCodingModelEditor } from './group-coding-model-editor'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
@@ -109,6 +110,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
+
+  const handleInvalidSave = useCallback(
+    (errors: FieldErrors<GroupFormValues>) => {
+      const firstError = Object.values(errors).find(
+        (error) => typeof error?.message === 'string'
+      )
+      toast.error(
+        typeof firstError?.message === 'string'
+          ? firstError.message
+          : t('Invalid JSON')
+      )
+    },
+    [t]
+  )
+
+  const handleSave = useMemo(
+    () => form.handleSubmit(onSave, handleInvalidSave),
+    [form, handleInvalidSave, onSave]
+  )
 
   const watchedGroupRatio = form.watch('GroupRatio')
   const watchedAutoGroups = form.watch('AutoGroups')
@@ -157,7 +177,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           <Button
             type='button'
             size='sm'
-            onClick={form.handleSubmit(onSave)}
+            onClick={() => void handleSave()}
             disabled={isSaving}
           >
             {isSaving ? t('Saving...') : t('Save group ratios')}
@@ -271,7 +291,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             />
           </div>
         ) : (
-          <SettingsForm onSubmit={form.handleSubmit(onSave)}>
+          <SettingsForm onSubmit={handleSave}>
             <FormField
               control={form.control}
               name='GroupRatio'

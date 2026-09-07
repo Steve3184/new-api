@@ -887,88 +887,104 @@ func CompleteSubscriptionOrderWithPaymentAmount(tradeNo string, providerPayload 
 	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, &paymentAmount)
 }
 
+type subscriptionCompletionResult struct {
+	userID        int
+	planTitle     string
+	money         float64
+	paymentMethod string
+	upgradeGroup  string
+}
+
 func completeSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount *float64) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
+	}
+	var result subscriptionCompletionResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		result, err = completeSubscriptionOrderTx(tx, tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, paymentAmount)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	finalizeSubscriptionCompletion(result)
+	return nil
+}
+
+func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount *float64) (subscriptionCompletionResult, error) {
+	var result subscriptionCompletionResult
+	if tx == nil || tradeNo == "" {
+		return result, errors.New("invalid subscription completion transaction")
 	}
 	refCol := "`trade_no`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		refCol = `"trade_no"`
 	}
-	var logUserId int
-	var logPlanTitle string
-	var logMoney float64
-	var logPaymentMethod string
-	var upgradeGroup string
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var order SubscriptionOrder
-		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
-			return ErrSubscriptionOrderNotFound
-		}
-		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
-			return ErrPaymentMethodMismatch
-		}
-		if order.Status == common.TopUpStatusSuccess {
-			return nil
-		}
-		if order.Status != common.TopUpStatusPending {
-			return ErrSubscriptionOrderStatusInvalid
-		}
-		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
-		if err != nil {
-			return err
-		}
-		if !plan.Enabled {
-			// still allow completion for already purchased orders
-		}
-		// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
-		// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
-		var userRow User
-		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
-			return err
-		}
-		subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
-		if err != nil {
-			return err
-		}
-		if subscription.PrevUserGroup != "" {
-			upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
-		}
-		if paymentAmount != nil {
-			order.Money = *paymentAmount
-		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
-			return err
-		}
-		order.Status = common.TopUpStatusSuccess
-		order.CompleteTime = common.GetTimestamp()
-		if providerPayload != "" {
-			order.ProviderPayload = providerPayload
-		}
-		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
-			order.PaymentMethod = actualPaymentMethod
-		}
-		if err := tx.Save(&order).Error; err != nil {
-			return err
-		}
-		logUserId = order.UserId
-		logPlanTitle = plan.Title
-		logMoney = order.Money
-		logPaymentMethod = order.PaymentMethod
-		return nil
-	})
+	var order SubscriptionOrder
+	if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		return result, ErrSubscriptionOrderNotFound
+	}
+	if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+		return result, ErrPaymentMethodMismatch
+	}
+	if order.Status == common.TopUpStatusSuccess {
+		return result, nil
+	}
+	if order.Status != common.TopUpStatusPending {
+		return result, ErrSubscriptionOrderStatusInvalid
+	}
+	plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 	if err != nil {
-		return err
+		return result, err
 	}
-	if upgradeGroup != "" && logUserId > 0 {
-		refreshSubscriptionUserGroupCache(logUserId, "subscription payment completion")
+	// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
+	// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
+	var userRow User
+	if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
+		return result, err
 	}
-	if logUserId > 0 {
-		InvalidateUserSubscriptionRateLimitCache(logUserId)
-		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
-		RecordLog(logUserId, LogTypeTopup, msg)
+	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+	if err != nil {
+		return result, err
 	}
-	return nil
+	if subscription.PrevUserGroup != "" {
+		result.upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
+	}
+	if paymentAmount != nil {
+		order.Money = *paymentAmount
+	}
+	if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
+		return result, err
+	}
+	order.Status = common.TopUpStatusSuccess
+	order.CompleteTime = common.GetTimestamp()
+	if providerPayload != "" {
+		order.ProviderPayload = providerPayload
+	}
+	if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
+		order.PaymentMethod = actualPaymentMethod
+	}
+	if err := tx.Save(&order).Error; err != nil {
+		return result, err
+	}
+	result.userID = order.UserId
+	result.planTitle = plan.Title
+	result.money = order.Money
+	result.paymentMethod = order.PaymentMethod
+	return result, nil
+}
+
+func finalizeSubscriptionCompletion(result subscriptionCompletionResult) {
+	if result.upgradeGroup != "" && result.userID > 0 {
+		refreshSubscriptionUserGroupCache(result.userID, "subscription payment completion")
+	}
+	if result.userID <= 0 {
+		return
+	}
+	InvalidateUserSubscriptionRateLimitCache(result.userID)
+	msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", result.planTitle, result.money, result.paymentMethod)
+	RecordLog(result.userID, LogTypeTopup, msg)
 }
 
 func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
@@ -980,14 +996,15 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			topup = TopUp{
-				UserId:        order.UserId,
-				Amount:        0,
-				Money:         order.Money,
-				TradeNo:       order.TradeNo,
-				PaymentMethod: order.PaymentMethod,
-				CreateTime:    order.CreateTime,
-				CompleteTime:  now,
-				Status:        common.TopUpStatusSuccess,
+				UserId:          order.UserId,
+				Amount:          0,
+				Money:           order.Money,
+				TradeNo:         order.TradeNo,
+				PaymentMethod:   order.PaymentMethod,
+				PaymentProvider: order.PaymentProvider,
+				CreateTime:      order.CreateTime,
+				CompleteTime:    now,
+				Status:          common.TopUpStatusSuccess,
 			}
 			return tx.Create(&topup).Error
 		}
@@ -997,6 +1014,11 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
 	} else if topup.PaymentMethod != order.PaymentMethod {
+		return ErrPaymentMethodMismatch
+	}
+	if topup.PaymentProvider == "" {
+		topup.PaymentProvider = order.PaymentProvider
+	} else if order.PaymentProvider != "" && topup.PaymentProvider != order.PaymentProvider {
 		return ErrPaymentMethodMismatch
 	}
 	if topup.CreateTime == 0 {

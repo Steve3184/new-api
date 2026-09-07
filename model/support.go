@@ -438,7 +438,7 @@ func GetSupportOrderQuote(userId int, orderType string, orderId int) (*SupportOr
 			OrderType: SupportOrderTopUp, OrderId: order.Id, TradeNo: order.TradeNo,
 			Status: order.Status, Provider: order.PaymentProvider, Amount: order.Amount, Money: order.Money,
 			CreatedAt:   order.CreateTime,
-			CanComplete: order.Status == common.TopUpStatusPending && order.PaymentProvider != PaymentProviderMonero,
+			CanComplete: order.Status == common.TopUpStatusPending && order.PaymentProvider != PaymentProviderMonero && order.PaymentProvider != PaymentProviderNowPayments,
 		}, nil
 	case SupportOrderSubscription:
 		var order SubscriptionOrder
@@ -473,7 +473,7 @@ func ListSupportOrderQuotes(userId int) ([]SupportOrderQuote, error) {
 	}
 	quotes := make([]SupportOrderQuote, 0, len(topups)+len(subscriptions))
 	for _, order := range topups {
-		quotes = append(quotes, SupportOrderQuote{OrderType: SupportOrderTopUp, OrderId: order.Id, TradeNo: order.TradeNo, Status: order.Status, Provider: order.PaymentProvider, Amount: order.Amount, Money: order.Money, CreatedAt: order.CreateTime, CanComplete: order.Status == common.TopUpStatusPending && order.PaymentProvider != PaymentProviderMonero})
+		quotes = append(quotes, SupportOrderQuote{OrderType: SupportOrderTopUp, OrderId: order.Id, TradeNo: order.TradeNo, Status: order.Status, Provider: order.PaymentProvider, Amount: order.Amount, Money: order.Money, CreatedAt: order.CreateTime, CanComplete: order.Status == common.TopUpStatusPending && order.PaymentProvider != PaymentProviderMonero && order.PaymentProvider != PaymentProviderNowPayments})
 	}
 	for _, order := range subscriptions {
 		quote := SupportOrderQuote{OrderType: SupportOrderSubscription, OrderId: order.Id, TradeNo: order.TradeNo, Status: order.Status, Provider: order.PaymentProvider, Money: order.Money, PlanId: order.PlanId, CreatedAt: order.CreateTime}

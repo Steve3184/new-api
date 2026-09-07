@@ -95,6 +95,21 @@ function isHttpOriginUrl(value: string) {
   }
 }
 
+function isNowPaymentsCurrencyList(value: string) {
+  const currencies = value
+    .split(',')
+    .map((currency) => currency.trim().toLowerCase())
+  if (currencies.length === 0 || currencies.length > 50) return false
+  const seen = new Set<string>()
+  return currencies.every((currency) => {
+    if (!/^[a-z0-9_-]{1,32}$/.test(currency) || seen.has(currency)) {
+      return false
+    }
+    seen.add(currency)
+    return true
+  })
+}
+
 const paymentSchema = z.object({
   PayAddress: z.string().refine((value) => {
     const trimmed = value.trim()
@@ -199,6 +214,29 @@ const paymentSchema = z.object({
   MoneroConfirmations: z.coerce.number().int().min(1).max(60),
   MoneroMaxSubaddresses: z.coerce.number().int().min(1).max(1000000),
   MoneroUSDToCurrencyRate: z.coerce.number().finite().min(0),
+  NowPaymentsEnabled: z.boolean(),
+  NowPaymentsAPIKey: z.string(),
+  NowPaymentsIPNSecret: z.string(),
+  NowPaymentsAPIBaseURL: z.string().refine((value) => {
+    const trimmed = value.trim()
+    try {
+      const url = new URL(trimmed)
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') && !!url.host
+      )
+    } catch {
+      return false
+    }
+  }, 'Provide a valid NOWPayments API URL'),
+  NowPaymentsPayCurrencies: z
+    .string()
+    .refine(
+      isNowPaymentsCurrencyList,
+      'Enter up to 50 unique currency codes separated by commas'
+    ),
+  NowPaymentsMinTopUp: z.coerce.number().int().min(0),
+  NowPaymentsUSDToCurrencyRate: z.coerce.number().finite().min(0),
+  NowPaymentsPaymentExpirationMins: z.coerce.number().int().min(5).max(1440),
   PaymentAnnouncement: z.string(),
 })
 
@@ -493,6 +531,18 @@ export function PaymentSettingsSection({
       MoneroConfirmations: values.MoneroConfirmations,
       MoneroMaxSubaddresses: values.MoneroMaxSubaddresses,
       MoneroUSDToCurrencyRate: values.MoneroUSDToCurrencyRate,
+      NowPaymentsEnabled: values.NowPaymentsEnabled,
+      NowPaymentsAPIKey: values.NowPaymentsAPIKey.trim(),
+      NowPaymentsIPNSecret: values.NowPaymentsIPNSecret.trim(),
+      NowPaymentsAPIBaseURL: removeTrailingSlash(
+        values.NowPaymentsAPIBaseURL.trim()
+      ),
+      NowPaymentsPayCurrencies: values.NowPaymentsPayCurrencies.split(',')
+        .map((currency) => currency.trim().toLowerCase())
+        .join(','),
+      NowPaymentsMinTopUp: values.NowPaymentsMinTopUp,
+      NowPaymentsUSDToCurrencyRate: values.NowPaymentsUSDToCurrencyRate,
+      NowPaymentsPaymentExpirationMins: values.NowPaymentsPaymentExpirationMins,
       PaymentAnnouncement: values.PaymentAnnouncement.trim(),
     }
 
@@ -508,8 +558,7 @@ export function PaymentSettingsSection({
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
-      RedemptionPurchaseEnabled:
-        initialRef.current.RedemptionPurchaseEnabled,
+      RedemptionPurchaseEnabled: initialRef.current.RedemptionPurchaseEnabled,
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
@@ -557,6 +606,21 @@ export function PaymentSettingsSection({
       MoneroConfirmations: initialRef.current.MoneroConfirmations,
       MoneroMaxSubaddresses: initialRef.current.MoneroMaxSubaddresses,
       MoneroUSDToCurrencyRate: initialRef.current.MoneroUSDToCurrencyRate,
+      NowPaymentsEnabled: initialRef.current.NowPaymentsEnabled,
+      NowPaymentsAPIKey: initialRef.current.NowPaymentsAPIKey.trim(),
+      NowPaymentsIPNSecret: initialRef.current.NowPaymentsIPNSecret.trim(),
+      NowPaymentsAPIBaseURL: removeTrailingSlash(
+        initialRef.current.NowPaymentsAPIBaseURL.trim()
+      ),
+      NowPaymentsPayCurrencies:
+        initialRef.current.NowPaymentsPayCurrencies.split(',')
+          .map((currency) => currency.trim().toLowerCase())
+          .join(','),
+      NowPaymentsMinTopUp: initialRef.current.NowPaymentsMinTopUp,
+      NowPaymentsUSDToCurrencyRate:
+        initialRef.current.NowPaymentsUSDToCurrencyRate,
+      NowPaymentsPaymentExpirationMins:
+        initialRef.current.NowPaymentsPaymentExpirationMins,
       PaymentAnnouncement: initialRef.current.PaymentAnnouncement.trim(),
     }
 
@@ -617,8 +681,7 @@ export function PaymentSettingsSection({
     }
 
     if (
-      sanitized.RedemptionPurchaseEnabled !==
-      initial.RedemptionPurchaseEnabled
+      sanitized.RedemptionPurchaseEnabled !== initial.RedemptionPurchaseEnabled
     ) {
       updates.push({
         key: 'payment_setting.redemption_purchase_enabled',
@@ -838,6 +901,69 @@ export function PaymentSettingsSection({
       })
     }
 
+    if (sanitized.NowPaymentsEnabled !== initial.NowPaymentsEnabled) {
+      updates.push({
+        key: 'NowPaymentsEnabled',
+        value: sanitized.NowPaymentsEnabled,
+      })
+    }
+    if (
+      sanitized.NowPaymentsAPIKey &&
+      sanitized.NowPaymentsAPIKey !== initial.NowPaymentsAPIKey
+    ) {
+      updates.push({
+        key: 'NowPaymentsAPIKey',
+        value: sanitized.NowPaymentsAPIKey,
+      })
+    }
+    if (
+      sanitized.NowPaymentsIPNSecret &&
+      sanitized.NowPaymentsIPNSecret !== initial.NowPaymentsIPNSecret
+    ) {
+      updates.push({
+        key: 'NowPaymentsIPNSecret',
+        value: sanitized.NowPaymentsIPNSecret,
+      })
+    }
+    if (sanitized.NowPaymentsAPIBaseURL !== initial.NowPaymentsAPIBaseURL) {
+      updates.push({
+        key: 'NowPaymentsAPIBaseURL',
+        value: sanitized.NowPaymentsAPIBaseURL,
+      })
+    }
+    if (
+      sanitized.NowPaymentsPayCurrencies !== initial.NowPaymentsPayCurrencies
+    ) {
+      updates.push({
+        key: 'NowPaymentsPayCurrencies',
+        value: sanitized.NowPaymentsPayCurrencies,
+      })
+    }
+    if (sanitized.NowPaymentsMinTopUp !== initial.NowPaymentsMinTopUp) {
+      updates.push({
+        key: 'NowPaymentsMinTopUp',
+        value: sanitized.NowPaymentsMinTopUp,
+      })
+    }
+    if (
+      sanitized.NowPaymentsUSDToCurrencyRate !==
+      initial.NowPaymentsUSDToCurrencyRate
+    ) {
+      updates.push({
+        key: 'NowPaymentsUSDToCurrencyRate',
+        value: sanitized.NowPaymentsUSDToCurrencyRate,
+      })
+    }
+    if (
+      sanitized.NowPaymentsPaymentExpirationMins !==
+      initial.NowPaymentsPaymentExpirationMins
+    ) {
+      updates.push({
+        key: 'NowPaymentsPaymentExpirationMins',
+        value: sanitized.NowPaymentsPaymentExpirationMins,
+      })
+    }
+
     if (sanitized.PaymentAnnouncement !== initial.PaymentAnnouncement) {
       updates.push({
         key: 'PaymentAnnouncement',
@@ -1018,7 +1144,7 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[50rem] grid-cols-7'>
+              <TabsList className='grid min-w-[58rem] grid-cols-8'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
@@ -1026,6 +1152,7 @@ export function PaymentSettingsSection({
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
                 <TabsTrigger value='monero'>Monero</TabsTrigger>
+                <TabsTrigger value='nowpayments'>NOWPayments</TabsTrigger>
               </TabsList>
             </div>
 
@@ -1046,7 +1173,9 @@ export function PaymentSettingsSection({
                   render={({ field }) => (
                     <SettingsSwitchItem>
                       <SettingsSwitchContent>
-                        <FormLabel>{t('Allow redemption code purchases')}</FormLabel>
+                        <FormLabel>
+                          {t('Allow redemption code purchases')}
+                        </FormLabel>
                         <FormDescription>
                           {t(
                             'Users can buy codes only through configured external payment methods; wallet balance is never used.'
@@ -2003,6 +2132,217 @@ export function PaymentSettingsSection({
                           {t(
                             'Optional override for Monero invoices: one USD equals this many system currency units. Set 0 to use the system rate.'
                           )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent
+              value='nowpayments'
+              className={paymentTabContentClassName}
+            >
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>
+                    {t('NOWPayments Gateway')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Accept BTC, USDT and other configured cryptocurrencies through NOWPayments. Payments are credited only after a verified gateway callback.'
+                    )}
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='NowPaymentsEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable NOWPayments')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Requires an API key, IPN secret, callback address, and at least one enabled currency.'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='NowPaymentsAPIBaseURL'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('NOWPayments API base URL')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='https://api.nowpayments.io'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Use the official NOWPayments API URL, or a compatible proxy that exposes the same endpoints.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsAPIKey'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('NOWPayments API key')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Leave blank unless updating')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Leave blank unless rotating the API key.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsIPNSecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('NOWPayments IPN secret')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Leave blank unless updating')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Secret used to verify NOWPayments callbacks.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='NowPaymentsPayCurrencies'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Enabled cryptocurrency codes')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='btc,usdtbsc,eth'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value.toLowerCase())
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Comma-separated NOWPayments currency codes. Users can choose any code in this list, such as btc or usdtbsc.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-3'>
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsMinTopUp'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum NOWPayments top-up')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={1}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Minimum amount in the current wallet display unit.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsUSDToCurrencyRate'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('NOWPayments USD to system currency rate')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step='any'
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Optional override: one USD equals this many system currency units. Set 0 to use the system rate.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='NowPaymentsPaymentExpirationMins'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Invoice expiration (minutes)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={5}
+                            max={1440}
+                            step={1}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('How long a generated invoice remains valid.')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

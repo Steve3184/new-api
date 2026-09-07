@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Crown, CalendarClock, Package } from 'lucide-react'
+import { CalendarClock, Crown, Package } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import type { NowPaymentsInvoice } from '@/features/wallet/types'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
@@ -45,6 +46,7 @@ import {
   paySubscriptionEpay,
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
+  paySubscriptionNowPayments,
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
@@ -61,12 +63,15 @@ interface Props {
   enableStripe?: boolean
   enableCreem?: boolean
   enableWaffoPancake?: boolean
+  enableNowPayments?: boolean
+  nowPaymentsCurrencies?: string[]
   enableOnlineTopUp?: boolean
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
   userQuota?: number
   onPurchaseSuccess?: () => void | Promise<void>
+  onNowPaymentsInvoice?: (invoice: NowPaymentsInvoice) => void
 }
 
 export function SubscriptionPurchaseDialog(props: Props) {
@@ -74,6 +79,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const [selectedNowPaymentsCurrency, setSelectedNowPaymentsCurrency] =
+    useState('')
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
@@ -83,6 +90,17 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }, [props.open, props.epayMethods])
 
+  useEffect(() => {
+    const currencies = props.nowPaymentsCurrencies || []
+    if (props.open && currencies.length > 0) {
+      if (!currencies.includes(selectedNowPaymentsCurrency)) {
+        setSelectedNowPaymentsCurrency(currencies[0])
+      }
+    } else if (!props.open) {
+      setSelectedNowPaymentsCurrency('')
+    }
+  }, [props.open, props.nowPaymentsCurrencies, selectedNowPaymentsCurrency])
+
   const plan = props.plan?.plan
   if (!plan) return null
 
@@ -90,9 +108,13 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
     props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+  const nowPaymentsCurrencies = props.nowPaymentsCurrencies || []
+  const hasNowPayments =
+    props.enableNowPayments && nowPaymentsCurrencies.length > 0
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
+  const hasAnyPayment =
+    hasStripe || hasCreem || hasWaffoPancake || hasEpay || hasNowPayments
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
@@ -260,6 +282,34 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
+  const handlePayNowPayments = async () => {
+    if (!selectedNowPaymentsCurrency) {
+      toast.error(t('Please select a cryptocurrency'))
+      return
+    }
+    setPaying(true)
+    try {
+      const res = await paySubscriptionNowPayments({
+        plan_id: plan.id,
+        pay_currency: selectedNowPaymentsCurrency,
+      })
+      if (res.success && res.data) {
+        props.onNowPaymentsInvoice?.(res.data)
+        props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
+      }
+    } catch {
+      toast.error(t('Payment request failed'))
+    } finally {
+      setPaying(false)
+    }
+  }
+
   return (
     <Dialog
       open={props.open}
@@ -373,7 +423,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <p className='text-muted-foreground text-xs'>
               {t('Select payment method')}
             </p>
-            {(hasStripe || hasCreem || hasWaffoPancake) && (
+            {(hasStripe || hasCreem || hasWaffoPancake || hasNowPayments) && (
               <div className='grid grid-cols-2 gap-2 sm:flex'>
                 {hasStripe && (
                   <Button
@@ -405,6 +455,43 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     Waffo Pancake
                   </Button>
                 )}
+                {hasNowPayments && (
+                  <Button
+                    variant='outline'
+                    className='flex-1'
+                    onClick={handlePayNowPayments}
+                    disabled={
+                      paying || limitReached || !selectedNowPaymentsCurrency
+                    }
+                  >
+                    {t('NOWPayments')}
+                  </Button>
+                )}
+              </div>
+            )}
+            {hasNowPayments && (
+              <div className='max-w-sm space-y-1.5'>
+                <label
+                  htmlFor='subscription-nowpayments-currency'
+                  className='text-muted-foreground text-xs'
+                >
+                  {t('Cryptocurrency')}
+                </label>
+                <select
+                  id='subscription-nowpayments-currency'
+                  value={selectedNowPaymentsCurrency}
+                  onChange={(event) =>
+                    setSelectedNowPaymentsCurrency(event.target.value)
+                  }
+                  disabled={paying || limitReached}
+                  className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                >
+                  {nowPaymentsCurrencies.map((currencyCode) => (
+                    <option key={currencyCode} value={currencyCode}>
+                      {currencyCode.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
             {hasEpay && (
