@@ -101,6 +101,33 @@ export function isNowPaymentsPayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.NOWPAYMENTS
 }
 
+/**
+ * Adds the configured NOWPayments gateway to the same payment-method grid as
+ * the regular Epay methods. The gateway may also be present in legacy
+ * `pay_methods`, so avoid rendering a duplicate button.
+ */
+export function getTopupPaymentMethods(
+  topupInfo: TopupInfo | null,
+  enableNowPayments: boolean,
+  nowPaymentsCurrencies: string[] = []
+): PaymentMethod[] {
+  const methods = (
+    Array.isArray(topupInfo?.pay_methods) ? topupInfo.pay_methods : []
+  ).filter(
+    (method) =>
+      method.type !== PAYMENT_TYPES.NOWPAYMENTS ||
+      (enableNowPayments && nowPaymentsCurrencies.length > 0)
+  )
+  if (
+    enableNowPayments &&
+    nowPaymentsCurrencies.length > 0 &&
+    !methods.some((method) => method.type === PAYMENT_TYPES.NOWPAYMENTS)
+  ) {
+    methods.push({ name: 'NOWPayments', type: PAYMENT_TYPES.NOWPAYMENTS })
+  }
+  return methods
+}
+
 export interface PaymentProcessors {
   regular: (topupAmount: number, paymentType: string) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>

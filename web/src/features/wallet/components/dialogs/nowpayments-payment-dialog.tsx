@@ -1,5 +1,6 @@
 import { Copy01Icon, CopyCheckIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -15,7 +16,12 @@ import {
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 import { useNowPaymentsPaymentStatus } from '../../hooks'
+import {
+  getCryptoCurrencyInfo,
+  getCryptoPaymentQrValue,
+} from '../../lib/crypto'
 import type { NowPaymentsInvoice } from '../../types'
+import { CryptoCurrencyIcon } from '../crypto-currency-icon'
 
 interface NowPaymentsPaymentDialogProps {
   open: boolean
@@ -60,6 +66,12 @@ export function NowPaymentsPaymentDialog(props: NowPaymentsPaymentDialogProps) {
   )
 
   if (!props.invoice) return null
+  const currencyInfo = getCryptoCurrencyInfo(props.invoice.pay_currency)
+  const qrValue = getCryptoPaymentQrValue(
+    props.invoice.pay_currency,
+    props.invoice.pay_address,
+    props.invoice.pay_amount
+  )
   const expiresAt = new Date(props.invoice.expires_at * 1000).toLocaleString()
   let statusText = t('Waiting for payment confirmation')
   if (paymentStatusError) {
@@ -87,9 +99,19 @@ export function NowPaymentsPaymentDialog(props: NowPaymentsPaymentDialogProps) {
       <div className='bg-muted/50 space-y-2 rounded-lg p-3 text-sm'>
         <div className='flex items-center justify-between gap-4'>
           <span className='text-muted-foreground'>{t('You need to pay:')}</span>
-          <span className='font-semibold'>
-            {props.invoice.pay_amount}{' '}
-            {props.invoice.pay_currency.toUpperCase()}
+          <span className='flex items-center gap-2 text-right font-semibold'>
+            <CryptoCurrencyIcon
+              currency={props.invoice.pay_currency}
+              className='h-4 w-4'
+            />
+            <span>
+              {props.invoice.pay_amount} {currencyInfo.symbol}
+            </span>
+            {currencyInfo.network && (
+              <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs font-medium'>
+                {currencyInfo.network}
+              </span>
+            )}
           </span>
         </div>
         <div className='flex items-center justify-between gap-4'>
@@ -99,10 +121,39 @@ export function NowPaymentsPaymentDialog(props: NowPaymentsPaymentDialogProps) {
             {props.invoice.price_currency.toUpperCase()}
           </span>
         </div>
+        {currencyInfo.network && (
+          <div className='flex items-center justify-between gap-4'>
+            <span className='text-muted-foreground'>{t('Network')}</span>
+            <span className='font-medium'>{currencyInfo.network}</span>
+          </div>
+        )}
       </div>
       <Alert>
         <AlertDescription>{statusText}</AlertDescription>
       </Alert>
+      {qrValue && (
+        <div className='space-y-2'>
+          <div className='flex items-center gap-2 text-sm font-medium'>
+            <CryptoCurrencyIcon
+              currency={props.invoice.pay_currency}
+              className='h-4 w-4'
+            />
+            <span>{t('Scan QR Code')}</span>
+            {currencyInfo.network && (
+              <span className='text-muted-foreground text-xs font-normal'>
+                {currencyInfo.network}
+              </span>
+            )}
+          </div>
+          <div
+            className='flex justify-center rounded-lg border bg-white p-4 dark:bg-white'
+            role='img'
+            aria-label={t('Scan QR Code')}
+          >
+            <QRCodeSVG value={qrValue} size={180} level='M' includeMargin />
+          </div>
+        </div>
+      )}
       <div className='space-y-2'>
         <div className='text-sm font-medium'>{t('Payment address')}</div>
         <InputGroup>

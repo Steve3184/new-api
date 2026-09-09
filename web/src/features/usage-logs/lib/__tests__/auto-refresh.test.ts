@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'vitest'
 
 import {
+  getUsageLogsAutoRefreshOptions,
   getUsageLogsAutoRefreshInterval,
   USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS,
 } from '../auto-refresh'
@@ -34,5 +35,16 @@ describe('usage logs auto refresh interval', () => {
     expect(getUsageLogsAutoRefreshInterval(false, 'common', 0)).toBe(false)
     expect(getUsageLogsAutoRefreshInterval(true, 'common', 1)).toBe(false)
     expect(getUsageLogsAutoRefreshInterval(true, 'drawing', 0)).toBe(false)
+  })
+
+  test('applies the interval to visible queries while staying paused in background tabs', () => {
+    expect(getUsageLogsAutoRefreshOptions(true, 'common', 0)).toEqual({
+      refetchInterval: USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS,
+      refetchIntervalInBackground: false,
+    })
+    expect(getUsageLogsAutoRefreshOptions(true, 'common', 1)).toEqual({
+      refetchInterval: false,
+      refetchIntervalInBackground: false,
+    })
   })
 })

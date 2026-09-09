@@ -30,3 +30,21 @@ export function getUsageLogsAutoRefreshInterval(
   }
   return USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS
 }
+
+export function getUsageLogsAutoRefreshOptions(
+  enabled: boolean,
+  category: LogCategory,
+  pageIndex: number
+): {
+  refetchInterval: number | false
+  refetchIntervalInBackground: false
+} {
+  return {
+    refetchInterval: getUsageLogsAutoRefreshInterval(
+      enabled,
+      category,
+      pageIndex
+    ),
+    refetchIntervalInBackground: false,
+  }
+}

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -36,6 +37,7 @@ import {
   LOG_TYPE_ALL_VALUE,
   LOG_TYPE_ENUM,
 } from '../constants'
+import { getUsageLogsAutoRefreshOptions } from '../lib/auto-refresh'
 import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
 import { fetchLogsByCategory } from '../lib/utils'
@@ -43,7 +45,11 @@ import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
-import { useLogsViewScope, type LogsViewAccess } from './usage-logs-provider'
+import {
+  useLogsViewScope,
+  useUsageLogsContext,
+  type LogsViewAccess,
+} from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -84,6 +90,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     isRootView: isRoot,
     viewAccess,
   } = useLogsViewScope()
+  const { autoRefreshEnabled, setAutoRefreshEnabled } = useUsageLogsContext()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
 
@@ -124,6 +131,26 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         : []),
     ],
   })
+  const autoRefreshOptions = getUsageLogsAutoRefreshOptions(
+    autoRefreshEnabled,
+    logCategory,
+    pagination.pageIndex
+  )
+
+  useEffect(() => {
+    if (
+      autoRefreshEnabled &&
+      logCategory === 'common' &&
+      pagination.pageIndex > 0
+    ) {
+      setAutoRefreshEnabled(false)
+    }
+  }, [
+    autoRefreshEnabled,
+    logCategory,
+    pagination.pageIndex,
+    setAutoRefreshEnabled,
+  ])
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
@@ -162,6 +189,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       }
       return undefined
     },
+    ...autoRefreshOptions,
   })
 
   const logs = data?.items || []

@@ -13,15 +13,23 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
 */
-// ============================================================================
-// Wallet Library Exports
-// ============================================================================
+import { getCryptoCurrencyInfo } from '../lib/crypto'
 
-export * from './affiliate'
-export * from './crypto'
-export * from './format'
-export * from './payment'
-export * from './ui'
+export function CryptoCurrencyIcon({
+  currency,
+  className = 'h-5 w-5',
+}: {
+  currency: string
+  className?: string
+}) {
+  const info = getCryptoCurrencyInfo(currency)
+  const Icon = info.Icon
+  return (
+    <Icon
+      className={className}
+      style={{ color: info.color }}
+      aria-hidden='true'
+    />
+  )
+}

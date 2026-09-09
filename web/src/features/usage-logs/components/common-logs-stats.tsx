@@ -26,7 +26,7 @@ import { cn } from '@/lib/utils'
 
 import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
-import { getUsageLogsAutoRefreshInterval } from '../lib/auto-refresh'
+import { getUsageLogsAutoRefreshOptions } from '../lib/auto-refresh'
 import { buildApiParams } from '../lib/utils'
 import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
 
@@ -54,7 +54,7 @@ export function CommonLogsStats() {
   const searchParams = route.useSearch()
   const { sensitiveVisible, autoRefreshEnabled } = useUsageLogsContext()
   const page = Number(searchParams.page ?? 1)
-  const autoRefreshInterval = getUsageLogsAutoRefreshInterval(
+  const autoRefreshOptions = getUsageLogsAutoRefreshOptions(
     autoRefreshEnabled,
     'common',
     page - 1
@@ -80,8 +80,7 @@ export function CommonLogsStats() {
         : DEFAULT_LOG_STATS
     },
     placeholderData: (previousData) => previousData,
-    refetchInterval: autoRefreshInterval,
-    refetchIntervalInBackground: false,
+    ...autoRefreshOptions,
   })
 
   if (isLoading) {
