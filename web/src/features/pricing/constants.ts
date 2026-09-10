@@ -148,3 +148,6 @@ export type ViewMode = (typeof VIEW_MODES)[keyof typeof VIEW_MODES]
 /** Card size is divisible by both the two- and three-column breakpoints. */
 export const DEFAULT_PRICING_CARD_PAGE_SIZE = 18
 export const DEFAULT_PRICING_TABLE_PAGE_SIZE = 20
+
+/** Standalone grid fallback when no appearance setting is supplied. */
+export const DEFAULT_PRICING_PAGE_SIZE = 20

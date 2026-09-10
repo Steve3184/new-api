@@ -338,3 +338,14 @@ func verifyTelegramAuthorization(params url.Values, token string, now time.Time)
 
 	return telegramID, nil
 }
+
+// TelegramLegacyAuth is retained for clients that explicitly probe the
+// upstream-retired endpoints. This fork's signed Widget handlers remain wired
+// to their existing routes.
+func TelegramLegacyAuth(c *gin.Context) {
+	c.JSON(http.StatusGone, gin.H{
+		"success": false,
+		"code":    "TELEGRAM_LEGACY_AUTH_REMOVED",
+		"message": "Telegram login has changed. Reload the page and start Telegram OAuth again.",
+	})
+}

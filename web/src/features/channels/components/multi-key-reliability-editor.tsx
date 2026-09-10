@@ -61,7 +61,9 @@ export function MultiKeyReliabilityEditor({
       <div>
         <FormLabel>{t('Multi-key reliability')}</FormLabel>
         <FormDescription>
-          {t('Disable a key when its response matches a rule, then optionally retry with another key.')}
+          {t(
+            'Disable a key when its response matches a rule, then optionally retry with another key.'
+          )}
         </FormDescription>
       </div>
 
@@ -104,7 +106,9 @@ export function MultiKeyReliabilityEditor({
               size='sm'
               aria-label={t('Delete')}
               disabled={disabled}
-              onClick={() => emitRules(parsedRules.filter((_, i) => i !== index))}
+              onClick={() =>
+                emitRules(parsedRules.filter((_, i) => i !== index))
+              }
             >
               <Trash2 className='h-4 w-4' />
             </Button>
@@ -115,7 +119,9 @@ export function MultiKeyReliabilityEditor({
           variant='outline'
           size='sm'
           disabled={disabled}
-          onClick={() => emitRules([...parsedRules, { status_code: 429, message: '' }])}
+          onClick={() =>
+            emitRules([...parsedRules, { status_code: 429, message: '' }])
+          }
         >
           <Plus className='mr-2 h-4 w-4' />
           {t('Add rule')}
@@ -126,20 +132,32 @@ export function MultiKeyReliabilityEditor({
         <div>
           <FormLabel>{t('Automatic key retry')}</FormLabel>
           <FormDescription>
-            {t('When a disable rule matches, disable the current key and retry with another enabled key.')}
+            {t(
+              'When a disable rule matches, disable the current key and retry with another enabled key.'
+            )}
           </FormDescription>
         </div>
-        <Switch checked={autoRetry} onCheckedChange={onAutoRetryChange} disabled={disabled} />
+        <Switch
+          checked={autoRetry}
+          onCheckedChange={onAutoRetryChange}
+          disabled={disabled}
+        />
       </div>
 
       <div className='flex items-center justify-between gap-3 border-t pt-3'>
         <div>
           <FormLabel>{t('Automatic key recovery')}</FormLabel>
           <FormDescription>
-            {t('Periodically test auto-disabled keys and enable them again after a successful response.')}
+            {t(
+              'Periodically test auto-disabled keys and enable them again after a successful response.'
+            )}
           </FormDescription>
         </div>
-        <Switch checked={autoRecovery} onCheckedChange={onAutoRecoveryChange} disabled={disabled} />
+        <Switch
+          checked={autoRecovery}
+          onCheckedChange={onAutoRecoveryChange}
+          disabled={disabled}
+        />
       </div>
 
       <div className='max-w-xs'>
@@ -151,9 +169,15 @@ export function MultiKeyReliabilityEditor({
           step={1}
           value={recoveryIntervalMinutes}
           disabled={disabled || !autoRecovery}
-          onChange={(event) => onRecoveryIntervalChange(Math.max(1, Math.min(1440, Number(event.target.value) || 1)))}
+          onChange={(event) =>
+            onRecoveryIntervalChange(
+              Math.max(1, Math.min(1440, Number(event.target.value) || 1))
+            )
+          }
         />
-        <FormDescription>{t('Auto-disabled keys are tested at this interval.')}</FormDescription>
+        <FormDescription>
+          {t('Auto-disabled keys are tested at this interval.')}
+        </FormDescription>
       </div>
     </div>
   )

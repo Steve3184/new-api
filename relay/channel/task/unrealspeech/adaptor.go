@@ -139,11 +139,11 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, response *http.Response, info *
 	return envelope.SynthesisTask.TaskID, body, nil
 }
 
-func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
-	taskID, ok := body["task_id"].(string)
-	if !ok || strings.TrimSpace(taskID) == "" {
+func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error) {
+	if task == nil || strings.TrimSpace(task.GetUpstreamTaskID()) == "" {
 		return nil, errors.New("invalid task_id")
 	}
+	taskID := task.GetUpstreamTaskID()
 	request, err := http.NewRequest(http.MethodGet, strings.TrimRight(baseURL, "/")+"/synthesisTasks/"+url.PathEscape(taskID), nil)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 	return client.Do(request)
 }
 
-func (a *TaskAdaptor) ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error) {
+func (a *TaskAdaptor) ParseTaskResult(_ *model.Task, _ *http.Response, body []byte) (*relaycommon.TaskInfo, error) {
 	var envelope provider.SynthesisTaskEnvelope
 	if err := common.Unmarshal(body, &envelope); err != nil {
 		return nil, err

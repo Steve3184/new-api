@@ -131,7 +131,7 @@ export function RedemptionsTable() {
         toast.error(
           result.message ||
             t(
-                hasFilter || hasStatusFilter || hasCreatorFilter
+              hasFilter || hasStatusFilter || hasCreatorFilter
                 ? ERROR_MESSAGES.SEARCH_FAILED
                 : ERROR_MESSAGES.LOAD_FAILED
             )

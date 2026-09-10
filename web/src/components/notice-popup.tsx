@@ -54,7 +54,13 @@ export function NoticePopup(props: NoticePopupProps) {
   const notice = data?.success ? (data.data || '').trim() : ''
 
   useEffect(() => {
-    if (!enabled || !notice || lastReadNotice === notice || hasOpenedRef.current) return
+    if (
+      !enabled ||
+      !notice ||
+      lastReadNotice === notice ||
+      hasOpenedRef.current
+    )
+      return
 
     hasOpenedRef.current = true
     markNoticeRead(notice)

@@ -26,9 +26,11 @@ import type {
   SupportUnreadCount,
 } from './types'
 
-export async function getSupportConversation(): Promise<
-  { success: boolean; message?: string; data?: SupportConversationPayload }
-> {
+export async function getSupportConversation(): Promise<{
+  success: boolean
+  message?: string
+  data?: SupportConversationPayload
+}> {
   const res = await api.get('/api/support/conversation')
   return res.data
 }
@@ -51,15 +53,13 @@ export async function getSupportOrders(): Promise<{
   return res.data
 }
 
-export async function sendSupportMessage(
-  payload: {
-    content?: string
-    kind?: string
-    order_type?: string
-    order_id?: number
-    image?: File | null
-  }
-): Promise<{ success: boolean; message?: string; data?: SupportMessage }> {
+export async function sendSupportMessage(payload: {
+  content?: string
+  kind?: string
+  order_type?: string
+  order_id?: number
+  image?: File | null
+}): Promise<{ success: boolean; message?: string; data?: SupportMessage }> {
   const body = new FormData()
   body.append('kind', payload.kind || 'text')
   body.append('content', payload.content || '')
@@ -81,9 +81,11 @@ export async function getAdminSupportConversations(keyword = ''): Promise<{
   return res.data
 }
 
-export async function getAdminSupportConversation(
-  id: number
-): Promise<{ success: boolean; message?: string; data?: SupportConversationPayload }> {
+export async function getAdminSupportConversation(id: number): Promise<{
+  success: boolean
+  message?: string
+  data?: SupportConversationPayload
+}> {
   const res = await api.get(`/api/support/admin/conversations/${id}`)
   return res.data
 }
@@ -112,10 +114,13 @@ export async function grantSupportQuota(
   quota: number,
   note: string
 ): Promise<{ success: boolean; message?: string; data?: SupportMessage }> {
-  const res = await api.post(`/api/support/admin/conversations/${id}/grant-quota`, {
-    quota,
-    note,
-  })
+  const res = await api.post(
+    `/api/support/admin/conversations/${id}/grant-quota`,
+    {
+      quota,
+      note,
+    }
+  )
   return res.data
 }
 
@@ -134,6 +139,8 @@ export async function grantSupportSubscription(
 export async function completeSupportOrder(
   messageId: number
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.post(`/api/support/admin/messages/${messageId}/complete-order`)
+  const res = await api.post(
+    `/api/support/admin/messages/${messageId}/complete-order`
+  )
   return res.data
 }

@@ -107,10 +107,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  SecureVerificationDialog,
-  useSecureVerification,
-} from '@/features/auth/secure-verification'
+import { SecureVerificationDialog } from '@/features/auth/secure-verification'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import {
@@ -131,7 +128,6 @@ import {
   fetchModels,
   getAllModels,
   getChannel,
-  getChannelKey,
   getGroups,
   getPrefillGroups,
   getTaskPluginOptions,
@@ -152,6 +148,7 @@ import {
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../../constants'
+import { useChannelKeyDisclosure } from '../../hooks/use-channel-key-disclosure'
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
@@ -178,7 +175,6 @@ import {
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
 import type { Channel } from '../../types'
-import { MultiKeyReliabilityEditor } from '../multi-key-reliability-editor'
 import { useChannels } from '../channels-provider'
 import { AdvancedCustomEditorDialog } from '../dialogs/advanced-custom-editor-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
@@ -189,6 +185,7 @@ import {
 import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dialog'
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
+import { MultiKeyReliabilityEditor } from '../multi-key-reliability-editor'
 import {
   ChannelAdvancedSection,
   ChannelApiAccessSection,
@@ -651,8 +648,6 @@ export function ChannelMutateDrawer({
   )
   const canRevealChannelKey = currentUser?.role === ROLE.SUPER_ADMIN
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
-  const [channelKey, setChannelKey] = useState<string | null>(null)
-  const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
   const initialModelsRef = useRef<string[]>([])
@@ -716,25 +711,8 @@ export function ChannelMutateDrawer({
 
   const { copyToClipboard } = useCopyToClipboard()
 
-  const {
-    open: verificationOpen,
-    methods: verificationMethods,
-    state: verificationState,
-    executeVerification,
-    withVerification,
-    cancel: cancelVerification,
-    setCode: setVerificationCode,
-    switchMethod: switchVerificationMethod,
-  } = useSecureVerification()
-
-  useEffect(() => {
-    if (!open) {
-      setChannelKey(null)
-      setIsChannelKeyLoading(false)
-    } else if (channelId) {
-      setChannelKey(null)
-    }
-  }, [open, channelId])
+  const { channelKey, isChannelKeyLoading, handleRevealKey, verification } =
+    useChannelKeyDisclosure(open, channelId)
 
   // Check if this is a multi-key channel
   const isMultiKeyChannel =
@@ -1416,49 +1394,6 @@ export function ChannelMutateDrawer({
       )
     }
   }
-
-  const fetchChannelKey = useCallback(
-    async (proofToken?: string) => {
-      if (!channelId) {
-        throw new Error('Channel is not selected')
-      }
-
-      setIsChannelKeyLoading(true)
-      try {
-        const res = await getChannelKey(channelId, proofToken)
-        if (!res.success) {
-          throw new Error(res.message || t('Failed to fetch channel key'))
-        }
-
-        const keyValue = res.data?.key ?? ''
-        setChannelKey(keyValue)
-        toast.success(t('Channel key unlocked'))
-        return res
-      } finally {
-        setIsChannelKeyLoading(false)
-      }
-    },
-    [channelId, t]
-  )
-
-  const handleRevealKey = useCallback(async () => {
-    if (!channelId) return
-
-    try {
-      await withVerification(fetchChannelKey, {
-        scope: 'channel.key.read',
-        preferredMethod: 'passkey',
-        title: t('Verify to view channel key'),
-        description: t(
-          'Use Passkey or 2FA to confirm your identity before revealing this channel key.'
-        ),
-      })
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message)
-      }
-    }
-  }, [channelId, withVerification, fetchChannelKey, t])
 
   const handleRefreshCodexCredential = useCallback(async () => {
     if (!channelId) return
@@ -3177,11 +3112,11 @@ export function ChannelMutateDrawer({
                                                 onClick={handleRevealKey}
                                                 disabled={
                                                   isChannelKeyLoading ||
-                                                  verificationState.loading
+                                                  verification.isActive
                                                 }
                                               >
                                                 {isChannelKeyLoading ||
-                                                verificationState.loading ? (
+                                                verification.isActive ? (
                                                   <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                                                 ) : (
                                                   <Eye className='mr-2 h-4 w-4' />
@@ -3399,27 +3334,40 @@ export function ChannelMutateDrawer({
                                     form.setValue(
                                       'multi_key_disable_rules',
                                       value,
-                                      { shouldDirty: true, shouldValidate: true }
+                                      {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      }
                                     )
                                   }
                                   onAutoRetryChange={(value) =>
-                                    form.setValue('multi_key_auto_retry', value, {
-                                      shouldDirty: true,
-                                      shouldValidate: true,
-                                    })
+                                    form.setValue(
+                                      'multi_key_auto_retry',
+                                      value,
+                                      {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      }
+                                    )
                                   }
                                   onAutoRecoveryChange={(value) =>
                                     form.setValue(
                                       'multi_key_auto_recovery',
                                       value,
-                                      { shouldDirty: true, shouldValidate: true }
+                                      {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      }
                                     )
                                   }
                                   onRecoveryIntervalChange={(value) =>
                                     form.setValue(
                                       'multi_key_recovery_interval_minutes',
                                       value,
-                                      { shouldDirty: true, shouldValidate: true }
+                                      {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      }
                                     )
                                   }
                                 />
@@ -4465,10 +4413,14 @@ export function ChannelMutateDrawer({
                                     <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
                                       <div className='space-y-0.5'>
                                         <FormLabel>
-                                          {t('Automatically convert base64 images to URLs')}
+                                          {t(
+                                            'Automatically convert base64 images to URLs'
+                                          )}
                                         </FormLabel>
                                         <FormDescription>
-                                          {t('Upload incoming base64 images through the configured Meshy2API image proxy for Agnes')}
+                                          {t(
+                                            'Upload incoming base64 images through the configured Meshy2API image proxy for Agnes'
+                                          )}
                                         </FormDescription>
                                       </div>
                                       <FormControl>
@@ -4489,9 +4441,13 @@ export function ChannelMutateDrawer({
                                   render={({ field }) => (
                                     <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
                                       <div className='space-y-0.5'>
-                                        <FormLabel>{t('Proxy generated image URLs')}</FormLabel>
+                                        <FormLabel>
+                                          {t('Proxy generated image URLs')}
+                                        </FormLabel>
                                         <FormDescription>
-                                          {t('Replace upstream image URLs in generation responses with short-lived site URLs.')}
+                                          {t(
+                                            'Replace upstream image URLs in generation responses with short-lived site URLs.'
+                                          )}
                                         </FormDescription>
                                       </div>
                                       <FormControl>
@@ -5225,22 +5181,7 @@ export function ChannelMutateDrawer({
         existingModelsOverride={currentModelsArray}
       />
 
-      <SecureVerificationDialog
-        open={verificationOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            cancelVerification()
-          }
-        }}
-        methods={verificationMethods}
-        state={verificationState}
-        onVerify={async (method, code) => {
-          await executeVerification(method, code)
-        }}
-        onCancel={cancelVerification}
-        onCodeChange={setVerificationCode}
-        onMethodChange={switchVerificationMethod}
-      />
+      <SecureVerificationDialog {...verification.dialogProps} />
 
       {/* Missing Models Confirmation Dialog */}
       <MissingModelsConfirmationDialog

@@ -125,14 +125,20 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 		pluginDispatcher,
 		middleware.RouteTag("web"),
 		gzip.Gzip(gzip.DefaultCompression),
+		middleware.AccessTokenAudit(),
 		middleware.GlobalWebRateLimit(),
-		middleware.Cache(),
-		static.Serve("/", frontendFS),
 		func(c *gin.Context) {
 			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+				c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
 				controller.RelayNotFound(c)
 				return
 			}
+			if frontendFS.Exists("/", c.Request.URL.Path) {
+				middleware.Cache()(c)
+				static.Serve("/", frontendFS)(c)
+				return
+			}
+			middleware.Cache()(c)
 			c.Header("Cache-Control", "no-cache")
 			common.OptionMapRWMutex.RLock()
 			logo := common.Logo

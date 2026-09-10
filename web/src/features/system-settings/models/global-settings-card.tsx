@@ -50,7 +50,7 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const thinkingBlacklistExample = JSON.stringify(
-  ['moonshotai/kimi-k2-thinking', 'kimi-k2-thinking'],
+  ['moonshotai/kimi-k2-thinking', 'kimi-k2-thinking', 're:.*@sha256:.*'],
   null,
   2
 )
@@ -289,7 +289,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'Models listed here will not automatically append or remove -thinking / -nothinking suffixes.'
+                    'Models listed here skip automatic -thinking / -nothinking suffix handling. Matched names are also exempt from @-modifier parsing and 400 validation. Prefix an entry with re: to match the full model name as a Go regular expression, for example re:.*@sha256:.*'
                   )}
                 </FormDescription>
                 <FormMessage />
@@ -366,8 +366,10 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                   </FormControl>
                   <FormDescription>
                     {t('Empty value will be saved as {}.')}
-                    <span className='block mt-1'>
-                      {t('Use model_patterns to match specific models by regex, e.g. ["^gpt-4o.*$"]. Leave empty to match all models.')}
+                    <span className='mt-1 block'>
+                      {t(
+                        'Use model_patterns to match specific models by regex, e.g. ["^gpt-4o.*$"]. Leave empty to match all models.'
+                      )}
                     </span>
                   </FormDescription>
                   <div className='flex flex-wrap gap-2'>
@@ -447,8 +449,10 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                   </FormControl>
                   <FormDescription>
                     {t('Empty value will be saved as {}.')}
-                    <span className='block mt-1'>
-                      {t('Use model_patterns to match specific models by regex, e.g. ["^deepseek-.*$", "^glm-.*$"]. Leave empty to match all models.')}
+                    <span className='mt-1 block'>
+                      {t(
+                        'Use model_patterns to match specific models by regex, e.g. ["^deepseek-.*$", "^glm-.*$"]. Leave empty to match all models.'
+                      )}
                     </span>
                   </FormDescription>
                   <div className='flex flex-wrap gap-2'>

@@ -81,7 +81,9 @@ export function StatusCheck() {
             <div className='text-muted-foreground flex items-center gap-2 text-sm'>
               <HeartPulse className='size-4' />
               <span>
-                {t('Relay metrics and flexible probe results from the last 24 hours')}
+                {t(
+                  'Relay metrics and flexible probe results from the last 24 hours'
+                )}
               </span>
             </div>
             <StatusGroupsContent

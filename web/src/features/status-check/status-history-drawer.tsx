@@ -59,7 +59,9 @@ export function StatusHistoryDrawer(props: StatusHistoryDrawerProps) {
           <SideDrawerSection>
             <SideDrawerSectionHeader
               title={t('Average latency')}
-              description={t('Includes passive requests and flexible active probes.')}
+              description={t(
+                'Includes passive requests and flexible active probes.'
+              )}
               icon={<TimerReset aria-hidden='true' />}
               iconTone='chart-1'
             />

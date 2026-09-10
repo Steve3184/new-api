@@ -157,11 +157,11 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	return upstreamTaskID, responseBody, nil
 }
 
-func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
-	taskID, ok := body["task_id"].(string)
-	if !ok || taskID == "" {
+func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error) {
+	if task == nil || task.GetUpstreamTaskID() == "" {
 		return nil, errors.New("invalid task_id")
 	}
+	taskID := task.GetUpstreamTaskID()
 
 	request, err := http.NewRequest(http.MethodGet, strings.TrimRight(baseURL, "/")+"/v1/3d/"+taskID, nil)
 	if err != nil {
@@ -176,7 +176,7 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 	return client.Do(request)
 }
 
-func (a *TaskAdaptor) ParseTaskResult(responseBody []byte) (*relaycommon.TaskInfo, error) {
+func (a *TaskAdaptor) ParseTaskResult(_ *model.Task, _ *http.Response, responseBody []byte) (*relaycommon.TaskInfo, error) {
 	var response dto.ThreeDResponse
 	if err := common.Unmarshal(responseBody, &response); err != nil {
 		return nil, errors.Wrap(err, "unmarshal 3D task result failed")

@@ -45,7 +45,6 @@ export function SignUp() {
         </div>
 
         <SignUpForm />
-
       </div>
     </AuthLayout>
   )

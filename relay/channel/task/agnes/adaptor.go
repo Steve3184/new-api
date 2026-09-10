@@ -312,18 +312,21 @@ func (a *TaskAdaptor) DoResponse(_ *gin.Context, resp *http.Response, _ *relayco
 	return taskID, body, nil
 }
 
-func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
-	id, ok := body["video_id"].(string)
-	if !ok || id == "" {
-		id = extractAgnesVideoID(body["task_data"])
+func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error) {
+	if task == nil {
+		return nil, fmt.Errorf("invalid Agnes task")
 	}
+	id := extractAgnesVideoID(task.Data)
 	if id == "" {
-		id, _ = body["task_id"].(string)
+		id = task.GetUpstreamTaskID()
 	}
 	if id == "" {
 		return nil, fmt.Errorf("invalid Agnes task id")
 	}
-	modelName, _ := body["model"].(string)
+	modelName := task.Properties.UpstreamModelName
+	if modelName == "" {
+		modelName = task.Properties.OriginModelName
+	}
 	endpoint := agnesV1URL(baseURL, "/agnesapi") + "?video_id=" + url.QueryEscape(id)
 	if strings.Contains(modelName, "2.5") {
 		endpoint += "&model_name=" + url.QueryEscape(modelName)
@@ -382,7 +385,7 @@ type statusResponse struct {
 	Data        map[string]interface{} `json:"data"`
 }
 
-func (a *TaskAdaptor) ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error) {
+func (a *TaskAdaptor) ParseTaskResult(_ *model.Task, _ *http.Response, body []byte) (*relaycommon.TaskInfo, error) {
 	var result statusResponse
 	if err := common.Unmarshal(body, &result); err != nil {
 		return nil, err

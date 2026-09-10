@@ -41,7 +41,10 @@ func TestBuildURLs(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "https://example.test/v1/videos", url)
 	}
-	resp, err := a.FetchTask("https://example.test", "key", map[string]any{"video_id": "abc", "model": "agnes-video-2.5-flash"}, "")
+	resp, err := a.FetchTask("https://example.test", "key", &model.Task{
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: "abc"},
+		Properties:  model.Properties{UpstreamModelName: "agnes-video-2.5-flash"},
+	}, "")
 	if resp != nil {
 		_ = resp.Body.Close()
 	}
@@ -63,11 +66,11 @@ func TestBuildURLUsesAgnesDefaultAndNormalizesVersion(t *testing.T) {
 
 func TestParseTaskResultProgressAndURL(t *testing.T) {
 	a := &TaskAdaptor{}
-	result, err := a.ParseTaskResult([]byte(`{"video_id":"v1","status":"processing","progress":100}`))
+	result, err := a.ParseTaskResult(nil, nil, []byte(`{"video_id":"v1","status":"processing","progress":100}`))
 	require.NoError(t, err)
 	require.Equal(t, model.TaskStatusInProgress, result.Status)
 	require.Equal(t, "99%", result.Progress)
-	result, err = a.ParseTaskResult([]byte(`{"video_id":"v1","status":"completed","metadata":{"url":"https://cdn.test/v.mp4"}}`))
+	result, err = a.ParseTaskResult(nil, nil, []byte(`{"video_id":"v1","status":"completed","metadata":{"url":"https://cdn.test/v.mp4"}}`))
 	require.NoError(t, err)
 	require.Equal(t, model.TaskStatusSuccess, result.Status)
 	require.Equal(t, "https://cdn.test/v.mp4", result.Url)
@@ -83,7 +86,10 @@ func TestFetchTaskUsesAgnesAPIPath(t *testing.T) {
 	}))
 	defer server.Close()
 	a := &TaskAdaptor{}
-	resp, err := a.FetchTask(server.URL, "key", map[string]any{"video_id": "abc", "model": "agnes-video-2.5"}, "")
+	resp, err := a.FetchTask(server.URL, "key", &model.Task{
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: "abc"},
+		Properties:  model.Properties{UpstreamModelName: "agnes-video-2.5"},
+	}, "")
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, "/v1/agnesapi?video_id=abc&model_name=agnes-video-2.5", gotPath)
@@ -100,9 +106,9 @@ func TestFetchTaskRecoversVideoIDFromPersistedSubmitResponse(t *testing.T) {
 	defer server.Close()
 
 	a := &TaskAdaptor{}
-	resp, err := a.FetchTask(server.URL, "key", map[string]any{
-		"task_id":   "task_internal_only",
-		"task_data": json.RawMessage(`{"id":"task_internal_only","video_id":"video_recovered","status":"queued"}`),
+	resp, err := a.FetchTask(server.URL, "key", &model.Task{
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: "task_internal_only"},
+		Data:        json.RawMessage(`{"id":"task_internal_only","video_id":"video_recovered","status":"queued"}`),
 	}, "")
 	require.NoError(t, err)
 	_ = resp.Body.Close()

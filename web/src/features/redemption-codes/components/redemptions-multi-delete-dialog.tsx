@@ -22,6 +22,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 
 import { batchDeleteRedemptions } from '../api'
 import type { Redemption } from '../types'
@@ -52,19 +54,23 @@ export function RedemptionsMultiDeleteDialog<TData>(
     try {
       const result = await batchDeleteRedemptions(ids)
       if (!result.success) {
-        toast.error(result.message || t('Batch delete failed'))
-        return
+        throw createServerError(result)
       }
 
       const count = result.data ?? ids.length
       toast.success(
-        t('Successfully deleted {{count}} redemption code(s)', { count })
+        t('Successfully deleted {{count}} redemption codes', { count })
       )
       props.table.resetRowSelection()
       triggerRefresh()
       props.onOpenChange(false)
-    } catch {
-      toast.error(t('Unexpected error'))
+    } catch (error) {
+      handleServerError(
+        error,
+        t('Failed to delete {{count}} redemption codes', {
+          count: ids.length,
+        })
+      )
     } finally {
       setIsDeleting(false)
     }
@@ -78,7 +84,7 @@ export function RedemptionsMultiDeleteDialog<TData>(
       handleConfirm={handleConfirm}
       isLoading={isDeleting}
       className='max-w-md'
-      title={t('Delete {{count}} redemption code(s)?', {
+      title={t('Delete {{count}} redemption codes?', {
         count: selectedRows.length,
       })}
       desc={
@@ -90,7 +96,7 @@ export function RedemptionsMultiDeleteDialog<TData>(
           {t('This action cannot be undone.')}
         </>
       }
-      confirmText={t('Delete')}
+      confirmText={isDeleting ? t('Deleting...') : t('Delete')}
     />
   )
 }

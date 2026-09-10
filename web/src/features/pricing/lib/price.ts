@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { t } from 'i18next'
 
-import { formatCurrencyFromUSD } from '@/lib/currency'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
@@ -152,7 +152,8 @@ export function formatPrice(
   showWithRecharge = false,
   priceRate = 1,
   usdExchangeRate = 1,
-  selectedGroup?: string
+  selectedGroup?: string,
+  showCurrencySymbol = true
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
@@ -166,12 +167,12 @@ export function formatPrice(
   // label consistent across both columns/cards when one side is effectively
   // free.
   if (
+    showCurrencySymbol &&
     (type === 'input' || type === 'output') &&
     isTokenPriceFree(model, displayGroupRatio)
   ) {
     return t('Free')
   }
-  if (priceInUSD === 0) return t('Free')
   priceInUSD = applyRechargeRate(
     priceInUSD,
     showWithRecharge,
@@ -180,7 +181,8 @@ export function formatPrice(
   )
 
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatCurrencyFromUSD(price, {
+  return formatBillingCurrencyFromUSD(price, {
+    showSymbol: showCurrencySymbol,
     digitsLarge: 4,
     digitsSmall: 6,
     abbreviate: false,
@@ -212,8 +214,6 @@ export function formatGroupPrice(
   ) {
     return t('Free')
   }
-  if (priceInUSD === 0) return t('Free')
-
   priceInUSD = applyRechargeRate(
     priceInUSD,
     showWithRecharge,
@@ -222,7 +222,7 @@ export function formatGroupPrice(
   )
 
   const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
-  return formatCurrencyFromUSD(price, {
+  return formatBillingCurrencyFromUSD(price, {
     digitsLarge: 4,
     digitsSmall: 6,
     abbreviate: false,
@@ -266,7 +266,7 @@ export function formatFixedPrice(
     usdExchangeRate
   )
 
-  return formatCurrencyFromUSD(priceInUSD, {
+  return formatBillingCurrencyFromUSD(priceInUSD, {
     digitsLarge: 4,
     digitsSmall: 6,
     abbreviate: false,
@@ -281,7 +281,8 @@ export function formatRequestPrice(
   showWithRecharge = false,
   priceRate = 1,
   usdExchangeRate = 1,
-  selectedGroup?: string
+  selectedGroup?: string,
+  showCurrencySymbol = true
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
@@ -290,7 +291,9 @@ export function formatRequestPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   let priceInUSD = (model.model_price || 0) * displayGroupRatio
-  if (priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) return t('Free')
+  if (showCurrencySymbol && priceInUSD < FREE_REQUEST_PRICE_THRESHOLD_USD) {
+    return t('Free')
+  }
 
   priceInUSD = applyRechargeRate(
     priceInUSD,
@@ -299,7 +302,8 @@ export function formatRequestPrice(
     usdExchangeRate
   )
 
-  return formatCurrencyFromUSD(priceInUSD, {
+  return formatBillingCurrencyFromUSD(priceInUSD, {
+    showSymbol: showCurrencySymbol,
     digitsLarge: 4,
     digitsSmall: 6,
     abbreviate: false,

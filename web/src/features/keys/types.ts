@@ -117,7 +117,13 @@ export interface TokenAutoRouteModelStatus {
   enabled_channels: number
   auto_disabled: number
   manual_disabled: number
-  state: 'available' | 'degraded' | 'auto_disabled' | 'disabled' | 'unavailable' | string
+  state:
+    | 'available'
+    | 'degraded'
+    | 'auto_disabled'
+    | 'disabled'
+    | 'unavailable'
+    | string
   last_reason?: string
   last_changed_at?: number
   groups: Array<{

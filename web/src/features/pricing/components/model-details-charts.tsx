@@ -106,8 +106,12 @@ export function LatencyTrendChart(props: {
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
-    const timestamps = props.series.map((point) => Date.parse(point.timestamp)).filter(Number.isFinite)
-    const compactTimeRange = timestamps.length > 1 && Math.max(...timestamps) - Math.min(...timestamps) < 60 * 60 * 1000
+    const timestamps = props.series
+      .map((point) => Date.parse(point.timestamp))
+      .filter(Number.isFinite)
+    const compactTimeRange =
+      timestamps.length > 1 &&
+      Math.max(...timestamps) - Math.min(...timestamps) < 60 * 60 * 1000
     const data = props.series.map((point) => ({
       time: formatHourLabel(point.timestamp, compactTimeRange),
       group: point.group,

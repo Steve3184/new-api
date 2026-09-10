@@ -97,7 +97,7 @@ function getCommandItem(label: string): HTMLElement {
 }
 
 describe('API key group combobox Auto effect', () => {
-  test('rings the selected Auto trigger and its localized ratio without rendering the API ratio text', () => {
+  test('uses the compact table capsules in the selected group and dropdown options', () => {
     setReducedMotion(false)
     render(<Harness initialValue='auto' />)
 
@@ -116,10 +116,11 @@ describe('API key group combobox Auto effect', () => {
       'auto-group-flow-border'
     )
 
-    const triggerRatio = trigger.querySelector<HTMLElement>(
-      '[data-auto-group-effect="ratio"]'
-    )
-    expect(triggerRatio).toHaveTextContent('Auto Ratio')
+    const triggerRatio = within(trigger)
+      .getByText('Auto')
+      .closest('[data-slot="badge"]')
+    expect(triggerRatio).toHaveTextContent('Auto')
+    expect(triggerRatio).not.toHaveTextContent('Ratio')
     expect(triggerRatio).not.toHaveTextContent('x')
     expect(trigger).not.toHaveTextContent('自动')
     expect(screen.getByText('Global automatic routing')).toHaveClass(
@@ -132,11 +133,13 @@ describe('API key group combobox Auto effect', () => {
     expect(triggerRatio).toHaveClass(
       'relative',
       'overflow-visible',
-      'rounded-4xl'
+      'rounded-md',
+      'h-5',
+      'min-w-12'
     )
     expect(
       triggerRatio?.querySelector('[data-auto-group-flow-border]')
-    ).toBeInTheDocument()
+    ).toHaveClass('auto-group-flow-border-subtle')
 
     fireEvent.click(trigger)
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
@@ -149,13 +152,14 @@ describe('API key group combobox Auto effect', () => {
     expect(
       autoOption.querySelector('[data-auto-group-flow-border]')
     ).toBeInTheDocument()
-    const optionRatio = autoOption.querySelector<HTMLElement>(
-      '[data-auto-group-effect="ratio"]'
-    )
-    expect(optionRatio).toHaveTextContent('Auto Ratio')
+    const optionRatio = within(autoOption)
+      .getByText('Auto')
+      .closest('[data-slot="badge"]')
+    expect(optionRatio).toHaveTextContent('Auto')
+    expect(optionRatio).not.toHaveTextContent('Ratio')
     expect(
       optionRatio?.querySelector('[data-auto-group-flow-border]')
-    ).toBeInTheDocument()
+    ).toHaveClass('auto-group-flow-border-subtle')
 
     const defaultOption = getCommandItem('User group')
     expect(within(defaultOption).getByText('User group')).toHaveClass(
@@ -166,7 +170,17 @@ describe('API key group combobox Auto effect', () => {
     expect(defaultOption.querySelector('[data-auto-group-flow-border]')).toBe(
       null
     )
-    expect(defaultOption).toHaveTextContent('1x Ratio')
+    const defaultRatio = within(defaultOption)
+      .getByText('1x')
+      .closest('[data-slot="badge"]')
+    expect(defaultRatio).toHaveClass(
+      'h-5',
+      'min-w-12',
+      'rounded-full',
+      'tabular-nums',
+      'border-muted-foreground/30'
+    )
+    expect(defaultRatio).not.toHaveTextContent('Ratio')
     expect(
       defaultOption.querySelector('[data-auto-group-effect="ratio"]')
     ).toBe(null)
@@ -209,17 +223,13 @@ describe('API key group combobox Auto effect', () => {
     const trigger = getTrigger()
     expect(trigger).toHaveAttribute('data-auto-group-effect', 'trigger')
     expect(trigger.querySelector('[data-auto-group-flow-border]')).toBe(null)
-    expect(
-      trigger.querySelector('[data-auto-group-effect="ratio"]')
-    ).toBeInTheDocument()
+    expect(within(trigger).getByText('Auto')).toBeInTheDocument()
 
     fireEvent.click(trigger)
     const autoOption = getCommandItem('Global automatic routing')
     expect(autoOption).toHaveAttribute('data-auto-group-effect', 'option')
     expect(autoOption.querySelector('[data-auto-group-flow-border]')).toBe(null)
-    expect(
-      autoOption.querySelector('[data-auto-group-effect="ratio"]')
-    ).toBeInTheDocument()
+    expect(within(autoOption).getByText('Auto')).toBeInTheDocument()
     setReducedMotion(false)
   })
 })

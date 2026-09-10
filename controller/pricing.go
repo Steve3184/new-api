@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"maps"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -40,9 +42,7 @@ func GetPricing(c *gin.Context) {
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}
-	for s, f := range ratio_setting.GetGroupRatioCopy() {
-		groupRatio[s] = f
-	}
+	maps.Copy(groupRatio, ratio_setting.GetGroupRatioCopy())
 	var group string
 	if exists {
 		user, err := model.GetUserCache(userId.(int))
@@ -86,16 +86,16 @@ func GetPricing(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"success":             true,
-		"data":                pricing,
-		"vendors":             model.GetVendors(),
-		"group_ratio":         groupRatio,
-		"usable_group":        usableGroup,
-		"model_square_groups": visibleGroups,
+		"success":                         true,
+		"data":                            pricing,
+		"vendors":                         model.GetVendors(),
+		"group_ratio":                     groupRatio,
+		"usable_group":                    usableGroup,
+		"model_square_groups":             visibleGroups,
 		"model_square_group_descriptions": visibleDescriptions,
-		"supported_endpoint":  model.GetSupportedEndpointMap(),
-		"auto_groups":         service.GetUserAutoGroupForUser(userID, group),
-		"pricing_version":     "a42d372ccf0b5dd13ecf71203521f9d2",
+		"supported_endpoint":              model.GetSupportedEndpointMap(),
+		"auto_groups":                     service.GetUserAutoGroupForUser(userID, group),
+		"pricing_version":                 "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }
 

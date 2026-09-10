@@ -8,6 +8,7 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
 )
 
@@ -114,6 +115,7 @@ type cachedEntry struct {
 	usedUsageKeys map[string]bool
 	requestRules  []RequestRuleTrace
 	version       int
+	fixedPricing  bool
 }
 
 var (
@@ -122,7 +124,7 @@ var (
 )
 
 // compileEnvPrototypeV1 is the v1 type-checking prototype used at compile time.
-var compileEnvPrototypeV1 = map[string]interface{}{
+var compileEnvPrototypeV1 = map[string]any{
 	"p":                float64(0),
 	"c":                float64(0),
 	"len":              float64(0),
@@ -135,13 +137,14 @@ var compileEnvPrototypeV1 = map[string]interface{}{
 	"ao":               float64(0),
 	"req":              float64(0),
 	"tier":             func(string, float64) float64 { return 0 },
+	"fixed":            func(float64) float64 { return 0 },
 	"_trace":           func(int, bool, float64) float64 { return 1 },
 	"_trace_int":       func(int, bool, int) int { return 1 },
 	"header":           func(string) string { return "" },
-	"param":            func(string) interface{} { return nil },
-	"u":                func(string) interface{} { return nil },
+	"param":            func(string) any { return nil },
+	"u":                func(string) any { return nil },
 	"image_resolution": func() string { return "" },
-	"has":              func(interface{}, string) bool { return false },
+	"has":              func(any, string) bool { return false },
 	"hour":             func(string) int { return 0 },
 	"minute":           func(string) int { return 0 },
 	"weekday":          func(string) int { return 0 },
@@ -154,7 +157,7 @@ var compileEnvPrototypeV1 = map[string]interface{}{
 	"floor":            math.Floor,
 }
 
-func getCompileEnv(version int) map[string]interface{} {
+func getCompileEnv(version int) map[string]any {
 	switch version {
 	default:
 		return compileEnvPrototypeV1
@@ -190,6 +193,21 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 	cacheMu.RUnlock()
 
 	version, body := ParseExprVersion(exprStr)
+	// Validate fixed-price leaves before expression optimization so an
+	// unreachable invalid branch cannot bypass billing safety checks.
+	tree, err := parser.Parse(body)
+	if err != nil {
+		return nil, fmt.Errorf("expr compile error: %w", err)
+	}
+	fixedPricing := ast.Find(tree.Node, func(node ast.Node) bool {
+		identifier, ok := node.(*ast.IdentifierNode)
+		return ok && identifier.Value == "fixed"
+	}) != nil
+	if fixedPricing {
+		if err := validateFixedPricingTree(tree.Node); err != nil {
+			return nil, fmt.Errorf("expr compile error: %w", err)
+		}
+	}
 	patcher := &requestRulePatcher{}
 	prog, err := expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(patcher), expr.AsFloat64())
 	if patcher.restrictedIdentifier != "" {
@@ -205,6 +223,7 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		usedUsageKeys: extractUsedUsageKeys(prog),
 		requestRules:  patcher.requestRules,
 		version:       version,
+		fixedPricing:  fixedPricing,
 	}
 	cacheMu.Lock()
 	if len(cache) >= maxCacheSize {

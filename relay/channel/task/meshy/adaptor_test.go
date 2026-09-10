@@ -190,8 +190,8 @@ func TestNativeThreeDEndpointPaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, server.URL+"/v1/3d", submitURL)
 
-	response, err := adaptor.FetchTask(server.URL, "mk_test", map[string]any{
-		"task_id": "upstream-task-id",
+	response, err := adaptor.FetchTask(server.URL, "mk_test", &model.Task{
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: "upstream-task-id"},
 	}, "")
 	require.NoError(t, err)
 	defer response.Body.Close()

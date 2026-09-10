@@ -22,6 +22,8 @@ import { toast } from 'sonner'
 
 import { mapStatusDataToConfig } from '@/hooks/use-system-config'
 import { getStatus } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { updateSystemOption } from '../api'
@@ -97,43 +99,40 @@ export function useUpdateOption() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (request: UpdateOptionRequest) => updateSystemOption(request),
-    onSuccess: (data, variables) => {
-      if (data.success) {
-        // Always refresh system-options
-        queryClient.invalidateQueries({ queryKey: ['system-options'] })
+    mutationFn: async (request: UpdateOptionRequest) =>
+      requireServerSuccess(await updateSystemOption(request)),
+    onSuccess: (_data, variables) => {
+      // Always refresh system-options
+      queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
-        // If updating frontend-display-related config, also refresh status
-        if (STATUS_RELATED_KEYS.has(variables.key)) {
-          queryClient.invalidateQueries({ queryKey: ['status'] })
-          try {
-            window.localStorage.removeItem('status')
-          } catch {
-            /* empty */
-          }
-          void getStatus()
-            .then((status) => {
-              useSystemConfigStore
-                .getState()
-                .setConfig(mapStatusDataToConfig(status))
-              window.localStorage.setItem('status', JSON.stringify(status))
-            })
-            .catch(() => {
-              /* The next page load retries the public status request. */
-            })
+      // If updating frontend-display-related config, also refresh status
+      if (STATUS_RELATED_KEYS.has(variables.key)) {
+        queryClient.invalidateQueries({ queryKey: ['status'] })
+        try {
+          window.localStorage.removeItem('status')
+        } catch {
+          /* empty */
         }
-
-        if (STATUS_CHECK_RELATED_KEYS.has(variables.key)) {
-          queryClient.invalidateQueries({ queryKey: ['status-check'] })
-        }
-
-        toast.success(i18next.t('Setting updated successfully'))
-      } else {
-        toast.error(data.message || i18next.t('Failed to update setting'))
+        void getStatus()
+          .then((status) => {
+            useSystemConfigStore
+              .getState()
+              .setConfig(mapStatusDataToConfig(status))
+            window.localStorage.setItem('status', JSON.stringify(status))
+          })
+          .catch(() => {
+            /* The next page load retries the public status request. */
+          })
       }
+
+      if (STATUS_CHECK_RELATED_KEYS.has(variables.key)) {
+        queryClient.invalidateQueries({ queryKey: ['status-check'] })
+      }
+
+      toast.success(i18next.t('Setting updated successfully'))
     },
     onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to update setting'))
+      handleServerError(error, i18next.t('Failed to update setting'))
     },
   })
 }

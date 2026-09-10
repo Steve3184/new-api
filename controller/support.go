@@ -284,7 +284,7 @@ func AdminGrantSupportQuota(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RecordLogWithAdminInfo(conversation.UserId, model.LogTypeManage, note, auditOperatorInfo(c))
+	model.RecordLogWithAdminInfo(conversation.UserId, model.LogTypeManage, note, auditOperatorInfo(c), nil, c)
 	common.ApiSuccess(c, message)
 }
 
@@ -326,7 +326,7 @@ func AdminGrantSupportSubscription(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RecordLogWithAdminInfo(conversation.UserId, model.LogTypeManage, note, auditOperatorInfo(c))
+	model.RecordLogWithAdminInfo(conversation.UserId, model.LogTypeManage, note, auditOperatorInfo(c), nil, c)
 	common.ApiSuccess(c, message)
 }
 

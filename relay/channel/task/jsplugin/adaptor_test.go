@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -503,12 +504,15 @@ func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	assert.Empty(t, recorder.Body.String(), "response parsing must not write before the durable task barrier")
 	assert.Equal(t, map[string]float64{"seconds": 7}, adaptor.AdjustBillingOnSubmit(info, []byte(`{"seconds":7}`)))
 
-	queryResp, err := adaptor.FetchTask(server.URL, "secret", map[string]any{"task_id": parsed.UpstreamTaskID, "action": info.Action}, "")
+	queryResp, err := adaptor.FetchTask(server.URL, "secret", &model.Task{
+		Action:      info.Action,
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: parsed.UpstreamTaskID},
+	}, "")
 	require.NoError(t, err)
 	queryBody, err := io.ReadAll(queryResp.Body)
 	require.NoError(t, err)
 	require.NoError(t, queryResp.Body.Close())
-	result, err := adaptor.ParseTaskResult(queryBody)
+	result, err := adaptor.ParseTaskResult(&model.Task{}, queryResp, queryBody)
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCESS", result.Status)
 	assert.Equal(t, "https://cdn.example/video.mp4", result.Url)
@@ -529,69 +533,90 @@ func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTaskAdaptorSanitizesOpenAIVideoRendererOutput(t *testing.T) {
-	source := `
-export const meta = {
-  apiVersion: 1, key: "safe-video", name: "Safe Video", version: "1.0.0",
-  author: {name: "Test"}, models: ["model"], fetchMode: "per_task", protocols: ["openai_video"],
-};
-export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl + "/submit"}; }
-export function parseSubmitResponse() { return {taskId: "upstream"}; }
-export function buildQueryRequest(ctx) { return {url: ctx.baseUrl + "/query"}; }
-export function parseTaskResult() { return {status: "SUCCESS"}; }
-export function listArtifacts() { return []; }
-export function buildContentRequest() { throw new Error("artifact_not_found"); }
-export const protocols = {openai_video: {
-decodeRequest: function(ctx) { return {kind:"submit", model:ctx.model, requestBody:ctx.body.value}; },
-render: function() {
-  return {
-    id: "upstream-id",
-    task_id: "upstream-task-id",
-    object: "provider-video",
-    model: "model",
-    status: "completed",
-    progress: 100,
-    created_at: 10,
-    completed_at: 20,
-    metadata: {
-      url: "https://upstream.example/video.mp4",
-      URL: "https://upstream.example/uppercase.mp4",
-      label: "safe",
-    },
-    url: "https://upstream.example/top-level.mp4",
-    upstream_url: "https://upstream.example/unknown.mp4",
-    provider_payload: {task_id: "upstream-task-id"},
-  };
-}}};
-`
+func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
+	source, err := plugins.Source("sora")
+	require.NoError(t, err)
 	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
 	require.NoError(t, err)
 	adaptor := New(plugin)
 
-	rendered, err := adaptor.ConvertToOpenAIVideo(&model.Task{
-		TaskID:     "task_public",
-		Status:     model.TaskStatusInProgress,
-		Properties: model.Properties{OriginModelName: "origin-model"},
-	})
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		status model.TaskStatus
+		want   string
+	}{
+		{model.TaskStatusInProgress, "in_progress"},
+		{model.TaskStatusSuccess, "completed"},
+		{model.TaskStatusFailure, "failed"},
+	} {
+		t.Run(string(tc.status), func(t *testing.T) {
+			task := &model.Task{
+				TaskID:      "task_public",
+				Status:      tc.status,
+				Progress:    "42%",
+				CreatedAt:   100,
+				FinishTime:  200,
+				Properties:  model.Properties{OriginModelName: "origin-model"},
+				PrivateData: model.TaskPrivateData{UpstreamTaskID: "upstream-task-id"},
+				Data: []byte(`{
+					"id":"upstream-task-id","task_id":"upstream-task-id",
+					"object":"provider-video","model":"provider-model",
+					"status":"completed","progress":100,"created_at":10,"completed_at":20,
+					"url":"https://cdn.example/video.mp4",
+					"metadata":{"url":"https://cdn.example/video.mp4","URL":"https://cdn.example/uppercase.mp4"},
+					"provider_payload":{"task_id":"upstream-task-id","items":[{"enabled":false,"count":0,"value":null}]},
+					"seconds":8,"resolution":"720p","aspect_ratio":"16:9",
+					"reference_images":["https://cdn.example/reference.png"],
+					"error":{"code":"provider_error","message":"provider rejected request","detail":{"retryable":false}}
+				}`),
+			}
+			rendered, err := adaptor.ConvertToOpenAIVideo(task)
+			require.NoError(t, err)
 
-	var video dto.OpenAIVideo
-	require.NoError(t, common.Unmarshal(rendered, &video))
-	assert.Equal(t, "task_public", video.ID)
-	assert.Equal(t, "video", video.Object)
-	assert.Empty(t, video.TaskID)
-	assert.Equal(t, "origin-model", video.Model)
-	assert.Zero(t, video.CompletedAt)
-	assert.Equal(t, map[string]any{"label": "safe"}, video.Metadata)
+			var fields map[string]any
+			require.NoError(t, common.Unmarshal(rendered, &fields))
+			assert.Equal(t, "task_public", fields["id"])
+			assert.NotContains(t, fields, "task_id")
+			assert.Equal(t, "video", fields["object"])
+			assert.Equal(t, "origin-model", fields["model"])
+			assert.Equal(t, tc.want, fields["status"])
+			assert.Equal(t, float64(42), fields["progress"])
+			assert.Equal(t, float64(100), fields["created_at"])
+			if tc.status == model.TaskStatusSuccess {
+				assert.Equal(t, float64(200), fields["completed_at"])
+			} else {
+				assert.NotContains(t, fields, "completed_at")
+			}
+			assert.Equal(t, "https://cdn.example/video.mp4", fields["url"])
+			assert.Equal(t, map[string]any{
+				"url": "https://cdn.example/video.mp4",
+				"URL": "https://cdn.example/uppercase.mp4",
+			}, fields["metadata"])
+			assert.Equal(t, map[string]any{
+				"task_id": "task_public",
+				"items":   []any{map[string]any{"enabled": false, "count": float64(0), "value": nil}},
+			}, fields["provider_payload"])
+			assert.Equal(t, float64(8), fields["seconds"])
+			assert.Equal(t, "720p", fields["resolution"])
+			assert.Equal(t, "16:9", fields["aspect_ratio"])
+			assert.Equal(t, []any{"https://cdn.example/reference.png"}, fields["reference_images"])
+			assert.Equal(t, map[string]any{
+				"code": "provider_error", "message": "provider rejected request",
+				"detail": map[string]any{"retryable": false},
+			}, fields["error"])
+		})
+	}
+}
 
-	var fields map[string]any
-	require.NoError(t, common.Unmarshal(rendered, &fields))
-	assert.NotContains(t, fields, "url")
-	assert.NotContains(t, fields, "upstream_url")
-	assert.NotContains(t, fields, "provider_payload")
-	assert.NotContains(t, fields, "completed_at")
-	assert.NotContains(t, string(rendered), "upstream.example")
-	assert.NotContains(t, string(rendered), "upstream-task-id")
+func TestTaskAdaptorRejectsNonObjectOpenAIVideoRendererOutput(t *testing.T) {
+	for _, value := range []string{"null", "[]", `"video"`, "42", "false"} {
+		t.Run(value, func(t *testing.T) {
+			source := strings.Replace(mockPlugin, `return {id: task.task_id, status: "completed"};`, "return "+value+";", 1)
+			plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+			require.NoError(t, err)
+			_, err = New(plugin).ConvertToOpenAIVideo(&model.Task{TaskID: "task_public"})
+			require.ErrorContains(t, err, "invalid OpenAI video object")
+		})
+	}
 }
 
 func TestTaskAdaptorPreservesOpenAIVideoFailureSlotsAndOwnsLifecycle(t *testing.T) {
@@ -866,7 +891,7 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 			adaptor, _, _ := newRequest(t, map[string]any{})
 			body, marshalErr := common.Marshal(map[string]any{"completionUsage": testCase.usage})
 			require.NoError(t, marshalErr)
-			result, parseErr := adaptor.ParseTaskResult(body)
+			result, parseErr := adaptor.ParseTaskResult(&model.Task{}, &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}, body)
 			require.NoError(t, parseErr)
 			assert.Nil(t, result.UsageFacts)
 			assert.Zero(t, result.TotalTokens)
@@ -877,7 +902,7 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 		adaptor, _, _ := newRequest(t, map[string]any{})
 		body, err := common.Marshal(map[string]any{"completionUsage": map[string]any{"tokens": 500000}})
 		require.NoError(t, err)
-		result, err := adaptor.ParseTaskResult(body)
+		result, err := adaptor.ParseTaskResult(&model.Task{}, &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}, body)
 		require.NoError(t, err)
 		assert.EqualValues(t, 500000, result.UsageFacts["tokens"])
 	})
@@ -916,7 +941,7 @@ export function extractUsageOnComplete() { return {units: 3.5}; }
 
 		body, err := common.Marshal(map[string]any{})
 		require.NoError(t, err)
-		result, err := adaptor.ParseTaskResult(body)
+		result, err := adaptor.ParseTaskResult(&model.Task{}, &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}, body)
 		require.NoError(t, err)
 		assert.Equal(t, 3.5, result.UsageFacts["units"])
 	})
@@ -925,7 +950,7 @@ export function extractUsageOnComplete() { return {units: 3.5}; }
 		adaptor, _, _ := newRequest(t, map[string]any{})
 		body, err := common.Marshal(map[string]any{"completionUsage": map[string]any{"upstreamUnits": 5000}})
 		require.NoError(t, err)
-		result, err := adaptor.ParseTaskResult(body)
+		result, err := adaptor.ParseTaskResult(&model.Task{}, &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}, body)
 		require.NoError(t, err)
 		assert.Equal(t, 5000, result.TotalTokens)
 		assert.EqualValues(t, 5000, result.UsageFacts["upstreamUnits"])
@@ -988,7 +1013,7 @@ export function parseTaskResult(ctx, body) { return {status: "SUCCESS", completi
 	require.NoError(t, err)
 	adaptor := New(plugin)
 
-	result, err := adaptor.ParseTaskResult([]byte(`{"completion":13,"total":17}`))
+	result, err := adaptor.ParseTaskResult(&model.Task{}, &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}, []byte(`{"completion":13,"total":17}`))
 	require.NoError(t, err)
 	assert.Equal(t, 13, result.CompletionTokens)
 	assert.Equal(t, 17, result.TotalTokens)
@@ -1093,7 +1118,7 @@ export function buildSubmitRequest(ctx) { return { url: ctx.baseUrl + "/submit",
 export function parseSubmitResponse(ctx, resp) { return { taskId: resp.body.id }; }
 export function buildQueryRequest(ctx) { return { url: ctx.baseUrl + "/tasks/" + ctx.taskId }; }
 export function parseTaskResult(ctx, body) { return { taskId: body.id, status: "SUCCESS" }; }
-export function buildBatchQueryRequest(ctx, taskIds) { return { url: ctx.baseUrl + "/batch", method: "POST", headers: { "X-Plugin": "batch" }, body: { ids: taskIds } }; }
+export function buildBatchQueryRequest(ctx, tasks) { return { url: ctx.baseUrl + "/batch", method: "POST", headers: { "X-Plugin": "batch" }, body: { ids: (tasks || []).map(function (task) { return task.taskId; }) } }; }
 export function parseBatchResult(ctx, body) {
   return body.items.map(function (item) {
     return { taskId: item.id, action: item.action, status: item.status, progress: item.progress, url: (item.urls || [])[0] || "", finishTime: item.finish || 0, data: item };
@@ -1128,13 +1153,17 @@ func TestTaskAdaptorBatchBridge(t *testing.T) {
 	adaptor := New(plugin)
 	require.Equal(t, "batch", adaptor.FetchMode())
 
-	resp, err := adaptor.FetchBatchTasks(server.URL, "secret", []string{"task-a", "task-b"}, "")
+	tasks := []*model.Task{
+		{PrivateData: model.TaskPrivateData{UpstreamTaskID: "task-a"}},
+		{PrivateData: model.TaskPrivateData{UpstreamTaskID: "task-b"}},
+	}
+	resp, err := adaptor.FetchBatchTasks(server.URL, "secret", tasks, "")
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	payload, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	results, err := adaptor.ParseBatchResult(payload)
+	results, err := adaptor.ParseBatchResult(tasks, resp, payload)
 	require.NoError(t, err)
 	require.Len(t, results, 2, "entry without taskId must be skipped")
 
@@ -1207,4 +1236,202 @@ func TestTaskAdaptorBuildSubmitReceivesMappedUpstreamModel(t *testing.T) {
 	require.NoError(t, common.Unmarshal(withoutMapping, &decoded))
 	assert.Equal(t, "declared-model", decoded["upstreamModel"])
 	assert.Equal(t, "declared-model", decoded["model"])
+}
+
+// Polling has no relay info, so query hooks can only branch on the model when
+// the host forwards the persisted task identities from the fetch body.
+func TestTaskAdaptorFetchTaskExposesModelIdentities(t *testing.T) {
+	service.InitHttpClient()
+	var requested string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested = r.URL.RequestURI()
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	source := `
+export const meta = {apiVersion:1,key:"query-model",name:"Query Model",version:"1.0.0",author:{name:"Test"},models:["alias"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit"}}
+export function parseSubmitResponse(){return {taskId:"1"}}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/tasks/"+ctx.model+"/"+ctx.upstreamModel+"/"+ctx.taskId,method:"GET"}}
+export function parseTaskResult(){return {status:"SUCCESS"}}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+
+	testCases := []struct {
+		name string
+		task *model.Task
+		want string
+	}{
+		{
+			name: "mapped model",
+			task: &model.Task{
+				Properties:  model.Properties{OriginModelName: "alias", UpstreamModelName: "declared-model"},
+				PrivateData: model.TaskPrivateData{UpstreamTaskID: "t1"},
+			},
+			want: "/tasks/alias/declared-model/t1",
+		},
+		{
+			name: "unmapped model falls back to the origin name",
+			task: &model.Task{
+				Properties:  model.Properties{OriginModelName: "alias"},
+				PrivateData: model.TaskPrivateData{UpstreamTaskID: "t1"},
+			},
+			want: "/tasks/alias/alias/t1",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resp, fetchErr := adaptor.FetchTask(server.URL, "secret", testCase.task, "")
+			require.NoError(t, fetchErr)
+			require.NoError(t, resp.Body.Close())
+			assert.Equal(t, testCase.want, requested)
+		})
+	}
+}
+
+func TestTaskAdaptorQueryContextOmitsRequestBody(t *testing.T) {
+	service.InitHttpClient()
+	var captured map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, common.DecodeJson(r.Body, &captured))
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	source := `
+export const meta = {apiVersion:1,key:"query-ctx",name:"Query Ctx",version:"1.0.0",author:{name:"Test"},models:["alias"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit"}}
+export function parseSubmitResponse(){return {taskId:"1",state:{req_key:"from-submit"}}}
+export function buildQueryRequest(ctx){
+  return {url:ctx.baseUrl+"/query",method:"POST",body:{
+    keys: Object.keys(ctx).sort(),
+    taskId: ctx.taskId,
+    publicTaskId: ctx.publicTaskId,
+    action: ctx.action,
+    model: ctx.model,
+    upstreamModel: ctx.upstreamModel,
+    data: ctx.data,
+    state: ctx.state,
+    hasRequestBody: Object.prototype.hasOwnProperty.call(ctx, "requestBody")
+  }};
+}
+export function parseTaskResult(ctx, body, response){
+  return {status:"IN_PROGRESS",reason:String(response && response.status),url:ctx.taskId,state:{round:"poll"}};
+}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: server.URL, ApiKey: "secret"}})
+
+	task := &model.Task{
+		TaskID: "task_public",
+		Action: constant.TaskActionImageToVideo,
+		Properties: model.Properties{
+			OriginModelName:   "alias",
+			UpstreamModelName: "declared",
+		},
+		Data: []byte(`{"snapshot":true}`),
+		PrivateData: model.TaskPrivateData{
+			UpstreamTaskID: "upstream-1",
+			PluginState:    []byte(`{"req_key":"kept"}`),
+		},
+	}
+	resp, err := adaptor.FetchTask(server.URL, "secret", task, "")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, "upstream-1", captured["taskId"])
+	assert.Equal(t, "task_public", captured["publicTaskId"])
+	assert.Equal(t, constant.NormalizeTaskAction(constant.TaskActionImageToVideo), captured["action"])
+	assert.Equal(t, "alias", captured["model"])
+	assert.Equal(t, "declared", captured["upstreamModel"])
+	assert.Equal(t, map[string]any{"snapshot": true}, captured["data"])
+	assert.Equal(t, map[string]any{"req_key": "kept"}, captured["state"])
+	assert.Equal(t, false, captured["hasRequestBody"])
+	keys, ok := captured["keys"].([]any)
+	require.True(t, ok)
+	assert.NotContains(t, keys, "requestBody")
+
+	result, err := adaptor.ParseTaskResult(task, &http.Response{StatusCode: http.StatusTeapot, Header: make(http.Header)}, []byte(`{"ok":true}`))
+	require.NoError(t, err)
+	assert.Equal(t, "IN_PROGRESS", result.Status)
+	assert.Equal(t, "418", result.Reason)
+	assert.Equal(t, "upstream-1", result.Url)
+	assert.JSONEq(t, `{"round":"poll"}`, string(result.PluginState))
+}
+
+func TestTaskAdaptorParseSubmitResponsePersistsState(t *testing.T) {
+	service.InitHttpClient()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"id":"upstream-1"}`))
+	}))
+	defer server.Close()
+
+	source := `
+export const meta = {apiVersion:1,key:"submit-state",name:"Submit State",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit",method:"POST",body:{}}}
+export function parseSubmitResponse(){return {taskId:"upstream-1",state:{req_key:"from-submit"}}}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/query"}}
+export function parseTaskResult(){return {status:"SUCCESS"}}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: server.URL, ApiKey: "secret"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "hello"})
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+	body, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	resp, err := adaptor.DoRequest(c, info, body)
+	require.NoError(t, err)
+	parsed, taskErr := adaptor.ParseResponse(c, resp, info)
+	require.Nil(t, taskErr)
+	require.NotNil(t, parsed)
+	assert.JSONEq(t, `{"req_key":"from-submit"}`, string(parsed.PluginState))
+}
+
+func TestTaskAdaptorBatchQueryReceivesTaskObjects(t *testing.T) {
+	service.InitHttpClient()
+	var captured map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, common.DecodeJson(r.Body, &captured))
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer server.Close()
+
+	source := `
+export const meta = {apiVersion:1,key:"batch-ctx",name:"Batch Ctx",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"batch"};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit"}}
+export function parseSubmitResponse(){return {taskId:"1"}}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/q"}}
+export function parseTaskResult(){return {status:"SUCCESS"}}
+export function buildBatchQueryRequest(ctx, tasks){
+  return {url:ctx.baseUrl+"/batch",method:"POST",body:{
+    ids: (tasks||[]).map(function(task){return task.taskId;}),
+    models: (tasks||[]).map(function(task){return task.model;}),
+    hasRequestBody: (tasks||[]).some(function(task){return Object.prototype.hasOwnProperty.call(task,"requestBody");})
+  }};
+}
+export function parseBatchResult(){return [];}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	tasks := []*model.Task{
+		{Properties: model.Properties{OriginModelName: "model-a"}, PrivateData: model.TaskPrivateData{UpstreamTaskID: "task-a"}},
+		{Properties: model.Properties{OriginModelName: "model-b"}, PrivateData: model.TaskPrivateData{UpstreamTaskID: "task-b"}},
+	}
+	resp, err := adaptor.FetchBatchTasks(server.URL, "secret", tasks, "")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	assert.Equal(t, []any{"task-a", "task-b"}, captured["ids"])
+	assert.Equal(t, []any{"model-a", "model-b"}, captured["models"])
+	assert.Equal(t, false, captured["hasRequestBody"])
 }

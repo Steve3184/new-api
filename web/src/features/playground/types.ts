@@ -161,7 +161,12 @@ export interface GroupOption {
   desc?: string
 }
 
-export type PlaygroundFeature = 'chat' | 'image' | 'speech' | 'three_d' | 'video'
+export type PlaygroundFeature =
+  | 'chat'
+  | 'image'
+  | 'speech'
+  | 'three_d'
+  | 'video'
 export type SpeechModelType = 'openai' | 'azure' | 'unrealspeech'
 
 export interface PlaygroundPublicSettings {

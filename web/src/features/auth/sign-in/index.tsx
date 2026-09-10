@@ -52,7 +52,6 @@ export function SignIn() {
         </div>
 
         <UserAuthForm redirectTo={redirect} />
-
       </div>
     </AuthLayout>
   )

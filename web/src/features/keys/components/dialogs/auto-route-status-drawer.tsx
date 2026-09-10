@@ -1,10 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  Ban,
-  CheckCircle2,
-  CircleDashed,
-  TriangleAlert,
-} from 'lucide-react'
+import { Ban, CheckCircle2, CircleDashed, TriangleAlert } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,10 +27,7 @@ type AutoRouteStatusDrawerProps = {
   token: ApiKey | null
 }
 
-function statusCopy(
-  t: (key: string) => string,
-  state: string
-): string {
+function statusCopy(t: (key: string) => string, state: string): string {
   switch (state) {
     case 'available':
       return t('Available')
@@ -230,7 +222,13 @@ export function AutoRouteStatusDrawer({
                         key={`${route.virtual_model}-${status.model}-groups`}
                         className='text-muted-foreground text-[11px]'
                       >
-                        {status.model}: {status.groups.map((group) => `${group.group} ${group.enabled_channels}/${group.total_channels}`).join(' · ')}
+                        {status.model}:{' '}
+                        {status.groups
+                          .map(
+                            (group) =>
+                              `${group.group} ${group.enabled_channels}/${group.total_channels}`
+                          )
+                          .join(' · ')}
                       </span>
                     ))}
                   </div>

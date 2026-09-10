@@ -20,8 +20,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Main } from '@/components/layout'
-import { parseCustomTabs } from '@/lib/custom-tabs'
 import { useStatus } from '@/hooks/use-status'
+import { parseCustomTabs } from '@/lib/custom-tabs'
 
 export const Route = createFileRoute('/_authenticated/custom-tab/$tabId/')({
   component: CustomTabPage,

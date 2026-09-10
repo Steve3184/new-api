@@ -196,7 +196,7 @@ func interceptSimulatedRemoteCompactV2Stream(c *gin.Context, response dto.Respon
 	if state.terminal {
 		return true, nil
 	}
-	if response.Response == nil && response.Item == nil && response.Delta == "" && response.Text == "" && data != "" {
+	if response.Response == nil && response.Item == nil && response.Delta == "" && (response.Text == nil || *response.Text == "") && data != "" {
 		var parsed dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &parsed); err == nil {
 			if parsed.Type == "" {
@@ -227,7 +227,9 @@ func interceptSimulatedRemoteCompactV2Stream(c *gin.Context, response dto.Respon
 		return true, nil
 	case "response.output_text.done":
 		if state.fallback.Len() == 0 {
-			state.fallback.WriteString(response.Text)
+			if response.Text != nil {
+				state.fallback.WriteString(*response.Text)
+			}
 		}
 		return true, nil
 	case dto.ResponsesOutputTypeItemDone:

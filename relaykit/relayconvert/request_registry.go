@@ -11,9 +11,11 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	claudemessages "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/claude_messages"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	geminichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/gemini_chat"
 	oaichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_chat"
 	oairesponses "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_responses"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/toolconv"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -34,12 +36,13 @@ type RequestStep struct {
 }
 
 type RequestResult struct {
-	Value     any
-	From      types.RelayFormat
-	To        types.RelayFormat
-	Converter string
-	Quality   RequestConverterQuality
-	Steps     []RequestStep
+	Value       any
+	From        types.RelayFormat
+	To          types.RelayFormat
+	Converter   string
+	Quality     RequestConverterQuality
+	Steps       []RequestStep
+	Diagnostics []types.ConversionDiagnostic
 }
 
 type RequestConverterSpec struct {
@@ -69,7 +72,7 @@ const (
 	requestConverterClaudeToResponses = "claude_messages_to_openai_responses"
 	requestConverterGeminiToClaude    = "gemini_generate_content_to_claude_messages"
 	requestConverterGeminiToResponses = "gemini_generate_content_to_openai_responses"
-	requestConverterResponsesToClaude = "openai_responses_to_claude_messages"
+	requestConverterResponsesToClaude = ConverterOpenAIResponsesToClaudeMessages
 )
 
 const (
@@ -139,20 +142,13 @@ func registerBuiltinRequestConverter(spec RequestConverterSpec) {
 	}
 }
 
-func registerRequestConverterAlias(alias string, converter string) {
+// registerRequestConverterAlias keeps converter IDs persisted by older host
+// versions resolvable after the canonical protocol names were normalized.
+func registerRequestConverterAlias(alias, converter string) {
 	alias = strings.TrimSpace(alias)
 	converter = strings.TrimSpace(converter)
-	if alias == "" {
-		panic("request converter alias is required")
-	}
-	if converter == "" {
-		panic(fmt.Sprintf("request converter alias %q target is required", alias))
-	}
-	if alias == converter {
+	if alias == "" || converter == "" || alias == converter {
 		return
-	}
-	if _, exists := requestConverters[alias]; exists {
-		panic(fmt.Sprintf("request converter alias %q conflicts with registered converter", alias))
 	}
 	if _, exists := requestConverters[converter]; !exists {
 		panic(fmt.Sprintf("request converter alias %q references unknown converter %q", alias, converter))
@@ -167,19 +163,15 @@ func LookupRequestConverter(converter string) (RequestConverterSpec, bool) {
 	requestConverterMu.RLock()
 	defer requestConverterMu.RUnlock()
 
-	spec, ok := requestConverters[resolveRequestConverterID(converter)]
+	converter = strings.TrimSpace(converter)
+	if canonical, exists := requestConverterAliases[converter]; exists {
+		converter = canonical
+	}
+	spec, ok := requestConverters[converter]
 	if !ok {
 		return RequestConverterSpec{}, false
 	}
 	return cloneRequestConverterSpec(spec), true
-}
-
-func resolveRequestConverterID(converter string) string {
-	converter = strings.TrimSpace(converter)
-	if canonical, ok := requestConverterAliases[converter]; ok {
-		return canonical
-	}
-	return converter
 }
 
 func ConvertRequest(c context.Context, info convmeta.Meta, target types.RelayFormat, request any) (*RequestResult, error) {
@@ -270,10 +262,13 @@ func executeRequestSpec(c context.Context, info convmeta.Meta, from types.RelayF
 }
 
 func executeRequestSteps(c context.Context, info convmeta.Meta, from types.RelayFormat, target types.RelayFormat, request any, converter string, quality RequestConverterQuality, specs []RequestConverterSpec) (*RequestResult, error) {
-	current := request
+	c, diagnosticCollector := convdiag.WithCollector(c)
+	current, tools, err := toolconv.ExtractRequest(from, request)
+	if err != nil {
+		return nil, err
+	}
 	steps := make([]RequestStep, 0, len(specs))
 	for _, spec := range specs {
-		var err error
 		current, err = prepareRequestForStep(current, spec, target)
 		if err != nil {
 			return nil, err
@@ -287,6 +282,32 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		steps = append(steps, step)
 	}
 
+	current, toolDiagnostics, err := toolconv.AttachRequest(target, current, tools, convmeta.OptionsOf(info))
+	diagnostics := append(diagnosticCollector.Diagnostics(), toolDiagnostics...)
+	for i := range diagnostics {
+		if diagnostics[i].From == "" {
+			diagnostics[i].From = from
+		}
+		if diagnostics[i].To == "" {
+			diagnostics[i].To = target
+		}
+	}
+	if err != nil {
+		return &RequestResult{
+			Value:       current,
+			From:        from,
+			To:          target,
+			Quality:     quality,
+			Steps:       steps,
+			Diagnostics: diagnostics,
+		}, err
+	}
+	if info != nil {
+		for _, step := range steps {
+			info.AppendRequestConversion(step.To)
+		}
+	}
+
 	converters := make([]string, 0, len(steps))
 	for _, step := range steps {
 		converters = append(converters, step.Converter)
@@ -295,12 +316,13 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		converter = strings.Join(converters, ",")
 	}
 	return &RequestResult{
-		Value:     current,
-		From:      from,
-		To:        target,
-		Converter: converter,
-		Quality:   quality,
-		Steps:     steps,
+		Value:       current,
+		From:        from,
+		To:          target,
+		Converter:   converter,
+		Quality:     quality,
+		Steps:       steps,
+		Diagnostics: diagnostics,
 	}, nil
 }
 
@@ -345,9 +367,6 @@ func executeRequestStep(c context.Context, info convmeta.Meta, spec RequestConve
 	value, err := spec.Convert(c, info, request)
 	if err != nil {
 		return nil, RequestStep{}, err
-	}
-	if info != nil {
-		info.AppendRequestConversion(spec.To)
 	}
 	return value, RequestStep{
 		Converter: spec.ID,
@@ -457,6 +476,19 @@ func convertClaudeRequestToOpenAI(_ context.Context, info convmeta.Meta, request
 		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", request)
 	}
 	return claudemessages.ClaudeMessagesRequestToOpenAIChat(*claudeRequest, info)
+}
+
+func convertClaudeRequestToOpenAIResponses(_ context.Context, info convmeta.Meta, request any) (any, error) {
+	claudeRequest, ok := request.(*dto.ClaudeRequest)
+	if !ok {
+		if value, ok := request.(dto.ClaudeRequest); ok {
+			claudeRequest = &value
+		}
+	}
+	if claudeRequest == nil {
+		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", request)
+	}
+	return claudemessages.ClaudeMessagesRequestToOpenAIResponses(*claudeRequest, info)
 }
 
 func convertOpenAIRequestToClaude(c context.Context, info convmeta.Meta, request any) (any, error) {

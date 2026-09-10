@@ -56,7 +56,7 @@ func TestParseTaskResultMapsLiveStatuses(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.status, func(t *testing.T) {
 			body := `{"SynthesisTask":{"TaskId":"upstream-id","TaskStatus":"` + test.status + `","OutputUri":"https://audio.example.com/result.mp3","StatusDetails":"failed upstream"}}`
-			result, err := adaptor.ParseTaskResult([]byte(body))
+			result, err := adaptor.ParseTaskResult(nil, nil, []byte(body))
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, model.TaskStatus(result.Status))
 			if test.expected == model.TaskStatusSuccess {

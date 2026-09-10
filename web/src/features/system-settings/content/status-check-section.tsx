@@ -110,7 +110,11 @@ function parseAvailableModels(value: string): string[] {
 function parseFlexibleMode(value: string): FlexibleModeConfig {
   try {
     const parsed = JSON.parse(value) as { groups?: unknown }
-    if (!parsed.groups || typeof parsed.groups !== 'object' || Array.isArray(parsed.groups)) {
+    if (
+      !parsed.groups ||
+      typeof parsed.groups !== 'object' ||
+      Array.isArray(parsed.groups)
+    ) {
       return defaultFlexibleMode
     }
     const groups: Record<string, FlexibleGroupConfig> = {}
@@ -416,9 +420,7 @@ export function StatusCheckSection(props: {
                         </FormDescription>
                       </FormItem>
                       <FormItem>
-                        <FormLabel>
-                          {t('Maximum consecutive probes')}
-                        </FormLabel>
+                        <FormLabel>{t('Maximum consecutive probes')}</FormLabel>
                         <FormControl>
                           <Input
                             type='number'

@@ -43,11 +43,9 @@ describe('model square display group ratio', () => {
 describe('model square group visibility', () => {
   test('includes visible-only groups in model details', () => {
     expect(
-      getAvailableGroups(
-        model,
-        { default: { desc: 'Default', ratio: 1 } },
-        ['vip']
-      )
+      getAvailableGroups(model, { default: { desc: 'Default', ratio: 1 } }, [
+        'vip',
+      ])
     ).toEqual(['default', 'vip'])
   })
 })

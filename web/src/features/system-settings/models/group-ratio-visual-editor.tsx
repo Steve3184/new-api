@@ -57,17 +57,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -75,6 +67,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Textarea } from '@/components/ui/textarea'
 
 import { safeJsonParse } from '../utils/json-parser'
 
@@ -149,7 +142,9 @@ function parseVisibleGroupDescriptions(value: string): Record<string, string> {
   const parsed = safeJsonParse<unknown>(value, { fallback: {}, silent: true })
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
   return Object.fromEntries(
-    Object.entries(parsed).filter(([, description]) => typeof description === 'string')
+    Object.entries(parsed).filter(
+      ([, description]) => typeof description === 'string'
+    )
   )
 }
 
@@ -172,7 +167,9 @@ function buildGroupPricingRows(
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
   const visibleGroups = new Set(parseVisibleGroups(modelSquareVisibleGroups))
-  const visibleDescriptions = parseVisibleGroupDescriptions(modelSquareVisibleGroups)
+  const visibleDescriptions = parseVisibleGroupDescriptions(
+    modelSquareVisibleGroups
+  )
   const topupMap = parseRatioMap(topupGroupRatio)
   const retryTimesMap = parseRatioMap(groupRetryTimes)
   const names = new Set([
@@ -316,25 +313,16 @@ function GroupNameSelect(props: GroupNameSelectProps) {
   }, [props.options, props.value])
 
   return (
-    <Select
-      value={props.value === '' ? null : props.value}
-      onValueChange={(v) => {
-        if (typeof v === 'string' && v !== '') props.onValueChange(v)
+    <Combobox
+      options={options.map((name) => ({ value: name, label: name }))}
+      value={props.value}
+      onValueChange={(value) => {
+        if (value) props.onValueChange(value)
       }}
-    >
-      <SelectTrigger className={props.className ?? 'w-48'}>
-        <SelectValue placeholder={props.placeholder} />
-      </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
-        <SelectGroup>
-          {options.map((name) => (
-            <SelectItem key={name} value={name}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+      className={props.className ?? 'w-48'}
+      placeholder={props.placeholder}
+      aria-label={props.placeholder}
+    />
   )
 }
 
@@ -753,7 +741,11 @@ function GroupPricingTable({
                     <Checkbox
                       checked={row.modelSquareVisible}
                       onCheckedChange={(checked) =>
-                        updateRow(row._id, 'modelSquareVisible', checked === true)
+                        updateRow(
+                          row._id,
+                          'modelSquareVisible',
+                          checked === true
+                        )
                       }
                       aria-label={t('Model plaza visible')}
                     />

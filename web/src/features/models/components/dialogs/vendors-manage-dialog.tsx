@@ -37,10 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { getVendors } from '../../api'
-import {
-  handleDeleteVendor as deleteVendor,
-  vendorsQueryKeys,
-} from '../../lib'
+import { handleDeleteVendor as deleteVendor, vendorsQueryKeys } from '../../lib'
 import type { Vendor } from '../../types'
 import { VendorMutateDialog } from './vendor-mutate-dialog'
 

@@ -119,7 +119,11 @@ export function Pricing() {
 
   const selectedGroupDescription =
     groupFilter !== FILTER_ALL
-      ? (usableGroup[groupFilter]?.desc || modelSquareGroupDescriptions[groupFilter] || '').trim()
+      ? (
+          usableGroup[groupFilter]?.desc ||
+          modelSquareGroupDescriptions[groupFilter] ||
+          ''
+        ).trim()
       : ''
 
   const renderPricingContent = () => {
@@ -202,7 +206,7 @@ export function Pricing() {
             />
           </header>
 
-          <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
+          <div className='grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
             <PricingSidebar
               quotaTypeFilter={quotaTypeFilter}
               endpointTypeFilter={endpointTypeFilter}
@@ -221,7 +225,7 @@ export function Pricing() {
               models={models || []}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={clearFilters}
-              className='hover-scrollbar sticky top-4 hidden max-h-[calc(100dvh-2rem)] self-start overflow-y-auto xl:block'
+              className='hover-scrollbar sticky top-20 hidden max-h-[calc(100dvh-6rem)] self-start overflow-y-auto xl:block'
             />
 
             <main className='min-w-0 space-y-4'>
@@ -257,11 +261,11 @@ export function Pricing() {
               />
 
               {selectedGroupDescription && (
-                <div className='rounded-lg border border-border/70 bg-muted/20 px-4 py-3'>
+                <div className='border-border/70 bg-muted/20 rounded-lg border px-4 py-3'>
                   <div className='text-muted-foreground mb-1 text-xs font-medium uppercase'>
                     {t('Group description')}
                   </div>
-                  <p className='text-foreground whitespace-pre-wrap break-words text-sm leading-relaxed'>
+                  <p className='text-foreground text-sm leading-relaxed break-words whitespace-pre-wrap'>
                     {selectedGroupDescription}
                   </p>
                 </div>

@@ -37,7 +37,8 @@ export function parsePlaygroundSettings(
 ): PlaygroundSettingsValue {
   try {
     const parsed = JSON.parse(value) as { models?: Record<string, unknown> }
-    if (parsed.models && !Array.isArray(parsed.models.video)) parsed.models.video = []
+    if (parsed.models && !Array.isArray(parsed.models.video))
+      parsed.models.video = []
     return playgroundSettingsSchema.parse(parsed)
   } catch {
     return DEFAULT_PLAYGROUND_SETTINGS

@@ -439,7 +439,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                       {group.label}
                     </span>
                     {(group.desc || group.description) && (
-                      <div className='text-muted-foreground max-w-full whitespace-pre-wrap break-words text-[9px] leading-tight'>
+                      <div className='text-muted-foreground max-w-full text-[9px] leading-tight break-words whitespace-pre-wrap'>
                         {group.desc || group.description}
                         {group.ratio && (
                           <>
@@ -499,7 +499,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                         {group.label}
                       </span>
                       {(group.desc || group.description) && (
-                        <div className='text-muted-foreground mt-0.5 max-w-full whitespace-pre-wrap break-words text-xs'>
+                        <div className='text-muted-foreground mt-0.5 max-w-full text-xs break-words whitespace-pre-wrap'>
                           {group.desc || group.description}
                           {group.ratio && (
                             <>

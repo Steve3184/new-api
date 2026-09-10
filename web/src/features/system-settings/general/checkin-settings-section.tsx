@@ -241,7 +241,9 @@ export function CheckinSettingsSection({
                       <Input placeholder={t('group-a, group-b')} {...field} />
                     </FormControl>
                     <FormDescription>
-                      {t('Comma-separated groups where check-in credit is used before wallet balance.')}
+                      {t(
+                        'Comma-separated groups where check-in credit is used before wallet balance.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

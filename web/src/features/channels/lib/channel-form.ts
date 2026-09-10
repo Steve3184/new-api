@@ -281,7 +281,12 @@ export const channelFormSchema = z
       .refine(isOptionalMultiKeyDisableRules, ERROR_MESSAGES.INVALID_JSON),
     multi_key_auto_retry: z.boolean().optional(),
     multi_key_auto_recovery: z.boolean().optional(),
-    multi_key_recovery_interval_minutes: z.number().int().min(1).max(1440).optional(),
+    multi_key_recovery_interval_minutes: z
+      .number()
+      .int()
+      .min(1)
+      .max(1440)
+      .optional(),
     batch_add_set_key_prefix_2_name: z.boolean().optional(),
     key_mode: z.enum(['append', 'replace']).optional(), // For editing multi-key channels
     // Channel extra settings (stored in setting JSON, not sent directly)
@@ -664,10 +669,21 @@ export function transformChannelToFormDefaults(
     other: channel.other || '',
     multi_key_mode: 'single',
     multi_key_type: channel.channel_info.multi_key_mode || 'random',
-    multi_key_disable_rules: JSON.stringify(channel.channel_info.multi_key_disable_rules || [], null, 2),
+    multi_key_disable_rules: JSON.stringify(
+      channel.channel_info.multi_key_disable_rules || [],
+      null,
+      2
+    ),
     multi_key_auto_retry: channel.channel_info.multi_key_auto_retry === true,
-    multi_key_auto_recovery: channel.channel_info.multi_key_auto_recovery === true,
-    multi_key_recovery_interval_minutes: Math.max(1, Math.min(1440, channel.channel_info.multi_key_recovery_interval_minutes || 10)),
+    multi_key_auto_recovery:
+      channel.channel_info.multi_key_auto_recovery === true,
+    multi_key_recovery_interval_minutes: Math.max(
+      1,
+      Math.min(
+        1440,
+        channel.channel_info.multi_key_recovery_interval_minutes || 10
+      )
+    ),
     batch_add_set_key_prefix_2_name: false,
     key_mode: 'append', // Default to append mode for editing multi-key channels
     // Channel extra settings
@@ -931,10 +947,15 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
     channel_info: {
-      multi_key_disable_rules: parseOptionalJson(formData.multi_key_disable_rules || '[]'),
+      multi_key_disable_rules: parseOptionalJson(
+        formData.multi_key_disable_rules || '[]'
+      ),
       multi_key_auto_retry: formData.multi_key_auto_retry === true,
       multi_key_auto_recovery: formData.multi_key_auto_recovery === true,
-      multi_key_recovery_interval_minutes: Math.max(1, Math.min(1440, formData.multi_key_recovery_interval_minutes || 10)),
+      multi_key_recovery_interval_minutes: Math.max(
+        1,
+        Math.min(1440, formData.multi_key_recovery_interval_minutes || 10)
+      ),
     } as Channel['channel_info'],
   }
 
@@ -984,10 +1005,15 @@ export function transformFormDataToUpdatePayload(
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
     channel_info: {
-      multi_key_disable_rules: parseOptionalJson(formData.multi_key_disable_rules || '[]'),
+      multi_key_disable_rules: parseOptionalJson(
+        formData.multi_key_disable_rules || '[]'
+      ),
       multi_key_auto_retry: formData.multi_key_auto_retry === true,
       multi_key_auto_recovery: formData.multi_key_auto_recovery === true,
-      multi_key_recovery_interval_minutes: Math.max(1, Math.min(1440, formData.multi_key_recovery_interval_minutes || 10)),
+      multi_key_recovery_interval_minutes: Math.max(
+        1,
+        Math.min(1440, formData.multi_key_recovery_interval_minutes || 10)
+      ),
     } as Channel['channel_info'],
   }
 
