@@ -21,6 +21,15 @@ import { persist } from 'zustand/middleware'
 
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 
+/** Aggregation bucket of the perf-metrics store, as configured by the admin. */
+export type PerfMetricsBucketTime = 'minute' | '5min' | 'hour'
+
+export function isPerfMetricsBucketTime(
+  value: unknown
+): value is PerfMetricsBucketTime {
+  return value === 'minute' || value === '5min' || value === 'hour'
+}
+
 export type CurrencyDisplayType = 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
 
 export interface CurrencyConfig {
@@ -93,6 +102,7 @@ export interface SystemConfig {
   appearance: SiteAppearanceConfig
   spaMeta: SPAMetaConfig
   homepage: HomepageConfig
+  charts: ChartsConfig
 }
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
@@ -127,6 +137,15 @@ export const DEFAULT_SPA_META: SPAMetaConfig = {
   ogDescription: 'Unified AI API gateway and admin dashboard.',
 }
 
+export interface ChartsConfig {
+  /** Aggregation bucket the perf-metrics backend stores samples in. */
+  perfMetricsBucketTime: PerfMetricsBucketTime
+}
+
+export const DEFAULT_CHARTS_CONFIG: ChartsConfig = {
+  perfMetricsBucketTime: 'hour',
+}
+
 export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
   style: 'default',
   presetTitleMode: 'i18n',
@@ -157,6 +176,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
         appearance: { ...DEFAULT_SITE_APPEARANCE },
         spaMeta: { ...DEFAULT_SPA_META },
         homepage: { ...DEFAULT_HOMEPAGE_CONFIG },
+        charts: { ...DEFAULT_CHARTS_CONFIG },
       },
       loading: true,
       loadedLogoUrl: DEFAULT_LOGO,
@@ -180,6 +200,10 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             homepage: {
               ...(state.config.homepage ?? DEFAULT_HOMEPAGE_CONFIG),
               ...newConfig.homepage,
+            },
+            charts: {
+              ...(state.config.charts ?? DEFAULT_CHARTS_CONFIG),
+              ...newConfig.charts,
             },
           },
         })),
@@ -211,6 +235,10 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             homepage: {
               ...DEFAULT_HOMEPAGE_CONFIG,
               ...saved.config?.homepage,
+            },
+            charts: {
+              ...DEFAULT_CHARTS_CONFIG,
+              ...saved.config?.charts,
             },
           },
         }

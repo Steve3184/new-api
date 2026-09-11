@@ -26,6 +26,8 @@ import {
   type CurrencyDisplayType,
   type SystemConfig,
   DEFAULT_CURRENCY_CONFIG,
+  DEFAULT_CHARTS_CONFIG,
+  isPerfMetricsBucketTime,
 } from '@/stores/system-config-store'
 
 /**
@@ -100,6 +102,13 @@ export function mapStatusDataToConfig(
       | boolean
       | undefined,
     currency,
+    charts: {
+      perfMetricsBucketTime: isPerfMetricsBucketTime(
+        data.perf_metrics_bucket_time
+      )
+        ? data.perf_metrics_bucket_time
+        : DEFAULT_CHARTS_CONFIG.perfMetricsBucketTime,
+    },
   }
 }
 

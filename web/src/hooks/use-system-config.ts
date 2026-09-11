@@ -29,6 +29,8 @@ import {
   DEFAULT_SITE_APPEARANCE,
   DEFAULT_SPA_META,
   DEFAULT_HOMEPAGE_CONFIG,
+  DEFAULT_CHARTS_CONFIG,
+  isPerfMetricsBucketTime,
   type HomepageConfig,
   type HomepageStyle,
   type SiteAppearanceConfig,
@@ -53,6 +55,7 @@ interface StatusApiResponse {
     usd_exchange_rate?: number
     custom_currency_symbol?: string
     custom_currency_exchange_rate?: number
+    perf_metrics_bucket_time?: string
     site_appearance?: {
       background_image?: string
       background_blur_opacity?: number
@@ -247,6 +250,13 @@ export function mapStatusDataToConfig(
         DEFAULT_HOMEPAGE_CONFIG.presetSlaEnabled,
       presetSlaText:
         data.homepage?.preset_sla_text ?? DEFAULT_HOMEPAGE_CONFIG.presetSlaText,
+    },
+    charts: {
+      perfMetricsBucketTime: isPerfMetricsBucketTime(
+        data.perf_metrics_bucket_time
+      )
+        ? data.perf_metrics_bucket_time
+        : DEFAULT_CHARTS_CONFIG.perfMetricsBucketTime,
     },
   }
 }

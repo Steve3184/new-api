@@ -92,4 +92,19 @@ describe('mapStatusDataToConfig', () => {
 
     expect(config.appearance?.backgroundBlurOpacity).toBe(100)
   })
+
+  test('maps the perf-metrics aggregation bucket used by chart labels', () => {
+    expect(
+      mapStatusDataToConfig({ perf_metrics_bucket_time: '5min' }).charts
+        ?.perfMetricsBucketTime
+    ).toBe('5min')
+  })
+
+  test('falls back to an hourly bucket for unsupported values', () => {
+    expect(
+      mapStatusDataToConfig({ perf_metrics_bucket_time: 'fortnight' }).charts
+        ?.perfMetricsBucketTime
+    ).toBe('hour')
+    expect(mapStatusDataToConfig({}).charts?.perfMetricsBucketTime).toBe('hour')
+  })
 })
