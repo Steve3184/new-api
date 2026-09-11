@@ -17,14 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  Plus,
-  MoreHorizontal,
-  RefreshCw,
-  List,
-  Building2,
-  AlertCircle,
-} from 'lucide-react'
+import { Plus, MoreHorizontal, RefreshCw, List, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -65,10 +58,6 @@ export function ModelsPrimaryButtons() {
 
   const handlePrefillGroups = () => {
     setOpen('prefill-groups')
-  }
-
-  const handleManageVendors = () => {
-    setOpen('manage-vendors')
   }
 
   const handleDeleteUnused = async () => {
@@ -134,13 +123,6 @@ export function ModelsPrimaryButtons() {
             {t('Prefill Groups')}
             <DropdownMenuShortcut>
               <List className='h-4 w-4' />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem onClick={handleManageVendors}>
-            {t('Manage Vendors')}
-            <DropdownMenuShortcut>
-              <Building2 className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>
