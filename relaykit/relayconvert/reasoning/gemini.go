@@ -31,7 +31,11 @@ type geminiCapabilities struct {
 }
 
 func geminiCapabilitiesFor(model string) geminiCapabilities {
-	model = strings.ToLower(model)
+	// Model names can carry a provider namespace (for example
+	// "anti/gemini-3.7-flash" from effort/model routing or channel model
+	// mapping). Match capabilities on the bare model, mirroring how the suffix
+	// parser normalizes namespaced names.
+	model = strings.ToLower(lastModelPathSegment(model))
 	switch {
 	case strings.HasPrefix(model, "gemini-2.5-flash-native-audio"),
 		strings.HasPrefix(model, "gemini-live-2.5-flash-preview-native-audio"):
@@ -156,7 +160,7 @@ func RenderGemini(model string, intent Intent, maxOutputTokens *uint, adapterBud
 }
 
 func geminiDefaultEffort(model string) Effort {
-	model = strings.ToLower(model)
+	model = strings.ToLower(lastModelPathSegment(model))
 	switch {
 	case model == "gemini-flash-latest",
 		strings.HasPrefix(model, "gemini-3.5-flash") && !strings.HasPrefix(model, "gemini-3.5-flash-lite"),
@@ -317,7 +321,7 @@ func gemini25BudgetForEffort(effort Effort) int {
 }
 
 func geminiLevelForEffort(model string, effort Effort) (string, error) {
-	model = strings.ToLower(model)
+	model = strings.ToLower(lastModelPathSegment(model))
 	switch {
 	case strings.HasPrefix(model, "gemini-3.1-flash-image"),
 		strings.HasPrefix(model, "gemini-3.1-flash-lite-image"):

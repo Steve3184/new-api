@@ -170,3 +170,27 @@ func TestOpenAIPivotDoesNotTreatMaxAndXHighAsEquivalent(t *testing.T) {
 	_, err = FromOpenAIResponses(responses)
 	require.ErrorIs(t, err, ErrEffortConflict)
 }
+
+// TestNamespacedModelRendersLikeBareModel guards effort/model routing and
+// channel model mapping, which can produce namespaced upstream model names
+// such as "anti/gemini-3.7-flash". Capability matching must resolve those to
+// the same configuration as the bare model instead of failing with an
+// "unknown thinking configuration" error.
+func TestNamespacedModelRendersLikeBareModel(t *testing.T) {
+	t.Parallel()
+	intent := Intent{Mode: ModeEnabled, Effort: EffortHigh}
+
+	geminiBare, err := RenderGemini("gemini-3.7-flash", intent, nil, 0)
+	require.NoError(t, err)
+	geminiNamespaced, err := RenderGemini("anti/gemini-3.7-flash", intent, nil, 0)
+	require.NoError(t, err)
+	require.NotNil(t, geminiNamespaced.Config)
+	assert.Equal(t, geminiBare.Config.ThinkingLevel, geminiNamespaced.Config.ThinkingLevel)
+	assert.Equal(t, geminiBare.EffectiveEffort, geminiNamespaced.EffectiveEffort)
+
+	claudeBare, err := RenderClaude("claude-opus-4-8", intent, nil, 0)
+	require.NoError(t, err)
+	claudeNamespaced, err := RenderClaude("anti/claude-opus-4-8", intent, nil, 0)
+	require.NoError(t, err)
+	assert.Equal(t, claudeBare.EffectiveEffort, claudeNamespaced.EffectiveEffort)
+}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -78,6 +79,8 @@ type Log struct {
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
+	ModelIcon         string `json:"model_icon,omitempty" gorm:"-"`
+	ProviderIcon      string `json:"provider_icon,omitempty" gorm:"-"`
 }
 
 // GetLogMultiKeyIndex returns the submit-time multi-key index recorded in a
@@ -174,6 +177,7 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	}
 	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order(order).Limit(common.MaxRecentItems).Find(&logs).Error
 	formatUserLogs(logs, 0)
+	fillLogModelIcons(logs)
 	return logs, err
 }
 
@@ -582,6 +586,8 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
+	fillLogModelIcons(logs)
+
 	return logs, total, err
 }
 
@@ -632,6 +638,12 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 
 	formatUserLogs(logs, startIdx)
+	fillLogModelIcons(logs)
+	if console_setting.GetConsoleSetting().HideUpstreamRequestID {
+		for _, entry := range logs {
+			entry.UpstreamRequestId = ""
+		}
+	}
 	return logs, total, err
 }
 
@@ -639,6 +651,64 @@ type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
 	Tpm   int `json:"tpm"`
+}
+
+// fillLogModelIcons populates the transient model/provider icon fields on each
+// log row from the model metadata tables so the log UI can render icons without
+// an extra request. Icons are not persisted on the log table (gorm:"-").
+func fillLogModelIcons(logs []*Log) {
+	if len(logs) == 0 || DB == nil {
+		return
+	}
+	names := make([]string, 0, len(logs))
+	seen := make(map[string]struct{}, len(logs))
+	for _, entry := range logs {
+		if entry.ModelName == "" {
+			continue
+		}
+		if _, ok := seen[entry.ModelName]; ok {
+			continue
+		}
+		seen[entry.ModelName] = struct{}{}
+		names = append(names, entry.ModelName)
+	}
+	if len(names) == 0 {
+		return
+	}
+	var models []Model
+	if err := DB.Select("model_name", "icon", "vendor_id").Where("model_name IN ?", names).Find(&models).Error; err != nil {
+		return
+	}
+	icons := make(map[string]string, len(models))
+	vendorIDs := make([]int, 0, len(models))
+	seenVendors := make(map[int]struct{})
+	for _, item := range models {
+		icons[item.ModelName] = item.Icon
+		if item.VendorID > 0 {
+			if _, ok := seenVendors[item.VendorID]; !ok {
+				seenVendors[item.VendorID] = struct{}{}
+				vendorIDs = append(vendorIDs, item.VendorID)
+			}
+		}
+	}
+	vendorIcons := make(map[int]string, len(vendorIDs))
+	if len(vendorIDs) > 0 {
+		var vendors []Vendor
+		if err := DB.Select("id", "icon").Where("id IN ?", vendorIDs).Find(&vendors).Error; err == nil {
+			for _, vendor := range vendors {
+				vendorIcons[vendor.Id] = vendor.Icon
+			}
+		}
+	}
+	for _, entry := range logs {
+		entry.ModelIcon = icons[entry.ModelName]
+		for _, item := range models {
+			if item.ModelName == entry.ModelName {
+				entry.ProviderIcon = vendorIcons[item.VendorID]
+				break
+			}
+		}
+	}
 }
 
 // GetTokenRPM returns consume-log counts for the last minute in one grouped query.

@@ -241,6 +241,8 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.PUT("/", controller.UpdateOption)
+			optionRoute.GET("/model_pricing", controller.GetModelPricingConfig)
+			optionRoute.PATCH("/model_pricing", controller.UpdateModelPricingConfig)
 			optionRoute.POST("/smtp/test", controller.SendSMTPTestEmail)
 			optionRoute.DELETE("/support", controller.ClearSupportData)
 			optionRoute.POST("/payment_compliance", controller.ConfirmPaymentCompliance)
@@ -291,6 +293,7 @@ func SetApiRouter(router *gin.Engine) {
 			taskPluginRoute.GET("/marketplace/sources", controller.GetTaskPluginMarketplaceSources)
 			taskPluginRoute.PUT("/marketplace/sources", controller.UpdateTaskPluginMarketplaceSources)
 			taskPluginRoute.GET("/:key", controller.GetTaskPlugin)
+			taskPluginRoute.GET("/:key/icon", controller.GetTaskPluginIcon)
 			taskPluginRoute.GET("/:key/versions", controller.GetTaskPluginVersions)
 			taskPluginRoute.POST("/:key/activate", controller.ActivateTaskPlugin)
 			taskPluginRoute.POST("/:key/status", controller.SetTaskPluginStatus)
@@ -414,6 +417,8 @@ func SetApiRouter(router *gin.Engine) {
 		vendorRoute := apiRouter.Group("/vendors")
 		vendorRoute.Use(middleware.AdminAuth())
 		{
+			vendorRoute.POST("/operations/preview", controller.PreviewVendorOperation)
+			vendorRoute.POST("/operations", controller.ApplyVendorOperation)
 			vendorRoute.GET("/", controller.GetAllVendors)
 			vendorRoute.GET("/search", controller.SearchVendors)
 			vendorRoute.GET("/:id", controller.GetVendorMeta)

@@ -57,6 +57,7 @@ import {
 import { useBillingTime } from '@/features/pricing/hooks/use-billing-time'
 import {
   BILLING_EXTRA_VARS,
+  IMAGE_RESOLUTIONS,
   MATCH_CONTAINS,
   MATCH_EQ,
   MATCH_EXISTS,
@@ -66,16 +67,19 @@ import {
   MATCH_LTE,
   MATCH_RANGE,
   SOURCE_HEADER,
+  SOURCE_IMAGE_RESOLUTION,
   SOURCE_PARAM,
   SOURCE_TIME,
   buildRequestRuleExpr,
   combineBillingExpr,
   createEmptyCondition,
+  createEmptyImageResolutionCondition,
   createEmptyRuleGroup,
   createEmptyTimeCondition,
   getRequestRuleMatchOptions,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
+  type ImageResolutionCondition,
   type ParamHeaderCondition,
   type RequestCondition,
   type RequestRuleGroup,
@@ -124,6 +128,11 @@ const CONDITION_INPUT_OPTIONS: {
   { value: 'c', labelKey: 'Billable output tokens' },
 ]
 const OPS: TierConditionInput['op'][] = ['<', '<=', '>', '>=']
+
+const IMAGE_RESOLUTION_OPTIONS = IMAGE_RESOLUTIONS.map((resolution) => ({
+  value: resolution,
+  label: resolution,
+}))
 
 type Preset = {
   key: string
@@ -186,6 +195,33 @@ const PRESET_GROUPS: PresetGroup[] = [
         key: 'gpt-image-1-mini',
         label: 'GPT Image 1 Mini',
         expr: 'tier("base", p * 2 + c * 8 + img * 2.5)',
+      },
+      {
+        key: 'image-resolution-pricing',
+        label: 'Image 1K / 2K / 4K',
+        expr: 'tier("base", p * 0 + c * 0 + req * 0.04)',
+        requestRules: [
+          {
+            conditions: [
+              {
+                source: SOURCE_IMAGE_RESOLUTION as 'image_resolution',
+                mode: MATCH_EQ,
+                value: '2K',
+              },
+            ],
+            multiplier: '2',
+          },
+          {
+            conditions: [
+              {
+                source: SOURCE_IMAGE_RESOLUTION as 'image_resolution',
+                mode: MATCH_EQ,
+                value: '4K',
+              },
+            ],
+            multiplier: '4',
+          },
+        ],
       },
       {
         key: 'gemini-2.5-flash',
@@ -759,10 +795,15 @@ function RuleConditionRow({
   let sourceLabel = t('Time')
   if (condition.source === SOURCE_PARAM) sourceLabel = t('Body param')
   else if (condition.source === SOURCE_HEADER) sourceLabel = t('Header')
+  else if (condition.source === SOURCE_IMAGE_RESOLUTION) {
+    sourceLabel = t('Image size')
+  }
 
   const handleSourceChange = (source: string) => {
     if (source === SOURCE_TIME) {
       onChange(createEmptyTimeCondition())
+    } else if (source === SOURCE_IMAGE_RESOLUTION) {
+      onChange(createEmptyImageResolutionCondition())
     } else if (source === SOURCE_HEADER || source === SOURCE_PARAM) {
       onChange({
         ...createEmptyCondition(),
@@ -871,31 +912,72 @@ function RuleConditionRow({
     </>
   )
 
+  const renderImageResolutionCondition = (
+    resolutionCond: ImageResolutionCondition
+  ) => (
+    <Select
+      items={IMAGE_RESOLUTION_OPTIONS}
+      value={resolutionCond.value}
+      onValueChange={(value) =>
+        value !== null &&
+        onChange({
+          ...resolutionCond,
+          value: value as ImageResolutionCondition['value'],
+        })
+      }
+    >
+      <SelectTrigger className='w-28' size='sm'>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false}>
+        <SelectGroup>
+          {IMAGE_RESOLUTIONS.map((resolution) => (
+            <SelectItem key={resolution} value={resolution}>
+              {resolution}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+
+  const renderConditionFields = () => {
+    if (condition.source === SOURCE_IMAGE_RESOLUTION) {
+      return renderImageResolutionCondition(condition as ImageResolutionCondition)
+    }
+    if (condition.source === SOURCE_TIME) {
+      return renderTimeCondition(condition as TimeCondition)
+    }
+    return renderParamHeaderCondition(condition as ParamHeaderCondition)
+  }
+
   return (
     <div className='flex flex-wrap items-center gap-2'>
       <Select
         items={[
           { value: SOURCE_PARAM, label: t('Body param') },
           { value: SOURCE_HEADER, label: t('Header') },
+          { value: SOURCE_IMAGE_RESOLUTION, label: t('Image size') },
           { value: SOURCE_TIME, label: t('Time') },
         ]}
         value={condition.source}
         onValueChange={(v) => v !== null && handleSourceChange(v)}
       >
-        <SelectTrigger className='w-28' size='sm'>
+        <SelectTrigger className='w-32' size='sm'>
           <SelectValue>{sourceLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
           <SelectGroup>
             <SelectItem value={SOURCE_PARAM}>{t('Body param')}</SelectItem>
             <SelectItem value={SOURCE_HEADER}>{t('Header')}</SelectItem>
+            <SelectItem value={SOURCE_IMAGE_RESOLUTION}>
+              {t('Image size')}
+            </SelectItem>
             <SelectItem value={SOURCE_TIME}>{t('Time')}</SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>
-      {condition.source === SOURCE_TIME
-        ? renderTimeCondition(condition as TimeCondition)
-        : renderParamHeaderCondition(condition as ParamHeaderCondition)}
+      {renderConditionFields()}
       <Button
         variant='ghost'
         size='icon'

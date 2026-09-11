@@ -30,7 +30,10 @@ type claudeCapabilities struct {
 }
 
 func claudeCapabilitiesFor(model string) claudeCapabilities {
-	model = strings.ToLower(model)
+	// Normalize namespaced names (for example "anti/claude-opus-5" from
+	// effort/model routing or channel model mapping) to the bare model so
+	// capability matching mirrors the suffix parser.
+	model = strings.ToLower(lastModelPathSegment(model))
 	capabilities := claudeCapabilities{supportsManual: true, supportsDisable: true}
 
 	switch {
