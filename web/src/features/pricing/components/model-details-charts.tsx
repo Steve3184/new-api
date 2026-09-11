@@ -26,32 +26,10 @@ import { useThemeRadiusPx } from '@/lib/theme-radius'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
+import type { PerfMetricsBucketTime } from '@/stores/system-config-store'
 
+import { formatPerfBucketLabel } from '../lib/bucket-label'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
-
-function formatHourLabel(iso: string, includeMinutes = false): string {
-  const date = new Date(iso)
-  const hours = date.getHours()
-  if (includeMinutes) {
-    return `${String(hours).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-  }
-  return `${String(hours).padStart(2, '0')}:00`
-}
-
-function formatDayLabel(date: string): string {
-  const parsed = new Date(date)
-  if (date.includes('T')) {
-    return parsed.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-    })
-  }
-  return parsed.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 function getChartThemeTokens(resolvedTheme: string) {
   return {
@@ -98,6 +76,7 @@ function stripUptimePointSuffix(value: string): string {
 
 export function LatencyTrendChart(props: {
   series: LatencyTimePoint[]
+  bucket: PerfMetricsBucketTime
   className?: string
 }) {
   const { t } = useTranslation()
@@ -106,14 +85,8 @@ export function LatencyTrendChart(props: {
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
-    const timestamps = props.series
-      .map((point) => Date.parse(point.timestamp))
-      .filter(Number.isFinite)
-    const compactTimeRange =
-      timestamps.length > 1 &&
-      Math.max(...timestamps) - Math.min(...timestamps) < 60 * 60 * 1000
     const data = props.series.map((point) => ({
-      time: formatHourLabel(point.timestamp, compactTimeRange),
+      time: formatPerfBucketLabel(Date.parse(point.timestamp), props.bucket),
       group: point.group,
       ttft: point.ttft_ms,
     }))
@@ -148,6 +121,7 @@ export function LatencyTrendChart(props: {
           orient: 'bottom',
           label: {
             style: { fill: textColor, fontSize: 10 },
+            autoLimit: true,
           },
           tick: { visible: false },
         },
@@ -164,7 +138,7 @@ export function LatencyTrendChart(props: {
         },
       ],
     }
-  }, [gridColor, props.series, t, textColor])
+  }, [gridColor, props.bucket, props.series, t, textColor])
 
   if (props.series.length === 0) {
     return (
@@ -202,6 +176,7 @@ export function LatencyTrendChart(props: {
 
 export function UptimeTrendChart(props: {
   series: UptimeDayPoint[]
+  bucket: PerfMetricsBucketTime
   className?: string
 }) {
   const { t } = useTranslation()
@@ -212,7 +187,7 @@ export function UptimeTrendChart(props: {
     if (props.series.length === 0) return null
 
     const rawData = props.series.map((point) => ({
-      date: formatDayLabel(point.date),
+      date: formatPerfBucketLabel(Date.parse(point.date), props.bucket),
       uptime: toUptimeChartValue(point.uptime_pct),
       incidents: point.incidents,
       outage: point.outage_minutes,
@@ -292,7 +267,7 @@ export function UptimeTrendChart(props: {
         },
       ],
     }
-  }, [gridColor, props.series, t, textColor])
+  }, [gridColor, props.bucket, props.series, t, textColor])
 
   if (props.series.length === 0) {
     return (

@@ -36,6 +36,7 @@ import {
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import type { UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
@@ -164,6 +165,9 @@ function average(
 
 export function ModelDetailsPerformance(props: { model: PricingModel }) {
   const { t } = useTranslation()
+  const bucket = useSystemConfigStore(
+    (state) => state.config.charts.perfMetricsBucketTime
+  )
   const metricsQuery = useQuery({
     queryKey: ['perf-metrics', props.model.model_name],
     queryFn: async () =>
@@ -313,7 +317,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           title={t('Latency trend (last 24h)')}
           description={t('Average TTFT')}
         />
-        <LatencyTrendChart series={latencySeries} />
+        <LatencyTrendChart series={latencySeries} bucket={bucket} />
       </section>
 
       <section>
@@ -341,7 +345,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
             ) : null
           }
         />
-        <UptimeTrendChart series={uptimeSeries} />
+        <UptimeTrendChart series={uptimeSeries} bucket={bucket} />
       </section>
     </div>
   )
