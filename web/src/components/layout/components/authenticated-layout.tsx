@@ -25,6 +25,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 
+import { consoleSurfaceStyles } from '../lib/console-surface'
 import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
 
@@ -39,18 +40,10 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
     ? savedSidebarState !== 'false'
     : appearance.defaultSidebarLayout === 'expanded'
   const backgroundImage = appearance.backgroundImage
-  const blurOpacity = Math.min(
-    100,
-    Math.max(0, appearance.backgroundBlurOpacity ?? 40)
+  const surfaceStyles = consoleSurfaceStyles(
+    backgroundImage,
+    appearance.backgroundBlurOpacity
   )
-  const surfaceStyles = backgroundImage
-    ? ({
-        '--console-surface-opacity': `${blurOpacity}%`,
-        '--console-card-opacity': `${Math.min(85, blurOpacity + 15)}%`,
-        '--console-sidebar-opacity': `${Math.min(80, blurOpacity + 10)}%`,
-        '--console-list-opacity': `${Math.min(75, blurOpacity + 20)}%`,
-      } as React.CSSProperties)
-    : undefined
 
   return (
     <div

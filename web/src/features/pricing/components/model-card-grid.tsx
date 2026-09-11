@@ -39,7 +39,6 @@ export interface ModelCardGridProps {
   showRechargePrice?: boolean
   selectedGroup?: string
   pageSize?: number
-  backgroundImage?: string
 }
 
 export function ModelCardGrid(props: ModelCardGridProps) {
@@ -87,7 +86,6 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
             perf={perfMap.get(model.model_name || '')}
-            backgroundImage={props.backgroundImage}
             onClick={() => props.onModelClick(model.model_name || '')}
           />
         ))}

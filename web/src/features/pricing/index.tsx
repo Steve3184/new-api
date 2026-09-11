@@ -148,7 +148,6 @@ export function Pricing() {
           showRechargePrice={showRechargePrice}
           selectedGroup={groupFilter}
           pageSize={appearance.modelSquareCardPageSize}
-          backgroundImage={appearance.backgroundImage}
         />
       )
     }

@@ -52,7 +52,6 @@ export interface ModelCardProps {
   showRechargePrice?: boolean
   selectedGroup?: string
   perf?: ModelPerfBadgeData
-  backgroundImage?: string
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -231,8 +230,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   return (
     <Card
       className={cn(
-        'hover:ring-foreground/20 h-full min-w-0 gap-3 transition-colors',
-        props.backgroundImage && 'bg-card/50 backdrop-blur-sm'
+        'hover:ring-foreground/20 h-full min-w-0 gap-3 transition-colors'
       )}
     >
       <CardHeader className='flex flex-row items-start gap-3'>
