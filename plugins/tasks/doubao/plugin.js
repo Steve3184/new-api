@@ -21,6 +21,7 @@ export const meta = {
     "doubao-seedance-2-5-260628",
   ],
   fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
   usageSchema: {
     // Upstream billing tokens (estimated at submit, actual on completion).
     tokens: {
@@ -65,6 +66,12 @@ export const meta = {
 
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+// Another New API gateway serves the Ark wire format only on this plugin's
+// /doubao native routes; Ark itself serves the unprefixed paths.
+function apiRoot(ctx) {
+  return ctx.baseUrl + (ctx.upstream && ctx.upstream.kind === "new_api" ? "/doubao" : "");
 }
 
 function draftTaskIds(content) {
@@ -262,7 +269,7 @@ export function buildSubmitRequest(ctx) {
   if (seconds > 0) body.duration = seconds;
   body.model = ctx.upstreamModel || body.model;
   return {
-    url: ctx.baseUrl + "/api/v3/contents/generations/tasks",
+    url: apiRoot(ctx) + "/api/v3/contents/generations/tasks",
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
     body: body,
@@ -303,7 +310,7 @@ export function extractUsage(ctx) {
 
 export function buildQueryRequest(ctx) {
   return {
-    url: ctx.baseUrl + "/api/v3/contents/generations/tasks/" + ctx.taskId,
+    url: apiRoot(ctx) + "/api/v3/contents/generations/tasks/" + ctx.taskId,
     method: "GET",
     headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: "Bearer " + ctx.apiKey },
   };

@@ -395,6 +395,7 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	if relayInfo != nil && relayInfo.ChannelMeta != nil {
 		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeNewAPI ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeMeshy2API ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeUnrealSpeech ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeAgnes {

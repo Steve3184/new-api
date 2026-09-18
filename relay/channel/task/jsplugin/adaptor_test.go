@@ -1841,3 +1841,138 @@ func TestAlibabaSubmitDeltaDoesNotMutateControlState(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"choices":[{"count":2,"lastText":false,"finishReason":"stop"}],"hasUsage":true}`, string(encoded))
 }
+
+// newAPIGateway emulates the upstream New API instance a type-60 channel
+// points at: it answers only on the plugin's prefixed native routes, requires
+// the gateway token as a Bearer header, and renders what its own presenters
+// render (the public task id already substituted into the id fields).
+func newAPIGateway(t *testing.T, routes map[string]string, seen *[]string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*seen = append(*seen, r.Method+" "+r.URL.Path)
+		if r.Header.Get("Authorization") != "Bearer sk-gateway" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		body, ok := routes[r.Method+" "+r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+}
+
+func TestTaskAdaptorChainsDoubaoThroughNewAPIUpstream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	var seen []string
+	gateway := newAPIGateway(t, map[string]string{
+		"POST /doubao/api/v3/contents/generations/tasks":               `{"id":"task_up_public"}`,
+		"GET /doubao/api/v3/contents/generations/tasks/task_up_public": `{"id":"task_up_public","status":"succeeded","content":{"video_url":"https://cdn.example/v.mp4"},"usage":{"completion_tokens":1200,"total_tokens":1200}}`,
+	}, &seen)
+	defer gateway.Close()
+
+	source, err := plugins.Source("doubao")
+	require.NoError(t, err)
+	plugin, err := pluginruntime.NewRegistry().RegisterFactory(source, pluginruntime.Options{Key: "doubao"})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	const modelName = "doubao-seedance-1-0-pro-250528"
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeNewAPI, ChannelBaseUrl: gateway.URL, ApiKey: "sk-gateway", UpstreamModelName: modelName},
+		OriginModelName: modelName,
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_local"},
+	}
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "a cat", Model: modelName})
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+
+	requestBody, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	submitURL, err := adaptor.BuildRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, gateway.URL+"/doubao/api/v3/contents/generations/tasks", submitURL)
+	resp, err := adaptor.DoRequest(c, info, requestBody)
+	require.NoError(t, err)
+	parsed, taskErr := adaptor.ParseResponse(c, resp, info)
+	require.Nil(t, taskErr)
+	assert.Equal(t, "task_up_public", parsed.UpstreamTaskID, "the gateway's presenter emits its public id in the id field doubao reads")
+
+	task := &model.Task{
+		Action:      info.Action,
+		Properties:  model.Properties{OriginModelName: modelName, UpstreamModelName: modelName},
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: parsed.UpstreamTaskID},
+	}
+	queryResp, err := adaptor.FetchTask(gateway.URL, "sk-gateway", task, "")
+	require.NoError(t, err)
+	queryBody, err := io.ReadAll(queryResp.Body)
+	require.NoError(t, err)
+	require.NoError(t, queryResp.Body.Close())
+	result, err := adaptor.ParseTaskResult(task, queryResp, queryBody)
+	require.NoError(t, err)
+	assert.Equal(t, "SUCCESS", result.Status)
+	assert.Equal(t, "https://cdn.example/v.mp4", result.Url)
+	assert.Equal(t, 1200, result.TotalTokens)
+	assert.Equal(t, []string{
+		"POST /doubao/api/v3/contents/generations/tasks",
+		"GET /doubao/api/v3/contents/generations/tasks/task_up_public",
+	}, seen)
+}
+
+func TestTaskAdaptorChainsSunoBatchFetchThroughNewAPIUpstream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	var seen []string
+	gateway := newAPIGateway(t, map[string]string{
+		"POST /suno/submit/MUSIC": `{"code":"success","message":"","data":"task_up_public"}`,
+		"POST /suno/fetch":        `{"code":"success","message":"","data":[{"task_id":"task_up_public","status":"SUCCESS","progress":"100%","data":[{"id":"clip-1","status":"complete","audio_url":"https://cdn.example/a.mp3"}]}]}`,
+	}, &seen)
+	defer gateway.Close()
+
+	source, err := plugins.Source("sunoapi")
+	require.NoError(t, err)
+	plugin, err := pluginruntime.NewRegistry().RegisterFactory(source, pluginruntime.Options{Key: "sunoapi"})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeNewAPI, ChannelBaseUrl: gateway.URL, ApiKey: "sk-gateway", UpstreamModelName: "suno_music"},
+		OriginModelName: "suno_music",
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_local", Action: "MUSIC"},
+	}
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/suno/submit/music", nil)
+	c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "a song about cats"})
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+
+	requestBody, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	submitURL, err := adaptor.BuildRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, gateway.URL+"/suno/submit/MUSIC", submitURL)
+	resp, err := adaptor.DoRequest(c, info, requestBody)
+	require.NoError(t, err)
+	parsed, taskErr := adaptor.ParseResponse(c, resp, info)
+	require.Nil(t, taskErr)
+	assert.Equal(t, "task_up_public", parsed.UpstreamTaskID)
+
+	task := &model.Task{
+		Action:      "MUSIC",
+		Properties:  model.Properties{OriginModelName: "suno_music", UpstreamModelName: "suno_music"},
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: parsed.UpstreamTaskID},
+	}
+	batchResp, err := adaptor.FetchBatchTasks(gateway.URL, "sk-gateway", []*model.Task{task}, "")
+	require.NoError(t, err)
+	batchBody, err := io.ReadAll(batchResp.Body)
+	require.NoError(t, err)
+	require.NoError(t, batchResp.Body.Close())
+	results, err := adaptor.ParseBatchResult([]*model.Task{task}, batchResp, batchBody)
+	require.NoError(t, err)
+	require.Contains(t, results, "task_up_public")
+	assert.Equal(t, "SUCCESS", results["task_up_public"].TaskInfo.Status)
+	assert.Equal(t, []string{"POST /suno/submit/MUSIC", "POST /suno/fetch"}, seen)
+}

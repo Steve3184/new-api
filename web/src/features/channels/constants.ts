@@ -183,7 +183,8 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
   60: { descriptionKey: 'Connect to UnrealSpeech text-to-speech services' },
   61: { descriptionKey: 'Connect to model services through a Sub2API gateway' },
   62: {
-    descriptionKey: 'Connect to model services from another New API instance',
+    descriptionKey:
+      'Connect to New API model services with support for multiple task plugins',
   },
   63: { descriptionKey: 'Connect to Agnes multimodal model services' },
   [CHANNEL_TYPE_VLLM]: {

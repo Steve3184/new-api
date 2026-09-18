@@ -81,7 +81,7 @@ export const STATIC_I18N_KEYS = [
   "New API's flexible channel lets you configure upstream addresses and authentication per endpoint, choose native forwarding or supported protocol conversions, and configure model listing and balance queries independently",
   'Flexible integration',
   'Connect to model services through a Sub2API gateway',
-  'Connect to model services from another New API instance',
+  'Connect to New API model services with support for multiple task plugins',
   'SGLang',
   'Connect to self-hosted models served by SGLang',
   'TypeSafe',

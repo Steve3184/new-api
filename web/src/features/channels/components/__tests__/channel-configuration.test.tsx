@@ -66,6 +66,7 @@ const plugins: TaskPluginOption[] = [
     icon: 'text:VA',
     baseUrl: 'https://a.example',
     models: ['video-a-1'],
+    upstreams: ['vendor', 'new_api'],
   },
   {
     key: 'video-b',
@@ -73,8 +74,10 @@ const plugins: TaskPluginOption[] = [
     icon: 'text:VB',
     baseUrl: 'https://b.example',
     models: ['video-b-1'],
+    upstreams: ['vendor', 'new_api'],
   },
   {
+    // Vendor-only: bindable to a Task Plugin channel, never to a New API one.
     key: 'no-address',
     name: 'No Address',
     icon: 'text:NA',
@@ -2747,4 +2750,68 @@ test('the header override passthrough template button confirms before filling th
       { name: 'Pass Through Request Headers' }
     )
   ).toBeChecked()
+})
+
+test('a New API channel binds upstream task plugins and publishes their models', async () => {
+  const channel = channelSchema.parse({
+    ...editingChannel,
+    type: 60,
+    base_url: 'https://gateway.example',
+    models: 'gpt-5',
+    setting: JSON.stringify({ task_extend_plugin_keys: ['video-a'] }),
+  })
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/42') {
+      return { data: { success: true, data: channel } }
+    }
+    return originalGet?.(url, config)
+  })
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={channel} />)
+  const extensions = within(
+    await screen.findByRole('group', { name: 'Plugin extensions' })
+  )
+  expect(
+    extensions.getByRole('button', { name: 'Video A Selected 0 / 1' })
+  ).toBeVisible()
+  expect(
+    extensions.queryByRole('button', { name: /^Video B/ })
+  ).not.toBeInTheDocument()
+
+  const selector = screen.getByRole('combobox', {
+    name: 'Select the task plugins installed on the upstream gateway',
+  })
+  await user.click(selector)
+  expect(
+    screen.queryByRole('option', { name: /^No Address/ })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('option', { name: /^Video B/ }))
+  await user.keyboard('{Escape}')
+  expect(
+    extensions.getByRole('button', { name: 'Video B Selected 1 / 1' })
+  ).toBeVisible()
+  expect(screen.getByRole('button', { name: 'video-b-1' })).toBeVisible()
+
+  await user.click(selector)
+  await user.click(screen.getByRole('option', { name: /^Video A/ }))
+  await user.keyboard('{Escape}')
+  expect(
+    extensions.queryByRole('button', { name: /^Video A/ })
+  ).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'gpt-5' })).toBeVisible()
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    setting?: string
+    models?: string
+  }
+  const setting = JSON.parse(payload.setting ?? '{}')
+  expect(setting).toMatchObject({ task_extend_plugin_keys: ['video-b'] })
+  expect(setting).not.toHaveProperty('task_plugin_key')
+  expect(payload.models?.split(',').sort()).toEqual(['gpt-5', 'video-b-1'])
 })

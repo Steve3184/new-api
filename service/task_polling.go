@@ -341,7 +341,11 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 			tasks = append(tasks, task)
 		}
 	}
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: baseURL}}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType:    ch.Type,
+		ChannelId:      ch.Id,
+		ChannelBaseUrl: baseURL,
+	}}
 	info.ApiKey = ch.Key
 	adaptor.Init(info)
 	resp, err := fetchBatchTaskStatuses(adaptor, baseURL, ch.Key, tasks, taskIds, proxy)

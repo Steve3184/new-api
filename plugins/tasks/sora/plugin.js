@@ -12,6 +12,8 @@ export const meta = {
   author: { name: "QuantumNous" },
   models: ["sora-2", "sora-2-pro"],
   fetchMode: "per_task",
+  // A New API gateway serves /v1/videos as a host protocol, so no URL changes.
+  upstreams: ["vendor", "new_api"],
   usageSchema: {
     // Requested video duration in seconds.
     seconds: {

@@ -113,6 +113,7 @@ export const meta = {
     "wanx2.0-t2i-turbo",
   ],
   fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
   submitResponseTypes: ["json", "sse"],
   requiredCapabilities: ["json-clone@1", "submit-sse-delta@1"],
   usageSchema: { ...WAN_IMAGE_USAGE_SCHEMA, ...WAN_VIDEO_USAGE_SCHEMA },
@@ -142,6 +143,16 @@ export const meta = {
 
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+function viaNewAPI(ctx) {
+  return !!(ctx.upstream && ctx.upstream.kind === "new_api");
+}
+
+// Another New API gateway serves the DashScope wire format only on this
+// plugin's /ali native routes; DashScope itself serves the unprefixed paths.
+function apiRoot(ctx) {
+  return ctx.baseUrl + (viaNewAPI(ctx) ? "/ali" : "");
 }
 
 function firstImage(req) {
@@ -585,15 +596,17 @@ export function buildSubmitRequest(ctx) {
     const converted = convertImage(ctx);
     const headers = { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json" };
     if (!converted.synchronous) headers["X-DashScope-Async"] = "enable";
-    const streaming = converted.synchronous && converted.body.parameters.enable_interleave === true;
+    // A gateway's native route aggregates the vendor stream itself and answers
+    // with one JSON body, so only DashScope is asked for SSE.
+    const streaming = converted.synchronous && converted.body.parameters.enable_interleave === true && !viaNewAPI(ctx);
     if (streaming) headers["X-DashScope-Sse"] = "enable";
-    return { url: ctx.baseUrl + "/api/v1/services/aigc/" + converted.service, method: "POST", headers: headers, body: converted.body, action: converted.action, responseType: streaming ? "sse" : "json" };
+    return { url: apiRoot(ctx) + "/api/v1/services/aigc/" + converted.service, method: "POST", headers: headers, body: converted.body, action: converted.action, responseType: streaming ? "sse" : "json" };
   }
   const body = convert(ctx);
   const kind = modelProfile(body.model).kind;
   const service = kind === "frames" || kind === "speech" ? "image2video" : "video-generation";
   return {
-    url: ctx.baseUrl + "/api/v1/services/aigc/" + service + "/video-synthesis",
+    url: apiRoot(ctx) + "/api/v1/services/aigc/" + service + "/video-synthesis",
     method: "POST",
     headers: { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json", "X-DashScope-Async": "enable" },
     body: body,
@@ -728,7 +741,7 @@ export function extractUsageOnComplete(task, taskResult, body) {
 }
 
 export function buildQueryRequest(ctx) {
-  return { url: ctx.baseUrl + "/api/v1/tasks/" + ctx.taskId, method: "GET", headers: { Authorization: "Bearer " + ctx.apiKey } };
+  return { url: apiRoot(ctx) + "/api/v1/tasks/" + ctx.taskId, method: "GET", headers: { Authorization: "Bearer " + ctx.apiKey } };
 }
 
 export function parseTaskResult(ctx, body) {
