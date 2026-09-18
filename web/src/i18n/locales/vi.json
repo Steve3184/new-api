@@ -60,7 +60,10 @@
     "{{count}} log entries removed.": "Đã xóa {{count}} mục nhật ký.",
     "{{count}} minutes ago": "{{count}} phút trước",
     "{{count}} model mapping(s)": "{{count}} ánh xạ mô hình",
+<<<<<<< HEAD
     "{{count}} model(s)": "{{count}} mô hình",
+=======
+>>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "{{count}} model(s) redirected": "Đã chuyển hướng {{count}} mô hình",
     "{{count}} model(s) skipped because another model derives the same request name": "Đã bỏ qua {{count}} mô hình vì trùng tên yêu cầu với mô hình khác",
     "{{count}} model(s) unchanged by the rule were skipped": "Đã bỏ qua {{count}} mô hình không thay đổi theo quy tắc",
@@ -1682,8 +1685,11 @@
     "Creem products must be a JSON array": "Sản phẩm Creem phải là mảng JSON",
     "Cross-group": "Liên nhóm",
     "Cross-group retry": "Thử lại liên nhóm",
+<<<<<<< HEAD
     "Cryptocurrency": "Tiền mã hóa",
     "Cryptocurrency payment credited successfully": "Đã cộng tiền mã hóa thành công",
+=======
+>>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Cumulative usage": "Mức sử dụng tích lũy",
     "Currency": "Tiền tệ",
     "Currency & Display": "Tiền tệ & hiển thị",
@@ -2273,7 +2279,10 @@
     "Enable Responses WebSocket": "Bật Responses WebSocket",
     "Enable selected channels": "Kích hoạt các kênh đã chọn",
     "Enable selected models": "Kích hoạt các mô hình đã chọn",
+<<<<<<< HEAD
     "Enable selected users": "Bật người dùng đã chọn",
+=======
+>>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Enable session affinity": "Bật duy trì phiên",
     "Enable SSL/TLS": "Bật SSL/TLS",
     "Enable SSRF Protection": "Kích hoạt Bảo vệ SSRF",
@@ -2477,8 +2486,11 @@
     "Excellent": "Tuyệt vời",
     "Exchange rate is required": "Cần có tỷ giá",
     "Exchange rate must be greater than 0": "Tỷ giá phải lớn hơn 0",
+<<<<<<< HEAD
     "Exclude me from user leaderboards": "Loại tôi khỏi bảng xếp hạng người dùng",
     "Exclude upstream HTTP 400 errors": "Loại trừ lỗi HTTP 400 từ thượng nguồn",
+=======
+>>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Excludes the first attempt. Counted per group.": "Không tính lần đầu, tính theo từng nhóm.",
     "Execute code in a sandbox during the response": "Thực thi mã trong sandbox trong quá trình phản hồi",
     "Executor": "Trình thực thi",
@@ -5324,7 +5336,10 @@
     "Request Path": "Đường dẫn yêu cầu",
     "Request policies": "Chính sách yêu cầu",
     "Request policy decisions": "Quyết định chính sách yêu cầu",
+<<<<<<< HEAD
     "Request price": "Giá mỗi yêu cầu",
+=======
+>>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Request processing": "Xử lý yêu cầu",
     "Request rejected locally": "Yêu cầu bị từ chối cục bộ",
     "Request retry": "Thử lại yêu cầu",
@@ -5773,7 +5788,10 @@
     "Select or enter color value": "Chọn hoặc nhập giá trị màu",
     "Select or enter method identifier": "Chọn hoặc nhập mã định danh phương thức",
     "Select or enter model name": "Chọn hoặc nhập tên mô hình",
+<<<<<<< HEAD
     "Select or enter model names": "Chọn hoặc nhập tên mô hình",
+=======
+>>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Select or enter payment type": "Chọn hoặc nhập loại thanh toán",
     "Select or enter payment type key": "Chọn hoặc nhập khóa loại thanh toán",
     "Select payment method": "Chọn phương thức thanh toán",
@@ -6322,6 +6340,8 @@
     "Task pricing": "Giá tác vụ",
     "Task pricing must be converted manually using the task usage schema.": "Cần chuyển đổi giá tác vụ thủ công theo lược đồ mức sử dụng tác vụ.",
     "Task pricing not configured": "Chưa cấu hình giá tác vụ",
+    "Task usage data is required to estimate this expression. Check the model's task plugin configuration.": "Cần dữ liệu sử dụng tác vụ để ước tính chi phí theo biểu thức này. Hãy kiểm tra cấu hình plugin tác vụ của mô hình.",
+    "Task usage metadata is unavailable. Pricing details cannot be displayed.": "Thiếu định nghĩa trường mức sử dụng tác vụ nên không thể hiển thị chi tiết giá.",
     "Task usage prices are USD per declared unit. They are not token prices and are not divided by one million.": "Giá theo mức sử dụng được tính bằng USD cho mỗi đơn vị đã khai báo. Đây không phải giá token và không được chia cho một triệu.",
     "Task usage prices are USD per declared unit. Token fields use dollars per 1M tokens; the editor writes / 1000000 into the expression. Other units are not divided by one million.": "Giá sử dụng tác vụ tính bằng USD trên đơn vị đã khai báo. Trường token dùng USD trên 1 triệu token; trình soạn thảo ghi / 1000000 vào biểu thức. Các đơn vị khác không chia cho một triệu.",
     "Tasks currently pending or running.": "Các tác vụ hiện đang chờ hoặc đang chạy.",
@@ -6497,6 +6517,7 @@
     "This email address is already in use.": "Địa chỉ email này đã được sử dụng.",
     "This email address is not allowed by the administrator's email policy.": "Địa chỉ email này không được chính sách email của quản trị viên cho phép.",
     "This expression cannot be edited visually without losing information.": "Không thể chuyển biểu thức này sang chỉnh sửa trực quan mà không mất thông tin.",
+    "This expression cannot be expanded into a price table. View the original expression below.": "Không thể trình bày biểu thức này dưới dạng bảng giá. Xem biểu thức gốc bên dưới.",
     "This expression cannot be represented by the price table. Switching discards the entire expression, including request rules, and resets all prices to zero. Configure prices before saving.": "Bảng giá không thể biểu diễn biểu thức này. Khi chuyển, toàn bộ biểu thức, kể cả quy tắc yêu cầu, sẽ bị bỏ và mọi giá sẽ được đặt lại về 0. Hãy cấu hình lại giá trước khi lưu.",
     "This expression cannot be represented by the price table. You can switch to visual editing by confirming that the expression will be discarded.": "Bảng giá không thể biểu diễn biểu thức này. Bạn có thể chuyển sang trình sửa trực quan bằng cách xác nhận bỏ biểu thức.",
     "This expression cannot be simulated in the browser.": "Không thể mô phỏng biểu thức này trong trình duyệt.",
@@ -6861,7 +6882,10 @@
     "Unknown version": "Phiên bản không xác định",
     "Unlimited": "Không giới hạn",
     "Unlimited Quota": "Hạn mức không giới hạn",
+<<<<<<< HEAD
     "UnrealSpeech": "UnrealSpeech",
+=======
+>>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Unrecognized status code": "Mã trạng thái không xác định",
     "Unsaved changes": "Thay đổi chưa được lưu",
     "Unset legacy prices use the billing engine defaults.": "Giá theo chế độ cũ chưa được thiết lập sẽ dùng giá trị mặc định của hệ thống tính phí.",

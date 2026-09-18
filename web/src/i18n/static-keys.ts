@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'Task usage metadata is unavailable. Pricing details cannot be displayed.',
+  'This expression cannot be expanded into a price table. View the original expression below.',
   'This operation is only supported for vLLM or SGLang channels',
   'Invalid inference server address',
   'Channel type does not match the status endpoint',
