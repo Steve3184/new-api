@@ -7403,7 +7403,7 @@
     "Welcome back!": "欢迎回来！",
     "Welcome to our New API...": "欢迎使用我们的 New API...",
     "Well-Known URL": "Well-Known URL",
-    "Well-Known URL must start with http:// or https://": "知名 URL 必须以 http:// 或 https:// 开头",
+    "Well-Known URL must start with http:// or https://": "Well-Known URL 必须以 http:// 或 https:// 开头",
     "What would you like to know?": "您想了解什么？",
     "When a disable rule matches, disable the current key and retry with another enabled key.": "命中禁用规则后禁用当前密钥，并使用其他启用的密钥重试。",
     "When a token uses the auto group, the system tries groups from top to bottom until it finds an available group.": "当令牌使用 auto 分组时，系统会按从上到下的顺序尝试，直到找到可用分组。",
