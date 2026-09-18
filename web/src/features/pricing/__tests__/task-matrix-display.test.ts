@@ -18,8 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 
-import { describe, test } from 'vitest'
-
 import { describe, expect, test } from 'vitest'
 
 import { parseTaskTiersFromExpr } from '../lib/billing-expr'
