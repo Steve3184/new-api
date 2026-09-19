@@ -77,7 +77,7 @@ export function Dialog({
       {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent
         className={cn(
-          'flex max-h-[calc(100vh-2rem)] w-full flex-col gap-4 overflow-hidden p-4 sm:max-w-2xl sm:p-6',
+          'flex max-h-(--dialog-available-height) w-full flex-col gap-4 overflow-x-hidden overflow-y-auto p-4 sm:max-w-2xl sm:p-6',
           contentClassName,
           dialogContentMotionClassName
         )}

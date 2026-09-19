@@ -293,7 +293,7 @@ function UpstreamUpdateSession(props: UpstreamUpdateDialogProps) {
         }
         destructive={selectedRemove.length > 0}
         isLoading={props.upstream.applyLoading}
-        className='max-h-[calc(100vh-2rem)] overflow-y-auto [&_button]:h-auto [&_button]:min-h-8 [&_button]:whitespace-normal'
+        className='max-h-(--dialog-available-height) overflow-y-auto [&_button]:h-auto [&_button]:min-h-8 [&_button]:whitespace-normal'
         handleConfirm={async () => {
           await props.upstream.applyUpdates({
             addModels: selectedAdd,
