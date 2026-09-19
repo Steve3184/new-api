@@ -752,7 +752,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       (formData.type === 1 || formData.type === 24) &&
       formData.proxy_image_urls === true,
     proxy: formData.proxy?.trim() || '',
-    pass_through_body_enabled: formData.pass_through_body_enabled || false,
+    pass_through_body_enabled:
+      formData.type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+      formData.pass_through_body_enabled === true,
     responses_websocket_enabled:
       (formData.type === 1 || formData.type === 57) &&
       formData.responses_websocket_enabled === true,

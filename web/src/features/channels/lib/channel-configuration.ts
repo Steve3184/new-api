@@ -25,6 +25,7 @@ import {
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../constants'
+import { CHANNEL_TYPE_ADVANCED_CUSTOM } from './advanced-custom'
 import { channelFormSchema, type ChannelFormValues } from './channel-form'
 
 export type ChannelProviderTarget =
@@ -164,7 +165,8 @@ export function getChannelConfigurationState(
           values.fake_non_stream)) ||
       values.thinking_to_content ||
       values.simulate_remote_compact_v2 ||
-      values.pass_through_body_enabled ||
+      (values.type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+        values.pass_through_body_enabled) ||
       ((values.type === 1 || values.type === 24) && values.proxy_image_urls) ||
       ((values.type === 1 || values.type === 57) &&
         values.responses_websocket_enabled) ||

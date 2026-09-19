@@ -4458,7 +4458,8 @@ export function ChannelMutateDrawer({
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
                 {remoteCompactFields}
-                {passthroughFields}
+                {currentType !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+                  passthroughFields}
                 {proxyImageURLFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}
