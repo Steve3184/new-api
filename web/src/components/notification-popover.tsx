@@ -411,6 +411,7 @@ export function NotificationPopover({
           description={t('Latest platform updates and notices')}
           contentClassName='sm:max-w-3xl'
           contentHeight='min(65vh, 36rem)'
+          bodyViewportClassName={notificationDialogLayoutClasses.viewport}
           bodyClassName={notificationDialogLayoutClasses.body}
           footer={
             <Button onClick={() => onOpenChange(false)}>{t('Close')}</Button>

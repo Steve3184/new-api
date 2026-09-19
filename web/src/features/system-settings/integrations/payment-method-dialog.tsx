@@ -197,9 +197,11 @@ export function PaymentMethodDialog({
       onOpenChange={onOpenChange}
       title={isEditMode ? t('Edit payment method') : t('Add payment method')}
       description={t('Configure a payment method for user recharge options.')}
-      contentClassName='sm:max-w-[500px]'
       contentHeight='auto'
       bodyClassName='space-y-4'
+      overlayClassName='z-[60] bg-black/20 supports-backdrop-filter:backdrop-blur-sm'
+      forceOverlay
+      contentClassName='z-[61] sm:max-w-[500px]'
       footer={
         <>
           <Button
@@ -218,7 +220,10 @@ export function PaymentMethodDialog({
       <Form {...form}>
         <form
           id={PAYMENT_METHOD_FORM_ID}
-          onSubmit={form.handleSubmit(handleSubmit)}
+          onSubmit={(event) => {
+            event.stopPropagation()
+            void form.handleSubmit(handleSubmit)(event)
+          }}
           className='space-y-4'
         >
           <FormField

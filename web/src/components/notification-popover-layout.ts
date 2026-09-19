@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const notificationDialogLayoutClasses = {
-  body: 'h-full min-h-0',
-  tabs: 'flex h-full min-h-0 flex-col',
+  viewport: 'flex min-h-0 flex-col overflow-hidden',
+  body: 'flex h-full min-h-0 flex-col',
+  tabs: 'flex min-h-0 flex-1 flex-col',
   tabContent:
-    'mt-2 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden',
-  scrollArea: 'h-full min-h-0 pr-3',
+    'mt-2 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden',
+  scrollArea: 'min-h-0 flex-1 pr-3',
 } as const

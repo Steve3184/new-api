@@ -154,7 +154,10 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
         <form
           id={EPAY_GATEWAY_FORM_ID}
           className='space-y-5'
-          onSubmit={form.handleSubmit(handleSubmit)}
+          onSubmit={(event) => {
+            event.stopPropagation()
+            void form.handleSubmit(handleSubmit)(event)
+          }}
         >
           <FormField
             control={form.control}
@@ -280,7 +283,12 @@ export function EpayGatewayDialog(props: EpayGatewayDialogProps) {
                 <FormControl>
                   <PaymentMethodsVisualEditor
                     value={field.value}
-                    onChange={field.onChange}
+                    onChange={(value) =>
+                      form.setValue('pay_methods', value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   />
                 </FormControl>
                 <FormMessage />

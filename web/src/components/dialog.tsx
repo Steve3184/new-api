@@ -40,8 +40,11 @@ type DialogProps = React.ComponentProps<typeof DialogRoot> & {
   headerClassName?: string
   titleClassName?: string
   descriptionClassName?: string
+  bodyViewportClassName?: string
   bodyClassName?: string
   footerClassName?: string
+  overlayClassName?: string
+  forceOverlay?: boolean
   initialFocus?: boolean
   showCloseButton?: boolean
 }
@@ -60,8 +63,11 @@ export function Dialog({
   headerClassName,
   titleClassName,
   descriptionClassName,
+  bodyViewportClassName,
   bodyClassName,
   footerClassName,
+  overlayClassName,
+  forceOverlay,
   initialFocus,
   showCloseButton,
   ...dialogProps
@@ -77,6 +83,8 @@ export function Dialog({
         )}
         initialFocus={initialFocus}
         showCloseButton={showCloseButton}
+        overlayClassName={overlayClassName}
+        forceOverlay={forceOverlay}
         style={
           {
             '--dialog-content-height': contentHeight,
@@ -95,12 +103,15 @@ export function Dialog({
         </DialogHeader>
 
         <div
+          data-slot='dialog-body-viewport'
           className={cn(
             '-mx-1 min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain',
-            'h-[var(--dialog-content-height)] max-h-[calc(100vh-14rem)]'
+            'h-[var(--dialog-content-height)] max-h-[calc(100vh-14rem)]',
+            bodyViewportClassName
           )}
         >
           <div
+            data-slot='dialog-body'
             className={cn(
               'min-w-0 px-1 py-1',
               '[&_form]:overflow-x-visible',

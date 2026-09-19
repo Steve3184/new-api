@@ -16,12 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import { ModelGroupSelector } from '../../model-group-selector'
 import {
   modelGroupSelectorLayoutClasses,
   scrollSelectedOptionIntoView,
 } from '../layout'
+
+const desktopWidth = window.innerWidth
+
+afterEach(() => {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: desktopWidth,
+  })
+})
 
 describe('model group selector layout', () => {
   test('keeps the mobile drawer height stable and scrolls the model list internally', () => {
@@ -36,7 +53,7 @@ describe('model group selector layout', () => {
     expect(drawerClasses).toContain('min-h-0')
     expect(contentClasses).toContain('h-full')
     expect(contentClasses).toContain('min-h-0')
-    expect(modelColumnClasses).toContain('flex-1')
+    expect(modelColumnClasses).toContain('h-full')
     expect(modelColumnClasses).toContain('min-h-0')
     expect(modelGroupSelectorLayoutClasses.modelList.split(' ')).toContain(
       'overflow-y-auto'
@@ -82,5 +99,59 @@ describe('model group selector layout', () => {
     scrollSelectedOptionIntoView(selectedOption)
 
     expect(scrollCalls).toEqual([{ block: 'center', inline: 'nearest' }])
+  })
+
+  test('opening on mobile scrolls the selected model list without moving drawer ancestors', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 375,
+    })
+    const ancestorScroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView')
+
+    render(
+      <ModelGroupSelector
+        selectedModel='model-8'
+        models={Array.from({ length: 10 }, (_, index) => ({
+          label: `Model ${index}`,
+          value: `model-${index}`,
+        }))}
+        onModelChange={() => undefined}
+        selectedGroup='default'
+        groups={[{ label: 'Default', value: 'default' }]}
+        onGroupChange={() => undefined}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('combobox'))
+
+    const modelList = document.querySelector<HTMLElement>(
+      '[data-slot="command-list"]'
+    )
+    if (!modelList) throw new Error('Model list was not rendered')
+    const selectedModel = within(modelList)
+      .getByText('Model 8')
+      .closest<HTMLElement>('[cmdk-item]')
+    if (!selectedModel) throw new Error('Selected model was not rendered')
+
+    const listScroll = vi.fn()
+    Object.defineProperties(modelList, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollTo: { configurable: true, value: listScroll },
+    })
+    Object.defineProperties(selectedModel, {
+      offsetHeight: { configurable: true, value: 32 },
+      offsetTop: { configurable: true, value: 320 },
+    })
+
+    await waitFor(() => {
+      expect(listScroll).toHaveBeenCalledWith({
+        top: 236,
+        behavior: 'auto',
+      })
+    })
+    expect(ancestorScroll).not.toHaveBeenCalledWith({
+      block: 'center',
+      inline: 'nearest',
+    })
   })
 })

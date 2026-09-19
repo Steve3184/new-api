@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 export const modelGroupSelectorLayoutClasses = {
   mobileDrawer: 'flex h-[min(80svh,40rem)] max-h-[80svh] min-h-0 flex-col',
-  mobileBody: 'min-h-0 flex-1 overflow-hidden px-4 pb-5',
-  mobileContent: 'flex h-full min-h-0 flex-col gap-3 p-2',
-  mobileGroupColumn: 'min-h-0 min-w-0 shrink-0 space-y-2',
-  mobileGroupScroll: 'grid max-h-[min(18svh,9rem)] gap-1 overflow-y-auto pr-1',
+  mobileBody: 'h-0 min-h-0 flex-1 overflow-hidden px-4 pb-5',
+  mobileContent:
+    'grid h-full min-h-0 grid-rows-[minmax(0,auto)_minmax(0,1fr)] gap-3 p-2',
+  mobileGroupColumn: 'min-h-0 min-w-0 shrink-0 space-y-2 overflow-hidden',
+  mobileGroupScroll:
+    'grid max-h-[min(18svh,9rem)] auto-rows-[2rem] content-start gap-1 overflow-y-auto pr-1',
   mobileModelColumn:
-    'flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border',
+    'flex h-full min-h-0 min-w-0 overflow-hidden rounded-lg border',
   desktopPanel: 'max-h-[min(50vh,28rem)] overflow-hidden',
   desktopContent:
     'grid h-[min(50vh,28rem)] max-h-[min(50vh,28rem)] min-h-0 gap-3 p-2 md:grid-cols-[9.5rem_minmax(0,1fr)]',
@@ -31,9 +33,9 @@ export const modelGroupSelectorLayoutClasses = {
   groupScroll:
     'mt-2 grid min-h-0 flex-1 auto-rows-[2rem] content-start gap-1 overflow-y-auto pr-1',
   modelColumn: 'flex h-full min-h-0 min-w-0 overflow-hidden rounded-lg border',
-  modelCommand: 'min-h-0 flex-1 rounded-lg border-0 bg-transparent p-1',
+  modelCommand: 'h-full min-h-0 flex-1 rounded-lg border-0 bg-transparent p-1',
   modelList:
-    'min-h-0 flex-1 max-h-none overflow-y-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:block [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent',
+    'h-0 min-h-0 flex-1 max-h-none overflow-y-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:block [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent',
   modelItem:
     'relative mb-0.5 flex items-center justify-between rounded-md border border-transparent px-2 py-1.5 pl-3 text-[12px] leading-4 transition-colors before:absolute before:inset-y-2 before:left-1 before:w-1 before:rounded-full before:bg-transparent',
   selectedModelItem:

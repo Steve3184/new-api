@@ -589,6 +589,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const isMobile = useIsMobile()
   const groupScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const modelScrollContainerRef = useRef<HTMLDivElement | null>(null)
   const selectedGroupOptionRef = useRef<HTMLButtonElement | null>(null)
   const selectedModelOptionRef = useRef<HTMLDivElement | null>(null)
 
@@ -648,7 +649,10 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
           selectedGroupOptionRef.current,
           groupScrollContainerRef.current
         )
-        scrollSelectedOptionIntoView(selectedModelOptionRef.current)
+        scrollSelectedOptionIntoView(
+          selectedModelOptionRef.current,
+          modelScrollContainerRef.current
+        )
       })
     })
 
@@ -747,7 +751,10 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         placeholder={t('Search models...')}
         value={searchQuery}
       />
-      <CommandList className={modelGroupSelectorLayoutClasses.modelList}>
+      <CommandList
+        className={modelGroupSelectorLayoutClasses.modelList}
+        ref={modelScrollContainerRef}
+      >
         {filteredModels.length === 0 ? (
           <div className='text-muted-foreground px-3 py-8 text-center text-[12px] leading-5'>
             {t('No model found.')}

@@ -1549,7 +1549,9 @@ export function PaymentSettingsSection({
                         {epayGatewaysVisualMode ? (
                           <EpayGatewaysVisualEditor
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(value) =>
+                              setPaymentValue('EpayGateways', value)
+                            }
                           />
                         ) : (
                           <JsonCodeEditor
