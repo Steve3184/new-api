@@ -119,7 +119,7 @@ func WeChatAuth(c *gin.Context) {
 		writeUserBannedResponse(c)
 		return
 	}
-	setupLogin(&user, c)
+	setupLogin(&user, nil, c)
 }
 
 type wechatBindRequest struct {
