@@ -38,7 +38,7 @@ import {
   isDisplayableLogType,
   isTimingLogType,
 } from '../lib/utils'
-import { ModelBadge } from './model-badge'
+import { ModelBadge, ResponseModelDetails } from './model-badge'
 import { StreamTpsCell, TimingMetricsCell } from './timing-metrics-cell'
 import { useUsageLogsContext } from './usage-logs-provider'
 
@@ -146,12 +146,13 @@ export function CommonLogMobileCard<TData>(props: {
       <div className='flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2'>
         {fields.model.visible && (
           <div className='min-w-0 flex-[1_1_10rem]'>
-            <ModelBadge
-              modelName={model.name}
-              actualModel={model.actualModel}
-              modelIcon={log.model_icon}
-              providerIcon={log.provider_icon}
-              wrapText
+              <ModelBadge
+                modelName={model.name}
+                actualModel={model.actualModel}
+                responseModel={model.responseModel}
+                modelIcon={log.model_icon}
+                providerIcon={log.provider_icon}
+                wrapText
               onInspect={() => setSelectedField('model')}
             />
           </div>
@@ -351,15 +352,20 @@ export function CommonLogMobileCard<TData>(props: {
             <p className='bg-muted rounded-lg p-4 text-base [overflow-wrap:anywhere] whitespace-pre-wrap'>
               {activeField.value}
             </p>
-            {selectedField === 'model' && model.actualModel && (
-              <div className='space-y-2'>
-                <p className='text-muted-foreground'>{t('Actual Model')}</p>
-                <p className='text-base [overflow-wrap:anywhere]'>
-                  {model.actualModel}
-                </p>
-                <CopyButton value={model.actualModel} />
-              </div>
+            {selectedField === 'model' && model.responseModel && (
+              <ResponseModelDetails observation={model.responseModel} />
             )}
+            {selectedField === 'model' &&
+              !model.responseModel &&
+              model.actualModel && (
+                <div className='space-y-2'>
+                  <p className='text-muted-foreground'>{t('Actual Model')}</p>
+                  <p className='text-base [overflow-wrap:anywhere]'>
+                    {model.actualModel}
+                  </p>
+                  <CopyButton value={model.actualModel} />
+                </div>
+              )}
             {selectedField === 'channel' && channelCell && (
               <div>
                 {flexRender(

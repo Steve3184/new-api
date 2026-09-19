@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func buildUsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) dto.Usage {
@@ -184,6 +185,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			info.PerformanceBusinessRejection = true
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
 		}
+		info.ObserveResponseModel(gjson.Get(data, "modelVersion").Str)
 		for _, candidate := range geminiResponse.Candidates {
 			if candidate.FinishReason == nil || *candidate.FinishReason == "" || *candidate.FinishReason == "FINISH_REASON_UNSPECIFIED" {
 				continue
@@ -382,6 +384,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	info.ObserveResponseModel(gjson.GetBytes(responseBody, "modelVersion").Str)
 	markGeminiGoogleSearchCall(c, &geminiResponse)
 	countGeminiBillableFunctionCalls(info, &geminiResponse)
 	if len(geminiResponse.Candidates) == 0 {

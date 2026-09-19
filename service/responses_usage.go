@@ -31,6 +31,9 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 	if a == nil || event == nil || a.finished {
 		return
 	}
+	if event.Response != nil {
+		a.info.ObserveResponseModel(event.Response.Model)
+	}
 	ObserveResponsesOutcome(a.info, event)
 	switch event.Type {
 	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":

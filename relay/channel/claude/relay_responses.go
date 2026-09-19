@@ -72,6 +72,7 @@ func ClaudeResponsesStreamHandler(c *gin.Context, resp *http.Response, info *rel
 		}
 		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
 		if claudeResponse.Type == "message_start" && claudeResponse.Message != nil {
+			info.ObserveResponseModel(claudeResponse.Message.Model)
 			info.UpstreamModelName = claudeResponse.Message.Model
 		}
 

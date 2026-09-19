@@ -99,8 +99,11 @@ type RelayInfo struct {
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string
-	// BillingModelName is the pricing identity for this request. It remains
-	// separate from the client-visible and upstream routing model names.
+	ResponseModel          *ResponseModel
+
+	// BillingModelName is the pricing identity for this request. It is kept
+	// separate from OriginModelName and UpstreamModelName so virtual pricing
+	// aliases never participate in channel selection or upstream routing.
 	BillingModelName   string
 	RequestURLPath     string
 	RequestHeaders     map[string]string
@@ -246,6 +249,7 @@ func (info *RelayInfo) RequestedImageCount() int {
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	// Per-attempt protocol state must not leak across an automatic channel
 	// retry. Request-level billing, diagnostics, and errors intentionally stay.
+	info.ResponseModel = nil
 	info.FinalRequestRelayFormat = ""
 	info.RequestConversionChain = nil
 	info.InitRequestConversionChain()
