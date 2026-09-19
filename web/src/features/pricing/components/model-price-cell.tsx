@@ -33,7 +33,7 @@ import {
 } from '../lib/dynamic-price'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
-import { taskUsageUnitLabel } from '../lib/task-price-display'
+import { taskPriceLabel, taskUsageUnitLabel } from '../lib/task-price-display'
 import type { PricingModel, TokenUnit } from '../types'
 
 export type ModelPriceCellOptions = {
@@ -149,7 +149,11 @@ export function ModelPriceCell(props: {
         return {
           label:
             entry.labelKind === 'schema'
-              ? entry.shortLabel
+              ? taskPriceLabel(
+                  entry.description,
+                  entry.shortLabel,
+                  i18n.language
+                )
               : t(entry.shortLabel),
           value: `${entry.formattedRange ?? entry.formatted}${suffix}`,
         }

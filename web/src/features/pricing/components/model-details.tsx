@@ -1183,6 +1183,135 @@ function ProviderGroupPricingSection(
       })
     )
 
+    if (hasSimpleTaskPricing(props.model)) {
+      const tier = dynamicTiers[0]
+
+      return (
+        <section>
+          {!props.hideTitle && (
+            <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+          )}
+          <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+          <StaticDataTable
+            className='-mx-4 rounded-none border-0 sm:mx-0'
+            tableClassName='text-sm'
+            headerRowClassName='hover:bg-transparent'
+            data={availableGroups}
+            getRowKey={(group) => group}
+            columns={[
+              {
+                id: 'group',
+                header: t('Group'),
+                className: thClass,
+                cellClassName: 'py-2.5',
+                cell: (group) => <GroupBadge group={group} size='sm' />,
+              },
+              {
+                id: 'ratio',
+                header: t('Ratio'),
+                className: thClass,
+                cellClassName: 'text-muted-foreground py-2.5 font-mono',
+                cell: (group) =>
+                  `${getConfiguredGroupRatio(props.groupRatio, group)}x`,
+              },
+              ...priceFields.map((fieldEntry) => {
+                const unitLabelKey = getDynamicPriceUnitLabelKey(fieldEntry)
+                let unitLabel = taskUsageUnitLabel(
+                  fieldEntry,
+                  i18n.language,
+                  unitLabelKey ? t(unitLabelKey) : ''
+                )
+                if (!unitLabel && hasRequestPrice) {
+                  unitLabel = t('{{unit}} tokens', {
+                    unit: tokenUnitLabel,
+                  })
+                }
+                const fieldLabel =
+                  fieldEntry.labelKind === 'schema' ? (
+                    <DynamicPriceEntryLabel entry={fieldEntry} />
+                  ) : (
+                    t(fieldEntry.shortLabel)
+                  )
+                return {
+                  id: fieldEntry.field,
+                  header: unitLabel ? (
+                    <>
+                      {fieldLabel}
+                      {` / ${unitLabel}`}
+                    </>
+                  ) : (
+                    fieldLabel
+                  ),
+                  className: `${thClass} text-right`,
+                  cellClassName: 'py-2.5 text-right font-mono',
+                  cell: (group: string) =>
+                    formattedPricesByGroup
+                      .get(group)
+                      ?.get(tier)
+                      ?.get(fieldEntry.field) ?? '-',
+                }
+              }),
+            ]}
+          />
+          {usageExampleRows.length > 0 ? (
+            <div className='mt-3 overflow-hidden rounded-lg border'>
+              <div className='text-muted-foreground px-3 pt-2 text-[10px] font-medium tracking-wider uppercase'>
+                {t('Price examples')}
+              </div>
+              <StaticDataTable
+                className='rounded-none border-0'
+                tableClassName='text-sm'
+                headerRowClassName='hover:bg-transparent'
+                data={availableGroups.flatMap((group) =>
+                  usageExampleRows.map((row) => ({ group, row }))
+                )}
+                getRowKey={({ group, row }) => `${group}-${row.label}`}
+                columns={[
+                  {
+                    id: 'group',
+                    header: t('Group'),
+                    className: thClass,
+                    cellClassName: 'py-2.5',
+                    cell: ({ group }) => <GroupBadge group={group} size='sm' />,
+                  },
+                  {
+                    id: 'spec',
+                    header: t('Spec'),
+                    className: thClass,
+                    cellClassName: 'text-muted-foreground py-2.5',
+                    cell: ({ row }) => row.label,
+                  },
+                  {
+                    id: 'price',
+                    header: t('Example price'),
+                    className: `${thClass} text-right`,
+                    cellClassName: 'py-2.5 text-right font-mono',
+                    cell: ({ group, row }) =>
+                      `≈ ${formatTaskUsageUnitPrice(row.total, {
+                        tokenUnit: props.tokenUnit,
+                        showRechargePrice,
+                        priceRate: props.priceRate,
+                        usdExchangeRate: props.usdExchangeRate,
+                        groupRatioMultiplier: getConfiguredGroupRatio(
+                          props.groupRatio,
+                          group
+                        ),
+                      })}`,
+                  },
+                ]}
+              />
+              <p className='text-muted-foreground/40 px-3 pb-2 text-[10px]'>
+                {t('Approximate prices for common specs.')}
+              </p>
+            </div>
+          ) : null}
+          <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
+            {t('Prices shown per usage unit')}
+          </p>
+        </section>
+      )
+    }
+
     return (
       <section>
         {!props.hideTitle && (

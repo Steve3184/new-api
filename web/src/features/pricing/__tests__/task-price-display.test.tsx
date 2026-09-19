@@ -125,6 +125,22 @@ const imageModel: PricingModel = {
   },
 }
 
+const videoModel: PricingModel = {
+  ...model,
+  model_name: 'video-model',
+  billing_expr: 'tier("video", u("seconds") * 0.000001)',
+  billing_usage_schema: {
+    seconds: {
+      type: 'number',
+      unit: 'second',
+      description: {
+        en: 'Video generation unit price',
+        zh: '视频生成单价',
+      },
+    },
+  },
+}
+
 it.each([false, true])(
   'shows localized image labels and units in base and group pricing when configured=%s',
   async (configured) => {
@@ -156,11 +172,48 @@ it.each([false, true])(
     expect(screen.getAllByText(configured ? '/ 张' : '张')).toHaveLength(2)
     expect(screen.queryByText('image_count')).not.toBeInTheDocument()
     if (configured) {
+      const priceHeader = screen.getByRole('columnheader', {
+        name: '图片生成单价 / 张',
+      })
+      const groupTable = priceHeader.closest('table')
+      expect(groupTable).not.toBeNull()
+      expect(
+        within(groupTable as HTMLTableElement).getByRole('columnheader', {
+          name: 'Group',
+        })
+      ).toBeVisible()
+      expect(
+        within(groupTable as HTMLTableElement).getByRole('columnheader', {
+          name: 'Ratio',
+        })
+      ).toBeVisible()
+      const groupCell = within(groupTable as HTMLTableElement).getByRole(
+        'cell',
+        { name: 'default' }
+      )
+      expect(
+        priceHeader.compareDocumentPosition(groupCell) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
       expect(screen.getByText('$0.2')).toBeVisible()
       expect(screen.getByText('$0.4')).toBeVisible()
     }
   }
 )
+
+it('uses the localized task price description in model table cells', async () => {
+  render(
+    <div data-testid='cell'>
+      <ModelPriceCell model={videoModel} />
+    </div>
+  )
+
+  await act(() => i18next.changeLanguage('zhCN'))
+  const cell = screen.getByTestId('cell')
+  expect(cell).toHaveTextContent('视频生成单价')
+  expect(cell).toHaveTextContent(/\/\s*s/)
+  expect(cell).not.toHaveTextContent('seconds')
+})
 
 it('updates count unit labels across cards, table cells and breakdowns with locale fallback', async () => {
   render(
