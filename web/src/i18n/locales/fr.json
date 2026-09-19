@@ -7407,6 +7407,7 @@
     "Welcome to our New API...": "Bienvenue sur notre New API...",
     "Well-Known URL": "URL Well-Known",
     "Well-Known URL must start with http:// or https://": "L’URL Well-Known doit commencer par http:// ou https://",
+    "What do you want to change?": "Que souhaitez-vous modifier ?",
     "What would you like to know?": "Que voulez-vous savoir ?",
     "When a disable rule matches, disable the current key and retry with another enabled key.": "Lorsqu une règle correspond, désactive la clé actuelle et réessaie avec une autre clé active.",
     "When a token uses the auto group, the system tries groups from top to bottom until it finds an available group.": "Quand un jeton utilise le groupe auto, le système essaie les groupes de haut en bas jusqu’à trouver un groupe disponible.",

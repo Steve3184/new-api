@@ -7407,6 +7407,7 @@
     "Welcome to our New API...": "歡迎使用我們的 New API...",
     "Well-Known URL": "Well-Known URL",
     "Well-Known URL must start with http:// or https://": "Well-Known URL 必須以 http:// 或 https:// 開頭",
+    "What do you want to change?": "你想修改什麼？",
     "What would you like to know?": "您想了解什麼？",
     "When a disable rule matches, disable the current key and retry with another enabled key.": "符合停用規則後停用目前金鑰，並使用其他啟用的金鑰重試。",
     "When a token uses the auto group, the system tries groups from top to bottom until it finds an available group.": "當令牌使用 auto 分組時，系統會按從上到下的順序嘗試，直到找到可用分組。",
