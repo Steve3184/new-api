@@ -7453,6 +7453,9 @@
     "Upstream connection": "Соединение с вышестоящим сервером",
     "Local check": "Локальная проверка",
     "Request policy decisions": "Решения политики запросов",
-    "Success rate excludes business rejections and includes the current partial hour.": "Доля успешных запросов не учитывает отказы по бизнес-правилам и включает текущий неполный час."
+    "Success rate excludes business rejections and includes the current partial hour.": "Доля успешных запросов не учитывает отказы по бизнес-правилам и включает текущий неполный час.",
+    "Drag to move": "Перетащите, чтобы переместить",
+    "Drag to resize": "Перетащите, чтобы изменить размер",
+    "Scheduled test options": "Параметры плановых проверок"
   }
 }

@@ -7453,6 +7453,9 @@
     "Upstream connection": "Connexion amont",
     "Local check": "Vérification locale",
     "Request policy decisions": "Décisions de la politique de requête",
-    "Success rate excludes business rejections and includes the current partial hour.": "Le taux de réussite exclut les rejets métier et inclut l’heure en cours."
+    "Success rate excludes business rejections and includes the current partial hour.": "Le taux de réussite exclut les rejets métier et inclut l’heure en cours.",
+    "Drag to move": "Glisser pour déplacer",
+    "Drag to resize": "Glisser pour redimensionner",
+    "Scheduled test options": "Options des tests planifiés"
   }
 }

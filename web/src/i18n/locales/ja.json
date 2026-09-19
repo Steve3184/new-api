@@ -7453,6 +7453,9 @@
     "Upstream connection": "上流接続",
     "Local check": "ローカルチェック",
     "Request policy decisions": "リクエストポリシーの判断",
-    "Success rate excludes business rejections and includes the current partial hour.": "成功率は業務上の拒否を除外し、現在進行中の時間帯を含みます。"
+    "Success rate excludes business rejections and includes the current partial hour.": "成功率は業務上の拒否を除外し、現在進行中の時間帯を含みます。",
+    "Drag to move": "ドラッグして移動",
+    "Drag to resize": "ドラッグしてサイズ変更",
+    "Scheduled test options": "定期テストのオプション"
   }
 }

@@ -17,14 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link } from '@tanstack/react-router'
 import { useMemo, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
   FormControl,
@@ -50,7 +48,10 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
 
 import {
+  SettingsControlChildren,
+  SettingsControlGroup,
   SettingsForm,
+  SettingsFormGrid,
   SettingsSwitchContent,
   SettingsSwitchItem,
 } from '../components/settings-form-layout'
@@ -296,9 +297,26 @@ export function ChannelHealthSection({
 
   return (
     <SettingsSection title={t('Channel health')}>
-      <p className='text-muted-foreground text-sm'>
-        {t('Source: global settings. Changes take effect after saving.')}
-      </p>
+      <div className='text-muted-foreground space-y-1 text-sm'>
+        <p>{t('Source: global settings. Changes take effect after saving.')}</p>
+        <p>
+          {form.watch('AutomaticDisableChannelEnabled')
+            ? t(
+                'Channels must also enable Auto Ban before automatic disabling can take effect.'
+              )
+            : t(
+                'With these settings, automatic disabling is off for all channels.'
+              )}
+        </p>
+        {form.watch('AutomaticEnableChannelEnabled') &&
+          !form.watch('monitor_setting.auto_test_channel_enabled') && (
+            <p>
+              {t(
+                'Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.'
+              )}
+            </p>
+          )}
+      </div>
       <Form {...form}>
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
@@ -306,139 +324,122 @@ export function ChannelHealthSection({
             isSaving={form.formState.isSubmitting}
           />
 
-          <Alert>
-            <AlertDescription>
-              <p>
-                {form.watch('AutomaticDisableChannelEnabled')
-                  ? t(
-                      'Channels must also enable Auto Ban before automatic disabling can take effect.'
-                    )
-                  : t(
-                      'With these settings, automatic disabling is off for all channels.'
-                    )}
-              </p>
-              <Link to='/channels'>{t('Channels')}</Link>
-            </AlertDescription>
-          </Alert>
-          {form.watch('AutomaticEnableChannelEnabled') &&
-            !form.watch('monitor_setting.auto_test_channel_enabled') && (
-              <Alert>
-                <AlertDescription>
-                  {t(
-                    'Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.'
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-
           <div className='flex min-w-0 flex-col gap-4'>
-            <div className='flex flex-col gap-1'>
-              <h4 className='text-sm font-medium'>
-                {t('Channel health checks')}
-              </h4>
-            </div>
-            <div className='grid min-w-0 gap-6 lg:grid-cols-3'>
-              <FormField
-                control={form.control}
-                name='monitor_setting.auto_test_channel_enabled'
-                render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>{t('Scheduled channel tests')}</FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Run background checks using the selected test mode'
-                        )}
-                      </FormDescription>
-                    </SettingsSwitchContent>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </SettingsSwitchItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='monitor_setting.channel_test_mode'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Channel test mode')}</FormLabel>
-                    <Select
-                      items={[
-                        {
-                          value: 'scheduled_all',
-                          label: t('Actively check all channels'),
-                        },
-                        {
-                          value: 'auto_ban_only',
-                          label: t(
-                            'Actively check auto-disable-enabled channels'
-                          ),
-                        },
-                        {
-                          value: 'passive_recovery',
-                          label: t('Check channels awaiting recovery only'),
-                        },
-                      ]}
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
+            <h4 className='text-sm font-medium'>
+              {t('Channel health checks')}
+            </h4>
+            <SettingsFormGrid>
+              <SettingsControlGroup>
+                <FormField
+                  control={form.control}
+                  name='monitor_setting.auto_test_channel_enabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Scheduled channel tests')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Run background checks using the selected test mode'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
                       </FormControl>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          <SelectItem value='scheduled_all'>
-                            {t('Actively check all channels')}
-                          </SelectItem>
-                          <SelectItem value='auto_ban_only'>
-                            {t('Actively check auto-disable-enabled channels')}
-                          </SelectItem>
-                          <SelectItem value='passive_recovery'>
-                            {t('Check channels awaiting recovery only')}
-                          </SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      {channelTestModeDescription}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    </SettingsSwitchItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name='monitor_setting.auto_test_channel_minutes'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Test interval (minutes)')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        min={1}
-                        step={1}
-                        {...safeNumberFieldProps(field)}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {channelTestMode === 'passive_recovery'
-                        ? t(
-                            'How frequently the system checks auto-disabled channels for recovery'
-                          )
-                        : t('Time between scheduled channel checks')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <SettingsControlChildren
+                  role='group'
+                  aria-label={t('Scheduled test options')}
+                  className='grid gap-x-5 gap-y-4 lg:grid-cols-2'
+                >
+                  <FormField
+                    control={form.control}
+                    name='monitor_setting.channel_test_mode'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Channel test mode')}</FormLabel>
+                        <Select
+                          items={[
+                            {
+                              value: 'scheduled_all',
+                              label: t('Actively check all channels'),
+                            },
+                            {
+                              value: 'auto_ban_only',
+                              label: t(
+                                'Actively check auto-disable-enabled channels'
+                              ),
+                            },
+                            {
+                              value: 'passive_recovery',
+                              label: t('Check channels awaiting recovery only'),
+                            },
+                          ]}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className='w-full'>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='scheduled_all'>
+                                {t('Actively check all channels')}
+                              </SelectItem>
+                              <SelectItem value='auto_ban_only'>
+                                {t(
+                                  'Actively check auto-disable-enabled channels'
+                                )}
+                              </SelectItem>
+                              <SelectItem value='passive_recovery'>
+                                {t('Check channels awaiting recovery only')}
+                              </SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {channelTestModeDescription}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='monitor_setting.auto_test_channel_minutes'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Test interval (minutes)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={1}
+                            step={1}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {channelTestMode === 'passive_recovery'
+                            ? t(
+                                'How frequently the system checks auto-disabled channels for recovery'
+                              )
+                            : t('Time between scheduled channel checks')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </SettingsControlChildren>
+              </SettingsControlGroup>
 
               <FormField
                 control={form.control}
@@ -487,16 +488,14 @@ export function ChannelHealthSection({
                   </SettingsSwitchItem>
                 )}
               />
-            </div>
+            </SettingsFormGrid>
           </div>
 
           <Separator />
 
           <div className='flex min-w-0 flex-col gap-4'>
-            <div className='flex flex-col gap-1'>
-              <h4 className='text-sm font-medium'>{t('Auto-disable rules')}</h4>
-            </div>
-            <div className='grid min-w-0 gap-6 lg:grid-cols-2'>
+            <h4 className='text-sm font-medium'>{t('Auto-disable rules')}</h4>
+            <SettingsFormGrid>
               <FormField
                 control={form.control}
                 name='AutomaticDisableChannelEnabled'
@@ -627,7 +626,7 @@ export function ChannelHealthSection({
                   </FormItem>
                 )}
               />
-            </div>
+            </SettingsFormGrid>
           </div>
         </SettingsForm>
       </Form>

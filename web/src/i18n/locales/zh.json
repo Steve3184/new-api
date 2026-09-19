@@ -7453,6 +7453,9 @@
     "Upstream connection": "上游连接",
     "Local check": "本地检查",
     "Request policy decisions": "请求策略决策",
-    "Success rate excludes business rejections and includes the current partial hour.": "成功率排除业务拒绝，统计包含当前尚未结束的小时。"
+    "Success rate excludes business rejections and includes the current partial hour.": "成功率排除业务拒绝，统计包含当前尚未结束的小时。",
+    "Drag to move": "拖动以移动",
+    "Drag to resize": "拖动以调整大小",
+    "Scheduled test options": "定期测试子选项"
   }
 }

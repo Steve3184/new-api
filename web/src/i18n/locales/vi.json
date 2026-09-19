@@ -7453,6 +7453,9 @@
     "Upstream connection": "Kết nối thượng nguồn",
     "Local check": "Kiểm tra cục bộ",
     "Request policy decisions": "Quyết định chính sách yêu cầu",
-    "Success rate excludes business rejections and includes the current partial hour.": "Tỷ lệ thành công loại trừ các yêu cầu bị từ chối do quy tắc nghiệp vụ và bao gồm giờ hiện tại chưa kết thúc."
+    "Success rate excludes business rejections and includes the current partial hour.": "Tỷ lệ thành công loại trừ các yêu cầu bị từ chối do quy tắc nghiệp vụ và bao gồm giờ hiện tại chưa kết thúc.",
+    "Drag to move": "Kéo để di chuyển",
+    "Drag to resize": "Kéo để thay đổi kích cỡ",
+    "Scheduled test options": "Tùy chọn kiểm tra định kỳ"
   }
 }

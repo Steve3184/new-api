@@ -7453,6 +7453,9 @@
     "Upstream connection": "Upstream connection",
     "Local check": "Local check",
     "Request policy decisions": "Request policy decisions",
-    "Success rate excludes business rejections and includes the current partial hour.": "Success rate excludes business rejections and includes the current partial hour."
+    "Success rate excludes business rejections and includes the current partial hour.": "Success rate excludes business rejections and includes the current partial hour.",
+    "Drag to move": "Drag to move",
+    "Drag to resize": "Drag to resize",
+    "Scheduled test options": "Scheduled test options"
   }
 }
