@@ -34,6 +34,12 @@ func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		selectedModel := ""
+		policy := service.RequestPolicy(c)
+		defer func() {
+			if c.Writer.Status() >= 400 {
+				service.RecordRequestPolicyTermination(c, types.NewErrorWithStatusCode(errors.New("request rejected"), types.ErrorCodeInvalidRequest, c.Writer.Status(), types.ErrOptionWithSkipRetry()))
+			}
+		}()
 		constraints := service.GetChannelConstraints(c)
 		constraints.AddFilter(taskdto.ChannelFilter{
 			Kind:        taskdto.FilterRequestPath,
@@ -153,6 +159,10 @@ func Distribute() func(c *gin.Context) {
 					}
 					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
 						service.ClearCurrentChannelAffinityCache(c)
+					}
+					if !affinityUsable && policy.SessionMode == "strict" {
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, "strict_session_binding_unavailable")
+						return
 					}
 				}
 

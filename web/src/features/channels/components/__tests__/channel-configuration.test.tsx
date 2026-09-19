@@ -18,6 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  createRouter,
+  createRootRoute,
+  createMemoryHistory,
+  RouterContextProvider,
+} from '@tanstack/react-router'
+import {
   act,
   cleanup,
   fireEvent,
@@ -96,18 +102,28 @@ function ConfigurationHarness(props: {
   clearRowOnClose?: boolean
 }) {
   const [open, setOpen] = useState(props.initialOpen ?? true)
+  const [router] = useState(() =>
+    createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+    })
+  )
   return (
     <QueryClientProvider client={client}>
-      <ChannelsProvider>
-        <button type='button' onClick={() => setOpen(true)}>
-          Open channel
-        </button>
-        <ChannelMutateDrawer
-          open={open}
-          onOpenChange={setOpen}
-          currentRow={open || !props.clearRowOnClose ? props.currentRow : null}
-        />
-      </ChannelsProvider>
+      <RouterContextProvider router={router}>
+        <ChannelsProvider>
+          <button type='button' onClick={() => setOpen(true)}>
+            Open channel
+          </button>
+          <ChannelMutateDrawer
+            open={open}
+            onOpenChange={setOpen}
+            currentRow={
+              open || !props.clearRowOnClose ? props.currentRow : null
+            }
+          />
+        </ChannelsProvider>
+      </RouterContextProvider>
     </QueryClientProvider>
   )
 }
@@ -178,7 +194,34 @@ afterEach(() => {
   client.clear()
   useAuthStore.setState({ auth: originalAuth })
   vi.restoreAllMocks()
+  window.localStorage.clear()
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: 1024,
+  })
 })
+
+// Editing opens the sheet on the left, so the sheet spans x = 0..900 and the
+// free space for the floating panel is on its right.
+function useWideScreen() {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: 1920,
+  })
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    right: 900,
+    bottom: 900,
+    width: 900,
+    height: 900,
+    toJSON: () => ({}),
+  } as DOMRect)
+}
 
 test('changing built-in providers updates server-provided URL placeholders without replacing the draft address', async () => {
   const user = userEvent.setup()
@@ -2140,4 +2183,284 @@ test('closing an edited channel retains its left exit direction after the parent
       Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations')
     }
   }
+})
+
+test('the model list summarizes redirects, counts them on the routing tab, and jumps to the mapping editor', async () => {
+  editingChannel = {
+    ...editingChannel,
+    model_mapping: '{"custom-model":"upstream-model"}',
+  }
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  expect(screen.getByText('1 model(s) redirected')).toBeVisible()
+  const tab = screen.getByRole('tab', { name: /Routing & Mapping/ })
+  expect(tab).toHaveAccessibleName(/^Routing & Mapping\s?1 model mapping\(s\)$/)
+  expect(
+    within(tab).queryByRole('img', { name: 'Configured' })
+  ).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Edit mapping' }))
+  expect(tab).toHaveAttribute('aria-selected', 'true')
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('custom-model')
+})
+
+test('without mappings the model list offers to set up redirects and the routing tab shows no count', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const tab = screen.getByRole('tab', { name: /Routing & Mapping/ })
+  expect(tab).toHaveAccessibleName('Routing & Mapping')
+  expect(screen.queryByText(/model\(s\) redirected/)).not.toBeInTheDocument()
+  await user.click(
+    screen.getByRole('button', { name: 'Set up model redirects' })
+  )
+  expect(tab).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('button', { name: 'Add Mapping' })).toBeVisible()
+})
+
+test('mapping guardrail alerts link to the tab that holds the fix', async () => {
+  editingChannel = {
+    ...editingChannel,
+    model_mapping: '{"alias":"custom-model"}',
+  }
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const routingTab = screen.getByRole('tab', { name: /Routing & Mapping/ })
+  const connectionTab = screen.getByRole('tab', {
+    name: /Connection & Models/,
+  })
+  await user.click(screen.getByRole('button', { name: 'View mapping' }))
+  expect(routingTab).toHaveAttribute('aria-selected', 'true')
+  await user.click(screen.getByRole('button', { name: 'View models' }))
+  expect(connectionTab).toHaveAttribute('aria-selected', 'true')
+})
+
+test('redirecting a model from the model picker publishes it, adds a mapping row, and focuses its upstream field', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Configure Models' }))
+  const dialog = within(
+    screen.getByRole('dialog', { name: 'Configure Models' })
+  )
+  await user.click(
+    dialog.getByRole('button', { name: 'Redirect custom-model' })
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Configure Models' })
+    ).not.toBeInTheDocument()
+  )
+  expect(
+    screen.getByRole('tab', { name: /Routing & Mapping/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('custom-model')
+  await waitFor(() =>
+    expect(
+      screen.getByRole('combobox', { name: 'Upstream Model Name' })
+    ).toHaveFocus()
+  )
+})
+
+test('fetched upstream models can be redirected in bulk with the model list synced', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'upstream-model' })
+
+  await user.click(screen.getByRole('button', { name: 'Batch redirect' }))
+  const dialog = within(
+    screen.getByRole('dialog', { name: 'Batch add mappings' })
+  )
+  expect(
+    dialog.getByRole('tab', { name: /Upstream model list/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  await user.click(dialog.getByRole('checkbox', { name: 'upstream-model' }))
+  await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), '-model')
+  await user.click(dialog.getByRole('button', { name: 'Add 1 mapping(s)' }))
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Batch add mappings' })
+    ).not.toBeInTheDocument()
+  )
+
+  expect(screen.getByText('1 model(s) redirected')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'upstream' })).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'upstream-model' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('upstream')
+  expect(
+    screen.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('upstream-model')
+})
+
+test('a fetched upstream model can be given a request name from its own row', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'upstream-model' })
+
+  await user.click(
+    screen.getByRole('button', { name: 'Redirect upstream-model' })
+  )
+  expect(
+    screen.getByRole('tab', { name: /Routing & Mapping/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  await waitFor(() =>
+    expect(
+      screen.getByRole('combobox', { name: 'Request Model Name' })
+    ).toHaveFocus()
+  )
+  expect(
+    screen.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('upstream-model')
+})
+
+test('on wide screens redirecting a fetched model opens the floating panel beside the drawer and syncs the model list as the alias is typed', async () => {
+  useWideScreen()
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'upstream-model' })
+
+  await user.click(
+    screen.getByRole('button', { name: 'Redirect upstream-model' })
+  )
+  const panelElement = await screen.findByRole('complementary', {
+    name: 'Model redirects',
+  })
+  const panel = within(panelElement)
+  expect(panelElement).toHaveStyle({
+    position: 'fixed',
+    left: '916px',
+    top: '16px',
+    width: '420px',
+  })
+  // The window floats; the sheet keeps its full width.
+  expect(document.querySelector('[data-slot="sheet-content"]')).toHaveClass(
+    'sm:max-w-7xl'
+  )
+  expect(
+    screen.getByRole('tab', { name: /Connection & Models/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  const request = panel.getByRole('combobox', { name: 'Request Model Name' })
+  await waitFor(() => expect(request).toHaveFocus())
+  expect(
+    panel.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('upstream-model')
+
+  await user.type(request, 'upstream')
+  const picker = within(screen.getByRole('group', { name: 'Models' }))
+  expect(
+    picker.queryByRole('button', { name: 'upstream' })
+  ).not.toBeInTheDocument()
+  await user.keyboard('{Enter}')
+  expect(screen.getByLabelText('Published as upstream')).toBeVisible()
+  expect(picker.getByRole('button', { name: 'upstream' })).toBeVisible()
+  expect(picker.getByRole('button', { name: 'custom-model' })).toBeVisible()
+  expect(picker.queryByRole('button', { name: 'ups' })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    screen.getByText('Model mappings are being edited in the floating panel.')
+  ).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Close the panel to edit here' })
+  )
+  expect(
+    screen.queryByRole('complementary', { name: 'Model redirects' })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('upstream')
+})
+
+test('a suggested rule in the floating panel maps every matching fetched model and publishes the derived names', async () => {
+  useWideScreen()
+  const baseGet = vi.mocked(api.get).getMockImplementation()
+  vi.spyOn(api, 'get').mockImplementation(async (url, ...rest) => {
+    if (url === '/api/channel/fetch_models/42') {
+      return { data: { success: true, data: ['gpt-4o-all', 'o3-all'] } }
+    }
+    if (url === '/api/channel/models') {
+      return { data: { success: true, data: [{ id: 'gpt-4o' }] } }
+    }
+    return baseGet?.(url, ...rest)
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'gpt-4o-all' })
+
+  await user.click(screen.getByRole('button', { name: 'Redirect panel' }))
+  const panel = within(
+    await screen.findByRole('complementary', { name: 'Model redirects' })
+  )
+  await user.click(panel.getByRole('button', { name: /Strip -all/ }))
+  expect(
+    panel.getAllByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveLength(2)
+  expect(screen.getByLabelText('Published as gpt-4o')).toBeVisible()
+  expect(screen.getByLabelText('Published as o3')).toBeVisible()
+  const picker = within(screen.getByRole('group', { name: 'Models' }))
+  expect(picker.getByRole('button', { name: 'gpt-4o' })).toBeVisible()
+  expect(picker.getByRole('button', { name: 'o3' })).toBeVisible()
+  expect(screen.getByText('2 model(s) redirected')).toBeVisible()
+
+  await user.click(panel.getByRole('button', { name: 'Collapse panel' }))
+  expect(
+    screen.queryByRole('complementary', { name: 'Model redirects' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Expand panel' }))
+  expect(
+    screen.getByRole('complementary', { name: 'Model redirects' })
+  ).toBeVisible()
+})
+
+test('on wide screens the quick options move into the header as a compact toggle strip and leave the form', async () => {
+  useWideScreen()
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const quick = screen.getByRole('group', { name: 'Quick options' })
+  expect(quick.closest('[data-slot="sheet-header"]')).not.toBeNull()
+  expect(within(quick).getAllByRole('switch')).toHaveLength(4)
+  // Second header row: status badge and description on the left, toggles right.
+  const statusRow = quick.parentElement
+  if (!statusRow) throw new Error('status row missing')
+  expect(within(statusRow).getByText('Enabled')).toBeVisible()
+  expect(
+    within(statusRow).queryByRole('heading', { name: /Edit Channel/ })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByText('Preserve the original request body')
+  ).not.toBeInTheDocument()
+  expect(screen.queryByText('Quick actions')).toBeVisible()
+
+  const passthrough = within(quick).getByRole('switch', {
+    name: 'Pass Through Body',
+  })
+  expect(passthrough).toHaveAttribute('data-size', 'sm')
+  expect(passthrough).not.toBeChecked()
+  await user.click(passthrough)
+  expect(passthrough).toBeChecked()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const all = screen.getAllByRole('switch', { name: 'Pass Through Body' })
+  expect(all).toHaveLength(2)
+  for (const toggle of all) expect(toggle).toBeChecked()
 })
