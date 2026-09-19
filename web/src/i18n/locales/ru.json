@@ -7449,6 +7449,7 @@
     "Correct the invalid settings before saving.": "Исправьте некорректные настройки перед сохранением.",
     "Upstream connection": "Соединение с вышестоящим сервером",
     "Local check": "Локальная проверка",
-    "Request policy decisions": "Решения политики запросов"
+    "Request policy decisions": "Решения политики запросов",
+    "Success rate excludes business rejections and includes the current partial hour.": "Доля успешных запросов не учитывает отказы по бизнес-правилам и включает текущий неполный час."
   }
 }

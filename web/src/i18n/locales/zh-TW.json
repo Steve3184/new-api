@@ -7449,6 +7449,7 @@
     "Correct the invalid settings before saving.": "請修正無效設定後再儲存。",
     "Upstream connection": "上游連線",
     "Local check": "本地檢查",
-    "Request policy decisions": "請求策略決策"
+    "Request policy decisions": "請求策略決策",
+    "Success rate excludes business rejections and includes the current partial hour.": "成功率排除業務拒絕，統計包含目前尚未結束的小時。"
   }
 }

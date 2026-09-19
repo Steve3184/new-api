@@ -7449,6 +7449,7 @@
     "Correct the invalid settings before saving.": "Hãy sửa các cài đặt không hợp lệ trước khi lưu.",
     "Upstream connection": "Kết nối thượng nguồn",
     "Local check": "Kiểm tra cục bộ",
-    "Request policy decisions": "Quyết định chính sách yêu cầu"
+    "Request policy decisions": "Quyết định chính sách yêu cầu",
+    "Success rate excludes business rejections and includes the current partial hour.": "Tỷ lệ thành công loại trừ các yêu cầu bị từ chối do quy tắc nghiệp vụ và bao gồm giờ hiện tại chưa kết thúc."
   }
 }

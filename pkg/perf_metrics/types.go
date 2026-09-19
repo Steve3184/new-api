@@ -26,6 +26,16 @@ type QueryParams struct {
 	Model string
 	Group string
 	Hours int
+	// AllowedGroups restricts both the per-group results and the model summary;
+	// nil allows every group.
+	AllowedGroups []string
+}
+
+// Summary is the request-weighted aggregate over every bucket in the window.
+type Summary struct {
+	AvgLatencyMs int64   `json:"avg_latency_ms"`
+	SuccessRate  float64 `json:"success_rate"`
+	AvgTps       float64 `json:"avg_tps"`
 }
 
 type BucketPoint struct {
@@ -75,6 +85,10 @@ type StatusResult struct {
 type QueryResult struct {
 	ModelName    string        `json:"model_name"`
 	SeriesSchema string        `json:"series_schema"`
+	Summary      *Summary      `json:"summary"`
+	Series       []BucketPoint `json:"series"`
+	WindowStart  int64         `json:"window_start"`
+	WindowEnd    int64         `json:"window_end"`
 	Groups       []GroupResult `json:"groups"`
 }
 
@@ -93,7 +107,10 @@ type ModelSummary struct {
 }
 
 type SummaryAllResult struct {
-	Models []ModelSummary `json:"models"`
+	Summary     *Summary       `json:"summary"`
+	WindowStart int64          `json:"window_start"`
+	WindowEnd   int64          `json:"window_end"`
+	Models      []ModelSummary `json:"models"`
 }
 
 type bucketKey struct {

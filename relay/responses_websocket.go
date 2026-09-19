@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -219,6 +220,7 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 
 func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState, create responsesWSCreateRequest) (apiErr *types.NewAPIError) {
 	modelName := create.Request.Model
+	started := time.Now()
 	var info *relaycommon.RelayInfo
 	billingPrepared := false
 	defer func() {
@@ -226,6 +228,14 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			apiErr = types.NewError(fmt.Errorf("responses websocket call panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 			state.closeAfter = true
 		}
+		if info == nil && modelName != "" {
+			info = &relaycommon.RelayInfo{
+				OriginModelName: modelName,
+				UsingGroup:      common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup),
+				StartTime:       started,
+			}
+		}
+		perfmetrics.RecordRelayResult(c.Request.Context(), info, apiErr)
 		if info != nil && billingPrepared {
 			apiErr = RefundFailedRequestBilling(c, info, apiErr)
 		}

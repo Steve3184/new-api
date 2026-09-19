@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -258,45 +257,12 @@ func TestResponsesWSRequestRunnerSharesRedisSuccessLimitWithHTTP(t *testing.T) {
 }
 
 type responsesWSBillingTest struct {
-	user             *model.User
-	token            *model.Token
-	client           *websocket.Conn
-	done             chan struct{}
-	upstreamDone     chan struct{}
-	connections      atomic.Int32
-	metricsDone      chan struct{}
-	completedMetrics int64
-}
-
-type responsesWSMetricsHook struct {
-	done chan<- struct{}
-}
-
-func (responsesWSMetricsHook) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
-	return ctx, nil
-}
-
-func (responsesWSMetricsHook) AfterProcess(context.Context, redis.Cmder) error {
-	return nil
-}
-
-func (responsesWSMetricsHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
-	return ctx, nil
-}
-
-func (hook responsesWSMetricsHook) AfterProcessPipeline(_ context.Context, commands []redis.Cmder) error {
-	for _, command := range commands {
-		args := command.Args()
-		if command.Name() != "hincrby" || len(args) < 3 {
-			continue
-		}
-		key, _ := args[1].(string)
-		if strings.HasPrefix(key, "perf:ws-billing:") && args[2] == "req" {
-			hook.done <- struct{}{}
-			break
-		}
-	}
-	return nil
+	user         *model.User
+	token        *model.Token
+	client       *websocket.Conn
+	done         chan struct{}
+	upstreamDone chan struct{}
+	connections  atomic.Int32
 }
 
 func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
@@ -314,22 +280,8 @@ func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
 			t.Error("upstream connection was not closed")
 		}
 	}
-	// Each consume log submits one metrics sample. Its Redis pipeline is the
-	// last operation after reading shared settings, so waiting for this
-	// fixture's pipeline notifications avoids unrelated global pool workers.
-	var expectedMetrics int64
-	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ? AND token_id = ?", model.LogTypeConsume, fixture.token.Id).Count(&expectedMetrics).Error)
-	deadline := time.NewTimer(3 * time.Second)
-	defer deadline.Stop()
-	for fixture.completedMetrics < expectedMetrics {
-		select {
-		case <-fixture.metricsDone:
-			fixture.completedMetrics++
-		case <-deadline.C:
-			t.Error("request metrics did not finish before fixture cleanup")
-			return
-		}
-	}
+	// Health classification is synchronous at the request boundary. Redis
+	// persistence is asynchronous and client cancellations produce no sample.
 }
 
 func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*websocket.Conn, *http.Request)) *responsesWSBillingTest {
@@ -361,10 +313,9 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	require.NoError(t, model.DB.Model(user).Updates(map[string]any{"quota": 100000, "setting": `{"billing_preference":"wallet_only"}`}).Error)
 	require.NoError(t, model.DB.Model(token).Update("remain_quota", 3000).Error)
 
-	fixture := &responsesWSBillingTest{user: user, token: token, done: make(chan struct{}), upstreamDone: make(chan struct{}), metricsDone: make(chan struct{}, 4)}
+	fixture := &responsesWSBillingTest{user: user, token: token, done: make(chan struct{}), upstreamDone: make(chan struct{})}
 	redisServer := miniredis.RunT(t)
 	redisClient := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
-	redisClient.AddHook(responsesWSMetricsHook{done: fixture.metricsDone})
 	common.RDB, common.RedisEnabled = redisClient, true
 	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
 	var upstreamClosed sync.Once

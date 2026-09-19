@@ -7449,6 +7449,7 @@
     "Correct the invalid settings before saving.": "Corrigez les paramètres invalides avant de les enregistrer.",
     "Upstream connection": "Connexion amont",
     "Local check": "Vérification locale",
-    "Request policy decisions": "Décisions de la politique de requête"
+    "Request policy decisions": "Décisions de la politique de requête",
+    "Success rate excludes business rejections and includes the current partial hour.": "Le taux de réussite exclut les rejets métier et inclut l’heure en cours."
   }
 }

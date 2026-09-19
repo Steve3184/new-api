@@ -7449,6 +7449,7 @@
     "Correct the invalid settings before saving.": "Correct the invalid settings before saving.",
     "Upstream connection": "Upstream connection",
     "Local check": "Local check",
-    "Request policy decisions": "Request policy decisions"
+    "Request policy decisions": "Request policy decisions",
+    "Success rate excludes business rejections and includes the current partial hour.": "Success rate excludes business rejections and includes the current partial hour."
   }
 }

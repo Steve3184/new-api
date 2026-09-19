@@ -1,6 +1,7 @@
 package perfmetrics
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -133,7 +134,7 @@ func TestAdjustedCacheInputTokensSaturatesOnOverflow(t *testing.T) {
 	assert.Equal(t, maxPerfMetricInt64, adjustedCacheInputTokens(maxPerfMetricInt64-10, 20))
 }
 
-func TestRecordRelayFailureCanExcludeUpstreamBadRequests(t *testing.T) {
+func TestRecordRelayResultCanExcludeUpstreamBadRequests(t *testing.T) {
 	previous := perf_metrics_setting.GetSetting()
 	t.Cleanup(func() {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
@@ -190,7 +191,7 @@ func TestRecordRelayFailureCanExcludeUpstreamBadRequests(t *testing.T) {
 			if tt.upstreamStatus != 0 {
 				relayErr.SetUpstreamStatusCode(tt.upstreamStatus)
 			}
-			RecordRelayFailure(&common.RelayInfo{
+			RecordRelayResult(context.Background(), &common.RelayInfo{
 				OriginModelName: "gpt-test",
 				UsingGroup:      "default",
 				StartTime:       time.Now(),

@@ -7449,6 +7449,7 @@
     "Correct the invalid settings before saving.": "無効な設定を修正してから保存してください。",
     "Upstream connection": "上流接続",
     "Local check": "ローカルチェック",
-    "Request policy decisions": "リクエストポリシーの判断"
+    "Request policy decisions": "リクエストポリシーの判断",
+    "Success rate excludes business rejections and includes the current partial hour.": "成功率は業務上の拒否を除外し、現在進行中の時間帯を含みます。"
   }
 }

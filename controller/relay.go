@@ -27,8 +27,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
-
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -147,6 +145,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.BillingRequestInput = &requestInput
 	}
 
+	defer func() {
+		recovered := recover()
+		resultErr := newAPIError
+		if recovered != nil {
+			resultErr = types.NewError(fmt.Errorf("relay panic: %v", recovered), types.ErrorCodeBadResponse)
+		}
+		if relayFormat != types.RelayFormatOpenAIRealtime && relayFormat != types.RelayFormatUnrealSpeechWebSocket {
+			perfmetrics.RecordRelayResult(c.Request.Context(), relayInfo, resultErr)
+		}
+		if recovered != nil {
+			panic(recovered)
+		}
+	}()
+
 	if newAPIError = relay.PrepareRequestBilling(c, relayInfo); newAPIError != nil {
 		return
 	}
@@ -165,6 +177,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.LastError = nil
 
 	for ; ; retryParam.IncreaseRetry() {
+		relayInfo.StreamStatus = nil
+		relayInfo.PerformanceBusinessRejection = false
+		relayInfo.PerformanceOutputTokens = 0
+		relayInfo.PerformanceUsage = nil
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -245,12 +261,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if len(useChannel) > 1 {
 		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
 		logger.LogInfo(c, retryLogStr)
-	}
-	if newAPIError != nil {
-		relayErr := newAPIError
-		gopool.Go(func() {
-			perfmetrics.RecordRelayFailure(relayInfo, relayErr)
-		})
 	}
 }
 
