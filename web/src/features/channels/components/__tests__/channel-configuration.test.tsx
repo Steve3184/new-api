@@ -1095,6 +1095,128 @@ test('model discovery reports failures inline and allows an empty result to fall
   expect(screen.getByRole('button', { name: 'custom-model' })).toBeVisible()
 })
 
+test('quick options and detailed settings share changes across tabs and save the same configuration', async () => {
+  editingChannel.setting = JSON.stringify({
+    pass_through_body_enabled: true,
+    responses_websocket_enabled: true,
+  })
+  editingChannel.settings = JSON.stringify({
+    upstream_model_update_check_enabled: true,
+    upstream_model_update_auto_sync_enabled: true,
+  })
+  editingChannel.auto_ban = 0
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  for (const name of [
+    'Pass Through Body',
+    'Detect model updates',
+    'Responses WebSocket',
+  ]) {
+    const toggle = quick.getByRole('switch', { name })
+    expect(toggle).toBeChecked()
+    toggle.focus()
+    await user.keyboard(' ')
+    expect(toggle).not.toBeChecked()
+  }
+  await user.click(quick.getByRole('switch', { name: 'Auto-disable channel' }))
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    screen.getByRole('switch', { name: 'Enable Responses WebSocket' })
+  ).not.toBeChecked()
+  const passthrough = screen.getByRole('switch', { name: 'Pass Through Body' })
+  expect(passthrough).not.toBeChecked()
+  await user.click(passthrough)
+  expect(screen.getByRole('switch', { name: 'Force Format' })).toBeVisible()
+  expect(
+    screen.getByRole('switch', { name: 'Allow service_tier passthrough' })
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
+  const modelCheck = screen.getByRole('switch', {
+    name: 'Upstream Model Update Check',
+  })
+  expect(modelCheck).not.toBeChecked()
+  expect(
+    screen.getByRole('switch', { name: 'Auto Sync Upstream Models' })
+  ).toHaveAttribute('aria-disabled', 'true')
+  await user.click(modelCheck)
+  expect(
+    screen.getByRole('switch', { name: 'Auto Sync Upstream Models' })
+  ).toBeChecked()
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(screen.getByRole('switch', { name: 'Auto Ban' })).toBeChecked()
+  await user.click(screen.getByRole('switch', { name: 'Auto Ban' }))
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  expect(quick.getByRole('switch', { name: 'Pass Through Body' })).toBeChecked()
+  expect(
+    quick.getByRole('switch', { name: 'Detect model updates' })
+  ).toBeChecked()
+  expect(
+    quick.getByRole('switch', { name: 'Auto-disable channel' })
+  ).not.toBeChecked()
+  expect(
+    quick.getByRole('switch', { name: 'Responses WebSocket' })
+  ).not.toBeChecked()
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    auto_ban: number
+    setting: string
+    settings: string
+  }
+  expect(payload.auto_ban).toBe(0)
+  expect(JSON.parse(payload.setting)).toMatchObject({
+    pass_through_body_enabled: true,
+    responses_websocket_enabled: false,
+  })
+  expect(JSON.parse(payload.settings)).toMatchObject({
+    upstream_model_update_check_enabled: true,
+    upstream_model_update_auto_sync_enabled: true,
+  })
+})
+
+test('quick options show only applicable shortcuts when the provider changes', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(screen.getByRole('option', { name: 'OpenAI Built-in #1' }))
+  let quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  expect(quick.getAllByRole('switch')).toHaveLength(4)
+  expect(
+    quick.queryByRole('switch', { name: 'Force Format' })
+  ).not.toBeInTheDocument()
+  expect(
+    quick.queryByRole('switch', { name: 'Thinking to Content' })
+  ).not.toBeInTheDocument()
+  await user.click(quick.getByRole('switch', { name: 'Pass Through Body' }))
+  expect(
+    screen.getByRole('tab', { name: /Connection & Models/ })
+  ).toHaveAccessibleName(/Incomplete/)
+
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(screen.getByRole('option', { name: /^DeepSeek / }))
+  quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  expect(quick.getAllByRole('switch')).toHaveLength(3)
+  expect(
+    quick.queryByRole('switch', { name: 'Responses WebSocket' })
+  ).not.toBeInTheDocument()
+  expect(quick.getByRole('switch', { name: 'Pass Through Body' })).toBeChecked()
+
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(screen.getByRole('option', { name: /Video A/ }))
+  quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  expect(quick.getAllByRole('switch')).toHaveLength(1)
+  expect(
+    quick.getByRole('switch', { name: 'Auto-disable channel' })
+  ).toBeChecked()
+})
+
 test('editing opens the shared configuration and omits an unchanged key on update', async () => {
   const channel = channelSchema.parse({
     id: 42,
@@ -1764,6 +1886,20 @@ test('an operator without sensitive write permission can discover saved models a
   await screen.findByDisplayValue('Existing channel')
   expect(screen.getByRole('button', { name: 'Change provider' })).toBeDisabled()
   expect(screen.getByLabelText('API Key *')).toBeDisabled()
+  const quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  for (const name of [
+    'Pass Through Body',
+    'Detect model updates',
+    'Responses WebSocket',
+  ]) {
+    const toggle = quick.getByRole('switch', { name })
+    expect(toggle).toHaveAttribute('aria-disabled', 'true')
+    await user.click(toggle)
+    expect(toggle).not.toBeChecked()
+  }
+  expect(
+    quick.getByRole('switch', { name: 'Auto-disable channel' })
+  ).not.toHaveAttribute('aria-disabled', 'true')
   await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
   expect(
     await screen.findByRole('checkbox', { name: 'upstream-model' })

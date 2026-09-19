@@ -39,6 +39,7 @@ type ChannelConfigurationProps = {
   statuses: Record<ChannelConfigurationSection, ChannelConfigurationStatus>
   connection: ReactNode
   models: ReactNode
+  quickOptions: ReactNode
   routing: ReactNode
   request: ReactNode
   other: ReactNode
@@ -138,7 +139,10 @@ export function ChannelConfiguration(props: ChannelConfigurationProps) {
       >
         <div className='grid min-w-0 items-start gap-6 lg:grid-cols-2'>
           <div className='flex min-w-0 flex-col gap-5'>{props.connection}</div>
-          <div className='min-w-0'>{props.models}</div>
+          <div className='flex min-w-0 flex-col gap-5'>
+            {props.models}
+            {props.quickOptions}
+          </div>
         </div>
       </TabsContent>
       <TabsContent
