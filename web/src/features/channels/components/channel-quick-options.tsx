@@ -29,6 +29,12 @@ import { cn } from '@/lib/utils'
 
 import { CHANNEL_TYPE_TASK_PLUGIN, MODEL_FETCHABLE_TYPES } from '../constants'
 import type { ChannelFormValues } from '../lib/channel-form'
+import {
+  getHeaderPassthroughState,
+  setHeaderPassthrough,
+} from '../lib/header-passthrough'
+import { supportsResponsesWebSocket } from '../lib/responses-websocket'
+import type { PassthroughKind } from './dialogs/passthrough-warning-dialog'
 
 type ChannelQuickOptionsProps = {
   channelType: number
@@ -42,6 +48,11 @@ type ChannelQuickOptionsProps = {
   className?: string
   /** Required when rendered outside the form provider, e.g. in the drawer header. */
   form?: UseFormReturn<ChannelFormValues>
+  /**
+   * Asks the user to acknowledge the consequences before a passthrough option
+   * is switched on. Resolves `false` when they decline; switching off never asks.
+   */
+  confirmEnablePassthrough: (kind: PassthroughKind) => Promise<boolean>
 }
 
 type QuickOption = {
@@ -58,15 +69,17 @@ export function ChannelQuickOptions(props: ChannelQuickOptionsProps) {
   const id = useId()
   const formContext = useFormContext<ChannelFormValues>()
   const form = props.form ?? formContext
-  const [passthrough, autoBan, modelCheck, websocket] = useWatch({
-    control: form.control,
-    name: [
-      'pass_through_body_enabled',
-      'auto_ban',
-      'upstream_model_update_check_enabled',
-      'responses_websocket_enabled',
-    ],
-  })
+  const [passthrough, headerOverride, autoBan, modelCheck, websocket] =
+    useWatch({
+      control: form.control,
+      name: [
+        'pass_through_body_enabled',
+        'header_override',
+        'auto_ban',
+        'upstream_model_update_check_enabled',
+        'responses_websocket_enabled',
+      ],
+    })
   const sensitiveDisabled = props.sensitiveLocked || props.disabled
   const setOption = (
     name:
@@ -75,16 +88,56 @@ export function ChannelQuickOptions(props: ChannelQuickOptionsProps) {
       | 'responses_websocket_enabled',
     value: boolean
   ) => form.setValue(name, value, { shouldDirty: true, shouldValidate: true })
+  // The header switch is a shortcut for the "*" rule in Request Header
+  // Override, so it reads and writes that JSON instead of a separate flag.
+  const headerPassthroughState = getHeaderPassthroughState(headerOverride)
+  const applyHeaderPassthrough = (value: boolean) =>
+    form.setValue(
+      'header_override',
+      setHeaderPassthrough(form.getValues('header_override'), value),
+      { shouldDirty: true, shouldValidate: true }
+    )
 
   const options: QuickOption[] = []
   if (props.channelType !== CHANNEL_TYPE_TASK_PLUGIN) {
     options.push({
       key: 'passthrough',
       label: t('Pass Through Body'),
-      description: t('Preserve the original request body'),
+      description: t(
+        'Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion'
+      ),
       checked: passthrough === true,
-      onCheckedChange: (value) => setOption('pass_through_body_enabled', value),
+      onCheckedChange: (value) => {
+        if (!value) {
+          setOption('pass_through_body_enabled', false)
+          return
+        }
+        void props.confirmEnablePassthrough('body').then((confirmed) => {
+          if (confirmed) setOption('pass_through_body_enabled', true)
+        })
+      },
       disabled: sensitiveDisabled,
+    })
+    options.push({
+      key: 'passthrough-headers',
+      label: t('Pass Through Request Headers'),
+      description:
+        headerPassthroughState === 'invalid'
+          ? t('Fix the Request Header Override JSON first')
+          : t(
+              'Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information'
+            ),
+      checked: headerPassthroughState === 'enabled',
+      onCheckedChange: (value) => {
+        if (!value) {
+          applyHeaderPassthrough(false)
+          return
+        }
+        void props.confirmEnablePassthrough('headers').then((confirmed) => {
+          if (confirmed) applyHeaderPassthrough(true)
+        })
+      },
+      disabled: sensitiveDisabled || headerPassthroughState === 'invalid',
     })
   }
   options.push({
@@ -110,7 +163,7 @@ export function ChannelQuickOptions(props: ChannelQuickOptionsProps) {
       disabled: sensitiveDisabled,
     })
   }
-  if (props.channelType === 1 || props.channelType === 57) {
+  if (supportsResponsesWebSocket(props.channelType)) {
     options.push({
       key: 'websocket',
       label: t('Responses WebSocket'),

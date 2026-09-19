@@ -7456,6 +7456,25 @@
     "Success rate excludes business rejections and includes the current partial hour.": "Tỷ lệ thành công loại trừ các yêu cầu bị từ chối do quy tắc nghiệp vụ và bao gồm giờ hiện tại chưa kết thúc.",
     "Drag to move": "Kéo để di chuyển",
     "Drag to resize": "Kéo để thay đổi kích cỡ",
-    "Scheduled test options": "Tùy chọn kiểm tra định kỳ"
+    "Scheduled test options": "Tùy chọn kiểm tra định kỳ",
+    "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:": "Khi bật, tiêu đề yêu cầu của ứng dụng khách được chuyển đến thượng nguồn, ngoại trừ tiêu đề xác thực tiêu chuẩn, Cookie và tiêu đề điều khiển truyền tải:",
+    "After enabling, the original request body is forwarded to the upstream without gateway rewriting:": "Khi bật, nội dung yêu cầu gốc được chuyển đến thượng nguồn mà không bị cổng viết lại:",
+    "Client headers override the gateway defaults and may cause upstream errors": "Header của client sẽ ghi đè header mặc định của gateway và có thể gây lỗi ở upstream",
+    "Client information such as User-Agent and IP is exposed to the upstream": "Thông tin client như User-Agent và IP sẽ bị lộ cho upstream",
+    "Enable passthrough": "Bật chuyển tiếp",
+    "Enable request body passthrough?": "Bật chuyển tiếp phần thân yêu cầu?",
+    "Enable request header passthrough?": "Bật chuyển tiếp header yêu cầu?",
+    "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.": "Bật khi ứng dụng khách và dịch vụ thượng nguồn dùng cùng định dạng API và cần giữ các trường riêng hoặc trường mới của thượng nguồn mà cổng chưa hỗ trợ. Thông thường không cần bật.",
+    "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information": "Bật khi thượng nguồn cần thông tin từ tiêu đề của Codex hoặc Claude Code; có thể làm lộ thông tin ứng dụng khách",
+    "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.": "Bật khi dịch vụ thượng nguồn cần thông tin từ các ứng dụng khách như Codex hoặc Claude Code, gồm User-Agent, phiên bản ứng dụng hoặc tiêu đề phiên. Thông thường không cần bật.",
+    "Entries configured in Request Header Override still take priority": "Các mục đã cấu hình trong Ghi đè header yêu cầu vẫn được ưu tiên",
+    "Fix the Request Header Override JSON first": "Hãy sửa JSON ghi đè header yêu cầu trước",
+    "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Với kênh tùy chỉnh nâng cao, thiết lập này chỉ áp dụng cho các route /v1/responses không chuyển đổi giao thức.",
+    "Format conversion is unavailable; the client must use a format the upstream supports": "Chuyển đổi định dạng không khả dụng; client phải dùng định dạng mà upstream hỗ trợ",
+    "Make sure you understand these effects before enabling.": "Hãy chắc chắn bạn hiểu các ảnh hưởng này trước khi bật.",
+    "Model redirect is unavailable": "Chuyển hướng mô hình không khả dụng",
+    "Parameter override and system prompt are unavailable": "Ghi đè tham số và system prompt không khả dụng",
+    "Pass Through Request Headers": "Chuyển tiếp header yêu cầu",
+    "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion": "Giữ các trường riêng của thượng nguồn khi định dạng API khớp nhau; bỏ qua chuyển hướng mô hình, ghi đè tham số và chuyển đổi định dạng"
   }
 }

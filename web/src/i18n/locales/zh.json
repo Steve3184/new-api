@@ -7456,6 +7456,25 @@
     "Success rate excludes business rejections and includes the current partial hour.": "成功率排除业务拒绝，统计包含当前尚未结束的小时。",
     "Drag to move": "拖动以移动",
     "Drag to resize": "拖动以调整大小",
-    "Scheduled test options": "定期测试子选项"
+    "Scheduled test options": "定期测试子选项",
+    "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:": "开启后，客户端请求头会转发给上游，但会过滤常见认证头、Cookie 和传输控制头：",
+    "After enabling, the original request body is forwarded to the upstream without gateway rewriting:": "开启后，原始请求体将直接发送给上游，网关不再改写请求体：",
+    "Client headers override the gateway defaults and may cause upstream errors": "客户端请求头会覆盖网关默认请求头，可能导致上游报错",
+    "Client information such as User-Agent and IP is exposed to the upstream": "客户端信息（如 User-Agent、IP）会暴露给上游",
+    "Enable passthrough": "确认开启透传",
+    "Enable request body passthrough?": "确认开启透传请求体？",
+    "Enable request header passthrough?": "确认开启透传请求头？",
+    "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.": "适用于客户端与上游使用相同 API 格式，需要保留上游支持、但网关尚未适配的新参数或扩展字段的场景。通常无需开启。",
+    "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information": "上游需要获取 Codex、Claude Code 等客户端请求头信息时开启；可能暴露客户端信息",
+    "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.": "适用于上游需要获取 Codex、Claude Code 等客户端信息的场景，例如请求头中的 User-Agent、客户端版本或会话标识。通常无需开启。",
+    "Entries configured in Request Header Override still take priority": "请求头覆盖中手动配置的项仍然优先",
+    "Fix the Request Header Override JSON first": "请先修正请求头覆盖的 JSON",
+    "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高级自定义渠道仅对 /v1/responses 且不做协议转换的路由生效。",
+    "Format conversion is unavailable; the client must use a format the upstream supports": "格式转换不可用，客户端必须直接使用上游支持的格式",
+    "Make sure you understand these effects before enabling.": "请确认了解以上影响后再开启。",
+    "Model redirect is unavailable": "模型重定向不可用",
+    "Parameter override and system prompt are unavailable": "参数覆盖、系统提示词不可用",
+    "Pass Through Request Headers": "透传请求头",
+    "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion": "客户端与上游 API 格式一致、需要保留上游扩展字段时开启；模型重定向、参数覆盖和格式转换将失效"
   }
 }

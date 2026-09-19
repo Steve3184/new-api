@@ -7456,6 +7456,25 @@
     "Success rate excludes business rejections and includes the current partial hour.": "成功率は業務上の拒否を除外し、現在進行中の時間帯を含みます。",
     "Drag to move": "ドラッグして移動",
     "Drag to resize": "ドラッグしてサイズ変更",
-    "Scheduled test options": "定期テストのオプション"
+    "Scheduled test options": "定期テストのオプション",
+    "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:": "有効にすると、標準の認証ヘッダー、Cookie、転送制御ヘッダーを除くクライアントのリクエストヘッダーが上流へ転送されます：",
+    "After enabling, the original request body is forwarded to the upstream without gateway rewriting:": "有効にすると、元のリクエストボディがゲートウェイで書き換えられずに上流へ送信されます：",
+    "Client headers override the gateway defaults and may cause upstream errors": "クライアントのヘッダーがゲートウェイの既定ヘッダーを上書きし、上流でエラーになる可能性があります",
+    "Client information such as User-Agent and IP is exposed to the upstream": "User-Agent や IP などのクライアント情報が上流に公開されます",
+    "Enable passthrough": "パススルーを有効にする",
+    "Enable request body passthrough?": "リクエストボディのパススルーを有効にしますか？",
+    "Enable request header passthrough?": "リクエストヘッダーのパススルーを有効にしますか？",
+    "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.": "クライアントと上流が同じ API 形式を使用し、ゲートウェイがまだ対応していない上流固有のフィールドや新しいパラメーターを保持する必要がある場合に有効にします。通常は無効のままにしてください。",
+    "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information": "上流が Codex や Claude Code などのクライアントヘッダー情報を必要とする場合に有効化。クライアント情報が公開される可能性があります",
+    "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.": "上流が Codex や Claude Code などのクライアント情報を必要とする場合に有効にします。対象は User-Agent、クライアントのバージョン、セッションヘッダーなどです。通常は無効のままにしてください。",
+    "Entries configured in Request Header Override still take priority": "リクエストヘッダー上書きで設定した項目が引き続き優先されます",
+    "Fix the Request Header Override JSON first": "先にリクエストヘッダー上書きの JSON を修正してください",
+    "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高度なカスタムチャネルでは、プロトコル変換を行わない /v1/responses ルートにのみ適用されます。",
+    "Format conversion is unavailable; the client must use a format the upstream supports": "形式変換は使用できません。クライアントは上流が対応する形式を直接使う必要があります",
+    "Make sure you understand these effects before enabling.": "以上の影響を理解した上で有効にしてください。",
+    "Model redirect is unavailable": "モデルリダイレクトは使用できません",
+    "Parameter override and system prompt are unavailable": "パラメータ上書きとシステムプロンプトは使用できません",
+    "Pass Through Request Headers": "リクエストヘッダーをパススルー",
+    "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion": "API 形式が一致し、上流固有のフィールドを保持する必要がある場合に有効化。モデルリダイレクト、パラメーター上書き、形式変換は無効になります"
   }
 }

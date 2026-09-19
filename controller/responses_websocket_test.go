@@ -19,6 +19,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
@@ -276,6 +277,7 @@ type responsesWSBillingTest struct {
 	httpDone     chan struct{}
 	user         *model.User
 	token        *model.Token
+	channel      *model.Channel
 	client       *websocket.Conn
 	done         chan struct{}
 	upstreamDone chan struct{}
@@ -392,6 +394,7 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
 	channel.SetOtherSettings(dto.ChannelOtherSettings{AllowServiceTier: true})
 	require.NoError(t, model.DB.Create(channel).Error)
+	fixture.channel = channel
 	require.NoError(t, model.DB.Create(&model.Ability{ChannelId: channel.Id, Model: "ws-billing", Group: "default", Enabled: true}).Error)
 	t.Cleanup(func() {
 		require.NoError(t, model.LOG_DB.Where("token_id = ?", token.Id).Delete(&model.Log{}).Error)
@@ -609,12 +612,111 @@ func TestResponsesWebSocketReusesConnectionAndSettlesEachRequest(t *testing.T) {
 		assert.Equal(t, 1000, logs[index].PromptTokens)
 		assert.Equal(t, 10, logs[index].CompletionTokens)
 	}
+	// Routing decisions are persisted per request: the first create selects a
+	// channel, later creates on the same connection reuse it as a pin.
+	for index, wantDecision := range []string{"attempt:channel_selected", "select:pinned_channel"} {
+		var other struct {
+			AdminInfo struct {
+				RequestPolicy []struct {
+					ChannelID int `json:"channel_id"`
+					Decision  struct {
+						Action string `json:"action"`
+						Reason string `json:"reason"`
+					} `json:"decision"`
+				} `json:"request_policy"`
+			} `json:"admin_info"`
+		}
+		require.NoError(t, common.UnmarshalJsonStr(logs[index].Other, &other))
+		var decisions []string
+		for _, event := range other.AdminInfo.RequestPolicy {
+			assert.Equal(t, fixture.channel.Id, event.ChannelID)
+			decisions = append(decisions, event.Decision.Action+":"+event.Decision.Reason)
+		}
+		assert.Contains(t, decisions, wantDecision, "request %d policy events: %v", index, decisions)
+	}
 	require.NoError(t, model.DB.First(token, token.Id).Error)
 	require.NoError(t, model.DB.First(user, user.Id).Error)
 	assert.Zero(t, token.RemainQuota)
 	assert.Equal(t, 3000, token.UsedQuota)
 	assert.Equal(t, 97000, user.Quota)
 	assert.Equal(t, 3000, user.UsedQuota)
+}
+
+// Both transports must reach the same upstream target with the same
+// credential placement and settle identically for every supported channel type.
+func TestResponsesWebSocketDialsNativeResponsesChannelTypes(t *testing.T) {
+	type upstreamTarget struct {
+		Path, Authorization, QueryKey string
+	}
+	queryAuthRoute := dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{
+		IncomingPath: "/v1/responses", UpstreamPath: "/upstream/responses",
+		Auth: &dto.AdvancedCustomRouteAuth{Type: dto.AdvancedCustomAuthTypeQuery, Name: "api_key", Value: "{api_key}"},
+	}}}}
+	bearer := func(key string) upstreamTarget {
+		return upstreamTarget{Path: "/v1/responses", Authorization: "Bearer " + key}
+	}
+	for _, tc := range []struct {
+		name          string
+		channelType   int
+		otherSettings dto.ChannelOtherSettings
+		want          func(key string) upstreamTarget
+	}{
+		{name: "new api", channelType: constant.ChannelTypeNewAPI, want: bearer},
+		{name: "sub2api", channelType: constant.ChannelTypeSub2API, want: bearer},
+		{name: "advanced custom query auth", channelType: constant.ChannelTypeAdvancedCustom, otherSettings: queryAuthRoute, want: func(key string) upstreamTarget {
+			return upstreamTarget{Path: "/upstream/responses", QueryKey: key}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const terminal = `{"type":"response.completed","response":{"id":"first","status":"completed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`
+			targets := make(chan upstreamTarget, 2)
+			observe := func(r *http.Request) {
+				targets <- upstreamTarget{Path: r.URL.Path, Authorization: r.Header.Get("Authorization"), QueryKey: r.URL.Query().Get("api_key")}
+			}
+			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, r *http.Request) {
+				observe(r)
+				if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(terminal))) {
+					return
+				}
+				_, _, _ = ws.ReadMessage()
+			})
+			fixture.httpUpstream = func(w http.ResponseWriter, r *http.Request) {
+				observe(r)
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, _ = fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", terminal)
+			}
+			fixture.channel.SetOtherSettings(tc.otherSettings)
+			require.NoError(t, model.DB.Model(fixture.channel).Updates(map[string]any{"type": tc.channelType, "settings": fixture.channel.OtherSettings}).Error)
+
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+			assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+			assert.Equal(t, tc.want("upstream-first"), <-targets)
+
+			request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(`{"model":"ws-billing","input":"hi","stream":true}`))
+			require.NoError(t, err)
+			request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+			request.Header.Set("Content-Type", "application/json")
+			response, err := (&http.Client{Timeout: 3 * time.Second}).Do(request)
+			require.NoError(t, err)
+			body, err := io.ReadAll(response.Body)
+			require.NoError(t, err)
+			require.NoError(t, response.Body.Close())
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Contains(t, string(body), terminal)
+			select {
+			case <-fixture.httpDone:
+			case <-time.After(3 * time.Second):
+				t.Fatal("HTTP request did not finish")
+			}
+			// The polling multi-key channel rotates to its second key for the HTTP request.
+			assert.Equal(t, tc.want("upstream-second"), <-targets)
+			fixture.closeAndWait(t)
+			assertResponsesWSAccounting(t, fixture, []int{1000, 1000})
+		})
+	}
 }
 
 func TestResponsesWebSocketDisconnectSettlesDeliveredOutputOnce(t *testing.T) {
@@ -702,54 +804,68 @@ func TestResponsesWebSocketCancelErrorDoesNotFinishActiveRequest(t *testing.T) {
 }
 
 func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing.T) {
-	preConsumed := make(chan int, 1)
-	tokenID := make(chan int, 1)
-	fixture := newResponsesWSBillingTest(t, `tier("output", c * 2)`, func(ws *websocket.Conn, _ *http.Request) {
-		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
-			return
-		}
-		var token model.Token
-		if !assert.NoError(t, model.DB.First(&token, <-tokenID).Error) {
-			return
-		}
-		preConsumed <- token.RemainQuota
-		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","response_id":"rejected","status":400,"error":{"type":"invalid_request_error","code":"invalid_input","message":"Invalid input"}}`))) {
-			return
-		}
-		_, _, _ = ws.ReadMessage()
-	})
-	tokenID <- fixture.token.Id
-	// Refund is asynchronous. Observe committed token writes instead of waiting
-	// a fixed delay or returning while its worker still uses the test database.
-	updates := make(chan struct{}, 4)
-	require.NoError(t, model.DB.Callback().Update().After("gorm:commit_or_rollback_transaction").Register("responses-ws-refund", func(tx *gorm.DB) {
-		if tx.Error == nil && tx.Statement.Table == "tokens" {
-			select {
-			case updates <- struct{}{}:
-			default:
+	for _, tc := range []struct {
+		name, upstream, wantType, wantMessage string
+		status                                int
+	}{
+		{name: "structured error", upstream: `{"type":"error","response_id":"rejected","status":400,"error":{"type":"invalid_request_error","code":"invalid_input","message":"Invalid input"}}`, status: http.StatusBadRequest, wantType: "invalid_request_error", wantMessage: "Invalid input"},
+		// A frame without an error object is still reported as a request error.
+		{name: "bare error", upstream: `{"type":"error","status":500,"message":"upstream rejected"}`, status: http.StatusInternalServerError, wantType: "invalid_request_error", wantMessage: "upstream rejected"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			preConsumed := make(chan int, 1)
+			tokenID := make(chan int, 1)
+			fixture := newResponsesWSBillingTest(t, `tier("output", c * 2)`, func(ws *websocket.Conn, _ *http.Request) {
+				if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+					return
+				}
+				var token model.Token
+				if !assert.NoError(t, model.DB.First(&token, <-tokenID).Error) {
+					return
+				}
+				preConsumed <- token.RemainQuota
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(tc.upstream))) {
+					return
+				}
+				_, _, _ = ws.ReadMessage()
+			})
+			tokenID <- fixture.token.Id
+			// Refund is asynchronous. Observe committed token writes instead of waiting
+			// a fixed delay or returning while its worker still uses the test database.
+			updates := make(chan struct{}, 4)
+			require.NoError(t, model.DB.Callback().Update().After("gorm:commit_or_rollback_transaction").Register("responses-ws-refund", func(tx *gorm.DB) {
+				if tx.Error == nil && tx.Statement.Table == "tokens" {
+					select {
+					case updates <- struct{}{}:
+					default:
+					}
+				}
+			}))
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi","max_output_tokens":10}`)))
+			rejection := readResponsesWSTestEvent(t, fixture.client)
+			assert.Equal(t, "error", rejection["type"])
+			assert.Equal(t, float64(tc.status), rejection["status"])
+			rejectionError, _ := rejection["error"].(map[string]any)
+			assert.Equal(t, tc.wantType, rejectionError["type"])
+			assert.Equal(t, tc.wantMessage, rejectionError["message"])
+			assert.Equal(t, 2990, <-preConsumed, "the rejected request reserved quota before contacting upstream")
+			deadline := time.NewTimer(3 * time.Second)
+			defer deadline.Stop()
+			for {
+				require.NoError(t, model.DB.First(fixture.token, fixture.token.Id).Error)
+				if fixture.token.RemainQuota == 3000 {
+					break
+				}
+				select {
+				case <-updates:
+				case <-deadline.C:
+					t.Fatal("initial rejection did not refund the token reservation")
+				}
 			}
-		}
-	}))
-	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi","max_output_tokens":10}`)))
-	rejection := readResponsesWSTestEvent(t, fixture.client)
-	assert.Equal(t, "error", rejection["type"])
-	assert.Equal(t, float64(http.StatusBadRequest), rejection["status"])
-	assert.Equal(t, 2990, <-preConsumed, "the rejected request reserved quota before contacting upstream")
-	deadline := time.NewTimer(3 * time.Second)
-	defer deadline.Stop()
-	for {
-		require.NoError(t, model.DB.First(fixture.token, fixture.token.Id).Error)
-		if fixture.token.RemainQuota == 3000 {
-			break
-		}
-		select {
-		case <-updates:
-		case <-deadline.C:
-			t.Fatal("initial rejection did not refund the token reservation")
-		}
+			fixture.closeAndWait(t)
+			assertResponsesWSAccounting(t, fixture, nil)
+		})
 	}
-	fixture.closeAndWait(t)
-	assertResponsesWSAccounting(t, fixture, nil)
 }
 
 // TEST_RESPONSES_SQL_DSN / TEST_RESPONSES_LOG_SQL_DSN optionally run these
@@ -993,4 +1109,213 @@ func TestResponsesWebSocketAmbiguousControlErrorClosesAndSettlesOnce(t *testing.
 	assert.False(t, errors.As(err, &timeout) && timeout.Timeout(), "the server must close before the read deadline")
 	fixture.closeAndWait(t)
 	assertResponsesWSAccounting(t, fixture, []int{1000})
+}
+
+// A control event queued while another is still outstanding is rejected
+// locally instead of reaching upstream twice.
+func TestResponsesWebSocketRejectsSecondControlWhileOnePending(t *testing.T) {
+	receivedCancel := make(chan struct{}, 1)
+	release := make(chan struct{})
+	defer close(release)
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+			return
+		}
+		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"active","status":"in_progress"}}`))) {
+			return
+		}
+		_, cancel, err := ws.ReadMessage()
+		if !assert.NoError(t, err) || !assert.Contains(t, string(cancel), `"event_id":"first-cancel"`) {
+			return
+		}
+		receivedCancel <- struct{}{}
+		<-release
+		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"active","status":"completed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`))) {
+			return
+		}
+		_, _, _ = ws.ReadMessage()
+	})
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+	assert.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.cancel","event_id":"first-cancel","response_id":"active"}`)))
+	select {
+	case <-receivedCancel:
+	case <-time.After(3 * time.Second):
+		t.Fatal("upstream did not receive the first cancel")
+	}
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.cancel","event_id":"second-cancel","response_id":"active"}`)))
+	rejected := readResponsesWSTestEvent(t, fixture.client)
+	assert.Equal(t, "error", rejected["type"])
+	assert.Equal(t, float64(http.StatusBadRequest), rejected["status"])
+	assert.Equal(t, "second-cancel", rejected["event_id"])
+	rejectedError, _ := rejected["error"].(map[string]any)
+	assert.Contains(t, rejectedError["message"], "already pending")
+	release <- struct{}{}
+	assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+	fixture.closeAndWait(t)
+	assertResponsesWSAccounting(t, fixture, []int{1000})
+}
+
+// A control error resolves the outstanding control, so a corrected cancel is
+// forwarded instead of being rejected as still pending.
+func TestResponsesWebSocketAcceptsCancelAfterControlError(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+			return
+		}
+		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"active","status":"in_progress"}}`))) {
+			return
+		}
+		_, cancel, err := ws.ReadMessage()
+		if !assert.NoError(t, err) || !assert.JSONEq(t, `{"type":"response.cancel","response_id":"wrong"}`, string(cancel)) {
+			return
+		}
+		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"response_not_found","message":"No such response"}}`))) {
+			return
+		}
+		_, cancel, err = ws.ReadMessage()
+		if !assert.NoError(t, err) || !assert.JSONEq(t, `{"type":"response.cancel","response_id":"active"}`, string(cancel)) {
+			return
+		}
+		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.cancelled","response":{"id":"active","status":"cancelled","usage":{"input_tokens":1000,"output_tokens":0,"total_tokens":1000}}}`))) {
+			return
+		}
+		_, _, _ = ws.ReadMessage()
+	})
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+	assert.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.cancel","response_id":"wrong"}`)))
+	cancelError := readResponsesWSTestEvent(t, fixture.client)
+	assert.Equal(t, "error", cancelError["type"])
+	assert.Equal(t, float64(http.StatusBadRequest), cancelError["status"])
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.cancel","response_id":"active"}`)))
+	assert.Equal(t, "response.cancelled", readResponsesWSTestEvent(t, fixture.client)["type"])
+	fixture.closeAndWait(t)
+	assertResponsesWSAccounting(t, fixture, []int{1000})
+}
+
+// A late error that names the previous response must not end the request
+// that follows it on the same connection, whether that response completed or
+// failed.
+func TestResponsesWebSocketIgnoresLateErrorForPreviousResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name, firstTerminal, firstTerminalType string
+	}{
+		{name: "after completed", firstTerminalType: "response.completed", firstTerminal: `{"type":"response.completed","response":{"id":"first","status":"completed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`},
+		{name: "after error", firstTerminalType: "error", firstTerminal: `{"type":"error","response_id":"first","status":500,"error":{"type":"server_error","code":"server_error","message":"Internal server error"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+				for _, turn := range [][]string{
+					{`{"type":"response.created","response":{"id":"first","status":"in_progress"}}`, tc.firstTerminal},
+					{
+						`{"type":"error","response_id":"first","status":500,"error":{"type":"server_error","code":"server_error","message":"late failure"}}`,
+						`{"type":"response.created","response":{"id":"second","status":"in_progress"}}`,
+						`{"type":"response.completed","response":{"id":"second","status":"completed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`,
+					},
+				} {
+					if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+						return
+					}
+					for _, event := range turn {
+						if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(event))) {
+							return
+						}
+					}
+				}
+				_, _, _ = ws.ReadMessage()
+			})
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"first"}`)))
+			assert.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+			assert.Equal(t, tc.firstTerminalType, readResponsesWSTestEvent(t, fixture.client)["type"])
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"second"}`)))
+			created := readResponsesWSTestEvent(t, fixture.client)
+			require.Equal(t, "response.created", created["type"], "the late error must not reach the client or end the request: %v", created)
+			assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+			fixture.closeAndWait(t)
+			assertResponsesWSAccounting(t, fixture, []int{1000, 1000})
+		})
+	}
+}
+
+// An error that names a different response than the active one is relayed to
+// the client and leaves the active generation running.
+func TestResponsesWebSocketForwardsErrorForOtherResponseWithoutEndingRequest(t *testing.T) {
+	const strayError = `{"type":"error","response_id":"other","status":500,"error":{"type":"server_error","code":"server_error","message":"unrelated failure"}}`
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+			return
+		}
+		for _, event := range []string{
+			`{"type":"response.created","response":{"id":"active","status":"in_progress"}}`,
+			strayError,
+			`{"type":"response.completed","response":{"id":"active","status":"completed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`,
+		} {
+			if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(event))) {
+				return
+			}
+		}
+		_, _, _ = ws.ReadMessage()
+	})
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+	assert.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+	stray, err := common.Marshal(readResponsesWSTestEvent(t, fixture.client))
+	require.NoError(t, err)
+	assert.JSONEq(t, strayError, string(stray))
+	assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+	fixture.closeAndWait(t)
+	assertResponsesWSAccounting(t, fixture, []int{1000})
+	var logs []model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeConsume).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	var other map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
+	stream, _ := other["stream_status"].(map[string]any)
+	assert.Equal(t, "ok", stream["status"])
+	assert.Equal(t, "completed", stream["response_status"])
+}
+
+// Requests rejected before a RelayInfo exists reach the model health sampler
+// with the HTTP classification: routing failures count against the model,
+// business rejections such as a token model limit do not.
+func TestResponsesWebSocketPreRoutingRejectionsFollowHealthClassification(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, tc := range []struct {
+		name    string
+		reject  func(*testing.T, *responsesWSBillingTest)
+		status  int
+		sampled bool
+	}{
+		{name: "no eligible channel", status: http.StatusServiceUnavailable, sampled: true, reject: func(t *testing.T, fixture *responsesWSBillingTest) {
+			require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", fixture.channel.Id).Update("enabled", false).Error)
+		}},
+		{name: "token model limit", status: http.StatusForbidden, reject: func(t *testing.T, fixture *responsesWSBillingTest) {
+			// Update through the model so the cached token is invalidated.
+			fixture.token.ModelLimitsEnabled = true
+			fixture.token.ModelLimits = "other-model"
+			require.NoError(t, fixture.token.Update())
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(*websocket.Conn, *http.Request) {
+				t.Error("rejected request reached upstream")
+			})
+			tc.reject(t, fixture)
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+			rejected := readResponsesWSTestEvent(t, fixture.client)
+			assert.Equal(t, "error", rejected["type"])
+			assert.Equal(t, float64(tc.status), rejected["status"])
+			fixture.closeAndWait(t)
+			assertResponsesWSAccounting(t, fixture, nil)
+			if !tc.sampled {
+				keys, err := common.RDB.Keys(context.Background(), "perf:ws-billing:*").Result()
+				require.NoError(t, err)
+				assert.Empty(t, keys, "a business rejection must not affect model health")
+				return
+			}
+			requests, successes := waitPerfCounters(t, 1)
+			assert.Equal(t, int64(1), requests)
+			assert.Zero(t, successes)
+		})
+	}
 }

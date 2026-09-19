@@ -218,6 +218,10 @@ import {
   type MissingModelsAction,
 } from '../dialogs/missing-models-confirmation-dialog'
 import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dialog'
+import {
+  PassthroughWarningDialog,
+  type PassthroughKind,
+} from '../dialogs/passthrough-warning-dialog'
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import {
   ModelMappingBatchDialog,
@@ -444,6 +448,11 @@ export function ChannelMutateDrawer({
     string[]
   >([])
   const statusCodeRiskResolveRef = useRef<
+    ((confirmed: boolean) => void) | null
+  >(null)
+  const [passthroughWarningKind, setPassthroughWarningKind] =
+    useState<PassthroughKind | null>(null)
+  const passthroughWarningResolveRef = useRef<
     ((confirmed: boolean) => void) | null
   >(null)
   const [missingModelsDialogOpen, setMissingModelsDialogOpen] = useState(false)
@@ -1546,6 +1555,34 @@ export function ChannelMutateDrawer({
     }
   }, [])
 
+  // Passthrough bypasses model redirect, overrides and conversion, so every
+  // control that enables it (quick options, request section, header template)
+  // routes through this single confirmation before the value changes.
+  const confirmEnablePassthrough = useCallback(
+    (kind: PassthroughKind): Promise<boolean> =>
+      new Promise((resolve) => {
+        passthroughWarningResolveRef.current?.(false)
+        passthroughWarningResolveRef.current = resolve
+        setPassthroughWarningKind(kind)
+      }),
+    []
+  )
+
+  const handlePassthroughWarningAction = useCallback((confirmed: boolean) => {
+    setPassthroughWarningKind(null)
+    if (passthroughWarningResolveRef.current) {
+      passthroughWarningResolveRef.current(confirmed)
+      passthroughWarningResolveRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      passthroughWarningResolveRef.current?.(false)
+      passthroughWarningResolveRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
     return () => {
       if (statusCodeRiskResolveRef.current) {
@@ -1837,14 +1874,24 @@ export function ChannelMutateDrawer({
           <div className='space-y-0.5'>
             <FormLabel>{t('Pass Through Body')}</FormLabel>
             <FormDescription>
-              {t('Pass request body directly to upstream')}
+              {t(
+                'Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion'
+              )}
             </FormDescription>
           </div>
           <FormControl>
             <Switch
               disabled={sensitiveLocked}
               checked={field.value}
-              onCheckedChange={field.onChange}
+              onCheckedChange={(value) => {
+                if (!value) {
+                  field.onChange(false)
+                  return
+                }
+                void confirmEnablePassthrough('body').then((confirmed) => {
+                  if (confirmed) field.onChange(true)
+                })
+              }}
             />
           </FormControl>
         </FormItem>
@@ -2940,9 +2987,14 @@ export function ChannelMutateDrawer({
                     type='button'
                     variant='outline'
                     size='sm'
-                    onClick={() =>
-                      field.onChange(JSON.stringify({ '*': true }, null, 2))
-                    }
+                    onClick={() => {
+                      void confirmEnablePassthrough('headers').then(
+                        (confirmed) => {
+                          if (!confirmed) return
+                          field.onChange(JSON.stringify({ '*': true }, null, 2))
+                        }
+                      )
+                    }}
                   >
                     {t('Passthrough Template')}
                   </Button>
@@ -4797,6 +4849,7 @@ export function ChannelMutateDrawer({
               channelType={currentType}
               sensitiveLocked={sensitiveLocked}
               disabled={isSubmitting}
+              confirmEnablePassthrough={confirmEnablePassthrough}
             />
           )
         }
@@ -4975,7 +5028,7 @@ export function ChannelMutateDrawer({
                 )}
               </div>
               <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                <div className='flex min-w-0 flex-wrap items-center gap-2 sm:flex-1'>
                   {isEditing && channelData?.data && (
                     <Badge variant='secondary' className='shrink-0'>
                       {t(
@@ -5008,7 +5061,8 @@ export function ChannelMutateDrawer({
                       channelType={currentType}
                       sensitiveLocked={sensitiveLocked}
                       disabled={isSubmitting}
-                      className='shrink-0 sm:max-w-xl sm:justify-end'
+                      className='sm:justify-end'
+                      confirmEnablePassthrough={confirmEnablePassthrough}
                     />
                   )}
               </div>
@@ -5235,6 +5289,14 @@ export function ChannelMutateDrawer({
         }}
         detailItems={statusCodeRiskDetailItems}
         onConfirm={() => handleStatusCodeRiskAction(true)}
+      />
+      <PassthroughWarningDialog
+        open={passthroughWarningKind !== null}
+        kind={passthroughWarningKind}
+        onOpenChange={(v) => {
+          if (!v) handlePassthroughWarningAction(false)
+        }}
+        handleConfirm={() => handlePassthroughWarningAction(true)}
       />
     </>
   )

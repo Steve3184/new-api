@@ -7456,6 +7456,25 @@
     "Success rate excludes business rejections and includes the current partial hour.": "成功率排除業務拒絕，統計包含目前尚未結束的小時。",
     "Drag to move": "拖曳以移動",
     "Drag to resize": "拖曳以調整大小",
-    "Scheduled test options": "定期測試子選項"
+    "Scheduled test options": "定期測試子選項",
+    "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:": "開啟後，用戶端請求標頭會轉送至上游，但會過濾常見驗證標頭、Cookie 和傳輸控制標頭：",
+    "After enabling, the original request body is forwarded to the upstream without gateway rewriting:": "開啟後，原始請求主體將直接傳送至上游，閘道不再改寫請求主體：",
+    "Client headers override the gateway defaults and may cause upstream errors": "客戶端請求標頭會覆蓋閘道預設標頭，可能導致上游回報錯誤",
+    "Client information such as User-Agent and IP is exposed to the upstream": "客戶端資訊（如 User-Agent、IP）會暴露給上游",
+    "Enable passthrough": "確認開啟透傳",
+    "Enable request body passthrough?": "確認開啟透傳請求主體？",
+    "Enable request header passthrough?": "確認開啟透傳請求標頭？",
+    "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.": "適用於用戶端與上游使用相同 API 格式，需要保留上游支援、但閘道尚未支援的新參數或擴充欄位的情境。通常無需開啟。",
+    "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information": "上游需要取得 Codex、Claude Code 等用戶端請求標頭資訊時開啟；可能暴露用戶端資訊",
+    "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.": "適用於上游需要取得 Codex、Claude Code 等用戶端資訊的情境，例如請求標頭中的 User-Agent、用戶端版本或工作階段識別碼。通常無需開啟。",
+    "Entries configured in Request Header Override still take priority": "請求標頭覆蓋中手動設定的項目仍然優先",
+    "Fix the Request Header Override JSON first": "請先修正請求標頭覆蓋的 JSON",
+    "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "進階自訂渠道僅對 /v1/responses 且不做協定轉換的路由生效。",
+    "Format conversion is unavailable; the client must use a format the upstream supports": "格式轉換不可用，客戶端必須直接使用上游支援的格式",
+    "Make sure you understand these effects before enabling.": "請確認瞭解以上影響後再開啟。",
+    "Model redirect is unavailable": "模型重新導向不可用",
+    "Parameter override and system prompt are unavailable": "參數覆蓋、系統提示詞不可用",
+    "Pass Through Request Headers": "透傳請求標頭",
+    "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion": "用戶端與上游 API 格式一致、需要保留上游擴充欄位時開啟；模型重新導向、參數覆寫和格式轉換將失效"
   }
 }

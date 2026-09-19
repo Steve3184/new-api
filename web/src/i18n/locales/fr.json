@@ -7456,6 +7456,25 @@
     "Success rate excludes business rejections and includes the current partial hour.": "Le taux de réussite exclut les rejets métier et inclut l’heure en cours.",
     "Drag to move": "Glisser pour déplacer",
     "Drag to resize": "Glisser pour redimensionner",
-    "Scheduled test options": "Options des tests planifiés"
+    "Scheduled test options": "Options des tests planifiés",
+    "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:": "Une fois activé, les en-têtes du client sont transmis au service amont, sauf les en-têtes d'authentification standard, les cookies et les en-têtes de transport :",
+    "After enabling, the original request body is forwarded to the upstream without gateway rewriting:": "Une fois activé, le corps original de la requête est transmis au service amont sans réécriture par la passerelle :",
+    "Client headers override the gateway defaults and may cause upstream errors": "Les en-têtes du client remplacent ceux de la passerelle et peuvent provoquer des erreurs en amont",
+    "Client information such as User-Agent and IP is exposed to the upstream": "Les informations du client, comme le User-Agent et l'IP, sont exposées à l'amont",
+    "Enable passthrough": "Activer la transmission",
+    "Enable request body passthrough?": "Activer la transmission du corps de la requête ?",
+    "Enable request header passthrough?": "Activer la transmission des en-têtes de la requête ?",
+    "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.": "À activer si le client et le service amont utilisent le même format API et si des champs propres au service amont ou récents, non encore pris en charge par la passerelle, doivent être conservés. Généralement inutile.",
+    "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information": "À activer si le service amont a besoin des en-têtes de clients comme Codex ou Claude Code ; peut exposer les informations du client",
+    "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.": "À activer si le service amont a besoin d'informations de clients comme Codex ou Claude Code : User-Agent, version du client ou en-têtes de session. Généralement inutile.",
+    "Entries configured in Request Header Override still take priority": "Les entrées configurées dans la surcharge des en-têtes restent prioritaires",
+    "Fix the Request Header Override JSON first": "Corrigez d'abord le JSON de surcharge des en-têtes",
+    "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Pour les canaux personnalisés avancés, ceci ne s’applique qu’aux routes /v1/responses sans conversion de protocole.",
+    "Format conversion is unavailable; the client must use a format the upstream supports": "La conversion de format est indisponible ; le client doit utiliser un format pris en charge par l'amont",
+    "Make sure you understand these effects before enabling.": "Assurez-vous de bien comprendre ces effets avant d'activer.",
+    "Model redirect is unavailable": "La redirection de modèle est indisponible",
+    "Parameter override and system prompt are unavailable": "La surcharge des paramètres et le prompt système sont indisponibles",
+    "Pass Through Request Headers": "Transmettre les en-têtes de la requête",
+    "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion": "Conserve les champs propres au service amont si les formats API correspondent ; désactive la redirection de modèle, la substitution de paramètres et la conversion de format"
   }
 }

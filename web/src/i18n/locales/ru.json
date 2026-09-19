@@ -7456,6 +7456,25 @@
     "Success rate excludes business rejections and includes the current partial hour.": "Доля успешных запросов не учитывает отказы по бизнес-правилам и включает текущий неполный час.",
     "Drag to move": "Перетащите, чтобы переместить",
     "Drag to resize": "Перетащите, чтобы изменить размер",
-    "Scheduled test options": "Параметры плановых проверок"
+    "Scheduled test options": "Параметры плановых проверок",
+    "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:": "После включения заголовки клиента передаются вышестоящему сервису, кроме стандартных заголовков аутентификации, Cookie и транспортных заголовков:",
+    "After enabling, the original request body is forwarded to the upstream without gateway rewriting:": "После включения исходное тело запроса передаётся вышестоящему сервису без изменений со стороны шлюза:",
+    "Client headers override the gateway defaults and may cause upstream errors": "Заголовки клиента заменяют заголовки шлюза по умолчанию и могут вызвать ошибки вышестоящего сервиса",
+    "Client information such as User-Agent and IP is exposed to the upstream": "Данные клиента, такие как User-Agent и IP, раскрываются вышестоящему сервису",
+    "Enable passthrough": "Включить проброс",
+    "Enable request body passthrough?": "Включить проброс тела запроса?",
+    "Enable request header passthrough?": "Включить проброс заголовков запроса?",
+    "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.": "Включайте, если клиент и вышестоящий сервис используют один формат API и нужно сохранить специфичные для сервиса или новые поля, которые шлюз ещё не поддерживает. Обычно включать не требуется.",
+    "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information": "Включайте, если вышестоящему сервису нужны сведения из заголовков Codex или Claude Code; возможно раскрытие информации о клиенте",
+    "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.": "Включайте, если вышестоящему сервису нужны сведения о клиентах Codex, Claude Code и подобных: User-Agent, версия клиента или заголовки сеанса. Обычно включать не требуется.",
+    "Entries configured in Request Header Override still take priority": "Записи из переопределения заголовков по-прежнему имеют приоритет",
+    "Fix the Request Header Override JSON first": "Сначала исправьте JSON переопределения заголовков",
+    "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Для расширенных пользовательских каналов это действует только для маршрутов /v1/responses без преобразования протокола.",
+    "Format conversion is unavailable; the client must use a format the upstream supports": "Преобразование формата недоступно; клиент должен использовать формат, который поддерживает вышестоящий сервис",
+    "Make sure you understand these effects before enabling.": "Убедитесь, что понимаете эти последствия, прежде чем включать.",
+    "Model redirect is unavailable": "Перенаправление модели недоступно",
+    "Parameter override and system prompt are unavailable": "Переопределение параметров и системный промпт недоступны",
+    "Pass Through Request Headers": "Проброс заголовков запроса",
+    "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion": "Сохраняет поля вышестоящего сервиса при совпадении форматов API; отключает перенаправление модели, переопределение параметров и преобразование формата"
   }
 }

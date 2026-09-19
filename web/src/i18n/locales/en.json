@@ -7456,6 +7456,25 @@
     "Success rate excludes business rejections and includes the current partial hour.": "Success rate excludes business rejections and includes the current partial hour.",
     "Drag to move": "Drag to move",
     "Drag to resize": "Drag to resize",
-    "Scheduled test options": "Scheduled test options"
+    "Scheduled test options": "Scheduled test options",
+    "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:": "After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:",
+    "After enabling, the original request body is forwarded to the upstream without gateway rewriting:": "After enabling, the original request body is forwarded to the upstream without gateway rewriting:",
+    "Client headers override the gateway defaults and may cause upstream errors": "Client headers override the gateway defaults and may cause upstream errors",
+    "Client information such as User-Agent and IP is exposed to the upstream": "Client information such as User-Agent and IP is exposed to the upstream",
+    "Enable passthrough": "Enable passthrough",
+    "Enable request body passthrough?": "Enable request body passthrough?",
+    "Enable request header passthrough?": "Enable request header passthrough?",
+    "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.": "Enable when the client and upstream use the same API format and you need to preserve upstream-specific or new fields the gateway does not yet support. Usually leave this off.",
+    "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information": "Enable when the upstream needs client information from Codex or Claude Code headers; may expose client information",
+    "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.": "Enable when the upstream needs information from clients such as Codex or Claude Code, including User-Agent, client version or session headers. Usually leave this off.",
+    "Entries configured in Request Header Override still take priority": "Entries configured in Request Header Override still take priority",
+    "Fix the Request Header Override JSON first": "Fix the Request Header Override JSON first",
+    "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.",
+    "Format conversion is unavailable; the client must use a format the upstream supports": "Format conversion is unavailable; the client must use a format the upstream supports",
+    "Make sure you understand these effects before enabling.": "Make sure you understand these effects before enabling.",
+    "Model redirect is unavailable": "Model redirect is unavailable",
+    "Parameter override and system prompt are unavailable": "Parameter override and system prompt are unavailable",
+    "Pass Through Request Headers": "Pass Through Request Headers",
+    "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion": "Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion"
   }
 }

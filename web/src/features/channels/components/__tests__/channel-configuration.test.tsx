@@ -43,8 +43,10 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import type { TaskPluginOption } from '../../api'
 import {
+  CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_SUB2API,
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_VLLM,
 } from '../../constants'
@@ -1175,6 +1177,11 @@ test('quick options and detailed settings share changes across tabs and save the
   const passthrough = screen.getByRole('switch', { name: 'Pass Through Body' })
   expect(passthrough).not.toBeChecked()
   await user.click(passthrough)
+  expect(passthrough).not.toBeChecked()
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  expect(passthrough).toBeChecked()
   expect(screen.getByRole('switch', { name: 'Force Format' })).toBeVisible()
   expect(
     screen.getByRole('switch', { name: 'Allow service_tier passthrough' })
@@ -1230,7 +1237,7 @@ test('quick options show only applicable shortcuts when the provider changes', a
   render(<ConfigurationHarness />)
   await user.click(screen.getByRole('option', { name: 'OpenAI Built-in #1' }))
   let quick = within(screen.getByRole('group', { name: 'Quick options' }))
-  expect(quick.getAllByRole('switch')).toHaveLength(4)
+  expect(quick.getAllByRole('switch')).toHaveLength(5)
   expect(
     quick.queryByRole('switch', { name: 'Force Format' })
   ).not.toBeInTheDocument()
@@ -1238,6 +1245,9 @@ test('quick options show only applicable shortcuts when the provider changes', a
     quick.queryByRole('switch', { name: 'Thinking to Content' })
   ).not.toBeInTheDocument()
   await user.click(quick.getByRole('switch', { name: 'Pass Through Body' }))
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
   expect(
     screen.getByRole('tab', { name: /Connection & Models/ })
   ).toHaveAccessibleName(/Incomplete/)
@@ -1245,7 +1255,7 @@ test('quick options show only applicable shortcuts when the provider changes', a
   await user.click(screen.getByRole('button', { name: 'Change provider' }))
   await user.click(screen.getByRole('option', { name: /^DeepSeek / }))
   quick = within(screen.getByRole('group', { name: 'Quick options' }))
-  expect(quick.getAllByRole('switch')).toHaveLength(3)
+  expect(quick.getAllByRole('switch')).toHaveLength(4)
   expect(
     quick.queryByRole('switch', { name: 'Responses WebSocket' })
   ).not.toBeInTheDocument()
@@ -1495,7 +1505,7 @@ test('request processing configuration does not mark the network category as con
   ).not.toHaveAccessibleName(/Configured/)
 })
 
-test.each([1, 57])(
+test.each([1, 57, 58, CHANNEL_TYPE_SUB2API, CHANNEL_TYPE_NEW_API])(
   'provider %s marks a saved Responses WebSocket setting in Request & Response and clears the mark when disabled',
   async (type) => {
     editingChannel = {
@@ -1519,6 +1529,31 @@ test.each([1, 57])(
     await user.click(toggle)
     expect(toggle).not.toBeChecked()
     expect(requestTab).not.toHaveAccessibleName(/Configured/)
+  }
+)
+
+test.each([
+  [58, true],
+  [1, false],
+])(
+  'provider %s explains the native-route limit under the Responses WebSocket toggle: %s',
+  async (type, shown) => {
+    editingChannel = { ...editingChannel, type }
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+    expect(
+      screen.getByRole('switch', { name: 'Enable Responses WebSocket' })
+    ).toBeVisible()
+    const note = screen.queryByText(
+      /applies only to \/v1\/responses routes without protocol conversion/
+    )
+    if (shown) {
+      expect(note).toBeVisible()
+    } else {
+      expect(note).not.toBeInTheDocument()
+    }
   }
 )
 
@@ -2438,7 +2473,7 @@ test('on wide screens the quick options move into the header as a compact toggle
   await screen.findByDisplayValue('Existing channel')
   const quick = screen.getByRole('group', { name: 'Quick options' })
   expect(quick.closest('[data-slot="sheet-header"]')).not.toBeNull()
-  expect(within(quick).getAllByRole('switch')).toHaveLength(4)
+  expect(within(quick).getAllByRole('switch')).toHaveLength(5)
   // Second header row: status badge and description on the left, toggles right.
   const statusRow = quick.parentElement
   if (!statusRow) throw new Error('status row missing')
@@ -2447,7 +2482,9 @@ test('on wide screens the quick options move into the header as a compact toggle
     within(statusRow).queryByRole('heading', { name: /Edit Channel/ })
   ).not.toBeInTheDocument()
   expect(
-    screen.queryByText('Preserve the original request body')
+    screen.queryByText(
+      'Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion'
+    )
   ).not.toBeInTheDocument()
   expect(screen.queryByText('Quick actions')).toBeVisible()
 
@@ -2457,10 +2494,107 @@ test('on wide screens the quick options move into the header as a compact toggle
   expect(passthrough).toHaveAttribute('data-size', 'sm')
   expect(passthrough).not.toBeChecked()
   await user.click(passthrough)
+  expect(passthrough).not.toBeChecked()
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
   expect(passthrough).toBeChecked()
 
   await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
   const all = screen.getAllByRole('switch', { name: 'Pass Through Body' })
   expect(all).toHaveLength(2)
   for (const toggle of all) expect(toggle).toBeChecked()
+})
+
+test('header passthrough quick option confirms before writing the wildcard rule and clears it without asking', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  const headers = quick.getByRole('switch', {
+    name: 'Pass Through Request Headers',
+  })
+  expect(headers).not.toBeChecked()
+
+  await user.click(headers)
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Enable request header passthrough?',
+  })
+  expect(dialog).toHaveTextContent(
+    'Entries configured in Request Header Override still take priority'
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  )
+  expect(headers).not.toBeChecked()
+
+  await user.click(headers)
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  expect(headers).toBeChecked()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const editor = screen.getByLabelText(
+    'Request Header Override'
+  ) as HTMLTextAreaElement
+  expect(JSON.parse(editor.value)).toEqual({ '*': true })
+
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  await user.click(
+    quick.getByRole('switch', { name: 'Pass Through Request Headers' })
+  )
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(
+    quick.getByRole('switch', { name: 'Pass Through Request Headers' })
+  ).not.toBeChecked()
+
+  await user.click(
+    quick.getByRole('switch', { name: 'Pass Through Request Headers' })
+  )
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { header_override: string }
+  expect(JSON.parse(payload.header_override)).toEqual({ '*': true })
+})
+
+test('the header override passthrough template button confirms before filling the wildcard rule', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const editor = screen.getByLabelText(
+    'Request Header Override'
+  ) as HTMLTextAreaElement
+  expect(editor.value).toBe('')
+
+  await user.click(screen.getByRole('button', { name: 'Passthrough Template' }))
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Enable request header passthrough?',
+  })
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  )
+  expect(editor.value).toBe('')
+
+  await user.click(screen.getByRole('button', { name: 'Passthrough Template' }))
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  await waitFor(() => expect(JSON.parse(editor.value)).toEqual({ '*': true }))
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Quick options' })).getByRole(
+      'switch',
+      { name: 'Pass Through Request Headers' }
+    )
+  ).toBeChecked()
 })
