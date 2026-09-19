@@ -23,6 +23,21 @@ import { requestPaymentAmount } from './use-payment'
 import { normalizeTopupPaymentMethods } from './use-topup-info'
 
 describe('payment amount routing', () => {
+  test('falls back to the upstream method type when no custom name is set', () => {
+    expect(
+      normalizeTopupPaymentMethods(
+        [
+          { type: 'alipay', gateway: 'primary' },
+          { name: 'Backup Alipay', type: 'alipay', gateway: 'backup' },
+        ],
+        1
+      )
+    ).toMatchObject([
+      { name: 'alipay', type: 'alipay', gateway: 'primary' },
+      { name: 'Backup Alipay', type: 'alipay', gateway: 'backup' },
+    ])
+  })
+
   test('preserves Epay gateway and fee metadata from top-up info', () => {
     expect(
       normalizeTopupPaymentMethods(

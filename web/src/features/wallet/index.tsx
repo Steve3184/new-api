@@ -59,6 +59,7 @@ import {
   getDefaultPaymentType,
   getMinTopupAmount,
   getPaymentMethodMinTopup,
+  getPaymentMethodKey,
   dispatchSelectedPayment,
 } from './lib'
 import type {
@@ -257,7 +258,7 @@ export function Wallet(props: WalletProps) {
   const handlePaymentMethodSelect = async (method: PaymentMethod) => {
     setSelectedPaymentMethod(method)
     setSelectedWaffoMethodIndex(null)
-    setPaymentLoading(method.type)
+    setPaymentLoading(getPaymentMethodKey(method))
 
     try {
       // Validate the selected method's minimum, which may differ from the

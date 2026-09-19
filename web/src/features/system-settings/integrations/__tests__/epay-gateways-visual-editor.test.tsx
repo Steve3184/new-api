@@ -126,6 +126,51 @@ const waffoPancakeDefaults = {
 }
 
 describe('Epay gateway visual editor serialization', () => {
+  test('accepts methods without a custom name and preserves the upstream type', () => {
+    const gateways = parseEpayGateways(
+      JSON.stringify([
+        {
+          id: 'primary',
+          name: 'Primary',
+          address: 'https://pay.example.com',
+          merchant_id: '10001',
+          key: 'secret',
+          enabled: true,
+          pay_methods: [{ type: 'alipay' }],
+        },
+      ])
+    )
+
+    expect(gateways[0].pay_methods).toEqual([{ type: 'alipay' }])
+  })
+
+  test('saves an empty custom name by omitting it from the method', async () => {
+    const onSave = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <PaymentMethodDialog
+        open
+        onOpenChange={() => undefined}
+        onSave={onSave}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Add payment method' })
+    await user.click(
+      within(dialog).getByRole('combobox', { name: 'Payment type key' })
+    )
+    await user.click(screen.getByRole('option', { name: /Epay: alipay/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'alipay' })
+      )
+    })
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty('name')
+  })
+
   test('preserves masked secrets and nested payment fees', () => {
     const gateways = parseEpayGateways(
       JSON.stringify([

@@ -22,6 +22,7 @@ import { PAYMENT_TYPES } from '../constants'
 import {
   dispatchSelectedPayment,
   getMinTopupAmount,
+  getPaymentMethodKey,
   getTopupPaymentMethods,
   isNowPaymentsPayment,
   isStripePayment,
@@ -100,6 +101,22 @@ describe('payment type classification', () => {
     expect(
       methods.filter((method) => method.type === PAYMENT_TYPES.NOWPAYMENTS)
     ).toHaveLength(1)
+  })
+
+  test('uses the gateway and upstream type as the payment method identity', () => {
+    expect(
+      getPaymentMethodKey({
+        name: 'Primary Alipay',
+        type: PAYMENT_TYPES.ALIPAY,
+        gateway: 'primary',
+      })
+    ).not.toBe(
+      getPaymentMethodKey({
+        name: 'Backup Alipay',
+        type: PAYMENT_TYPES.ALIPAY,
+        gateway: 'backup',
+      })
+    )
   })
 })
 

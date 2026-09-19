@@ -33,7 +33,10 @@ export type EpayGatewayData = {
 function isPaymentMethod(value: unknown): value is PaymentMethodData {
   if (!value || typeof value !== 'object') return false
   const method = value as Record<string, unknown>
-  return typeof method.name === 'string' && typeof method.type === 'string'
+  return (
+    typeof method.type === 'string' &&
+    (!('name' in method) || typeof method.name === 'string')
+  )
 }
 
 function isEpayGateway(value: unknown): value is EpayGatewayData {

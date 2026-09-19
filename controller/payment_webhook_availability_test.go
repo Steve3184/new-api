@@ -244,9 +244,59 @@ func TestEpayFeeUsesSelectedGateway(t *testing.T) {
 	method := operation_setting.GetPayMethodForGateway("alipay", "backup")
 	require.NotNil(t, method)
 	assert.Equal(t, "backup", method["gateway"])
+	assert.Nil(t, operation_setting.GetPayMethodForGateway("alipay", ""))
 	gateway := epayGatewayForMethod("alipay", "backup")
 	require.NotNil(t, gateway)
 	assert.Equal(t, "backup", gateway.ID)
+	assert.Nil(t, epayGatewayForMethod("alipay", ""))
+	operation_setting.EpayGateways[1].PayMethods[0]["type"] = "wxpay"
+	method = operation_setting.GetPayMethodForGateway("alipay", "")
+	require.NotNil(t, method)
+	assert.Equal(t, "primary", method["gateway"])
+}
+
+func TestGetTopUpInfoKeepsDuplicateEpayTypesDistinct(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	previousGateways := operation_setting.EpayGateways
+	t.Cleanup(func() { operation_setting.EpayGateways = previousGateways })
+	operation_setting.EpayGateways = []operation_setting.EpayGateway{
+		{
+			ID: "primary", Address: "https://primary.example.com", MerchantID: "primary-id",
+			Key: "primary-key", Enabled: true,
+			PayMethods: []map[string]string{{"type": "alipay"}},
+		},
+		{
+			ID: "backup", Address: "https://backup.example.com", MerchantID: "backup-id",
+			Key: "backup-key", Enabled: true,
+			PayMethods: []map[string]string{{"type": "alipay", "name": "Backup Alipay"}},
+		},
+	}
+
+	response := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(response)
+	GetTopUpInfo(context)
+
+	var payload struct {
+		Success bool `json:"success"`
+		Data    struct {
+			PayMethods []map[string]string `json:"pay_methods"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	epayMethods := make([]map[string]string, 0, 2)
+	for _, method := range payload.Data.PayMethods {
+		if method["gateway"] != "" {
+			epayMethods = append(epayMethods, method)
+		}
+	}
+	require.Len(t, epayMethods, 2)
+	assert.Equal(t, "primary", epayMethods[0]["gateway"])
+	assert.Equal(t, "alipay", epayMethods[0]["type"])
+	assert.Equal(t, "alipay", epayMethods[0]["name"])
+	assert.Equal(t, "backup", epayMethods[1]["gateway"])
+	assert.Equal(t, "alipay", epayMethods[1]["type"])
+	assert.Equal(t, "Backup Alipay", epayMethods[1]["name"])
 }
 
 func TestEpayCallbackRejectsTamperingAndOrderMismatch(t *testing.T) {

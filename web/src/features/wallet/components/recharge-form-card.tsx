@@ -44,6 +44,7 @@ import {
   getPaymentIcon,
   getMinTopupAmount,
   getPaymentMethodMinTopup,
+  getPaymentMethodKey,
   getTopupPaymentMethods,
   calculatePresetPricing,
 } from '../lib'
@@ -338,6 +339,7 @@ export function RechargeFormCard({
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
                     {paymentMethods.map((method) => {
+                      const methodKey = getPaymentMethodKey(method)
                       const minTopup = getPaymentMethodMinTopup(
                         method,
                         topupInfo
@@ -354,10 +356,7 @@ export function RechargeFormCard({
 
                       const button = (
                         <Button
-                          key={JSON.stringify([
-                            method.gateway ?? 'builtin',
-                            method.type,
-                          ])}
+                          key={methodKey}
                           variant='outline'
                           onClick={() => onPaymentMethodSelect(method)}
                           disabled={disabled || !!paymentLoading}
@@ -369,7 +368,7 @@ export function RechargeFormCard({
                           }
                           className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
                         >
-                          {paymentLoading === method.type ? (
+                          {paymentLoading === methodKey ? (
                             <Loader2 className='h-4 w-4 animate-spin' />
                           ) : (
                             getPaymentIcon(
@@ -393,7 +392,7 @@ export function RechargeFormCard({
                       )
 
                       return disabled ? (
-                        <TooltipProvider key={`${method.type}-${method.name}`}>
+                        <TooltipProvider key={methodKey}>
                           <Tooltip>
                             <TooltipTrigger render={button} />
                             <TooltipContent>{disabledReason}</TooltipContent>

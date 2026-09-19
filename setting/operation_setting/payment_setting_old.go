@@ -87,20 +87,27 @@ func GetPayMethodForGateway(method, gatewayID string) map[string]string {
 			}
 		}
 	}
+	var matched map[string]string
 	for _, gateway := range GetEpayGateways() {
 		if gatewayID != "" && gateway.ID != gatewayID {
 			continue
 		}
 		for _, payMethod := range gateway.PayMethods {
 			if payMethod["type"] == method {
+				if gatewayID == "" && matched != nil {
+					return nil
+				}
 				copy := make(map[string]string, len(payMethod))
 				for key, value := range payMethod {
 					copy[key] = value
 				}
 				copy["gateway"] = gateway.ID
-				return copy
+				if gatewayID != "" {
+					return copy
+				}
+				matched = copy
 			}
 		}
 	}
-	return nil
+	return matched
 }

@@ -101,6 +101,10 @@ export function isNowPaymentsPayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.NOWPAYMENTS
 }
 
+export function getPaymentMethodKey(method: PaymentMethod): string {
+  return JSON.stringify([method.gateway ?? 'builtin', method.type])
+}
+
 /**
  * Adds the configured NOWPayments gateway to the same payment-method grid as
  * the regular Epay methods. The gateway may also be present in legacy

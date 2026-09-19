@@ -37,6 +37,9 @@ func GetTopUpInfo(c *gin.Context) {
 			for key, value := range method {
 				copy[key] = value
 			}
+			if strings.TrimSpace(copy["name"]) == "" {
+				copy["name"] = copy["type"]
+			}
 			copy["gateway"] = gateway.ID
 			payMethods = append(payMethods, copy)
 		}

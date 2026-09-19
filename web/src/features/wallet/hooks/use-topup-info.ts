@@ -70,9 +70,10 @@ export function normalizeTopupPaymentMethods(
       const rawFee = Number(item.fee)
       const rawFeeRate = Number(item.fee_rate)
       const type = typeof item.type === 'string' ? item.type : ''
+      const customName = typeof item.name === 'string' ? item.name.trim() : ''
 
       return {
-        name: typeof item.name === 'string' ? item.name : '',
+        name: customName || type,
         type,
         color: typeof item.color === 'string' ? item.color : undefined,
         icon: typeof item.icon === 'string' ? item.icon : undefined,

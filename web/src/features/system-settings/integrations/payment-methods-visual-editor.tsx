@@ -58,6 +58,10 @@ function getEffectiveIconName(method: PaymentMethodData) {
   return method.icon || getDefaultIconName(method.type)
 }
 
+function getPaymentMethodDisplayName(method: PaymentMethodData) {
+  return method.name?.trim() || method.type
+}
+
 export function PaymentMethodsVisualEditor({
   value,
   onChange,
@@ -123,10 +127,9 @@ export function PaymentMethodsVisualEditor({
       (item): item is PaymentMethodData =>
         typeof item === 'object' &&
         item !== null &&
-        'name' in item &&
         'type' in item &&
-        typeof item.name === 'string' &&
         typeof item.type === 'string' &&
+        (!('name' in item) || typeof item.name === 'string') &&
         (!('icon' in item) || typeof item.icon === 'string') &&
         (!('min_topup' in item) || typeof item.min_topup === 'string') &&
         (!('gateway' in item) || typeof item.gateway === 'string') &&
@@ -141,7 +144,9 @@ export function PaymentMethodsVisualEditor({
     const lowerSearch = searchText.toLowerCase()
     return paymentMethods.filter(
       (method) =>
-        method.name.toLowerCase().includes(lowerSearch) ||
+        getPaymentMethodDisplayName(method)
+          .toLowerCase()
+          .includes(lowerSearch) ||
         method.type.toLowerCase().includes(lowerSearch) ||
         getEffectiveIconName(method).toLowerCase().includes(lowerSearch)
     )
@@ -161,9 +166,7 @@ export function PaymentMethodsVisualEditor({
         (item): item is PaymentMethodData =>
           typeof item === 'object' &&
           item !== null &&
-          'name' in item &&
           'type' in item &&
-          item.name === editData.name &&
           item.type === editData.type
       )
       if (index !== -1) {
@@ -190,9 +193,7 @@ export function PaymentMethodsVisualEditor({
         !(
           typeof item === 'object' &&
           item !== null &&
-          'name' in item &&
           'type' in item &&
-          item.name === method.name &&
           item.type === method.type
         )
     )
@@ -223,9 +224,7 @@ export function PaymentMethodsVisualEditor({
         typeof item === 'object' &&
         item !== null &&
         'type' in item &&
-        'name' in item &&
-        item.type === template.type &&
-        item.name === template.name
+        item.type === template.type
     )
 
     if (!exists) {
@@ -317,7 +316,7 @@ export function PaymentMethodsVisualEditor({
                 id: 'name',
                 header: t('Name'),
                 cellClassName: 'font-medium',
-                cell: (method) => method.name,
+                cell: (method) => getPaymentMethodDisplayName(method),
               },
               {
                 id: 'type',
@@ -418,7 +417,9 @@ export function PaymentMethodsVisualEditor({
                 <div key={methodKey} className='p-4'>
                   <div className='mb-3 flex items-start justify-between'>
                     <div className='flex-1'>
-                      <div className='mb-1 font-medium'>{method.name}</div>
+                      <div className='mb-1 font-medium'>
+                        {getPaymentMethodDisplayName(method)}
+                      </div>
                       <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
                         {method.type}
                       </code>

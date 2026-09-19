@@ -49,7 +49,7 @@ const nonNegativeFeeSchema = (message: string) =>
 
 const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
   z.object({
-    name: z.string().min(1, t('Payment method name is required')),
+    name: z.string().optional(),
     type: z.string().min(1, t('Payment type key is required')),
     icon: z.string().optional(),
     min_topup: z.string().optional(),
@@ -69,7 +69,7 @@ type PaymentMethodDialogFormValues = z.infer<
 const PAYMENT_METHOD_FORM_ID = 'payment-method-form'
 
 export type PaymentMethodData = {
-  name: string
+  name?: string
   type: string
   icon?: string
   min_topup?: string
@@ -108,25 +108,21 @@ export function PaymentMethodDialog({
     {
       iconName: 'SiAlipay',
       label: `${t('Alipay')} (Epay: alipay)`,
-      name: t('Alipay'),
       value: 'alipay',
     },
     {
       iconName: 'SiWechat',
       label: `${t('WeChat Pay')} (Epay: wxpay)`,
-      name: t('WeChat Pay'),
       value: 'wxpay',
     },
     {
       iconName: 'SiStripe',
       label: `${t('Stripe')} (stripe)`,
-      name: t('Stripe'),
       value: 'stripe',
     },
     {
       iconName: 'LuCreditCard',
       label: 'Waffo Pancake (waffo_pancake)',
-      name: 'Waffo Pancake',
       value: 'waffo_pancake',
     },
   ]
@@ -151,7 +147,7 @@ export function PaymentMethodDialog({
   useEffect(() => {
     if (editData) {
       form.reset({
-        name: editData.name,
+        name: editData.name ?? '',
         type: editData.type,
         icon: editData.icon ?? getDefaultIconName(editData.type),
         min_topup: editData.min_topup ?? '',
@@ -174,9 +170,9 @@ export function PaymentMethodDialog({
 
   const handleSubmit = (values: PaymentMethodDialogFormValues) => {
     const data: PaymentMethodData = {
-      name: values.name,
       type: values.type,
     }
+    if (values.name?.trim()) data.name = values.name.trim()
     if (values.icon && values.icon.trim() !== '') {
       data.icon = values.icon.trim()
     }
@@ -231,12 +227,12 @@ export function PaymentMethodDialog({
             name='name'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Name')}</FormLabel>
+                <FormLabel>{t('Custom method name (optional)')}</FormLabel>
                 <FormControl>
                   <Input placeholder={t('e.g., Alipay, WeChat')} {...field} />
                 </FormControl>
                 <FormDescription>
-                  {t('Display name for this payment method.')}
+                  {t('Leave blank to use the upstream payment method name.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -291,7 +287,6 @@ export function PaymentMethodDialog({
                     onValueChange={(value) => {
                       if (value === null) return
                       const currentIcon = form.getValues('icon')?.trim()
-                      const currentName = form.getValues('name')?.trim()
                       const previousOption = getPaymentTypeOption(field.value)
                       const nextOption = getPaymentTypeOption(value)
 
@@ -302,14 +297,6 @@ export function PaymentMethodDialog({
                           currentIcon === previousOption?.iconName)
                       ) {
                         form.setValue('icon', nextOption.iconName, {
-                          shouldDirty: true,
-                        })
-                      }
-                      if (
-                        nextOption?.name &&
-                        (!currentName || currentName === previousOption?.name)
-                      ) {
-                        form.setValue('name', nextOption.name, {
                           shouldDirty: true,
                         })
                       }

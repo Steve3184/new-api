@@ -46,9 +46,8 @@ function paymentMethodSummary(method: PaymentMethodData): string {
   if (method.fee_rate && Number(method.fee_rate) > 0) {
     feeParts.push(`${method.fee_rate}%`)
   }
-  return feeParts.length > 0
-    ? `${method.name} (${feeParts.join(' + ')})`
-    : method.name
+  const name = method.name?.trim() || method.type
+  return feeParts.length > 0 ? `${name} (${feeParts.join(' + ')})` : name
 }
 
 export function EpayGatewaysVisualEditor(props: EpayGatewaysVisualEditorProps) {
