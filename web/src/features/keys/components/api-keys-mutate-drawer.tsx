@@ -206,7 +206,7 @@ export function ApiKeysMutateDrawer({
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
         value: key,
         label: key,
-        desc: info.desc || key,
+        desc: info.desc?.trim() || undefined,
         ratio: info.ratio,
       })),
     [groupsData]

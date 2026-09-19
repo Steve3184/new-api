@@ -76,6 +76,7 @@ function installApiFixtures(
               auto: { desc: 'Automatic routing', ratio: 'auto' },
               default: { desc: 'Standard access', ratio: 1 },
               vip: { desc: 'Priority access', ratio: 2 },
+              unnamed: { desc: '', ratio: 3 },
             },
           },
         }
@@ -121,6 +122,7 @@ async function renderCreateDrawer(): Promise<void> {
         auto: { desc: 'Automatic routing', ratio: 'auto' },
         default: { desc: 'Standard access', ratio: 1 },
         vip: { desc: 'Priority access', ratio: 2 },
+        unnamed: { desc: '', ratio: 3 },
       },
     },
     { updatedAt: freshAt }
@@ -218,6 +220,21 @@ afterEach(() => {
 })
 
 describe('API keys mutate drawer Auto group integration', () => {
+  test('does not repeat a group name as its missing description', async () => {
+    installApiFixtures([])
+    await renderCreateDrawer()
+
+    fireEvent.click(getControlByLabel('Group'))
+    const option = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="command-item"]'),
+    ].find((candidate) => candidate.textContent?.includes('unnamed'))
+
+    expect(option).toBeTruthy()
+    expect(
+      option ? screen.getAllByText('unnamed', { exact: true }) : []
+    ).toHaveLength(1)
+  })
+
   test('inherits the root Auto order and sends an empty override for every batch-created key', async () => {
     const createdPayloads: Array<Record<string, unknown>> = []
     installApiFixtures(createdPayloads)
