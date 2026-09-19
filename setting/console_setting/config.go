@@ -21,6 +21,7 @@ type ConsoleSetting struct {
 	FAQEnabled               bool   `json:"faq_enabled"`           // 是否启用常见问答面板
 	BackgroundImage          string `json:"background_image"`
 	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
+	LegalBackgroundEnabled   bool   `json:"legal_background_enabled"`
 	DefaultTheme             string `json:"default_theme"`
 	DefaultThemeOverride     string `json:"default_theme_override"`
 	DefaultThemePreset       string `json:"default_theme_preset"`
@@ -57,6 +58,7 @@ var defaultConsoleSetting = ConsoleSetting{
 	AnnouncementsEnabled:     true,
 	FAQEnabled:               true,
 	BackgroundBlurOpacity:    40,
+	LegalBackgroundEnabled:   true,
 	DefaultTheme:             "system",
 	DefaultThemeOverride:     "none",
 	DefaultThemePreset:       "default",
@@ -98,6 +100,7 @@ func GetConsoleSetting() *ConsoleSetting {
 type AppearanceSetting struct {
 	BackgroundImage          string `json:"background_image"`
 	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
+	LegalBackgroundEnabled   bool   `json:"legal_background_enabled"`
 	DefaultTheme             string `json:"default_theme"`
 	DefaultThemeOverride     string `json:"default_theme_override"`
 	DefaultThemePreset       string `json:"default_theme_preset"`
@@ -139,6 +142,7 @@ func GetAppearanceSetting() AppearanceSetting {
 	return AppearanceSetting{
 		BackgroundImage:          consoleSetting.BackgroundImage,
 		BackgroundBlurOpacity:    consoleSetting.BackgroundBlurOpacity,
+		LegalBackgroundEnabled:   consoleSetting.LegalBackgroundEnabled,
 		DefaultTheme:             consoleSetting.DefaultTheme,
 		DefaultThemeOverride:     consoleSetting.DefaultThemeOverride,
 		DefaultThemePreset:       consoleSetting.DefaultThemePreset,
@@ -214,6 +218,8 @@ func ValidatePublicOption(key, value string) error {
 		if err != nil || parsed < 0 || parsed > 100 {
 			return fmt.Errorf("background blur opacity must be between 0 and 100")
 		}
+	case "legal_background_enabled":
+		return validateEnum(value, "true", "false")
 	case "default_theme":
 		return validateEnum(value, "system", "light", "dark")
 	case "default_theme_override":

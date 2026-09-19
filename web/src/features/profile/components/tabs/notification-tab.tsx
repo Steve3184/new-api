@@ -335,6 +335,27 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             }
           />
         </div>
+
+        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
+          <div className='space-y-0.5'>
+            <Label htmlFor='excludeFromLeaderboard'>
+              {t('Exclude me from user leaderboards')}
+            </Label>
+            <p className='text-muted-foreground text-xs sm:text-sm'>
+              {t(
+                'When enabled, your usage will not appear in public user rankings.'
+              )}
+            </p>
+          </div>
+          <Switch
+            id='excludeFromLeaderboard'
+            className='shrink-0'
+            checked={settings.exclude_from_leaderboard}
+            onCheckedChange={(checked) =>
+              updateField('exclude_from_leaderboard', checked)
+            }
+          />
+        </div>
       </div>
 
       {/* Save Button */}

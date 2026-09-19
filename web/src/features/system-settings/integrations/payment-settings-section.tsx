@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Code2, Eye, ShieldAlert } from 'lucide-react'
+import { ChevronDown, Code2, Eye, ShieldAlert } from 'lucide-react'
 import * as React from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +35,11 @@ import {
 } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -44,6 +49,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -62,6 +75,7 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
+import { EpayGatewaysVisualEditor } from './epay-gateways-visual-editor'
 import { PaymentMethodsVisualEditor } from './payment-methods-visual-editor'
 import {
   formatJsonForEditor,
@@ -255,6 +269,11 @@ type PaymentBaseFormValues = Omit<
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1'
 const paymentTabContentClassName = 'mt-6 min-w-0'
+const MONERO_NETWORK_LABELS = {
+  mainnet: 'Mainnet',
+  testnet: 'Testnet',
+  stagenet: 'Stagenet',
+} as const
 
 type PaymentComplianceDefaults = {
   confirmed: boolean
@@ -307,6 +326,9 @@ export function PaymentSettingsSection({
   )
 
   const [payMethodsVisualMode, setPayMethodsVisualMode] = React.useState(true)
+  const [epayGatewaysVisualMode, setEpayGatewaysVisualMode] =
+    React.useState(true)
+  const [legacyEpayOpen, setLegacyEpayOpen] = React.useState(false)
   const [amountOptionsVisualMode, setAmountOptionsVisualMode] =
     React.useState(true)
   const [amountDiscountVisualMode, setAmountDiscountVisualMode] =
@@ -1265,7 +1287,9 @@ export function PaymentSettingsSection({
                   render={({ field }) => (
                     <FormItem>
                       <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                        <FormLabel>{t('Payment methods')}</FormLabel>
+                        <FormLabel>
+                          {t('Legacy / global payment methods')}
+                        </FormLabel>
                         <Button
                           type='button'
                           variant='outline'
@@ -1313,7 +1337,7 @@ export function PaymentSettingsSection({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Configured as PayMethods JSON. The type value decides which payment flow is used: stripe for Stripe, waffo_pancake for Waffo Pancake, and other values are sent to Epay as the type parameter.'
+                          'Used by legacy single-gateway Epay settings and non-Epay payment flows. Configure current Epay methods and fees inside each Epay gateway.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -1492,133 +1516,184 @@ export function PaymentSettingsSection({
                   </AlertDescription>
                 </Alert>
 
-                <div className='grid gap-6 md:grid-cols-2'>
-                  <FormField
-                    control={form.control}
-                    name='PayAddress'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Epay endpoint')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t('https://pay.example.com')}
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t('Base address provided by your Epay service')}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='CustomCallbackAddress'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Callback address')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder={t('https://gateway.example.com')}
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className='grid gap-6 md:grid-cols-2'>
-                  <FormField
-                    control={form.control}
-                    name='EpayId'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Epay merchant ID')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder='10001'
-                            autoComplete='off'
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='EpayKey'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Epay secret key')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type='password'
-                            placeholder={t('Enter new key to update')}
-                            autoComplete='new-password'
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t('Leave blank unless rotating the secret')}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
                 <FormField
                   control={form.control}
                   name='EpayGateways'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Epay gateways')}</FormLabel>
-                      <FormControl>
-                        <JsonCodeEditor
-                          value={field.value}
-                          onChange={field.onChange}
-                          name={field.name}
-                          onBlur={field.onBlur}
-                          textareaRef={field.ref}
-                          placeholder='[{"id":"primary","name":"Primary Epay","address":"https://pay.example.com","merchant_id":"10001","key":"secret","enabled":true,"pay_methods":[{"name":"Alipay","type":"alipay","fee":"0.30","fee_rate":"1.5"}]}]'
-                          heightClassName='h-72 min-h-72 max-h-72'
-                          aria-invalid={Boolean(
-                            form.formState.errors.EpayGateways
+                      <div className='mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                        <FormLabel>{t('Epay gateways')}</FormLabel>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          className='w-full sm:w-auto'
+                          onClick={() =>
+                            setEpayGatewaysVisualMode((current) => !current)
+                          }
+                        >
+                          {epayGatewaysVisualMode ? (
+                            <>
+                              <Code2 className='mr-2 size-3' />
+                              {t('JSON Editor')}
+                            </>
+                          ) : (
+                            <>
+                              <Eye className='mr-2 size-3' />
+                              {t('Visual Editor')}
+                            </>
                           )}
-                        />
+                        </Button>
+                      </div>
+                      <FormControl>
+                        {epayGatewaysVisualMode ? (
+                          <EpayGatewaysVisualEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        ) : (
+                          <JsonCodeEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            textareaRef={field.ref}
+                            placeholder='[{"id":"primary","name":"Primary Epay","address":"https://pay.example.com","merchant_id":"10001","key":"secret","enabled":true,"pay_methods":[{"name":"Alipay","type":"alipay","fee":"0.30","fee_rate":"1.5"}]}]'
+                            heightClassName='h-72 min-h-72 max-h-72'
+                            aria-invalid={Boolean(
+                              form.formState.errors.EpayGateways
+                            )}
+                          />
+                        )}
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Configure multiple Epay providers and their payment methods. fee is a fixed charge and fee_rate is a percentage. Legacy Epay settings are migrated automatically to the first provider.'
+                          'Each gateway owns its payment methods and payer fees. A 3% fee charges 1.03 when the base payment amount is 1.'
                         )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name='CustomCallbackAddress'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Callback address')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('https://gateway.example.com')}
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Collapsible
+                  open={legacyEpayOpen}
+                  onOpenChange={setLegacyEpayOpen}
+                  className='rounded-lg border'
+                >
+                  <CollapsibleTrigger className='flex w-full items-center justify-between gap-3 px-4 py-3 text-left'>
+                    <div>
+                      <div className='text-sm font-medium'>
+                        {t('Legacy single-gateway compatibility')}
+                      </div>
+                      <p className='text-muted-foreground mt-1 text-xs'>
+                        {t(
+                          'Only used when the Epay gateway table is empty. Existing values remain available for rollback.'
+                        )}
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        'size-4 shrink-0 transition-transform',
+                        legacyEpayOpen && 'rotate-180'
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className='border-t p-4'>
+                    <div className='grid gap-6 md:grid-cols-3'>
+                      <FormField
+                        control={form.control}
+                        name='PayAddress'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Legacy Epay endpoint')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder={t('https://pay.example.com')}
+                                {...field}
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='EpayId'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Legacy Epay merchant ID')}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder='10001'
+                                autoComplete='off'
+                                {...field}
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='EpayKey'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Legacy Epay secret key')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type='password'
+                                placeholder={t('Enter new key to update')}
+                                autoComplete='new-password'
+                                {...field}
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t('Leave blank unless rotating the secret')}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </TabsContent>
 
@@ -2093,14 +2168,29 @@ export function PaymentSettingsSection({
                       <FormItem>
                         <FormLabel>{t('Monero network')}</FormLabel>
                         <FormControl>
-                          <select
-                            className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
-                            {...field}
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
                           >
-                            <option value='mainnet'>{t('Mainnet')}</option>
-                            <option value='testnet'>{t('Testnet')}</option>
-                            <option value='stagenet'>{t('Stagenet')}</option>
-                          </select>
+                            <SelectTrigger className='w-full'>
+                              <SelectValue>
+                                {t(MONERO_NETWORK_LABELS[field.value])}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='mainnet'>
+                                  {t('Mainnet')}
+                                </SelectItem>
+                                <SelectItem value='testnet'>
+                                  {t('Testnet')}
+                                </SelectItem>
+                                <SelectItem value='stagenet'>
+                                  {t('Stagenet')}
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
                         </FormControl>
                         <FormDescription>
                           {t(

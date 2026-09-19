@@ -45,6 +45,8 @@ import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
+import { notificationDialogLayoutClasses } from './notification-popover-layout'
+
 interface AnnouncementItem {
   id?: number | string
   type?: string
@@ -184,10 +186,12 @@ function NoticeContent({
   notice,
   loading,
   t,
+  fillAvailableHeight,
 }: {
   notice: string
   loading: boolean
   t: TFunction
+  fillAvailableHeight: boolean
 }) {
   if (loading) {
     return (
@@ -206,7 +210,13 @@ function NoticeContent({
   }
 
   return (
-    <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
+    <ScrollArea
+      className={
+        fillAvailableHeight
+          ? notificationDialogLayoutClasses.scrollArea
+          : 'h-[min(52vh,28rem)] pr-3'
+      }
+    >
       <RichContent breaks content={notice} />
     </ScrollArea>
   )
@@ -219,10 +229,12 @@ function AnnouncementsContent({
   announcements,
   loading,
   t,
+  fillAvailableHeight,
 }: {
   announcements: AnnouncementItem[]
   loading: boolean
   t: TFunction
+  fillAvailableHeight: boolean
 }) {
   if (loading) {
     return (
@@ -241,7 +253,13 @@ function AnnouncementsContent({
   }
 
   return (
-    <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
+    <ScrollArea
+      className={
+        fillAvailableHeight
+          ? notificationDialogLayoutClasses.scrollArea
+          : 'h-[min(52vh,28rem)] pr-3'
+      }
+    >
       <div className='flex flex-col'>
         {announcements.map((item, idx) => {
           const announcementKey = getAnnouncementRenderKey(item)
@@ -305,6 +323,7 @@ export function NotificationPopover({
   className,
 }: NotificationPopoverProps) {
   const { t } = useTranslation()
+  const fillAvailableHeight = displayMode === 'dialog'
 
   const buttonContent = (
     <>
@@ -322,6 +341,9 @@ export function NotificationPopover({
 
   const tabsContent = (
     <Tabs
+      className={
+        fillAvailableHeight ? notificationDialogLayoutClasses.tabs : undefined
+      }
       value={activeTab}
       onValueChange={onTabChange as (value: string) => void}
     >
@@ -336,15 +358,35 @@ export function NotificationPopover({
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value='notice' className='mt-2'>
-        <NoticeContent notice={notice} loading={loading} t={t} />
+      <TabsContent
+        value='notice'
+        className={
+          fillAvailableHeight
+            ? notificationDialogLayoutClasses.tabContent
+            : 'mt-2'
+        }
+      >
+        <NoticeContent
+          notice={notice}
+          loading={loading}
+          t={t}
+          fillAvailableHeight={fillAvailableHeight}
+        />
       </TabsContent>
 
-      <TabsContent value='announcements' className='mt-2'>
+      <TabsContent
+        value='announcements'
+        className={
+          fillAvailableHeight
+            ? notificationDialogLayoutClasses.tabContent
+            : 'mt-2'
+        }
+      >
         <AnnouncementsContent
           announcements={announcements}
           loading={loading}
           t={t}
+          fillAvailableHeight={fillAvailableHeight}
         />
       </TabsContent>
     </Tabs>
@@ -369,6 +411,7 @@ export function NotificationPopover({
           description={t('Latest platform updates and notices')}
           contentClassName='sm:max-w-3xl'
           contentHeight='min(65vh, 36rem)'
+          bodyClassName={notificationDialogLayoutClasses.body}
           footer={
             <Button onClick={() => onOpenChange(false)}>{t('Close')}</Button>
           }

@@ -43,6 +43,7 @@ const defaultSiteSettings: SiteSettings = {
   SidebarModulesAdmin: '',
   'console_setting.background_image': '',
   'console_setting.background_blur_opacity': 40,
+  'console_setting.legal_background_enabled': true,
   'console_setting.default_theme': 'system',
   'console_setting.default_theme_override': 'none',
   'console_setting.default_theme_preset': 'default',

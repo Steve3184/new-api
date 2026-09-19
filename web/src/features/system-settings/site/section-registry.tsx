@@ -80,6 +80,8 @@ const SITE_SECTIONS = [
           backgroundImage: settings['console_setting.background_image'],
           backgroundBlurOpacity:
             settings['console_setting.background_blur_opacity'],
+          legalBackgroundEnabled:
+            settings['console_setting.legal_background_enabled'] ?? true,
           defaultTheme: settings['console_setting.default_theme'],
           defaultThemeOverride:
             settings['console_setting.default_theme_override'],

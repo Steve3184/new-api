@@ -1,10 +1,17 @@
 package model
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func TestGetRankingUserUsageAggregatesBothMetricsAndGroups(t *testing.T) {
@@ -54,12 +61,16 @@ func TestGetRankingUserUsageAggregatesBothMetricsAndGroups(t *testing.T) {
 func TestGetRankingUserUsageLimitsEachMetricInSQL(t *testing.T) {
 	truncateTables(t)
 	for userID := 1; userID <= 22; userID++ {
-		require.NoError(t, DB.Create(&User{
+		user := User{
 			Id:       userID,
 			Username: "user-" + string(rune('a'+userID-1)),
 			Status:   common.UserStatusEnabled,
 			AffCode:  "rank-aff-" + string(rune('a'+userID-1)),
-		}).Error)
+		}
+		if userID == 22 {
+			user.SetSetting(dto.UserSetting{ExcludeFromLeaderboard: true})
+		}
+		require.NoError(t, DB.Create(&user).Error)
 		require.NoError(t, DB.Create(&QuotaData{
 			UserID:    userID,
 			Username:  "user",
@@ -74,8 +85,11 @@ func TestGetRankingUserUsageLimitsEachMetricInSQL(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, usage.ByQuota, 20)
 	require.Len(t, usage.ByTokens, 20)
-	require.Equal(t, 22, usage.ByQuota[0].UserID)
+	require.Equal(t, 21, usage.ByQuota[0].UserID)
 	require.Equal(t, 1, usage.ByTokens[0].UserID)
+	for _, totals := range append(usage.ByQuota, usage.ByTokens...) {
+		require.NotEqual(t, 22, totals.UserID)
+	}
 }
 
 func TestGetRankingUserUsageExcludesDeletedAndDisabledUsers(t *testing.T) {
@@ -97,4 +111,77 @@ func TestGetRankingUserUsageExcludesDeletedAndDisabledUsers(t *testing.T) {
 	require.Len(t, usage.ByTokens, 1)
 	require.Equal(t, 1, usage.ByQuota[0].UserID)
 	require.Equal(t, 1, usage.ByTokens[0].UserID)
+}
+
+func TestGetRankingUserUsageExclusionAcrossDatabases(t *testing.T) {
+	tests := []struct {
+		name      string
+		env       string
+		dialector func(string) gorm.Dialector
+	}{
+		{
+			name: "sqlite",
+			dialector: func(_ string) gorm.Dialector {
+				return sqlite.Open(filepath.Join(t.TempDir(), "rankings.db"))
+			},
+		},
+		{name: "mysql", env: "TEST_MYSQL_DSN", dialector: mysql.Open},
+		{
+			name: "postgres",
+			env:  "TEST_POSTGRES_DSN",
+			dialector: func(dsn string) gorm.Dialector {
+				return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dsn := ""
+			if test.env != "" {
+				dsn = os.Getenv(test.env)
+				if dsn == "" {
+					t.Skipf("%s is not configured", test.env)
+				}
+			}
+
+			db, err := gorm.Open(test.dialector(dsn), &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+
+			previousDB := DB
+			DB = db
+			t.Cleanup(func() {
+				require.NoError(t, db.Migrator().DropTable(&QuotaData{}, &User{}))
+				DB = previousDB
+				require.NoError(t, sqlDB.Close())
+			})
+
+			require.NoError(t, db.AutoMigrate(&User{}, &QuotaData{}))
+			var version string
+			if test.name == "sqlite" {
+				require.NoError(t, db.Raw("select sqlite_version()").Scan(&version).Error)
+			} else {
+				require.NoError(t, db.Raw("select version()").Scan(&version).Error)
+			}
+			t.Logf("%s version: %s", test.name, version)
+
+			included := User{Id: 1, Username: "included", Status: common.UserStatusEnabled, AffCode: "rank-included"}
+			excluded := User{Id: 2, Username: "excluded", Status: common.UserStatusEnabled, AffCode: "rank-excluded"}
+			excluded.SetSetting(dto.UserSetting{ExcludeFromLeaderboard: true})
+			require.NoError(t, db.Create(&[]User{included, excluded}).Error)
+			require.NoError(t, db.Create(&[]QuotaData{
+				{UserID: 1, Username: "included", CreatedAt: 1000, UseGroup: "default", Quota: 10, TokenUsed: 10},
+				{UserID: 2, Username: "excluded", CreatedAt: 1000, UseGroup: "default", Quota: 100, TokenUsed: 100},
+			}).Error)
+
+			usage, err := GetRankingUserUsage(1000, 1000, 10)
+			require.NoError(t, err)
+			require.Len(t, usage.ByQuota, 1)
+			require.Len(t, usage.ByTokens, 1)
+			require.Equal(t, 1, usage.ByQuota[0].UserID)
+			require.Equal(t, 1, usage.ByTokens[0].UserID)
+		})
+	}
 }

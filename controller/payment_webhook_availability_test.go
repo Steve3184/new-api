@@ -238,6 +238,9 @@ func TestEpayFeeUsesSelectedGateway(t *testing.T) {
 
 	assert.InDelta(t, 10, applyEpayFee(10, "alipay", "primary"), 0.000001)
 	assert.InDelta(t, 11.5, applyEpayFee(10, "alipay", "backup"), 0.000001)
+	operation_setting.EpayGateways[1].PayMethods[0]["fee"] = "0"
+	operation_setting.EpayGateways[1].PayMethods[0]["fee_rate"] = "3"
+	assert.Equal(t, 1.03, applyEpayFee(1, "alipay", "backup"))
 	method := operation_setting.GetPayMethodForGateway("alipay", "backup")
 	require.NotNil(t, method)
 	assert.Equal(t, "backup", method["gateway"])

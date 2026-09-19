@@ -165,6 +165,7 @@ export type SiteSettings = {
   SidebarModulesAdmin: string
   'console_setting.background_image': string
   'console_setting.background_blur_opacity': number
+  'console_setting.legal_background_enabled': boolean
   'console_setting.default_theme': 'system' | 'light' | 'dark'
   'console_setting.default_theme_override': 'none' | 'light' | 'dark'
   'console_setting.default_theme_preset':

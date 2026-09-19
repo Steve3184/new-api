@@ -363,6 +363,26 @@ export function PaymentMethodsVisualEditor({
                   ),
               },
               {
+                id: 'fee',
+                header: t('Payment fee'),
+                cell: (method) => {
+                  const feeParts: string[] = []
+                  if (method.fee && Number(method.fee) > 0) {
+                    feeParts.push(method.fee)
+                  }
+                  if (method.fee_rate && Number(method.fee_rate) > 0) {
+                    feeParts.push(`${method.fee_rate}%`)
+                  }
+                  return feeParts.length > 0 ? (
+                    <span className='font-mono text-sm'>
+                      {feeParts.join(' + ')}
+                    </span>
+                  ) : (
+                    <span className='text-muted-foreground text-sm'>—</span>
+                  )
+                },
+              },
+              {
                 id: 'actions',
                 header: t('Actions'),
                 className: 'text-right',
@@ -456,6 +476,25 @@ export function PaymentMethodsVisualEditor({
                           {t('Min Top-up:')}
                         </span>
                         <span className='font-mono'>{method.min_topup}</span>
+                      </div>
+                    )}
+                    {(method.fee || method.fee_rate) && (
+                      <div className='flex items-center gap-2'>
+                        <span className='text-muted-foreground min-w-20'>
+                          {t('Payment fee')}
+                        </span>
+                        <span className='font-mono'>
+                          {[
+                            method.fee && Number(method.fee) > 0
+                              ? method.fee
+                              : '',
+                            method.fee_rate && Number(method.fee_rate) > 0
+                              ? `${method.fee_rate}%`
+                              : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' + ') || '—'}
+                        </span>
                       </div>
                     )}
                   </div>

@@ -37,6 +37,16 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 
+const nonNegativeFeeSchema = (message: string) =>
+  z
+    .string()
+    .optional()
+    .refine((value) => {
+      if (!value?.trim()) return true
+      const parsed = Number(value)
+      return Number.isFinite(parsed) && parsed >= 0
+    }, message)
+
 const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
   z.object({
     name: z.string().min(1, t('Payment method name is required')),
@@ -44,8 +54,12 @@ const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
     icon: z.string().optional(),
     min_topup: z.string().optional(),
     gateway: z.string().optional(),
-    fee: z.string().optional(),
-    fee_rate: z.string().optional(),
+    fee: nonNegativeFeeSchema(
+      t('Billing values must be finite and non-negative.')
+    ),
+    fee_rate: nonNegativeFeeSchema(
+      t('Billing values must be finite and non-negative.')
+    ),
   })
 
 type PaymentMethodDialogFormValues = z.infer<

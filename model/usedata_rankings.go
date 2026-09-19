@@ -127,6 +127,7 @@ func getRankingUserTotals(startTime int64, endTime int64, metric string, limit i
 		Joins("JOIN users ON users.id = quota_data.user_id AND users.deleted_at IS NULL AND users.status = ?", common.UserStatusEnabled).
 		Select("quota_data.user_id, max(users.username) as username, max(users.display_name) as display_name, sum(quota_data.quota) as total_quota, sum(quota_data.token_used) as total_tokens").
 		Where("quota_data.user_id > 0").
+		Where("(users.setting IS NULL OR users.setting = ? OR users.setting NOT LIKE ?)", "", `%"exclude_from_leaderboard":true%`).
 		Group("quota_data.user_id").
 		Having(fmt.Sprintf("sum(%s) > 0", havingColumn)).
 		Order(orderColumn + " DESC, user_id ASC").

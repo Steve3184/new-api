@@ -24,6 +24,25 @@ import {
 } from '../layout'
 
 describe('model group selector layout', () => {
+  test('keeps the mobile drawer height stable and scrolls the model list internally', () => {
+    const drawerClasses =
+      modelGroupSelectorLayoutClasses.mobileDrawer.split(' ')
+    const contentClasses =
+      modelGroupSelectorLayoutClasses.mobileContent.split(' ')
+    const modelColumnClasses =
+      modelGroupSelectorLayoutClasses.mobileModelColumn.split(' ')
+
+    expect(drawerClasses).toContain('h-[min(80svh,40rem)]')
+    expect(drawerClasses).toContain('min-h-0')
+    expect(contentClasses).toContain('h-full')
+    expect(contentClasses).toContain('min-h-0')
+    expect(modelColumnClasses).toContain('flex-1')
+    expect(modelColumnClasses).toContain('min-h-0')
+    expect(modelGroupSelectorLayoutClasses.modelList.split(' ')).toContain(
+      'overflow-y-auto'
+    )
+  })
+
   test('keeps group options at a fixed height and aligned to the top', () => {
     const groupScrollClasses =
       modelGroupSelectorLayoutClasses.groupScroll.split(' ')

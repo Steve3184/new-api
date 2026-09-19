@@ -580,6 +580,41 @@ Files:
 - `web/default/src/features/wallet/types.ts`
 - `web/default/src/features/wallet/components/recharge-form-card.tsx`
 
+## Epay fees, legal-page backgrounds, and leaderboard privacy
+
+`EpayGateways` has a visual table editor in addition to its advanced JSON
+editor. Each gateway owns its endpoint, merchant credentials, enabled state,
+payment methods, and payer fees. `fee` is added as a fixed amount and
+`fee_rate` as a percentage of the base payment amount; for example, a `3`
+percent rate makes a base payment of `1` cost `1.03` while the purchased quota
+continues to use the original base amount. The wallet confirmation dialog shows
+the fee and final payment total. Legacy single-gateway fields remain in a
+collapsed compatibility section and are used only when the gateway table is
+empty.
+
+`console_setting.legal_background_enabled` defaults to `true`. When enabled,
+the user agreement and privacy policy use the same configured background image
+as the model square and add top spacing for readable document placement. The
+switch is available under **System Settings -> Site -> Appearance & Model
+Square**.
+
+Users can opt out of public user leaderboards from their profile preferences.
+The default remains included; excluded users are filtered before each ranking
+limit is applied so they do not consume visible ranking slots.
+
+Files:
+
+- `controller/topup.go`
+- `model/usedata_rankings.go`
+- `relaykit/dto/user_settings.go`
+- `setting/console_setting/config.go`
+- `web/src/features/legal/legal-document.tsx`
+- `web/src/features/profile/components/tabs/notification-tab.tsx`
+- `web/src/features/system-settings/integrations/payment-settings-section.tsx`
+- `web/src/features/system-settings/integrations/epay-gateways-visual-editor.tsx`
+- `web/src/features/system-settings/site/appearance-section.tsx`
+- `web/src/features/wallet/components/dialogs/payment-confirm-dialog.tsx`
+
 ## Custom console tabs
 
 `CustomTabs` stores a JSON array of up to 50 links. Each entry has an ID, label,

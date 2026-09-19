@@ -328,7 +328,8 @@ func applyEpayFee(payMoney float64, method, gatewayID string) float64 {
 	base := decimal.NewFromFloat(payMoney)
 	fixed, rate := epayFee(method, gatewayID)
 	if rate > 0 {
-		base = base.Mul(decimal.NewFromFloat(1 + rate/100))
+		multiplier := decimal.NewFromInt(100).Add(decimal.NewFromFloat(rate))
+		base = base.Mul(multiplier).Div(decimal.NewFromInt(100))
 	}
 	if fixed > 0 {
 		base = base.Add(decimal.NewFromFloat(fixed))

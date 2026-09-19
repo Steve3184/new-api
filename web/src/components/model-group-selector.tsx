@@ -686,8 +686,9 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const renderGroupList = () => (
     <div
       className={cn(
-        'min-w-0 space-y-2',
-        !isMobile && modelGroupSelectorLayoutClasses.groupColumn
+        isMobile
+          ? modelGroupSelectorLayoutClasses.mobileGroupColumn
+          : modelGroupSelectorLayoutClasses.groupColumn
       )}
     >
       <div className='text-muted-foreground px-1 text-[11px] leading-4 font-medium'>
@@ -695,8 +696,9 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       </div>
       <div
         className={cn(
-          'grid gap-1',
-          !isMobile && modelGroupSelectorLayoutClasses.groupScroll
+          isMobile
+            ? modelGroupSelectorLayoutClasses.mobileGroupScroll
+            : modelGroupSelectorLayoutClasses.groupScroll
         )}
         ref={groupScrollContainerRef}
       >
@@ -735,10 +737,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
 
   const renderModelList = () => (
     <Command
-      className={cn(
-        'min-w-0 rounded-lg border-0 bg-transparent p-1',
-        !isMobile && modelGroupSelectorLayoutClasses.modelCommand
-      )}
+      className={cn('min-w-0', modelGroupSelectorLayoutClasses.modelCommand)}
       filter={() => 1}
       shouldFilter={false}
     >
@@ -748,11 +747,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         placeholder={t('Search models...')}
         value={searchQuery}
       />
-      <CommandList
-        className={
-          isMobile ? 'max-h-[45vh]' : modelGroupSelectorLayoutClasses.modelList
-        }
-      >
+      <CommandList className={modelGroupSelectorLayoutClasses.modelList}>
         {filteredModels.length === 0 ? (
           <div className='text-muted-foreground px-3 py-8 text-center text-[12px] leading-5'>
             {t('No model found.')}
@@ -804,15 +799,16 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     <div
       className={
         isMobile
-          ? 'grid gap-3 p-2 md:grid-cols-[9.5rem_minmax(0,1fr)]'
+          ? modelGroupSelectorLayoutClasses.mobileContent
           : modelGroupSelectorLayoutClasses.desktopContent
       }
     >
       {renderGroupList()}
       <div
         className={cn(
-          'min-w-0 overflow-hidden rounded-lg border',
-          !isMobile && modelGroupSelectorLayoutClasses.modelColumn
+          isMobile
+            ? modelGroupSelectorLayoutClasses.mobileModelColumn
+            : modelGroupSelectorLayoutClasses.modelColumn
         )}
       >
         {renderModelList()}
@@ -823,11 +819,11 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   return isMobile ? (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{renderTrigger()}</DrawerTrigger>
-      <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
+      <DrawerContent className={modelGroupSelectorLayoutClasses.mobileDrawer}>
         <DrawerHeader className='pb-3 text-left'>
           <DrawerTitle>{t('Select Model')}</DrawerTitle>
         </DrawerHeader>
-        <div className='min-h-0 flex-1 overflow-y-auto px-4 pb-5'>
+        <div className={modelGroupSelectorLayoutClasses.mobileBody}>
           {renderContent()}
         </div>
       </DrawerContent>

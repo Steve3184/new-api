@@ -1394,6 +1394,7 @@ type UpdateUserSettingRequest struct {
 	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
 	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                      bool    `json:"record_ip_log"`
+	ExcludeFromLeaderboard           *bool   `json:"exclude_from_leaderboard,omitempty"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1488,6 +1489,10 @@ func UpdateUserSetting(c *gin.Context) {
 	if user.Role >= common.RoleAdminUser && req.UpstreamModelUpdateNotifyEnabled != nil {
 		upstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
 	}
+	excludeFromLeaderboard := existingSettings.ExcludeFromLeaderboard
+	if req.ExcludeFromLeaderboard != nil {
+		excludeFromLeaderboard = *req.ExcludeFromLeaderboard
+	}
 
 	// 构建设置
 	settings := dto.UserSetting{
@@ -1496,6 +1501,10 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		ExcludeFromLeaderboard:           excludeFromLeaderboard,
+		SidebarModules:                   existingSettings.SidebarModules,
+		BillingPreference:                existingSettings.BillingPreference,
+		Language:                         existingSettings.Language,
 		LoginTwoFactorEnabled:            existingSettings.LoginTwoFactorEnabled,
 	}
 
@@ -1533,6 +1542,9 @@ func UpdateUserSetting(c *gin.Context) {
 	if err := model.UpdateUserSetting(user.Id, settings); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
 		return
+	}
+	if excludeFromLeaderboard != existingSettings.ExcludeFromLeaderboard {
+		service.InvalidateUserRankingsCache()
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)

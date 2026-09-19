@@ -165,6 +165,12 @@ var (
 	userRankingBuilds  singleflight.Group
 )
 
+func InvalidateUserRankingsCache() {
+	userRankingCacheMu.Lock()
+	clear(userRankingCache)
+	userRankingCacheMu.Unlock()
+}
+
 func GetRankingsSnapshot(period string) (*RankingsResponse, error) {
 	config, err := rankingConfig(period)
 	if err != nil {

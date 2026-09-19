@@ -122,6 +122,8 @@ export interface UserSettings {
   record_ip_log?: boolean
   /** Receive upstream model update notifications (admin only) */
   upstream_model_update_notify_enabled?: boolean
+  /** Exclude the user from public user leaderboards */
+  exclude_from_leaderboard?: boolean
   /** Require two-factor verification during login; defaults to true */
   login_two_factor_enabled?: boolean
   /** Preferred interface/API response language */
@@ -166,6 +168,7 @@ export interface UpdateUserSettingsRequest {
   accept_unset_model_ratio_model?: boolean
   record_ip_log?: boolean
   upstream_model_update_notify_enabled?: boolean
+  exclude_from_leaderboard?: boolean
 }
 
 /**

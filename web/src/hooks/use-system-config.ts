@@ -59,6 +59,7 @@ interface StatusApiResponse {
     site_appearance?: {
       background_image?: string
       background_blur_opacity?: number
+      legal_background_enabled?: boolean
       default_theme?: string
       default_theme_override?: string
       default_theme_preset?: string
@@ -107,6 +108,8 @@ function normalizeAppearance(
       100,
       Math.max(0, toNumber(value?.background_blur_opacity, 40))
     ),
+    legalBackgroundEnabled:
+      value?.legal_background_enabled ?? defaults.legalBackgroundEnabled,
     defaultTheme: enumValue(
       value?.default_theme,
       ['system', 'light', 'dark'],

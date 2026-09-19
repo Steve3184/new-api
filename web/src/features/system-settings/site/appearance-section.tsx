@@ -46,6 +46,7 @@ import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
   SettingsForm,
   SettingsFormGrid,
+  SettingsSwitchField,
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
@@ -55,6 +56,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const appearanceSchema = z.object({
   backgroundImage: z.string(),
   backgroundBlurOpacity: z.coerce.number().min(0).max(100).default(40),
+  legalBackgroundEnabled: z.boolean(),
   defaultTheme: z.enum(['system', 'light', 'dark']),
   defaultThemeOverride: z.enum(['none', 'light', 'dark']),
   defaultThemePreset: z.string(),
@@ -75,6 +77,7 @@ export type AppearanceFormValues = z.infer<typeof appearanceSchema>
 const OPTION_KEYS: Record<keyof AppearanceFormValues, string> = {
   backgroundImage: 'console_setting.background_image',
   backgroundBlurOpacity: 'console_setting.background_blur_opacity',
+  legalBackgroundEnabled: 'console_setting.legal_background_enabled',
   defaultTheme: 'console_setting.default_theme',
   defaultThemeOverride: 'console_setting.default_theme_override',
   defaultThemePreset: 'console_setting.default_theme_preset',
@@ -244,6 +247,22 @@ export function AppearanceSection({ defaultValues }: AppearanceSectionProps) {
             />
             <FormDirtyIndicator isDirty={isDirty} />
             <SettingsFormGrid>
+              <FormField
+                control={form.control}
+                name='legalBackgroundEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchField
+                    controlId='legal-background-enabled'
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    label={t('Show background image on legal pages')}
+                    description={t(
+                      'Apply the configured background image to the user agreement and privacy policy.'
+                    )}
+                  />
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name='backgroundImage'

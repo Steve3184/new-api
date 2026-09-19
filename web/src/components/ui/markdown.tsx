@@ -17,11 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import DOMPurify from 'dompurify'
+import { t } from 'i18next'
 import * as katex from 'katex'
+import {
+  BadgeAlert,
+  Info,
+  Lightbulb,
+  OctagonAlert,
+  TriangleAlert,
+} from 'lucide-react'
 
 import 'katex/dist/katex.min.css'
 import { Marked, Renderer, type MarkedExtension, type Tokens } from 'marked'
 import { useMemo } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
 
@@ -50,6 +60,7 @@ const allowedAttributes = [
   'checked',
   'class',
   'd',
+  'data-alert-icon',
   'data-diagram',
   'disabled',
   'fill',
@@ -91,6 +102,7 @@ const allowedAttributes = [
   'y',
   'y1',
   'y2',
+  'aria-hidden',
 ]
 
 const allowedTags = [
@@ -606,6 +618,88 @@ function renderSequenceDiagram(source: string): string {
 
 const markdownRenderer = new Renderer()
 const renderDefaultCode = markdownRenderer.code.bind(markdownRenderer)
+const renderDefaultBlockquote =
+  markdownRenderer.blockquote.bind(markdownRenderer)
+
+const markdownAlertConfig = {
+  note: {
+    icon: Info,
+    label: 'Note',
+    className:
+      'border-blue-500/40 bg-blue-500/8 text-blue-950 dark:text-blue-100',
+    markerClassName: 'text-blue-600 dark:text-blue-300',
+  },
+  tip: {
+    icon: Lightbulb,
+    label: 'Tip',
+    className:
+      'border-emerald-500/40 bg-emerald-500/8 text-emerald-950 dark:text-emerald-100',
+    markerClassName: 'text-emerald-600 dark:text-emerald-300',
+  },
+  important: {
+    icon: BadgeAlert,
+    label: 'Important',
+    className:
+      'border-violet-500/40 bg-violet-500/8 text-violet-950 dark:text-violet-100',
+    markerClassName: 'text-violet-600 dark:text-violet-300',
+  },
+  warning: {
+    icon: TriangleAlert,
+    label: 'Warning',
+    className:
+      'border-amber-500/40 bg-amber-500/8 text-amber-950 dark:text-amber-100',
+    markerClassName: 'text-amber-600 dark:text-amber-300',
+  },
+  caution: {
+    icon: OctagonAlert,
+    label: 'Caution',
+    className: 'border-red-500/40 bg-red-500/8 text-red-950 dark:text-red-100',
+    markerClassName: 'text-red-600 dark:text-red-300',
+  },
+} as const
+
+type MarkdownAlertKind = keyof typeof markdownAlertConfig
+
+markdownRenderer.blockquote = function (token: Tokens.Blockquote): string {
+  const match = token.text.match(
+    /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(?:\n|$)/i
+  )
+  if (!match) {
+    return renderDefaultBlockquote(token)
+  }
+
+  const kind = match[1].toLowerCase() as MarkdownAlertKind
+  const config = markdownAlertConfig[kind]
+  const AlertIcon = config.icon
+  const alertIcon = renderToStaticMarkup(
+    <span className='inline-flex size-4 shrink-0' data-alert-icon>
+      <AlertIcon aria-hidden className='size-4' />
+    </span>
+  )
+  const alertTokens = [...token.tokens]
+  const firstToken = alertTokens[0]
+
+  if (firstToken?.type === 'paragraph') {
+    const text = firstToken.text.replace(match[0], '')
+    const inlineTokens = [...(firstToken.tokens ?? [])]
+    const firstInlineToken = inlineTokens[0]
+    if (firstInlineToken?.type === 'text') {
+      inlineTokens[0] = {
+        ...firstInlineToken,
+        raw: firstInlineToken.raw.replace(match[0], ''),
+        text: firstInlineToken.text.replace(match[0], ''),
+      }
+    }
+    alertTokens[0] = {
+      ...firstToken,
+      raw: firstToken.raw.replace(match[0], ''),
+      text,
+      tokens: inlineTokens,
+    }
+  }
+
+  return `<aside class="markdown-alert my-4 rounded-lg border px-4 py-3 text-sm ${config.className}" data-alert-kind="${kind}"><div class="markdown-alert-title mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase ${config.markerClassName}">${alertIcon}<span>${escapeHtml(t(config.label))}</span></div>${this.parser.parse(alertTokens)}</aside>`
+}
 
 markdownRenderer.code = (token: Tokens.Code): string => {
   const language = token.lang?.toLowerCase()
@@ -763,9 +857,10 @@ function renderMarkdown(
 }
 
 export function Markdown(props: MarkdownProps) {
+  const { i18n } = useTranslation()
   const html = useMemo(
     () => renderMarkdown(props.children, props.breaks, props.baseUrl),
-    [props.breaks, props.children, props.baseUrl]
+    [props.breaks, props.children, props.baseUrl, i18n.resolvedLanguage]
   )
 
   return (
@@ -780,6 +875,7 @@ export function Markdown(props: MarkdownProps) {
         '[&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80',
         '[&_ol]:my-2 [&_ul]:my-2 [&_ol]:list-decimal [&_ul]:list-disc [&_ol]:pl-5 [&_ul]:pl-5 [&_li]:my-1 [&_li]:pl-1',
         '[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:bg-muted/50 [&_blockquote]:py-1 [&_blockquote]:pl-4',
+        '[&_.markdown-alert>*:first-child]:mt-0 [&_.markdown-alert>*:last-child]:mb-0',
         '[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono',
         '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:bg-muted [&_pre]:p-3 [&_table]:my-4 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto',
         '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-sm',

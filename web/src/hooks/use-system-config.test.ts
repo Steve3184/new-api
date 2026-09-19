@@ -26,6 +26,7 @@ describe('mapStatusDataToConfig', () => {
       site_appearance: {
         background_image: '/background.webp',
         background_blur_opacity: 60,
+        legal_background_enabled: false,
         default_theme: 'dark',
         default_theme_override: 'light',
         default_theme_preset: 'anthropic',
@@ -50,6 +51,7 @@ describe('mapStatusDataToConfig', () => {
     expect(config.appearance).toEqual({
       backgroundImage: '/background.webp',
       backgroundBlurOpacity: 60,
+      legalBackgroundEnabled: false,
       defaultTheme: 'dark',
       defaultThemeOverride: 'light',
       defaultThemePreset: 'anthropic',
@@ -85,6 +87,7 @@ describe('mapStatusDataToConfig', () => {
     expect(config.appearance?.defaultThemeOverride).toBe('none')
     expect(config.appearance?.defaultSidebarLayout).toBe('expanded')
     expect(config.appearance?.modelSquareDefaultView).toBe('card')
+    expect(config.appearance?.legalBackgroundEnabled).toBe(true)
   })
 
   test('clamps the background blur opacity to its supported range', () => {

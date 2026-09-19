@@ -53,6 +53,7 @@ const settings = {
   accept_unset_model_ratio_model: true,
   record_ip_log: true,
   upstream_model_update_notify_enabled: true,
+  exclude_from_leaderboard: false,
 }
 
 afterEach(() => vi.restoreAllMocks())
@@ -97,6 +98,7 @@ describe('user settings saves across profile and security', () => {
       accept_unset_model_ratio_model: false,
       record_ip_log: true,
       upstream_model_update_notify_enabled: false,
+      exclude_from_leaderboard: false,
     })
   })
 
@@ -189,6 +191,38 @@ describe('user settings saves across profile and security', () => {
       ...settings,
       quota_warning_threshold: 2700,
       record_ip_log: false,
+    })
+  })
+
+  it('saves the user leaderboard exclusion preference from the profile switch', async () => {
+    const onUpdate = vi.fn()
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...profile, setting: JSON.stringify(settings) },
+      },
+    })
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+
+    render(
+      <NotificationTab
+        profile={{ ...profile, setting: JSON.stringify(settings) }}
+        onUpdate={onUpdate}
+      />
+    )
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Exclude me from user leaderboards',
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled())
+    expect(put).toHaveBeenCalledWith('/api/user/setting', {
+      ...settings,
+      exclude_from_leaderboard: true,
     })
   })
 })

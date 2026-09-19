@@ -25,7 +25,9 @@ import { RichContent } from '@/components/rich-content'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { isHttpUrl, isLikelyHtml } from '@/lib/content-format'
+import { cn } from '@/lib/utils'
 
 import type { LegalDocumentResponse } from './types'
 
@@ -43,6 +45,7 @@ export function LegalDocument({
   emptyMessage,
 }: LegalDocumentProps) {
   const { t } = useTranslation()
+  const { appearance } = useSystemConfig()
   const { data, isLoading } = useQuery({
     queryKey: [queryKey],
     queryFn: fetchDocument,
@@ -54,24 +57,34 @@ export function LegalDocument({
   const isUrl = hasContent && isHttpUrl(rawContent)
   const contentIsHtml = hasContent && isLikelyHtml(rawContent)
   const success = data?.success ?? false
+  const legalBackgroundEnabled = appearance.legalBackgroundEnabled
+  const backgroundMode = legalBackgroundEnabled ? 'hero' : undefined
+  const contentSpacingClassName = legalBackgroundEnabled
+    ? 'pt-20 pb-12 md:pt-28'
+    : 'py-12'
 
   if (isLoading) {
     return (
-      <PublicLayout>
-        <div className='mx-auto flex max-w-4xl flex-col gap-4 py-12'>
+      <PublicLayout backgroundMode={backgroundMode}>
+        <article
+          className={cn(
+            'mx-auto flex max-w-4xl flex-col gap-4',
+            contentSpacingClassName
+          )}
+        >
           <Skeleton className='h-8 w-[45%]' />
           <Skeleton className='h-4 w-full' />
           <Skeleton className='h-4 w-[90%]' />
           <Skeleton className='h-4 w-[80%]' />
-        </div>
+        </article>
       </PublicLayout>
     )
   }
 
   if (!success || !hasContent) {
     return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl py-12'>
+      <PublicLayout backgroundMode={backgroundMode}>
+        <article className={cn('mx-auto max-w-2xl', contentSpacingClassName)}>
           <Card className='border-dashed'>
             <CardHeader className='flex flex-row items-center gap-4'>
               <div className='bg-muted rounded-lg p-2'>
@@ -85,15 +98,15 @@ export function LegalDocument({
               </div>
             </CardHeader>
           </Card>
-        </div>
+        </article>
       </PublicLayout>
     )
   }
 
   if (isUrl) {
     return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl py-12'>
+      <PublicLayout backgroundMode={backgroundMode}>
+        <article className={cn('mx-auto max-w-2xl', contentSpacingClassName)}>
           <Card>
             <CardHeader>
               <CardTitle>{title}</CardTitle>
@@ -117,17 +130,28 @@ export function LegalDocument({
               </Button>
             </CardContent>
           </Card>
-        </div>
+        </article>
       </PublicLayout>
     )
   }
 
   return (
-    <PublicLayout showMainContainer={!contentIsHtml}>
+    <PublicLayout
+      backgroundMode={backgroundMode}
+      showMainContainer={!contentIsHtml}
+    >
       {contentIsHtml ? (
-        <RichContent mode='html' htmlVariant='isolated' content={rawContent} />
+        <article className={contentSpacingClassName}>
+          <RichContent
+            mode='html'
+            htmlVariant='isolated'
+            content={rawContent}
+          />
+        </article>
       ) : (
-        <div className='mx-auto max-w-4xl space-y-6 py-12'>
+        <article
+          className={cn('mx-auto max-w-4xl space-y-6', contentSpacingClassName)}
+        >
           <div className='space-y-2'>
             <h1 className='text-3xl font-semibold tracking-tight'>{title}</h1>
           </div>
@@ -137,7 +161,7 @@ export function LegalDocument({
             content={rawContent}
             className='prose-neutral dark:prose-invert max-w-none'
           />
-        </div>
+        </article>
       )}
     </PublicLayout>
   )

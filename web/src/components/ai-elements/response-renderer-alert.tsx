@@ -17,6 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { t } from 'i18next'
+import {
+  BadgeAlert,
+  Info,
+  Lightbulb,
+  OctagonAlert,
+  TriangleAlert,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { BlockquoteNode, ParsedNode } from 'stream-markdown-parser'
 
@@ -32,30 +39,35 @@ import type {
 const alertConfig = {
   note: {
     label: 'Note',
+    icon: Info,
     className:
       'border-blue-500/40 bg-blue-500/8 text-blue-950 dark:text-blue-100',
     markerClassName: 'text-blue-600 dark:text-blue-300',
   },
   tip: {
     label: 'Tip',
+    icon: Lightbulb,
     className:
       'border-emerald-500/40 bg-emerald-500/8 text-emerald-950 dark:text-emerald-100',
     markerClassName: 'text-emerald-600 dark:text-emerald-300',
   },
   important: {
     label: 'Important',
+    icon: BadgeAlert,
     className:
       'border-violet-500/40 bg-violet-500/8 text-violet-950 dark:text-violet-100',
     markerClassName: 'text-violet-600 dark:text-violet-300',
   },
   warning: {
     label: 'Warning',
+    icon: TriangleAlert,
     className:
       'border-amber-500/40 bg-amber-500/8 text-amber-950 dark:text-amber-100',
     markerClassName: 'text-amber-600 dark:text-amber-300',
   },
   caution: {
     label: 'Caution',
+    icon: OctagonAlert,
     className: 'border-red-500/40 bg-red-500/8 text-red-950 dark:text-red-100',
     markerClassName: 'text-red-600 dark:text-red-300',
   },
@@ -134,6 +146,7 @@ export function renderBlockquote(
   if (alertKind) {
     const config = alertConfig[alertKind]
     const alertChildren = getAlertChildren(node, alertKind)
+    const AlertIcon = config.icon
 
     return (
       <aside
@@ -146,11 +159,16 @@ export function renderBlockquote(
       >
         <div
           className={cn(
-            'mb-2 text-xs font-semibold tracking-wide uppercase',
+            'mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase',
             config.markerClassName
           )}
         >
-          {t(config.label)}
+          <AlertIcon
+            aria-hidden='true'
+            className='size-4 shrink-0'
+            data-alert-icon
+          />
+          <span>{t(config.label)}</span>
         </div>
         {options.renderChildren(alertChildren)}
       </aside>
