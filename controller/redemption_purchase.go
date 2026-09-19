@@ -105,7 +105,7 @@ func redemptionPurchaseMinAmount(method, gatewayID string) int64 {
 	case model.PaymentMethodWaffo:
 		return int64(setting.WaffoMinTopUp)
 	case model.PaymentMethodWaffoPancake:
-		return int64(setting.WaffoPancakeMinTopUp)
+		return getWaffoPancakeMinTopUp()
 	case model.PaymentMethodMonero:
 		return int64(operation_setting.MinTopUp)
 	case model.PaymentMethodNowPayments:
@@ -197,7 +197,17 @@ func validateRedemptionPurchase(c *gin.Context, req RedemptionPurchaseRequest) (
 		// Purchase orders always use the configured amount discount. A
 		// configured Pancake product price is a wallet-top-up option and is
 		// intentionally not reused for code purchases.
-		payMoney = getWaffoPancakePayMoney(total, group)
+		price, priceErr := finalizeWaffoPancakeCheckoutPrice(&waffoPancakeCheckoutPrice{
+			Money:    getWaffoPancakePayMoney(total, group),
+			Currency: "USD",
+			PriceSnapshot: &service.WaffoPancakePriceSnapshot{
+				TaxCategory: "saas",
+			},
+		})
+		if priceErr != nil {
+			return nil, priceErr
+		}
+		payMoney = price.Money
 	case model.PaymentMethodNowPayments:
 		payMoney, err = service.QuoteNowPaymentsPayMoney(total, group)
 		if err != nil {

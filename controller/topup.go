@@ -33,6 +33,9 @@ func GetTopUpInfo(c *gin.Context) {
 	payMethods := make([]map[string]string, 0, len(operation_setting.PayMethods)+4)
 	for _, gateway := range operation_setting.GetEpayGateways() {
 		for _, method := range gateway.PayMethods {
+			if method["type"] == model.PaymentMethodWaffoPancake {
+				continue
+			}
 			copy := make(map[string]string, len(method)+1)
 			for key, value := range method {
 				copy[key] = value
@@ -73,22 +76,18 @@ func GetTopUpInfo(c *gin.Context) {
 	// Waffo Pancake is displayed above the standard Waffo gateway.
 	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
 	if enableWaffoPancake {
-		hasWaffoPancake := false
-		for _, method := range payMethods {
-			if method["type"] == model.PaymentMethodWaffoPancake {
-				hasWaffoPancake = true
-				break
-			}
+		waffoPancakeMethod := map[string]string{
+			"name":  "Waffo Pancake",
+			"type":  model.PaymentMethodWaffoPancake,
+			"color": "#F97316",
 		}
-
-		if !hasWaffoPancake {
-			payMethods = append(payMethods, map[string]string{
-				"name":      "Waffo Pancake",
-				"type":      model.PaymentMethodWaffoPancake,
-				"color":     "#F97316",
-				"min_topup": strconv.Itoa(setting.WaffoPancakeMinTopUp),
-			})
+		if configured := operation_setting.GetGlobalPayMethod(model.PaymentMethodWaffoPancake); configured != nil {
+			maps.Copy(waffoPancakeMethod, configured)
 		}
+		waffoPancakeMethod["type"] = model.PaymentMethodWaffoPancake
+		waffoPancakeMethod["min_topup"] = strconv.FormatInt(getWaffoPancakeMinTopUp(), 10)
+		delete(waffoPancakeMethod, "gateway")
+		payMethods = append(payMethods, waffoPancakeMethod)
 	}
 
 	// 如果启用了 Waffo 支付，添加到支付方法列表
@@ -181,7 +180,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"min_topup":                   operation_setting.MinTopUp,
 		"stripe_min_topup":            setting.StripeMinTopUp,
 		"waffo_min_topup":             setting.WaffoMinTopUp,
-		"waffo_pancake_min_topup":     setting.WaffoPancakeMinTopUp,
+		"waffo_pancake_min_topup":     getWaffoPancakeMinTopUp(),
 		"amount_options":              operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                    operation_setting.GetPaymentSetting().AmountDiscount,
 		"redemption_purchase_methods": redemptionPurchasePaymentMethods(),

@@ -1,14 +1,25 @@
 package controller
 
 import (
+	"bytes"
+	"fmt"
 	"maps"
+	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func TestFormatWaffoPancakeAmount_UsesDisplayPriceString(t *testing.T) {
@@ -152,6 +163,187 @@ func TestGetConfiguredWaffoPancakeProductCheckoutPrice_MultipliesConfiguredUnitP
 			require.Equal(t, "CNY", price.Currency)
 			require.Equal(t, tc.expectedAmount, price.PriceSnapshot.Amount)
 			require.Equal(t, "saas", price.PriceSnapshot.TaxCategory)
+		})
+	}
+}
+
+func TestWaffoPancakeGlobalPaymentMethodControlsPublicMinimum(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalMerchantID := setting.WaffoPancakeMerchantID
+	originalPrivateKey := setting.WaffoPancakePrivateKey
+	originalProductID := setting.WaffoPancakeProductID
+	originalMinTopUp := setting.WaffoPancakeMinTopUp
+	originalPayMethods := operation_setting.PayMethods
+	originalGateways := operation_setting.EpayGateways
+	t.Cleanup(func() {
+		setting.WaffoPancakeMerchantID = originalMerchantID
+		setting.WaffoPancakePrivateKey = originalPrivateKey
+		setting.WaffoPancakeProductID = originalProductID
+		setting.WaffoPancakeMinTopUp = originalMinTopUp
+		operation_setting.PayMethods = originalPayMethods
+		operation_setting.EpayGateways = originalGateways
+	})
+
+	setting.WaffoPancakeMerchantID = "merchant"
+	setting.WaffoPancakePrivateKey = "private"
+	setting.WaffoPancakeProductID = "product"
+	setting.WaffoPancakeMinTopUp = 1
+	operation_setting.PayMethods = []map[string]string{{
+		"name":      "Card",
+		"type":      model.PaymentMethodWaffoPancake,
+		"icon":      "LuCreditCard",
+		"min_topup": "25",
+		"fee":       "0.30",
+		"fee_rate":  "3",
+	}}
+	operation_setting.EpayGateways = []operation_setting.EpayGateway{{
+		ID: "primary", Name: "Primary", Address: "https://pay.example.com",
+		MerchantID: "epay-id", Key: "epay-key", Enabled: true,
+		PayMethods: []map[string]string{{"name": "Alipay", "type": "alipay"}},
+	}}
+
+	response := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(response)
+	GetTopUpInfo(context)
+
+	var payload struct {
+		Success bool `json:"success"`
+		Data    struct {
+			PayMethods           []map[string]string `json:"pay_methods"`
+			WaffoPancakeMinTopUp int                 `json:"waffo_pancake_min_topup"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	assert.Equal(t, 25, payload.Data.WaffoPancakeMinTopUp)
+	assert.Equal(t, int64(25), redemptionPurchaseMinAmount(model.PaymentMethodWaffoPancake, ""))
+
+	var pancakeMethod map[string]string
+	for _, method := range payload.Data.PayMethods {
+		if method["type"] == model.PaymentMethodWaffoPancake {
+			pancakeMethod = method
+			break
+		}
+	}
+	require.NotNil(t, pancakeMethod)
+	assert.Equal(t, "Card", pancakeMethod["name"])
+	assert.Equal(t, "LuCreditCard", pancakeMethod["icon"])
+	assert.Equal(t, "25", pancakeMethod["min_topup"])
+	assert.Equal(t, "0.30", pancakeMethod["fee"])
+	assert.Equal(t, "3", pancakeMethod["fee_rate"])
+	assert.Empty(t, pancakeMethod["gateway"])
+}
+
+func TestGetWaffoPancakeCheckoutPriceAppliesGlobalFeeAndMatchesSnapshot(t *testing.T) {
+	originalUseConfiguredPrice := setting.WaffoPancakeUseConfiguredProductPrice
+	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalUSDToCurrencyRate := setting.WaffoPancakeUSDToCurrencyRate
+	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	originalPayMethods := operation_setting.PayMethods
+	originalTopupGroupRatio := common.TopupGroupRatio2JSONString()
+	t.Cleanup(func() {
+		setting.WaffoPancakeUseConfiguredProductPrice = originalUseConfiguredPrice
+		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		setting.WaffoPancakeUSDToCurrencyRate = originalUSDToCurrencyRate
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
+		operation_setting.PayMethods = originalPayMethods
+		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
+	})
+
+	setting.WaffoPancakeUseConfiguredProductPrice = false
+	setting.WaffoPancakeUnitPrice = 1.005
+	setting.WaffoPancakeUSDToCurrencyRate = 0
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	operation_setting.PayMethods = []map[string]string{{
+		"type": model.PaymentMethodWaffoPancake, "fee": "0.30", "fee_rate": "3",
+	}}
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1}`))
+
+	price, err := getWaffoPancakeCheckoutPrice(t.Context(), 10, "default")
+
+	require.NoError(t, err)
+	assert.Equal(t, "10.65", price.PriceSnapshot.Amount)
+	assert.Equal(t, 10.65, price.Money)
+}
+
+func TestRequestWaffoPancakeAmountRejectsGlobalMinimum(t *testing.T) {
+	originalMinTopUp := setting.WaffoPancakeMinTopUp
+	originalPayMethods := operation_setting.PayMethods
+	t.Cleanup(func() {
+		setting.WaffoPancakeMinTopUp = originalMinTopUp
+		operation_setting.PayMethods = originalPayMethods
+	})
+
+	setting.WaffoPancakeMinTopUp = 1
+	operation_setting.PayMethods = []map[string]string{{
+		"type": model.PaymentMethodWaffoPancake, "min_topup": "25",
+	}}
+
+	response := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(response)
+	context.Request = httptest.NewRequest("POST", "/api/user/waffo-pancake/amount", bytes.NewBufferString(`{"amount":24}`))
+	context.Request.Header.Set("Content-Type", "application/json")
+	RequestWaffoPancakeAmount(context)
+
+	var payload struct {
+		Message string `json:"message"`
+		Data    string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+	assert.Equal(t, "error", payload.Message)
+	assert.Equal(t, "充值数量不能小于 25", payload.Data)
+}
+
+func TestWaffoPancakePaymentRecordCompatibility(t *testing.T) {
+	testCases := []struct {
+		name      string
+		dsn       func() string
+		dialector func(string) gorm.Dialector
+	}{
+		{
+			name: "sqlite",
+			dsn: func() string {
+				return fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
+			},
+			dialector: sqlite.Open,
+		},
+		{name: "mysql", dsn: func() string { return os.Getenv("TEST_MYSQL_DSN") }, dialector: mysql.Open},
+		{name: "postgres", dsn: func() string { return os.Getenv("TEST_POSTGRES_DSN") }, dialector: postgres.Open},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dsn := tc.dsn()
+			if dsn == "" {
+				t.Skip("database DSN is not configured")
+			}
+			database, err := gorm.Open(tc.dialector(dsn), &gorm.Config{})
+			require.NoError(t, err)
+			require.NoError(t, database.AutoMigrate(&model.TopUp{}))
+
+			previousDB := model.DB
+			model.DB = database
+			defer func() { model.DB = previousDB }()
+
+			tradeNo := "WAFFO-PANCAKE-COMPAT-" + tc.name
+			require.NoError(t, database.Where("trade_no = ?", tradeNo).Delete(&model.TopUp{}).Error)
+			record := &model.TopUp{
+				UserId:          1001,
+				Amount:          10,
+				Money:           10.65,
+				TradeNo:         tradeNo,
+				PaymentMethod:   model.PaymentMethodWaffoPancake,
+				PaymentProvider: model.PaymentProviderWaffoPancake,
+				CreateTime:      1_700_000_000,
+				Status:          common.TopUpStatusPending,
+			}
+			require.NoError(t, record.Insert())
+
+			var stored model.TopUp
+			require.NoError(t, database.Where("trade_no = ?", record.TradeNo).First(&stored).Error)
+			assert.Equal(t, 10.65, stored.Money)
+			assert.Equal(t, model.PaymentMethodWaffoPancake, stored.PaymentMethod)
+			assert.Equal(t, model.PaymentProviderWaffoPancake, stored.PaymentProvider)
 		})
 	}
 }

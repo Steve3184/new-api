@@ -30,6 +30,55 @@ type waffoPancakeCheckoutPrice struct {
 	PriceSnapshot *service.WaffoPancakePriceSnapshot
 }
 
+func getWaffoPancakeMinTopUp() int64 {
+	minimum := int64(setting.WaffoPancakeMinTopUp)
+	configured := operation_setting.GetGlobalPayMethod(model.PaymentMethodWaffoPancake)
+	if configured == nil {
+		return minimum
+	}
+	value, err := decimal.NewFromString(strings.TrimSpace(configured["min_topup"]))
+	if err != nil || !value.IsPositive() {
+		return minimum
+	}
+	value = value.Ceil()
+	if value.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
+		return minimum
+	}
+	return value.IntPart()
+}
+
+func finalizeWaffoPancakeCheckoutPrice(price *waffoPancakeCheckoutPrice) (*waffoPancakeCheckoutPrice, error) {
+	if price == nil || price.PriceSnapshot == nil {
+		return nil, fmt.Errorf("Waffo Pancake checkout price is incomplete")
+	}
+	if price.Money <= 0 || math.IsNaN(price.Money) || math.IsInf(price.Money, 0) {
+		return nil, fmt.Errorf("Waffo Pancake checkout price must be positive and finite")
+	}
+	amount := decimal.NewFromFloat(price.Money)
+	configured := operation_setting.GetGlobalPayMethod(model.PaymentMethodWaffoPancake)
+	if configured != nil {
+		fixedFee, fixedErr := decimal.NewFromString(strings.TrimSpace(configured["fee"]))
+		feeRate, rateErr := decimal.NewFromString(strings.TrimSpace(configured["fee_rate"]))
+		if rateErr == nil && !feeRate.IsNegative() {
+			amount = amount.Mul(decimal.NewFromInt(100).Add(feeRate)).Div(decimal.NewFromInt(100))
+		}
+		if fixedErr == nil && !fixedFee.IsNegative() {
+			amount = amount.Add(fixedFee)
+		}
+	}
+	amount = amount.Round(2)
+	if !amount.IsPositive() {
+		return nil, fmt.Errorf("Waffo Pancake checkout price must be positive")
+	}
+	chargedMoney := amount.InexactFloat64()
+	if math.IsNaN(chargedMoney) || math.IsInf(chargedMoney, 0) {
+		return nil, fmt.Errorf("Waffo Pancake checkout price is outside the supported range")
+	}
+	price.Money = chargedMoney
+	price.PriceSnapshot.Amount = amount.StringFixed(2)
+	return price, nil
+}
+
 func RequestWaffoPancakeAmount(c *gin.Context) {
 	var req WaffoPancakePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -37,8 +86,9 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 		return
 	}
 
-	if req.Amount < int64(setting.WaffoPancakeMinTopUp) {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", setting.WaffoPancakeMinTopUp)})
+	minimum := getWaffoPancakeMinTopUp()
+	if req.Amount < minimum {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minimum)})
 		return
 	}
 	id := c.GetInt("id")
@@ -103,21 +153,25 @@ func getWaffoPancakePayMoney(amount int64, group string) float64 {
 func getWaffoPancakeCheckoutPrice(ctx context.Context, amount int64, group string) (*waffoPancakeCheckoutPrice, error) {
 	if !setting.WaffoPancakeUseConfiguredProductPrice {
 		payMoney := getWaffoPancakePayMoney(amount, group)
-		return &waffoPancakeCheckoutPrice{
+		return finalizeWaffoPancakeCheckoutPrice(&waffoPancakeCheckoutPrice{
 			Money:    payMoney,
 			Currency: "USD",
 			PriceSnapshot: &service.WaffoPancakePriceSnapshot{
 				Amount:      formatWaffoPancakeAmount(payMoney),
 				TaxCategory: "saas",
 			},
-		}, nil
+		})
 	}
 
 	configuredPrice, err := service.GetWaffoPancakeConfiguredProductPrice(ctx, setting.WaffoPancakeProductID)
 	if err != nil {
 		return nil, err
 	}
-	return getConfiguredWaffoPancakeProductCheckoutPrice(configuredPrice, normalizeWaffoPancakeTopUpAmount(amount))
+	price, err := getConfiguredWaffoPancakeProductCheckoutPrice(configuredPrice, normalizeWaffoPancakeTopUpAmount(amount))
+	if err != nil {
+		return nil, err
+	}
+	return finalizeWaffoPancakeCheckoutPrice(price)
 }
 
 func getConfiguredWaffoPancakeProductCheckoutPrice(configuredPrice *service.WaffoPancakeConfiguredProductPrice, quantity int64) (*waffoPancakeCheckoutPrice, error) {
@@ -417,8 +471,9 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
-	if req.Amount < int64(setting.WaffoPancakeMinTopUp) {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", setting.WaffoPancakeMinTopUp)})
+	minimum := getWaffoPancakeMinTopUp()
+	if req.Amount < minimum {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minimum)})
 		return
 	}
 	id := c.GetInt("id")
