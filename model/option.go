@@ -333,6 +333,9 @@ func validateOptionValue(key string, value string) error {
 		_, err := console_setting.NormalizeGroupAccessRules(value)
 		return err
 	}
+	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
+		return err
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
