@@ -28,17 +28,21 @@ export type DecodedBody =
   | Readonly<{kind: "none"}>;
 
 export interface NativeDecodeContext {method: string; path: string; params: Readonly<Record<string, string>>; query: Readonly<Record<string, readonly string[]>>; body: DecodedBody}
-export interface ProtocolDecodeContext extends NativeDecodeContext {protocol: "openai_responses" | "openai_video"; operation: string; model: string; stream: boolean}
+export interface ProtocolDecodeContext extends NativeDecodeContext {protocol: ProtocolName; operation: string; model: string; upstreamModel?: string; stream: boolean}
 export type SubmitIntent = {kind: "submit"; model: string; action?: string; requestBody?: unknown; originTaskIds?: readonly string[]};
 export type QueryIntent = {kind: "query"; taskIds: readonly string[]};
 export type TaskIntent = SubmitIntent | QueryIntent;
-export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string; type: "submit" | "query" | "dynamic"; action?: string; taskIdParam?: string; decode?: string; render: string; models?: readonly string[]}
-export type ProtocolName = "openai_responses" | "openai_video";
+export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string; type: "submit" | "query" | "dynamic"; action?: string; taskIdParam?: string; decode?: string; render: string; models?: readonly string[]; retainResult?: boolean}
+export type ProtocolName = "openai_responses" | "openai_video" | "openai_image";
 export type ResponsesMode = "stream" | "sync" | "background";
 export type ProtocolClaim =
   | "openai_video"
+  | "openai_image"
   | {name: "openai_responses"; supports: readonly ResponsesMode[]; models?: readonly string[]}
-  | {name: "openai_video"; models?: readonly string[]};
+  | {name: "openai_video"; models?: readonly string[]}
+  | {name: "openai_image"; models?: readonly string[]};
+/** One entry of the OpenAI ImageResponse `data` array rendered by protocols.openai_image.render. */
+export type ImageResponseEntry = {url?: string; b64_json?: string; revised_prompt?: string};
 export type LocalizedText = string | ({ en: string } & Record<string, string>);
 export type UsageFieldSchema =
   | {type: "number"; unit: "count"; unitLabel?: LocalizedText; description?: LocalizedText}
@@ -62,6 +66,8 @@ export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskI
 export declare const protocols: {
   openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal?(ctx: unknown, task: TaskView): unknown};
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};
+  /** render returns the OpenAI ImageResponse; the host adds `created` when absent and resolves response_format b64_json. */
+  openai_image?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): {created?: number; data: readonly ImageResponseEntry[]} & Record<string, unknown>};
 };
 export declare function buildSubmitRequest(ctx: DriverContext): RequestDescriptor;
 export interface SubmitEvent {event: string; id: string; data: string}

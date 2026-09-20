@@ -2,7 +2,6 @@ package jsplugin
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -126,7 +125,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	request, hasRequest := c.Get("task_request")
 	hasUsageProfiles := len(a.plugin.Meta.UsageProfiles) > 0
 	if hasRequest && !hasUsageProfiles {
-		if err := a.validateResolvedUsageRequest(request, ""); err != nil {
+		if err := a.validateResolvedUsageRequest(request); err != nil {
 			return service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
 		}
 	}
@@ -134,10 +133,10 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		return service.TaskErrorWrapperLocal(err, "plugin_request_invalid", http.StatusBadRequest)
 	}
 	// The descriptor may rewrite the model. Validate profiled requests against
-	// that final model before any quota calculation or upstream submission.
+	// that final model before any quota calculation or upstream submission; an
+	// upstream endpoint ID without a profile keeps the client model's profile.
 	if hasRequest && hasUsageProfiles {
-		usageModel := cmp.Or(info.UpstreamModelName, info.OriginModelName)
-		if err := a.validateResolvedUsageRequest(request, usageModel); err != nil {
+		if err := a.validateResolvedUsageRequest(request, info.UpstreamModelName, info.OriginModelName); err != nil {
 			return service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
 		}
 	}
@@ -156,7 +155,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 func (a *TaskAdaptor) EstimateBillingValidated(c *gin.Context, info *relaycommon.RelayInfo) (map[string]float64, error) {
 	usageContext := a.submitContext(c, info)
 	usageContext["usagePurpose"] = "billing_ratios"
-	return a.usageRatios(c.Request.Context(), cmp.Or(info.UpstreamModelName, info.OriginModelName), "extractUsage", usageContext)
+	return a.usageRatios(c.Request.Context(), []string{info.UpstreamModelName, info.OriginModelName}, "extractUsage", usageContext)
 }
 
 func (a *TaskAdaptor) ExtractUsageFacts(c *gin.Context, info *relaycommon.RelayInfo) map[string]any {
@@ -185,7 +184,7 @@ func (a *TaskAdaptor) ExtractUsageFactsValidated(c *gin.Context, info *relaycomm
 	if !ok {
 		return nil, fmt.Errorf("plugin usage hook must return an object")
 	}
-	if _, err = a.validatedUsageRatios(facts, cmp.Or(info.UpstreamModelName, info.OriginModelName)); err != nil {
+	if _, err = a.validatedUsageRatios(facts, info.UpstreamModelName, info.OriginModelName); err != nil {
 		return nil, err
 	}
 	return facts, nil
@@ -196,7 +195,7 @@ func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskDat
 	if err := common.Unmarshal(taskData, &data); err != nil {
 		data = string(taskData)
 	}
-	ratios, err := a.usageRatios(context.Background(), cmp.Or(info.UpstreamModelName, info.OriginModelName), "extractUsageOnSubmit", a.submitContext(nil, info), data)
+	ratios, err := a.usageRatios(context.Background(), []string{info.UpstreamModelName, info.OriginModelName}, "extractUsageOnSubmit", a.submitContext(nil, info), data)
 	if err != nil {
 		a.logRejectedUsage("extractUsageOnSubmit", err)
 		return nil
@@ -212,11 +211,11 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, result *relaycom
 	if err != nil {
 		return 0
 	}
-	usageModel := ""
-	if task != nil {
-		usageModel = cmp.Or(task.Properties.UpstreamModelName, task.Properties.OriginModelName)
+	if task == nil {
+		a.applyCompletionUsageFacts(result, value)
+		return 0
 	}
-	a.applyCompletionUsageFacts(result, value, usageModel)
+	a.applyCompletionUsageFacts(result, value, task.Properties.UpstreamModelName, task.Properties.OriginModelName)
 	return 0
 }
 
@@ -267,18 +266,18 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				}
 				continue
 			}
-			field := strings.TrimPrefix(part.FileRef, "request_file:")
+			field, index, validRef := pluginruntime.ParseFileReference(part.FileRef)
 			files := form.File[field]
-			if len(files) == 0 {
+			if !validRef || index >= len(files) {
 				return nil, fmt.Errorf("unknown file reference %q", part.FileRef)
 			}
-			file, openErr := files[0].Open()
+			file, openErr := files[index].Open()
 			if openErr != nil {
 				return nil, openErr
 			}
 			filename := part.Filename
 			if filename == "" {
-				filename = files[0].Filename
+				filename = files[index].Filename
 			}
 			header := make(textproto.MIMEHeader)
 			disposition := mime.FormatMediaType("form-data", map[string]string{"name": part.Name, "filename": filename})
@@ -287,7 +286,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				return nil, fmt.Errorf("invalid multipart name or filename")
 			}
 			header.Set("Content-Disposition", disposition)
-			header.Set("Content-Type", files[0].Header.Get("Content-Type"))
+			header.Set("Content-Type", files[index].Header.Get("Content-Type"))
 			destination, copyErr := writer.CreatePart(header)
 			if copyErr == nil {
 				_, copyErr = io.Copy(destination, file)
@@ -391,12 +390,12 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 	if form == nil {
 		return "", fmt.Errorf("unknown file reference %q", ref)
 	}
-	field := strings.TrimPrefix(ref, "request_file:")
+	field, index, validRef := pluginruntime.ParseFileReference(ref)
 	files := form.File[field]
-	if len(files) == 0 {
+	if !validRef || index >= len(files) {
 		return "", fmt.Errorf("unknown file reference %q", ref)
 	}
-	header := files[0]
+	header := files[index]
 	maxBytes := limit
 	if raw, exists := placeholder["maxBytes"]; exists {
 		n, ok := usageNumber(raw, false)
@@ -570,7 +569,7 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 		logger.LogWarn(c, fmt.Sprintf("task plugin %s completion usage failed; retaining reserved quota: %v", a.plugin.Meta.Key, err))
 		return response, nil
 	}
-	if err := a.applyCompletionUsageFacts(immediate, facts, cmp.Or(info.UpstreamModelName, info.OriginModelName)); err != nil {
+	if err := a.applyCompletionUsageFacts(immediate, facts, info.UpstreamModelName, info.OriginModelName); err != nil {
 		logger.LogWarn(c, fmt.Sprintf("task plugin %s completion usage rejected; retaining reserved quota: %v", a.plugin.Meta.Key, err))
 	}
 	return response, nil
@@ -741,8 +740,9 @@ func (a *TaskAdaptor) ParseBatchResult(tasks []*model.Task, resp *http.Response,
 			}
 			facts, hookErr := a.plugin.Engine.Call(context.Background(), "extractUsageOnComplete", itemCtx, jsonValue(&info), usageBody)
 			if hookErr == nil {
-				usageModel, _ := itemCtx["upstreamModel"].(string)
-				a.applyCompletionUsageFacts(&info, facts, usageModel)
+				upstreamModel, _ := itemCtx["upstreamModel"].(string)
+				originModel, _ := itemCtx["model"].(string)
+				a.applyCompletionUsageFacts(&info, facts, upstreamModel, originModel)
 			}
 		}
 		results[item.TaskID] = &service.BatchTaskResult{TaskInfo: info, Action: item.Action, SubmitTime: item.SubmitTime, StartTime: item.StartTime, FinishTime: item.FinishTime, Data: item.Data}
@@ -807,8 +807,9 @@ func (a *TaskAdaptor) ParseTaskResult(task *model.Task, resp *http.Response, bod
 	if a.hasHook(context.Background(), "extractUsageOnComplete") {
 		facts, hookErr := a.plugin.Engine.Call(context.Background(), "extractUsageOnComplete", ctx, jsonValue(result), input)
 		if hookErr == nil {
-			usageModel, _ := ctx["upstreamModel"].(string)
-			a.applyCompletionUsageFacts(result, facts, usageModel)
+			upstreamModel, _ := ctx["upstreamModel"].(string)
+			originModel, _ := ctx["model"].(string)
+			a.applyCompletionUsageFacts(result, facts, upstreamModel, originModel)
 		}
 	}
 	taskStatus := model.TaskStatus(result.Status)
@@ -823,8 +824,8 @@ func (a *TaskAdaptor) ParseTaskResult(task *model.Task, resp *http.Response, bod
 	return result, nil
 }
 
-func (a *TaskAdaptor) applyCompletionUsageFacts(result *relaycommon.TaskInfo, facts any, modelName string) error {
-	values, err := a.validatedCompletionUsageFacts(facts, modelName)
+func (a *TaskAdaptor) applyCompletionUsageFacts(result *relaycommon.TaskInfo, facts any, models ...string) error {
+	values, err := a.validatedCompletionUsageFacts(facts, models...)
 	if err != nil {
 		a.logRejectedUsage("extractUsageOnComplete", err)
 		return err
@@ -1325,8 +1326,8 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 				if form, err := common.ParseMultipartFormReusable(c); err == nil {
 					defer form.RemoveAll()
 					for field, headers := range form.File {
-						for _, header := range headers {
-							files = append(files, map[string]any{"ref": "request_file:" + field, "field": field, "filename": header.Filename, "mimeType": header.Header.Get("Content-Type"), "size": header.Size})
+						for index, header := range headers {
+							files = append(files, map[string]any{"ref": pluginruntime.FileReference(field, index), "field": field, "filename": header.Filename, "mimeType": header.Header.Get("Content-Type"), "size": header.Size})
 						}
 					}
 				}
@@ -1374,7 +1375,7 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 	return ctx
 }
 
-func (a *TaskAdaptor) usageRatios(ctx context.Context, modelName, hook string, args ...any) (map[string]float64, error) {
+func (a *TaskAdaptor) usageRatios(ctx context.Context, models []string, hook string, args ...any) (map[string]float64, error) {
 	if !a.hasHook(ctx, hook) {
 		return nil, nil
 	}
@@ -1392,7 +1393,7 @@ func (a *TaskAdaptor) usageRatios(ctx context.Context, modelName, hook string, a
 		logger.LogDebug(ctx, "task_plugin subsystem=adaptor event=usage_hook_failed plugin=%q hook=%q reason=result_not_object elapsed_ms=%d", a.plugin.Meta.Key, hook, time.Since(started).Milliseconds())
 		return nil, fmt.Errorf("plugin usage hook must return an object")
 	}
-	ratios, err := a.validatedUsageRatios(facts, modelName)
+	ratios, err := a.validatedUsageRatios(facts, models...)
 	if err != nil {
 		logger.LogDebug(ctx, "task_plugin subsystem=adaptor event=usage_hook_failed plugin=%q hook=%q reason=invalid_usage elapsed_ms=%d", a.plugin.Meta.Key, hook, time.Since(started).Milliseconds())
 		return nil, err
@@ -1409,8 +1410,8 @@ func (a *TaskAdaptor) usageRatios(ctx context.Context, modelName, hook string, a
 	return ratios, nil
 }
 
-func (a *TaskAdaptor) validateResolvedUsageRequest(request any, modelName string) error {
-	schema, _ := a.plugin.Meta.UsageForModel(modelName)
+func (a *TaskAdaptor) validateResolvedUsageRequest(request any, models ...string) error {
+	schema, _ := a.plugin.Meta.UsageForModels(models...)
 	return a.validateResolvedUsageValue(jsonValue(request), schema)
 }
 
@@ -1441,8 +1442,8 @@ func (a *TaskAdaptor) validateResolvedUsageValue(value any, usageSchema map[stri
 	return nil
 }
 
-func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, modelName string) (map[string]float64, error) {
-	usageSchema, _ := a.plugin.Meta.UsageForModel(modelName)
+func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, models ...string) (map[string]float64, error) {
+	usageSchema, _ := a.plugin.Meta.UsageForModels(models...)
 	ratios := make(map[string]float64)
 	for key, value := range facts {
 		if schema, declared := usageSchema[key]; declared {
@@ -1482,8 +1483,8 @@ func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, modelName strin
 	return ratios, nil
 }
 
-func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, modelName string) (map[string]any, error) {
-	usageSchema, _ := a.plugin.Meta.UsageForModel(modelName)
+func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, models ...string) (map[string]any, error) {
+	usageSchema, _ := a.plugin.Meta.UsageForModels(models...)
 	if facts == nil {
 		return nil, nil
 	}

@@ -708,6 +708,7 @@ export function useCommonLogsColumns(
             <StreamTpsCell
               isStream={log.is_stream}
               isTask={other?.is_task === true}
+              isSyncTask={other?.task_sync === true}
               tokensPerSecond={tokensPerSecond}
               streamStatus={other?.stream_status}
             />

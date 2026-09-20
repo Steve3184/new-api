@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -213,24 +212,12 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 	}
 	if request, image := info.Request.(*dto.ImageRequest); image {
-		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
-		count, err := request.ImageCount(channelType == constant.ChannelTypeAli)
+		count, err := request.ImageCount(false)
 		if err != nil {
 			return hosttypes.PriceData{}, err
 		}
-		if usePrice || channelType == constant.ChannelTypeAli {
+		if usePrice {
 			priceData.AddOtherRatio("n", float64(count))
-		}
-		if channelType == constant.ChannelTypeAli && request.BillingParameters != nil && request.BillingParameters.PromptExtend != nil && *request.BillingParameters.PromptExtend {
-			// Resolve only routing identity; do not initialize ChannelMeta on the
-			// real request, which also distinguishes the first channel attempt.
-			mapped := &relaycommon.RelayInfo{OriginModelName: info.OriginModelName, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: info.OriginModelName}}
-			if err := ModelMappedHelper(c, mapped, nil); err != nil {
-				return hosttypes.PriceData{}, err
-			}
-			if strings.Contains(mapped.UpstreamModelName, "z-image") {
-				priceData.AddOtherRatio("prompt_extend", common.ZImagePromptExtendMultiplier)
-			}
 		}
 		if !usePrice {
 			quota, err := common.QuotaFromFloatStrict(priceData.ApplyOtherRatiosToFloat(info.ImageQuotaBeforeGroup * groupRatioInfo.GroupRatio))

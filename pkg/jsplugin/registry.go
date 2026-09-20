@@ -135,11 +135,22 @@ type UsageProfile struct {
 // must be resolved by the host first; an unknown or ambiguous model uses the
 // plugin defaults. Profile examples never inherit the default examples.
 func (m Meta) UsageForModel(model string) (map[string]UsageFieldSchema, []UsageExample) {
-	folded := asciiFold(model)
-	for _, profile := range m.UsageProfiles {
-		for _, declared := range profile.Models {
-			if asciiFold(declared) == folded {
-				return profile.Schema, profile.Examples
+	return m.UsageForModels(model)
+}
+
+// UsageForModels returns the usage metadata of the first candidate that a
+// profile declares. Runtime callers pass the final upstream model before the
+// client-facing model, so a channel mapping that sends a declared model to a
+// vendor endpoint ID keeps the declared model's profile. When no candidate is
+// profiled, the plugin defaults apply.
+func (m Meta) UsageForModels(models ...string) (map[string]UsageFieldSchema, []UsageExample) {
+	for _, model := range models {
+		folded := asciiFold(model)
+		for _, profile := range m.UsageProfiles {
+			for _, declared := range profile.Models {
+				if asciiFold(declared) == folded {
+					return profile.Schema, profile.Examples
+				}
 			}
 		}
 	}
@@ -1803,7 +1814,7 @@ func decodeRoutes(value any) ([]Route, error) {
 		}
 		for key := range object {
 			switch key {
-			case "method", "path", "type", "action", "decode", "render", "taskIdParam", "models":
+			case "method", "path", "type", "action", "decode", "render", "taskIdParam", "models", "retainResult":
 			default:
 				return nil, fmt.Errorf("plugin meta route %d has unknown field %q", index, key)
 			}
@@ -1840,6 +1851,13 @@ func decodeRoutes(value any) ([]Route, error) {
 			if len(route.Models) == 0 {
 				return nil, fmt.Errorf("plugin meta route %d models must contain at least one model", index)
 			}
+		}
+		if value, exists := object["retainResult"]; exists {
+			retain, ok := value.(bool)
+			if !ok {
+				return nil, fmt.Errorf("plugin meta route %d retainResult must be a boolean", index)
+			}
+			route.RetainResult = &retain
 		}
 		routes = append(routes, route)
 	}

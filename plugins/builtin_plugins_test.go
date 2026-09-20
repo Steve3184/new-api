@@ -35,6 +35,7 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 		{"GET", "/suno/fetch/:task_id", "sunoapi", jsplugin.RouteTypeQuery, "", "renderTask"},
 		{"POST", "/doubao/api/v3/contents/generations/tasks", "doubao", jsplugin.RouteTypeSubmit, "", "taskCreated"},
 		{"GET", "/doubao/api/v3/contents/generations/tasks/:task_id", "doubao", jsplugin.RouteTypeQuery, "", "taskStatus"},
+		{"POST", "/doubao/api/v3/images/generations", "doubao", jsplugin.RouteTypeSubmit, "", "imageCreated"},
 	}
 	for _, expected := range routes {
 		t.Run(expected.method+" "+expected.path, func(t *testing.T) {
@@ -46,6 +47,13 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 			require.Equal(t, expected.renderer, binding.Route.Render)
 		})
 	}
+
+	// The legacy Wan edit route serves both the wan2.5 image-list body and the
+	// wanx2.1-imageedit function API.
+	imageEdit, found := generation.LookupDeclaredRoute("POST", "/ali/api/v1/services/aigc/image2image/image-synthesis")
+	require.True(t, found)
+	assert.Equal(t, "alibaba", imageEdit.Plugin.Meta.Key)
+	assert.ElementsMatch(t, []string{"wan2.5-i2i-preview", "wanx2.1-imageedit"}, imageEdit.Route.Models)
 
 	channelTypes := []struct {
 		value int

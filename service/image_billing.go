@@ -4,10 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -19,7 +17,7 @@ import (
 // PrepareImageBillingForRequest reserves the effective outbound image quantity
 // before each attempt, including channel retries and parameter overrides. The
 // client request body stays frozen; only the independent quantity is refreshed.
-func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, count int, promptExtend bool) *types.NewAPIError {
+func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, count int) *types.NewAPIError {
 	if count < 1 || count > dto.MaxImageN {
 		return types.NewErrorWithStatusCode(fmt.Errorf("image_count must be an integer between 1 and %d", dto.MaxImageN), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
@@ -55,17 +53,12 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		}
 	} else {
 		quantity := 1
-		if info.PriceData.UsePrice || info.ChannelType == constant.ChannelTypeAli {
+		if info.PriceData.UsePrice {
 			quantity = count
 		}
-		// Overwrite per-attempt ratios so a failed Ali attempt cannot leak its
-		// quantity or prompt-extension surcharge into another channel.
+		// Overwrite the per-attempt ratio so a failed attempt cannot leak its
+		// quantity into another channel.
 		info.PriceData.AddOtherRatio("n", float64(quantity))
-		extensionRatio := 1.0
-		if info.ChannelType == constant.ChannelTypeAli && strings.Contains(info.UpstreamModelName, "z-image") && promptExtend {
-			extensionRatio = common.ZImagePromptExtendMultiplier
-		}
-		info.PriceData.AddOtherRatio("prompt_extend", extensionRatio)
 		base := info.ImageQuotaBeforeGroup
 		if info.PriceData.UsePrice {
 			base = info.PriceData.ModelPrice * common.QuotaPerUnit

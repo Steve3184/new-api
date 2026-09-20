@@ -1128,6 +1128,17 @@ usageProfiles: [
 	assert.Empty(t, schema)
 	assert.Nil(t, examples)
 
+	// A channel mapping may send a declared model to an undeclared endpoint ID:
+	// the first profiled candidate wins, otherwise the defaults apply.
+	schema, examples = plugin.Meta.UsageForModels("ep-endpoint", "image")
+	assert.Equal(t, plugin.Meta.UsageProfiles[0].Schema, schema)
+	assert.Nil(t, examples)
+	schema, _ = plugin.Meta.UsageForModels("video", "image")
+	assert.Equal(t, plugin.Meta.UsageProfiles[1].Schema, schema)
+	schema, examples = plugin.Meta.UsageForModels("ep-endpoint", "default")
+	assert.Equal(t, plugin.Meta.UsageSchema, schema)
+	assert.Equal(t, plugin.Meta.UsageExamples, examples)
+
 	snapshot := registry.Snapshot()
 	require.Len(t, snapshot.Override, 1)
 	profile := &snapshot.Override[0].UsageProfiles[1]
