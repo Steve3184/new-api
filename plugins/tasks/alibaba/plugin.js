@@ -160,20 +160,58 @@ const QWEN_IMAGE3_USAGE_SCHEMA = {
   },
 };
 
-const WAN_VIDEO_USAGE_SCHEMA = {
-  // Billable seconds: output duration, or input + output for Wan3.
-  seconds: {
-    type: "number",
-    unit: "second",
-    description: { en: "Video generation unit price", zh: "视频生成单价" },
-  },
-  // Requested output video resolution.
-  resolution: {
-    enum: ["480P", "720P", "1080P"],
-    enumLabels: { "480P": { en: "480P", zh: "480P" }, "720P": { en: "720P", zh: "720P" }, "1080P": { en: "1080P", zh: "1080P" } },
-    description: { en: "Output video resolution", zh: "输出视频分辨率" },
-  },
-};
+// Wan video usage facts. The resolution options follow the model's
+// capability table so pricing lists only the tiers the model offers.
+function wanVideoUsageSchema(resolutions, audio) {
+  const resolutionLabels = {};
+  for (const resolution of resolutions) resolutionLabels[resolution] = { en: resolution, zh: resolution };
+  const schema = {
+    // Billable seconds: output duration, or input + output for Wan3.
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: { en: "Video generation unit price", zh: "视频生成单价" },
+    },
+    // Requested output video resolution.
+    resolution: {
+      enum: resolutions,
+      enumLabels: resolutionLabels,
+      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+    },
+  };
+  // wan2.6-i2v-flash prices audio and silent output differently. parameters.audio
+  // defaults to true; the completion usage.audio flag replaces the estimate.
+  if (audio) {
+    schema.audio = {
+      type: "boolean",
+      description: { en: "Whether audio is generated", zh: "是否生成音频" },
+    };
+  }
+  return schema;
+}
+
+const WAN_AUDIO_VIDEO_MODELS = ["wan2.6-i2v-flash"];
+// Dated snapshots share the undated model's capabilities through modelKey.
+const WAN_VIDEO_SNAPSHOTS = ["wan2.7-t2v-2026-04-25", "wan2.7-t2v-2026-06-12", "wan2.7-i2v-2026-04-25"];
+const WAN_VIDEO_RESOLUTIONS = ["480P", "720P", "1080P"];
+
+// One usage profile per distinct resolution set and audio option.
+function wanVideoUsageProfiles() {
+  const profiles = [];
+  for (const model of Object.keys(WAN_MODELS).concat(WAN_VIDEO_SNAPSHOTS)) {
+    const key = modelKey(model);
+    const resolutions = WAN_MODELS[key].resolutions;
+    const audio = WAN_AUDIO_VIDEO_MODELS.includes(key);
+    const shape = resolutions.join("/") + (audio ? "+audio" : "");
+    let profile = profiles.find((entry) => entry.shape === shape);
+    if (!profile) {
+      profile = { shape: shape, models: [], schema: wanVideoUsageSchema(resolutions, audio) };
+      profiles.push(profile);
+    }
+    profile.models.push(model);
+  }
+  return profiles.map((profile) => ({ models: profile.models, schema: profile.schema }));
+}
 
 export const meta = {
   apiVersion: 1,
@@ -240,7 +278,7 @@ export const meta = {
   upstreams: ["vendor", "new_api"],
   submitResponseTypes: ["json", "sse"],
   requiredCapabilities: ["json-clone@1", "submit-sse-delta@1"],
-  usageSchema: { ...WAN_IMAGE_USAGE_SCHEMA, ...WAN_VIDEO_USAGE_SCHEMA },
+  usageSchema: { ...WAN_IMAGE_USAGE_SCHEMA, ...wanVideoUsageSchema(WAN_VIDEO_RESOLUTIONS, false) },
   usageProfiles: [
     {
       models: Object.keys(IMAGE_MODELS)
@@ -250,11 +288,7 @@ export const meta = {
     },
     { models: Z_IMAGE_MODELS, schema: Z_IMAGE_USAGE_SCHEMA },
     { models: QWEN_IMAGE3_MODELS, schema: QWEN_IMAGE3_USAGE_SCHEMA },
-    {
-      models: Object.keys(WAN_MODELS).concat(["wan2.7-t2v-2026-04-25", "wan2.7-t2v-2026-06-12", "wan2.7-i2v-2026-04-25"]),
-      schema: WAN_VIDEO_USAGE_SCHEMA,
-    },
-  ],
+  ].concat(wanVideoUsageProfiles()),
   routes: [
     // Synchronous vendor call with no task to re-query; the response is
     // delivered once and never persisted.
@@ -1063,7 +1097,9 @@ export function extractUsage(ctx) {
     return ratios;
   }
   const resolution = body.parameters.size ? videoSize(body.parameters.size).resolution : body.parameters.resolution;
-  return { seconds: seconds, resolution: resolution };
+  const facts = { seconds: seconds, resolution: resolution };
+  if (WAN_AUDIO_VIDEO_MODELS.includes(modelKey(body.model))) facts.audio = body.parameters.audio !== false;
+  return facts;
 }
 
 export function extractUsageOnSubmit(ctx, body) {
@@ -1099,6 +1135,7 @@ export function extractUsageOnComplete(task, taskResult, body) {
   }
   const resolution = usage.SR ?? output.resolution;
   if (resolution != null) facts.resolution = normalizeResolution(resolution);
+  if (WAN_AUDIO_VIDEO_MODELS.includes(model) && typeof usage.audio === "boolean") facts.audio = usage.audio;
   return facts;
 }
 

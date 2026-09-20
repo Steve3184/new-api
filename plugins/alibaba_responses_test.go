@@ -42,7 +42,7 @@ func TestAlibabaResponsesProtocol(t *testing.T) {
 	})
 
 	t.Run("selects image and video usage profiles for every declared model", func(t *testing.T) {
-		require.Len(t, plugin.Meta.UsageProfiles, 4)
+		require.Len(t, plugin.Meta.UsageProfiles, 9)
 		covered := make(map[string]bool)
 		for _, profile := range plugin.Meta.UsageProfiles {
 			for _, name := range profile.Models {
@@ -65,10 +65,15 @@ func TestAlibabaResponsesProtocol(t *testing.T) {
 				assert.Equal(t, "boolean", schema["prompt_extend"].Type, name)
 			case isImage:
 				assert.Equal(t, map[string]jsplugin.UsageFieldSchema{"image_count": plugin.Meta.UsageSchema["image_count"]}, schema, name)
+			case name == "wan2.6-i2v-flash":
+				assert.ElementsMatch(t, []string{"seconds", "resolution", "audio"}, keysOf(schema), name)
+				assert.Equal(t, plugin.Meta.UsageSchema["seconds"], schema["seconds"], name)
+				assert.Equal(t, []string{"720P", "1080P"}, schema["resolution"].Enum, name)
+				assert.Equal(t, "boolean", schema["audio"].Type, name)
 			default:
-				assert.Equal(t, map[string]jsplugin.UsageFieldSchema{
-					"seconds": plugin.Meta.UsageSchema["seconds"], "resolution": plugin.Meta.UsageSchema["resolution"],
-				}, schema, name)
+				assert.ElementsMatch(t, []string{"seconds", "resolution"}, keysOf(schema), name)
+				assert.Equal(t, plugin.Meta.UsageSchema["seconds"], schema["seconds"], name)
+				assert.Subset(t, plugin.Meta.UsageSchema["resolution"].Enum, schema["resolution"].Enum, name)
 			}
 			for key, field := range schema {
 				assert.NotEmpty(t, field.Description["en"], name+" "+key)
@@ -390,7 +395,14 @@ func TestAlibabaWanModelCapabilities(t *testing.T) {
 			request := alibabaObject(t, value)["requestBody"].(map[string]any)
 			body, facts, url := submitAlibabaRequest(t, plugin, tc.model, request)
 			assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/"+tc.service+"/video-synthesis", url)
-			assert.Equal(t, map[string]any{"seconds": tc.seconds, "resolution": tc.resolution}, facts)
+			// The pricing table lists exactly the resolutions the model accepts.
+			schema, _ := plugin.Meta.UsageForModel(tc.model)
+			assert.Equal(t, tc.allowed, schema["resolution"].Enum)
+			wantFacts := map[string]any{"seconds": tc.seconds, "resolution": tc.resolution}
+			if tc.model == "wan2.6-i2v-flash" {
+				wantFacts["audio"] = true // priced separately for silent output; defaults to audio
+			}
+			assert.Equal(t, wantFacts, facts)
 			assert.Equal(t, tc.input, body["input"])
 			parameters := body["parameters"].(map[string]any)
 			if tc.size != "" {
@@ -457,6 +469,36 @@ func TestAlibabaWanCompatibilityParameters(t *testing.T) {
 			assert.Equal(t, tc.parameters, parameters)
 		})
 	}
+}
+
+func TestAlibabaWanFlashAudioFact(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	for _, tc := range []struct {
+		name    string
+		request map[string]any
+		audio   bool
+	}{
+		{"audio defaults to true", map[string]any{}, true},
+		{"explicit audio", map[string]any{"audio": true}, true},
+		{"silent output", map[string]any{"audio": false}, false},
+		{"native parameters win", map[string]any{"audio": true, "metadata": map[string]any{"parameters": map[string]any{"audio": false}}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := map[string]any{"model": "wan2.6-i2v-flash", "prompt": "a cat", "image": "https://cdn.example/first.png", "resolution": "720P", "duration": float64(5)}
+			maps.Copy(request, tc.request)
+			body, facts, _ := submitAlibabaRequest(t, plugin, "wan2.6-i2v-flash", request)
+			assert.Equal(t, map[string]any{"seconds": float64(5), "resolution": "720P", "audio": tc.audio}, facts)
+			parameters := body["parameters"].(map[string]any)
+			if _, explicit := tc.request["audio"]; explicit || tc.request["metadata"] != nil {
+				assert.Equal(t, tc.audio, parameters["audio"])
+			} else {
+				assert.NotContains(t, parameters, "audio")
+			}
+		})
+	}
+	// Other Wan models keep their two-fact schema even when a client sends audio.
+	_, facts, _ := submitAlibabaRequest(t, plugin, "wan2.6-i2v", map[string]any{"model": "wan2.6-i2v", "prompt": "a cat", "image": "https://cdn.example/first.png", "audio": false, "duration": float64(5)})
+	assert.Equal(t, map[string]any{"seconds": float64(5), "resolution": "1080P"}, facts)
 }
 
 func TestAlibabaWanEntrypointsPreserveOptions(t *testing.T) {
@@ -623,6 +665,9 @@ func TestAlibabaWanCompletionFactsAndArtifacts(t *testing.T) {
 		{"Wan3 without reference video", "wan3.0-video-prime", map[string]any{"input_video_duration": 0, "output_video_duration": 8, "SR": 1080}, map[string]any{"seconds": float64(8), "resolution": "1080P"}},
 		{"Wan3 missing input duration preserves reserved seconds", "wan3.0-video", map[string]any{"output_video_duration": 6, "SR": 720}, map[string]any{"resolution": "720P"}},
 		{"2.7 continuation uses total duration", "wan2.7-i2v", map[string]any{"duration": 15, "output_video_duration": 12, "SR": 1080}, map[string]any{"seconds": float64(15), "resolution": "1080P"}},
+		{"flash silent output settles as silent", "wan2.6-i2v-flash", map[string]any{"duration": 5, "SR": 720, "audio": false}, map[string]any{"seconds": float64(5), "resolution": "720P", "audio": false}},
+		{"flash without audio flag keeps the estimate", "wan2.6-i2v-flash", map[string]any{"duration": 5, "SR": 1080}, map[string]any{"seconds": float64(5), "resolution": "1080P"}},
+		{"audio flag is ignored for models priced without it", "wan2.6-i2v", map[string]any{"duration": 5, "SR": 1080, "audio": false}, map[string]any{"seconds": float64(5), "resolution": "1080P"}},
 		{"missing usage keeps reservation", "wan2.7-t2v", map[string]any{}, nil},
 		{"oversized duration rejected by host", "wan2.2-s2v", map[string]any{"duration": 1e30, "SR": 480}, nil},
 		{"negative input cannot reduce Wan3 charge", "wan3.0-video", map[string]any{"input_video_duration": -5, "output_video_duration": 10}, nil},

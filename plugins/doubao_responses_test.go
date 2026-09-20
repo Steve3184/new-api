@@ -7,6 +7,8 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -238,6 +240,140 @@ func TestDoubaoImageSubmission(t *testing.T) {
 		assert.True(t, found)
 		schema, _ := plugin.Meta.UsageForModel("doubao-seedance-2-0-260128")
 		assert.ElementsMatch(t, []string{"tokens", "resolution", "video_input"}, keysOf(schema))
+		schema, examples := plugin.Meta.UsageForModel("doubao-seedance-1-5-pro-251215")
+		assert.ElementsMatch(t, []string{"tokens", "resolution", "generate_audio"}, keysOf(schema))
+		assert.Equal(t, "boolean", schema["generate_audio"].Type)
+		assert.NotEmpty(t, examples)
+	})
+}
+
+// Capability profiles follow the Ark model list: pricing lists only the
+// resolutions each Seedance model offers, reference video input only on
+// Seedance 2.x, and audio output only on Seedance 1.5 pro.
+func TestDoubaoSeedanceUsageFacts(t *testing.T) {
+	_, plugin := newDoubaoPlugin(t)
+	const (
+		pro10  = "doubao-seedance-1-0-pro-250528"
+		pro15  = "doubao-seedance-1-5-pro-251215"
+		v20    = "doubao-seedance-2-0-260128"
+		fast20 = "doubao-seedance-2-0-fast-260128"
+		mini20 = "doubao-seedance-2-0-mini-260615"
+		v25    = "doubao-seedance-2-5-260628"
+	)
+	families := []struct {
+		models      []string
+		resolutions []string
+		fields      []string
+	}{
+		{[]string{pro10, "doubao-seedance-1-0-lite-t2v", "doubao-seedance-1-0-lite-i2v"}, []string{"480p", "720p", "1080p"}, []string{"resolution", "tokens"}},
+		{[]string{pro15}, []string{"480p", "720p", "1080p"}, []string{"generate_audio", "resolution", "tokens"}},
+		{[]string{v20}, []string{"480p", "720p", "1080p", "4k"}, []string{"resolution", "tokens", "video_input"}},
+		{[]string{fast20, mini20}, []string{"480p", "720p"}, []string{"resolution", "tokens", "video_input"}},
+		{[]string{v25}, []string{"480p", "720p", "1080p"}, []string{"resolution", "tokens", "video_input"}},
+	}
+	profiled := make([]string, 0, len(plugin.Meta.Models))
+	for _, family := range families {
+		for _, name := range family.models {
+			profiled = append(profiled, name)
+			t.Run(name, func(t *testing.T) {
+				schema, examples := plugin.Meta.UsageForModel(name)
+				assert.Equal(t, family.fields, slices.Sorted(maps.Keys(schema)))
+				assert.Equal(t, family.resolutions, schema["resolution"].Enum)
+				require.NotEmpty(t, examples)
+				for _, example := range examples {
+					assert.Equal(t, family.fields, slices.Sorted(maps.Keys(example.Facts)), example.Label)
+					assert.Contains(t, family.resolutions, example.Facts["resolution"], example.Label)
+				}
+			})
+		}
+	}
+	videoModels := make([]string, 0, len(profiled))
+	for _, name := range plugin.Meta.Models {
+		if strings.Contains(name, "seedance") {
+			videoModels = append(videoModels, name)
+		}
+	}
+	assert.ElementsMatch(t, videoModels, profiled, "every Seedance model selects a capability profile")
+
+	for _, tc := range []struct {
+		name    string
+		model   string
+		request map[string]any
+		want    map[string]any
+		wantErr string
+	}{
+		{"1.5 pro defaults to audio", pro15, map[string]any{"metadata": map[string]any{"resolution": "720p"}},
+			map[string]any{"tokens": float64(108000), "resolution": "720p", "generate_audio": true}, ""},
+		{"1.5 pro silent output", pro15, map[string]any{"metadata": map[string]any{"resolution": "720p", "generate_audio": false}},
+			map[string]any{"tokens": float64(108000), "resolution": "720p", "generate_audio": false}, ""},
+		{"2.0 has no audio fact", v20, map[string]any{"metadata": map[string]any{"resolution": "720p", "generate_audio": false}},
+			map[string]any{"tokens": float64(108000), "resolution": "720p", "video_input": "none"}, ""},
+		{"2.0 offers 4k", v20, map[string]any{"metadata": map[string]any{"resolution": "4k"}},
+			map[string]any{"tokens": float64(972000), "resolution": "4k", "video_input": "none"}, ""},
+		{"1.0 pro has no reference video fact", pro10, map[string]any{"metadata": map[string]any{"resolution": "1080p"}},
+			map[string]any{"tokens": float64(243000), "resolution": "1080p"}, ""},
+		{"mini reserves its highest tier when the resolution is left to Ark", mini20, map[string]any{},
+			map[string]any{"tokens": float64(108000), "resolution": "720p", "video_input": "none"}, ""},
+		{"mini rejects 1080p", mini20, map[string]any{"metadata": map[string]any{"resolution": "1080p"}}, nil, mini20 + " resolution must be one of 480p, 720p"},
+		{"mini rejects a 1080p size", mini20, map[string]any{"size": "1920x1080"}, nil, mini20 + " resolution must be one of 480p, 720p"},
+		{"fast rejects 4k", fast20, map[string]any{"metadata": map[string]any{"resolution": "4k"}}, nil, fast20 + " resolution must be one of 480p, 720p"},
+		{"2.5 rejects 4k", v25, map[string]any{"metadata": map[string]any{"resolution": "4K"}}, nil, v25 + " resolution must be one of 480p, 720p, 1080p"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := map[string]any{"model": tc.model, "prompt": "a cat", "seconds": float64(5)}
+			maps.Copy(request, tc.request)
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:     &relaycommon.ChannelMeta{ChannelBaseUrl: doubaoBaseURL, UpstreamModelName: tc.model},
+				OriginModelName: tc.model,
+				TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_public", Action: "text_to_video"},
+			}
+			adaptor := taskplugin.New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+			c.Set("task_request", request)
+			taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+			if tc.wantErr != "" {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+				assert.Contains(t, taskErr.Message, tc.wantErr)
+				return
+			}
+			require.Nil(t, taskErr)
+			reader, err := adaptor.BuildRequestBody(c, info)
+			require.NoError(t, err)
+			encoded, err := io.ReadAll(reader)
+			require.NoError(t, err)
+			var body map[string]any
+			require.NoError(t, common.Unmarshal(encoded, &body))
+			metadata, _ := tc.request["metadata"].(map[string]any)
+			assert.Equal(t, metadata["generate_audio"], body["generate_audio"])
+			facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, alibabaObject(t, facts))
+		})
+	}
+
+	t.Run("completion overlays only resolutions the model offers", func(t *testing.T) {
+		for _, tc := range []struct {
+			model      string
+			resolution string
+			want       map[string]any
+		}{
+			{mini20, "1080p", map[string]any{"tokens": float64(90000)}},
+			{v25, "4k", map[string]any{"tokens": float64(90000)}},
+			{v20, "4k", map[string]any{"tokens": float64(90000), "resolution": "4k"}},
+		} {
+			queryContext := map[string]any{"model": tc.model, "upstreamModel": tc.model, "action": "text_to_video"}
+			body := map[string]any{
+				"status":  "succeeded",
+				"usage":   map[string]any{"completion_tokens": 90000},
+				"content": map[string]any{"video_url": "https://cdn.example/video.mp4", "resolution": tc.resolution},
+			}
+			value, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", queryContext, map[string]any{"status": "SUCCESS"}, body)
+			require.NoError(t, err, tc.model)
+			assert.Equal(t, tc.want, alibabaObject(t, value), tc.model)
+		}
 	})
 }
 

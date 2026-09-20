@@ -1,13 +1,22 @@
-const VIDEO_MODELS = [
-  "doubao-seedance-1-0-pro-250528",
-  "doubao-seedance-1-0-lite-t2v",
-  "doubao-seedance-1-0-lite-i2v",
-  "doubao-seedance-1-5-pro-251215",
-  "doubao-seedance-2-0-260128",
-  "doubao-seedance-2-0-fast-260128",
-  "doubao-seedance-2-0-mini-260615",
-  "doubao-seedance-2-5-260628",
-];
+// Seedance capabilities from the Ark model list, not prices: the output
+// resolutions each model offers, whether it accepts reference video input
+// (Seedance 2.x prices video-to-video tokens separately) and whether audio
+// output is priced separately (Seedance 1.5 pro; generate_audio defaults to
+// true). Seedance 1.0 lite is no longer listed and keeps the 1.0 pro tiers.
+const VIDEO_MODELS = {
+  "doubao-seedance-1-0-pro-250528": { resolutions: ["480p", "720p", "1080p"] },
+  "doubao-seedance-1-0-lite-t2v": { resolutions: ["480p", "720p", "1080p"] },
+  "doubao-seedance-1-0-lite-i2v": { resolutions: ["480p", "720p", "1080p"] },
+  "doubao-seedance-1-5-pro-251215": { resolutions: ["480p", "720p", "1080p"], audio: true },
+  "doubao-seedance-2-0-260128": { resolutions: ["480p", "720p", "1080p", "4k"], videoInput: true },
+  "doubao-seedance-2-0-fast-260128": { resolutions: ["480p", "720p"], videoInput: true },
+  "doubao-seedance-2-0-mini-260615": { resolutions: ["480p", "720p"], videoInput: true },
+  "doubao-seedance-2-5-260628": { resolutions: ["480p", "720p", "1080p"], videoInput: true },
+};
+// Every Ark resolution tier; an endpoint ID reached through channel mapping
+// without a declared profile keeps them all.
+const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p", "4k"];
+const DEFAULT_VIDEO_PROFILE = { resolutions: SEEDANCE_RESOLUTIONS, videoInput: true };
 
 // Protocol capabilities from the Ark image generation API reference, not prices.
 // presets: accepted `size` resolution tiers; minPixels/maxPixels bound `WxH` sizes.
@@ -155,6 +164,79 @@ const IMAGE_USAGE_SCHEMA = {
   },
 };
 
+// Usage facts for one Seedance capability profile: the pricing table then
+// lists only the resolutions and input kinds the model offers.
+function seedanceUsageSchema(profile) {
+  const resolutionLabels = {};
+  for (const resolution of profile.resolutions) resolutionLabels[resolution] = { en: resolution, zh: resolution };
+  const schema = {
+    // Upstream billing tokens (estimated at submit, actual on completion).
+    tokens: {
+      type: "number",
+      unit: "token",
+      description: { en: "Billing token unit price", zh: "计费 Token 单价" },
+    },
+    // Output video resolution; Seedance token unit price varies by resolution tier.
+    resolution: {
+      enum: profile.resolutions,
+      enumLabels: resolutionLabels,
+      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+    },
+  };
+  // Whether the request includes reference video input; Seedance 2.x prices video-to-video tokens at a lower unit rate.
+  if (profile.videoInput) {
+    schema.video_input = {
+      enum: ["none", "video"],
+      enumLabels: { none: { en: "No reference video", zh: "无参考视频" }, video: { en: "With reference video", zh: "有参考视频" } },
+      description: { en: "Reference video input", zh: "参考视频输入" },
+    };
+  }
+  // Seedance 1.5 pro prices videos with and without audio differently.
+  if (profile.audio) {
+    schema.generate_audio = {
+      type: "boolean",
+      description: { en: "Whether audio is generated", zh: "是否生成音频" },
+    };
+  }
+  return schema;
+}
+
+// Display examples for a token-priced profile: 5-second videos at each tier
+// from the official Ark formula tokens = (input + output seconds) × W × H ×
+// 24 / 1024 with 16:9 max-pixel sizes, cross-checked against Volcengine price
+// examples, plus the reference-video and silent variants the profile prices.
+function seedanceUsageExamples(profile) {
+  const specs = profile.resolutions.map((resolution) => ({
+    label: resolution + " · 5s" + (profile.audio ? " · 有声" : ""),
+    resolution: resolution,
+    seconds: 5,
+  }));
+  if (profile.videoInput) specs.push({ label: "720p · 5s (+4s 输入视频)", resolution: "720p", seconds: 9, video_input: "video" });
+  if (profile.audio) specs.push({ label: "720p · 5s · 无声", resolution: "720p", seconds: 5, generate_audio: false });
+  return specs.map((spec) => {
+    const facts = { tokens: Math.round(estimateTokens(spec.seconds, spec.resolution)), resolution: spec.resolution };
+    if (profile.videoInput) facts.video_input = spec.video_input || "none";
+    if (profile.audio) facts.generate_audio = spec.generate_audio !== false;
+    return { label: spec.label, facts: facts };
+  });
+}
+
+// One usage profile per distinct capability shape.
+function seedanceUsageProfiles() {
+  const profiles = [];
+  for (const model of Object.keys(VIDEO_MODELS)) {
+    const capability = VIDEO_MODELS[model];
+    const shape = capability.resolutions.join("/") + (capability.videoInput ? "+video" : "") + (capability.audio ? "+audio" : "");
+    let profile = profiles.find((entry) => entry.shape === shape);
+    if (!profile) {
+      profile = { shape: shape, models: [], schema: seedanceUsageSchema(capability), examples: seedanceUsageExamples(capability) };
+      profiles.push(profile);
+    }
+    profile.models.push(model);
+  }
+  return profiles.map((profile) => ({ models: profile.models, schema: profile.schema, examples: profile.examples }));
+}
+
 export const meta = {
   apiVersion: 1,
   key: "doubao",
@@ -167,45 +249,12 @@ export const meta = {
   version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
-  models: VIDEO_MODELS.concat(Object.keys(IMAGE_MODELS)),
+  models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
-  usageSchema: {
-    // Upstream billing tokens (estimated at submit, actual on completion).
-    tokens: {
-      type: "number",
-      unit: "token",
-      description: { en: "Billing token unit price", zh: "计费 Token 单价" },
-    },
-    // Output video resolution; Seedance token unit price varies by resolution tier.
-    resolution: {
-      enum: ["480p", "720p", "1080p", "4k"],
-      enumLabels: {
-        "480p": { en: "480p", zh: "480p" },
-        "720p": { en: "720p", zh: "720p" },
-        "1080p": { en: "1080p", zh: "1080p" },
-        "4k": { en: "4k", zh: "4k" },
-      },
-      description: { en: "Output video resolution", zh: "输出视频分辨率" },
-    },
-    // Whether the request includes reference video input; Seedance prices video-to-video tokens at a lower unit rate.
-    video_input: {
-      enum: ["none", "video"],
-      enumLabels: { none: { en: "No reference video", zh: "无参考视频" }, video: { en: "With reference video", zh: "有参考视频" } },
-      description: { en: "Reference video input", zh: "参考视频输入" },
-    },
-  },
-  // Official Ark formula tokens = (input + output seconds) × W × H × 24 / 1024,
-  // 16:9 max-pixel sizes, cross-checked against Volcengine price examples.
-  usageExamples: [
-    { label: "480p · 5s", facts: { tokens: 48038, resolution: "480p", video_input: "none" } },
-    { label: "720p · 5s", facts: { tokens: 108000, resolution: "720p", video_input: "none" } },
-    { label: "1080p · 5s", facts: { tokens: 243000, resolution: "1080p", video_input: "none" } },
-    { label: "4k · 5s", facts: { tokens: 972000, resolution: "4k", video_input: "none" } },
-    { label: "720p · 10s", facts: { tokens: 216000, resolution: "720p", video_input: "none" } },
-    { label: "720p · 5s (+4s 输入视频)", facts: { tokens: 194400, resolution: "720p", video_input: "video" } },
-  ],
-  usageProfiles: [
+  usageSchema: seedanceUsageSchema(DEFAULT_VIDEO_PROFILE),
+  usageExamples: seedanceUsageExamples(DEFAULT_VIDEO_PROFILE),
+  usageProfiles: seedanceUsageProfiles().concat([
     {
       models: Object.keys(IMAGE_MODELS),
       schema: IMAGE_USAGE_SCHEMA,
@@ -216,7 +265,7 @@ export const meta = {
         { label: "图层拆分 · 2K 底图 + 4 层 1.5K", facts: { images_up_to_1_5k: 4, images_above_1_5k: 1, input_images: 1, layer_decomposition: true } },
       ],
     },
-  ],
+  ]),
   routes: [
     { method: "POST", path: "/doubao/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
     { method: "GET", path: "/doubao/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
@@ -226,7 +275,7 @@ export const meta = {
   ],
   protocols: [
     { name: "openai_responses", supports: ["stream", "sync", "background"] },
-    { name: "openai_video", models: VIDEO_MODELS },
+    { name: "openai_video", models: Object.keys(VIDEO_MODELS) },
   ],
 };
 
@@ -295,6 +344,32 @@ function normalizeResolution(value) {
 
 function hasVideo(content) {
   return Array.isArray(content) && content.some((item) => item && (item.type === "video_url" || Object.prototype.hasOwnProperty.call(item, "video_url")));
+}
+
+// Capability profile of the executing Seedance model. Channel mapping may send
+// a declared model to an Ark endpoint ID; the declared name still describes it.
+function videoProfile(ctx) {
+  for (const model of [ctx && ctx.upstreamModel, ctx && ctx.model].map(trimmed)) {
+    if (Object.prototype.hasOwnProperty.call(VIDEO_MODELS, model)) return VIDEO_MODELS[model];
+  }
+  return DEFAULT_VIDEO_PROFILE;
+}
+
+// Resolution tier the reservation is estimated at: the requested tier or the
+// tier of a WxH size, rejecting tiers the model does not offer. A request that
+// leaves the resolution to Ark reserves the model's highest tier up to 1080p;
+// completion overlays the delivered resolution.
+function videoResolution(ctx) {
+  const req = ctx.requestBody || {};
+  const metadata = req.metadata || {};
+  const profile = videoProfile(ctx);
+  const raw = trimmed(metadata.resolution || req.size).toLowerCase();
+  const recognized = SEEDANCE_RESOLUTIONS.includes(raw) || raw.replace("*", "x").split("x").length === 2;
+  if (!recognized) return profile.resolutions.includes("1080p") ? "1080p" : profile.resolutions[profile.resolutions.length - 1];
+  const resolution = normalizeResolution(raw);
+  if (!profile.resolutions.includes(resolution))
+    throw new Error(trimmed(ctx.upstreamModel || ctx.model) + " resolution must be one of " + profile.resolutions.join(", "));
+  return resolution;
 }
 
 // Max-pixel 16:9 dimensions per resolution tier. Used when ratio is absent or
@@ -675,6 +750,8 @@ export function buildSubmitRequest(ctx) {
   }
   const req = ctx.requestBody;
   const metadata = req.metadata || {};
+  // Reject output tiers the model does not offer before any quota is reserved.
+  videoResolution(ctx);
   const body = Object.assign({ model: req.model || "", content: [] }, metadata);
   const imageContent = [];
   const images = Array.isArray(req.images) ? req.images : [];
@@ -736,15 +813,12 @@ export function extractUsage(ctx) {
   }
   if (seconds <= 0) seconds = 5;
   seconds = Math.min(seconds, 3600);
-  const rawResolution = metadata.resolution || req.size;
-  const raw = trimmed(rawResolution).toLowerCase();
-  const recognized = ["480p", "720p", "1080p", "4k"].includes(raw) || raw.replace("*", "x").split("x").length === 2;
-  const resolution = recognized ? normalizeResolution(rawResolution) : "1080p";
-  return {
-    tokens: estimateTokens(seconds, resolution),
-    resolution: resolution,
-    video_input: hasVideo(metadata.content) ? "video" : "none",
-  };
+  const profile = videoProfile(ctx);
+  const resolution = videoResolution(ctx);
+  const facts = { tokens: estimateTokens(seconds, resolution), resolution: resolution };
+  if (profile.videoInput) facts.video_input = hasVideo(metadata.content) ? "video" : "none";
+  if (profile.audio) facts.generate_audio = metadata.generate_audio !== false;
+  return facts;
 }
 
 export function extractUsageOnSubmit(ctx, body) {
@@ -836,7 +910,7 @@ export function extractUsageOnComplete(task, taskResult, body) {
   if (Number.isFinite(tokens) && tokens > 0) facts.tokens = tokens;
   const content = body.content || {};
   const resolution = trimmed(content.resolution || body.resolution).toLowerCase();
-  if (["480p", "720p", "1080p", "4k"].includes(resolution)) facts.resolution = resolution;
+  if (videoProfile(task).resolutions.includes(resolution)) facts.resolution = resolution;
   return facts;
 }
 
