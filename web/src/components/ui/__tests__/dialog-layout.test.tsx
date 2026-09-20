@@ -46,8 +46,11 @@ describe('dialog viewport layout', () => {
       </Dialog>
     )
     const dialog = screen.getByRole('dialog', { name: 'System updates' })
-    expect(dialog).toHaveClass('max-h-(--dialog-available-height)')
-    expect(dialog).toHaveClass('top-(--dialog-viewport-center)')
+    // Keep a dynamic-viewport fallback when global CSS variables are missing.
+    expect(dialog).toHaveClass(
+      'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]'
+    )
+    expect(dialog).toHaveClass('top-[var(--dialog-viewport-center,50dvh)]')
     // If header and footer alone exceed a short viewport, the popup itself
     // must remain scrollable instead of clipping its actions.
     expect(dialog).toHaveClass('overflow-y-auto', 'overscroll-contain')
@@ -72,8 +75,8 @@ describe('dialog viewport layout', () => {
       </DialogRoot>
     )
     expect(screen.getByRole('dialog', { name: 'Long dialog' })).toHaveClass(
-      'top-(--dialog-viewport-center)',
-      'max-h-(--dialog-available-height)',
+      'top-[var(--dialog-viewport-center,50dvh)]',
+      'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]',
       'overflow-y-auto',
       'overscroll-contain'
     )
@@ -93,8 +96,8 @@ describe('dialog viewport layout', () => {
     expect(
       screen.getByRole('alertdialog', { name: 'Confirm changes' })
     ).toHaveClass(
-      'top-(--dialog-viewport-center)',
-      'max-h-(--dialog-available-height)',
+      'top-[var(--dialog-viewport-center,50dvh)]',
+      'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]',
       'overflow-y-auto',
       'overscroll-contain'
     )
