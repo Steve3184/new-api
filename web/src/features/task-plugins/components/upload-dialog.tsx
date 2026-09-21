@@ -108,7 +108,7 @@ export function UploadDialog(props: UploadDialogProps) {
 
   const handleFile = async (file: File) => {
     if (file.size > MAX_PLUGIN_SOURCE_BYTES) {
-      setImportError(t('Plugin source exceeds the 1 MiB limit.'))
+      setImportError(t('Plugin source exceeds the 8 MiB limit.'))
       return
     }
     setImportError('')
