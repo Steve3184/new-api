@@ -770,7 +770,13 @@ func syncTaskPluginsOnceContext(ctx context.Context) error {
 			plugin.Key,
 			plugin.Version,
 		)
-		compiled, compileErr := jsplugin.CompilePlugin(string(plugin.Source), jsplugin.Options{Key: plugin.Key, Version: plugin.Version})
+		var compiled *jsplugin.LoadedPlugin
+		source, compileErr := model.GetTaskPluginSource(plugin.Id)
+		if compileErr != nil {
+			compileErr = fmt.Errorf("load source: %w", compileErr)
+		} else {
+			compiled, compileErr = jsplugin.CompilePlugin(string(source), jsplugin.Options{Key: plugin.Key, Version: plugin.Version})
+		}
 		if compileErr != nil {
 			retainedIncumbent := false
 			if current := currentOverrides[plugin.Key]; current != nil {

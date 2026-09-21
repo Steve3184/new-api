@@ -163,12 +163,17 @@ func GetTaskPluginVersion(key, version string) (*TaskPlugin, error) {
 	return &plugin, nil
 }
 
+// ListActiveTaskPlugins returns the enabled override rows without their
+// source and icon payloads; see GetTaskPluginSyncSnapshot.
 func ListActiveTaskPlugins() ([]TaskPlugin, error) {
 	snapshot, err := GetTaskPluginSyncSnapshot()
 	return snapshot.Plugins, err
 }
 
 type TaskPluginSyncSnapshot struct {
+	// Plugins are the enabled active overrides with Source and Icon left
+	// empty. Sync compares SourceHash against what it already compiled and
+	// loads source through GetTaskPluginSource only for the rows that changed.
 	Plugins  []TaskPlugin
 	Revision string
 }
@@ -176,9 +181,11 @@ type TaskPluginSyncSnapshot struct {
 // GetTaskPluginSyncSnapshot returns the enabled override set together with a
 // deterministic revision of every active database override. Nodes can compare
 // the revision even though their local routing-generation counters differ.
+// The query skips the source and icon columns: every node polls this every
+// 30 seconds, and plugin sources may be several MiB each.
 func GetTaskPluginSyncSnapshot() (TaskPluginSyncSnapshot, error) {
 	var activePlugins []TaskPlugin
-	if err := DB.Where(&TaskPlugin{Active: true}).
+	if err := DB.Omit("source", "icon").Where(&TaskPlugin{Active: true}).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "key"}}).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "version"}}).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}}).
@@ -222,6 +229,16 @@ func GetTaskPluginSyncSnapshot() (TaskPluginSyncSnapshot, error) {
 		Plugins:  enabledPlugins,
 		Revision: hex.EncodeToString(digest[:]),
 	}, nil
+}
+
+// GetTaskPluginSource loads one override's JavaScript by row id. Rows never
+// change source in place (SaveTaskPlugin rejects a different source for the
+// same key and version), so the id from a sync snapshot identifies exactly the
+// text whose SourceHash that snapshot reported.
+func GetTaskPluginSource(id int64) (LongText, error) {
+	var plugin TaskPlugin
+	err := DB.Select("source").Where(&TaskPlugin{Id: id}).Take(&plugin).Error
+	return plugin.Source, err
 }
 
 func ActivateTaskPlugin(key, version string) error {

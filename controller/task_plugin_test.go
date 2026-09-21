@@ -353,6 +353,19 @@ func TestTaskPluginSourceAboveMySQLTextLimitRoundTrips(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, source, string(stored.Source))
 	assert.Equal(t, icon, string(stored.Icon))
+
+	// The 30-second sync poll must not pull these payloads; it reads hashes
+	// and fetches source only for rows it has to recompile.
+	snapshot, err := model.GetTaskPluginSyncSnapshot()
+	require.NoError(t, err)
+	require.Len(t, snapshot.Plugins, 1)
+	assert.Equal(t, stored.Id, snapshot.Plugins[0].Id)
+	assert.Equal(t, "hash", snapshot.Plugins[0].SourceHash)
+	assert.Empty(t, snapshot.Plugins[0].Source)
+	assert.Empty(t, snapshot.Plugins[0].Icon)
+	loaded, err := model.GetTaskPluginSource(snapshot.Plugins[0].Id)
+	require.NoError(t, err)
+	assert.Equal(t, source, string(loaded))
 }
 
 func TestUploadTaskPluginAcceptsSourcesUpToEightMiB(t *testing.T) {
