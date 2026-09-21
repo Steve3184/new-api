@@ -27,15 +27,17 @@ import {
   useState,
 } from 'react'
 
-import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
+import {
+  readThemePreference,
+  THEME_STORAGE_KEYS,
+  writeThemePreference,
+} from '@/lib/theme-storage'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 type Theme = 'dark' | 'light' | 'system'
 type ResolvedTheme = Exclude<Theme, 'system'>
 
 const DEFAULT_THEME = 'system'
-const THEME_COOKIE_NAME = 'vite-ui-theme'
-const THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
 const THEMES = new Set<Theme>(['dark', 'light', 'system'])
 
 type ThemeProviderProps = {
@@ -76,14 +78,13 @@ function resolveTheme(theme: Theme): ResolvedTheme {
 }
 
 function getStoredTheme(storageKey: string, fallback: Theme): Theme {
-  const storedTheme = getCookie(storageKey) as Theme | undefined
-  return storedTheme && THEMES.has(storedTheme) ? storedTheme : fallback
+  return readThemePreference(storageKey, THEMES, fallback)
 }
 
 export function ThemeProvider({
   children,
   defaultTheme = DEFAULT_THEME,
-  storageKey = THEME_COOKIE_NAME,
+  storageKey = THEME_STORAGE_KEYS.mode,
   ...props
 }: ThemeProviderProps) {
   const configuredDefaultTheme = useSystemConfigStore(
@@ -116,7 +117,7 @@ export function ThemeProvider({
       _setTheme(forcedTheme)
     } else if (previousForcedTheme.current) {
       _setTheme(getStoredTheme(storageKey, effectiveDefaultTheme))
-    } else if (!getCookie(storageKey)) {
+    } else if (getStoredTheme(storageKey, effectiveDefaultTheme) === effectiveDefaultTheme) {
       _setTheme(effectiveDefaultTheme)
     }
     previousForcedTheme.current = forcedTheme
@@ -144,7 +145,7 @@ export function ThemeProvider({
   const setTheme = useCallback(
     (nextTheme: Theme) => {
       if (forcedTheme) return
-      setCookie(storageKey, nextTheme, THEME_COOKIE_MAX_AGE)
+      writeThemePreference(storageKey, nextTheme)
       _setTheme(nextTheme)
     },
     [forcedTheme, storageKey]
@@ -155,7 +156,7 @@ export function ThemeProvider({
       _setTheme(forcedTheme)
       return
     }
-    removeCookie(storageKey)
+    writeThemePreference(storageKey, null)
     _setTheme(effectiveDefaultTheme)
   }, [effectiveDefaultTheme, forcedTheme, storageKey])
 
