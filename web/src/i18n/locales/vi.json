@@ -60,10 +60,7 @@
     "{{count}} log entries removed.": "Đã xóa {{count}} mục nhật ký.",
     "{{count}} minutes ago": "{{count}} phút trước",
     "{{count}} model mapping(s)": "{{count}} ánh xạ mô hình",
-<<<<<<< HEAD
     "{{count}} model(s)": "{{count}} mô hình",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "{{count}} model(s) redirected": "Đã chuyển hướng {{count}} mô hình",
     "{{count}} model(s) skipped because another model derives the same request name": "Đã bỏ qua {{count}} mô hình vì trùng tên yêu cầu với mô hình khác",
     "{{count}} model(s) unchanged by the rule were skipped": "Đã bỏ qua {{count}} mô hình không thay đổi theo quy tắc",
@@ -1685,11 +1682,8 @@
     "Creem products must be a JSON array": "Sản phẩm Creem phải là mảng JSON",
     "Cross-group": "Liên nhóm",
     "Cross-group retry": "Thử lại liên nhóm",
-<<<<<<< HEAD
     "Cryptocurrency": "Tiền mã hóa",
     "Cryptocurrency payment credited successfully": "Đã cộng tiền mã hóa thành công",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Cumulative usage": "Mức sử dụng tích lũy",
     "Currency": "Tiền tệ",
     "Currency & Display": "Tiền tệ & hiển thị",
@@ -2279,10 +2273,7 @@
     "Enable Responses WebSocket": "Bật Responses WebSocket",
     "Enable selected channels": "Kích hoạt các kênh đã chọn",
     "Enable selected models": "Kích hoạt các mô hình đã chọn",
-<<<<<<< HEAD
     "Enable selected users": "Bật người dùng đã chọn",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Enable session affinity": "Bật duy trì phiên",
     "Enable SSL/TLS": "Bật SSL/TLS",
     "Enable SSRF Protection": "Kích hoạt Bảo vệ SSRF",
@@ -2486,11 +2477,8 @@
     "Excellent": "Tuyệt vời",
     "Exchange rate is required": "Cần có tỷ giá",
     "Exchange rate must be greater than 0": "Tỷ giá phải lớn hơn 0",
-<<<<<<< HEAD
     "Exclude me from user leaderboards": "Loại tôi khỏi bảng xếp hạng người dùng",
     "Exclude upstream HTTP 400 errors": "Loại trừ lỗi HTTP 400 từ thượng nguồn",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Excludes the first attempt. Counted per group.": "Không tính lần đầu, tính theo từng nhóm.",
     "Execute code in a sandbox during the response": "Thực thi mã trong sandbox trong quá trình phản hồi",
     "Executor": "Trình thực thi",
@@ -5336,10 +5324,7 @@
     "Request Path": "Đường dẫn yêu cầu",
     "Request policies": "Chính sách yêu cầu",
     "Request policy decisions": "Quyết định chính sách yêu cầu",
-<<<<<<< HEAD
     "Request price": "Giá mỗi yêu cầu",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Request processing": "Xử lý yêu cầu",
     "Request rejected locally": "Yêu cầu bị từ chối cục bộ",
     "Request retry": "Thử lại yêu cầu",
@@ -5788,10 +5773,7 @@
     "Select or enter color value": "Chọn hoặc nhập giá trị màu",
     "Select or enter method identifier": "Chọn hoặc nhập mã định danh phương thức",
     "Select or enter model name": "Chọn hoặc nhập tên mô hình",
-<<<<<<< HEAD
     "Select or enter model names": "Chọn hoặc nhập tên mô hình",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Select or enter payment type": "Chọn hoặc nhập loại thanh toán",
     "Select or enter payment type key": "Chọn hoặc nhập khóa loại thanh toán",
     "Select payment method": "Chọn phương thức thanh toán",
@@ -6882,10 +6864,7 @@
     "Unknown version": "Phiên bản không xác định",
     "Unlimited": "Không giới hạn",
     "Unlimited Quota": "Hạn mức không giới hạn",
-<<<<<<< HEAD
     "UnrealSpeech": "UnrealSpeech",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Unrecognized status code": "Mã trạng thái không xác định",
     "Unsaved changes": "Thay đổi chưa được lưu",
     "Unset legacy prices use the billing engine defaults.": "Giá theo chế độ cũ chưa được thiết lập sẽ dùng giá trị mặc định của hệ thống tính phí.",

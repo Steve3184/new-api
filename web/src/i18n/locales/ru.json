@@ -60,10 +60,7 @@
     "{{count}} log entries removed.": "Удалено {{count}} записей журнала.",
     "{{count}} minutes ago": "{{count}} минут назад",
     "{{count}} model mapping(s)": "Сопоставлений моделей: {{count}}",
-<<<<<<< HEAD
     "{{count}} model(s)": "{{count}} модель(ей)",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "{{count}} model(s) redirected": "Перенаправлено моделей: {{count}}",
     "{{count}} model(s) skipped because another model derives the same request name": "Пропущено моделей с совпадающим именем запроса: {{count}}",
     "{{count}} model(s) unchanged by the rule were skipped": "Пропущено моделей без изменений по правилу: {{count}}",
@@ -1685,11 +1682,8 @@
     "Creem products must be a JSON array": "Продукты Creem должны быть JSON-массивом",
     "Cross-group": "Межгрупповой",
     "Cross-group retry": "Повтор между группами",
-<<<<<<< HEAD
     "Cryptocurrency": "Криптовалюта",
     "Cryptocurrency payment credited successfully": "Платёж в криптовалюте успешно зачислен",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Cumulative usage": "Суммарное использование",
     "Currency": "Валюта",
     "Currency & Display": "Валюта и отображение",
@@ -2279,10 +2273,7 @@
     "Enable Responses WebSocket": "Включить Responses WebSocket",
     "Enable selected channels": "Включить выбранные каналы",
     "Enable selected models": "Включить выбранные модели",
-<<<<<<< HEAD
     "Enable selected users": "Включить выбранных пользователей",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Enable session affinity": "Включить привязку сессии",
     "Enable SSL/TLS": "Включить SSL/TLS",
     "Enable SSRF Protection": "Включить защиту от SSRF",
@@ -2486,11 +2477,8 @@
     "Excellent": "Отлично",
     "Exchange rate is required": "Требуется курс обмена",
     "Exchange rate must be greater than 0": "Курс обмена должен быть больше 0",
-<<<<<<< HEAD
     "Exclude me from user leaderboards": "Исключить меня из рейтингов пользователей",
     "Exclude upstream HTTP 400 errors": "Исключать ошибки HTTP 400 от вышестоящего сервиса",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Excludes the first attempt. Counted per group.": "Без первой попытки, отдельно для каждой группы.",
     "Execute code in a sandbox during the response": "Выполнять код в песочнице во время ответа",
     "Executor": "Исполнитель",
@@ -5336,10 +5324,7 @@
     "Request Path": "Путь запроса",
     "Request policies": "Политики запросов",
     "Request policy decisions": "Решения политики запросов",
-<<<<<<< HEAD
     "Request price": "Цена запроса",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Request processing": "Обработка запросов",
     "Request rejected locally": "Запрос отклонён локально",
     "Request retry": "Повтор запросов",
@@ -5788,10 +5773,7 @@
     "Select or enter color value": "Выбрать или ввести значение цвета",
     "Select or enter method identifier": "Выберите или введите идентификатор способа",
     "Select or enter model name": "Выберите или введите имя модели",
-<<<<<<< HEAD
     "Select or enter model names": "Выберите или введите модели",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Select or enter payment type": "Выбрать или ввести тип оплаты",
     "Select or enter payment type key": "Выберите или введите ключ типа оплаты",
     "Select payment method": "Выберите способ оплаты",
@@ -6882,10 +6864,7 @@
     "Unknown version": "Неизвестная версия",
     "Unlimited": "Без ограничений",
     "Unlimited Quota": "Неограниченная квота",
-<<<<<<< HEAD
     "UnrealSpeech": "UnrealSpeech",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Unrecognized status code": "Нераспознанный код состояния",
     "Unsaved changes": "Несохранённые изменения",
     "Unset legacy prices use the billing engine defaults.": "Для неуказанных старых цен используются значения по умолчанию системы тарификации.",

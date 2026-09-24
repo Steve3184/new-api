@@ -60,10 +60,7 @@
     "{{count}} log entries removed.": "已刪除 {{count}} 條日誌。",
     "{{count}} minutes ago": "{{count}} 分鐘前",
     "{{count}} model mapping(s)": "{{count}} 筆模型映射",
-<<<<<<< HEAD
     "{{count}} model(s)": "{{count}} 個模型",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "{{count}} model(s) redirected": "已重新導向 {{count}} 個模型",
     "{{count}} model(s) skipped because another model derives the same request name": "{{count}} 個模型與其他模型產生相同的請求名稱，已略過",
     "{{count}} model(s) unchanged by the rule were skipped": "{{count}} 個模型不受規則影響，已略過",
@@ -1685,11 +1682,8 @@
     "Creem products must be a JSON array": "Creem 產品必須是 JSON 陣列",
     "Cross-group": "跨分組",
     "Cross-group retry": "跨分組重試",
-<<<<<<< HEAD
     "Cryptocurrency": "加密貨幣",
     "Cryptocurrency payment credited successfully": "加密貨幣付款已成功入帳",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Cumulative usage": "累計用量",
     "Currency": "貨幣",
     "Currency & Display": "貨幣與展示",
@@ -2279,10 +2273,7 @@
     "Enable Responses WebSocket": "啟用 Responses WebSocket",
     "Enable selected channels": "啟用選定的渠道",
     "Enable selected models": "啟用選定的模型",
-<<<<<<< HEAD
     "Enable selected users": "啟用選取的用戶",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Enable session affinity": "啟用工作階段保持",
     "Enable SSL/TLS": "啟用 SSL/TLS",
     "Enable SSRF Protection": "啟用 SSRF 保護",
@@ -2486,11 +2477,8 @@
     "Excellent": "優秀",
     "Exchange rate is required": "匯率為必填項",
     "Exchange rate must be greater than 0": "匯率必須大於 0",
-<<<<<<< HEAD
     "Exclude me from user leaderboards": "不參與使用者排行榜",
     "Exclude upstream HTTP 400 errors": "排除上游 HTTP 400 錯誤",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Excludes the first attempt. Counted per group.": "不含首次，依分組計算。",
     "Execute code in a sandbox during the response": "在回應過程中沙箱執行程式碼",
     "Executor": "執行實例",
@@ -5336,10 +5324,7 @@
     "Request Path": "請求路徑",
     "Request policies": "請求策略",
     "Request policy decisions": "請求策略決策",
-<<<<<<< HEAD
     "Request price": "單次請求價格",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Request processing": "請求處理",
     "Request rejected locally": "請求在本機被拒絕",
     "Request retry": "請求重試",
@@ -5788,10 +5773,7 @@
     "Select or enter color value": "選擇或輸入顏色值",
     "Select or enter method identifier": "選擇或輸入支付方式標識",
     "Select or enter model name": "選擇或輸入模型名稱",
-<<<<<<< HEAD
     "Select or enter model names": "選擇或輸入模型名稱",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Select or enter payment type": "選擇或輸入支付類型",
     "Select or enter payment type key": "選擇或輸入支付處理標識",
     "Select payment method": "選擇支付方式",
@@ -6882,10 +6864,7 @@
     "Unknown version": "未知版本",
     "Unlimited": "無限制",
     "Unlimited Quota": "無限配額",
-<<<<<<< HEAD
     "UnrealSpeech": "UnrealSpeech",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Unrecognized status code": "無法識別的狀態碼",
     "Unsaved changes": "未儲存的變更",
     "Unset legacy prices use the billing engine defaults.": "未設定的舊模式價格使用計費引擎的預設值。",

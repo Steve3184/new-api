@@ -60,10 +60,7 @@
     "{{count}} log entries removed.": "{{count}} 件のログエントリを削除しました。",
     "{{count}} minutes ago": "{{count}} 分前",
     "{{count}} model mapping(s)": "{{count}} 件のモデルマッピング",
-<<<<<<< HEAD
     "{{count}} model(s)": "{{count}} モデル",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "{{count}} model(s) redirected": "{{count}} 件のモデルをリダイレクト済み",
     "{{count}} model(s) skipped because another model derives the same request name": "他のモデルと同じリクエスト名になる {{count}} 件のモデルをスキップしました",
     "{{count}} model(s) unchanged by the rule were skipped": "ルールで変化しない {{count}} 件のモデルをスキップしました",
@@ -1685,11 +1682,8 @@
     "Creem products must be a JSON array": "Creem 製品は JSON 配列でなければなりません",
     "Cross-group": "グループ横断",
     "Cross-group retry": "グループ横断リトライ",
-<<<<<<< HEAD
     "Cryptocurrency": "暗号資産",
     "Cryptocurrency payment credited successfully": "暗号資産の支払いを入金しました",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Cumulative usage": "累積使用量",
     "Currency": "通貨",
     "Currency & Display": "通貨と表示",
@@ -2279,10 +2273,7 @@
     "Enable Responses WebSocket": "Responses WebSocket を有効化",
     "Enable selected channels": "選択したチャネルを有効にする",
     "Enable selected models": "選択したモデルを有効にする",
-<<<<<<< HEAD
     "Enable selected users": "選択したユーザーを有効化",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Enable session affinity": "セッション維持を有効にする",
     "Enable SSL/TLS": "SSL/TLSを有効にする",
     "Enable SSRF Protection": "SSRF保護を有効にする",
@@ -2486,11 +2477,8 @@
     "Excellent": "優秀",
     "Exchange rate is required": "為替レートは必須です",
     "Exchange rate must be greater than 0": "為替レートは 0 より大きくする必要があります",
-<<<<<<< HEAD
     "Exclude me from user leaderboards": "ユーザーランキングから自分を除外",
     "Exclude upstream HTTP 400 errors": "アップストリームの HTTP 400 エラーを除外",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Excludes the first attempt. Counted per group.": "初回を除く、グループごとの回数です。",
     "Execute code in a sandbox during the response": "応答中にサンドボックスでコードを実行",
     "Executor": "実行ノード",
@@ -5336,10 +5324,7 @@
     "Request Path": "リクエストパス",
     "Request policies": "リクエストポリシー",
     "Request policy decisions": "リクエストポリシーの判断",
-<<<<<<< HEAD
     "Request price": "リクエスト単価",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Request processing": "リクエスト処理",
     "Request rejected locally": "ローカルで拒否",
     "Request retry": "リクエスト再試行",
@@ -5788,10 +5773,7 @@
     "Select or enter color value": "色の値を選択または入力",
     "Select or enter method identifier": "決済方法の識別子を選択または入力",
     "Select or enter model name": "モデル名を選択または入力",
-<<<<<<< HEAD
     "Select or enter model names": "モデルを選択または入力",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Select or enter payment type": "支払いタイプを選択または入力",
     "Select or enter payment type key": "支払いタイプキーを選択または入力",
     "Select payment method": "お支払い方法を選択",
@@ -6882,10 +6864,7 @@
     "Unknown version": "不明なバージョン",
     "Unlimited": "無制限",
     "Unlimited Quota": "無制限のクォータ",
-<<<<<<< HEAD
     "UnrealSpeech": "UnrealSpeech",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Unrecognized status code": "認識できないステータスコード",
     "Unsaved changes": "未保存の変更",
     "Unset legacy prices use the billing engine defaults.": "未設定の旧方式の料金には、課金エンジンの既定値が適用されます。",

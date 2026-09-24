@@ -60,10 +60,7 @@
     "{{count}} log entries removed.": "{{count}} entrées de journal supprimées.",
     "{{count}} minutes ago": "il y a {{count}} minutes",
     "{{count}} model mapping(s)": "{{count}} correspondance(s) de modèle",
-<<<<<<< HEAD
     "{{count}} model(s)": "{{count}} modèle(s)",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "{{count}} model(s) redirected": "{{count}} modèle(s) redirigé(s)",
     "{{count}} model(s) skipped because another model derives the same request name": "{{count}} modèle(s) ignoré(s) car un autre modèle produit le même nom de requête",
     "{{count}} model(s) unchanged by the rule were skipped": "{{count}} modèle(s) non modifié(s) par la règle ont été ignoré(s)",
@@ -1685,11 +1682,8 @@
     "Creem products must be a JSON array": "Les produits Creem doivent être un tableau JSON",
     "Cross-group": "Inter-groupes",
     "Cross-group retry": "Nouvelle tentative inter-groupes",
-<<<<<<< HEAD
     "Cryptocurrency": "Cryptomonnaie",
     "Cryptocurrency payment credited successfully": "Paiement en cryptomonnaie crédité",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Cumulative usage": "Utilisation cumulée",
     "Currency": "Devise",
     "Currency & Display": "Devise et affichage",
@@ -2279,10 +2273,7 @@
     "Enable Responses WebSocket": "Activer Responses WebSocket",
     "Enable selected channels": "Activer les canaux sélectionnés",
     "Enable selected models": "Activer les modèles sélectionnés",
-<<<<<<< HEAD
     "Enable selected users": "Activer les utilisateurs sélectionnés",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Enable session affinity": "Activer l’affinité de session",
     "Enable SSL/TLS": "Activer SSL/TLS",
     "Enable SSRF Protection": "Activer la protection SSRF",
@@ -2486,11 +2477,8 @@
     "Excellent": "Excellent",
     "Exchange rate is required": "Le taux de change est requis",
     "Exchange rate must be greater than 0": "Le taux de change doit être supérieur à 0",
-<<<<<<< HEAD
     "Exclude me from user leaderboards": "Me retirer des classements utilisateurs",
     "Exclude upstream HTTP 400 errors": "Exclure les erreurs HTTP 400 en amont",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Excludes the first attempt. Counted per group.": "Hors première tentative, compté par groupe.",
     "Execute code in a sandbox during the response": "Exécuter du code dans un bac à sable pendant la réponse",
     "Executor": "Exécuteur",
@@ -5336,10 +5324,7 @@
     "Request Path": "Chemin de requête",
     "Request policies": "Politiques de requête",
     "Request policy decisions": "Décisions de la politique de requête",
-<<<<<<< HEAD
     "Request price": "Prix par requête",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Request processing": "Traitement des requêtes",
     "Request rejected locally": "Requête rejetée localement",
     "Request retry": "Relance des requêtes",
@@ -5788,10 +5773,7 @@
     "Select or enter color value": "Sélectionner ou saisir une valeur de couleur",
     "Select or enter method identifier": "Sélectionner ou saisir l’identifiant du mode",
     "Select or enter model name": "Sélectionner ou saisir le nom du modèle",
-<<<<<<< HEAD
     "Select or enter model names": "Sélectionnez ou saisissez des modèles",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Select or enter payment type": "Sélectionner ou saisir le type de paiement",
     "Select or enter payment type key": "Sélectionner ou saisir la clé de type de paiement",
     "Select payment method": "Sélectionner le mode de paiement",
@@ -6882,10 +6864,7 @@
     "Unknown version": "Version inconnue",
     "Unlimited": "Illimité",
     "Unlimited Quota": "Quota illimité",
-<<<<<<< HEAD
     "UnrealSpeech": "UnrealSpeech",
-=======
->>>>>>> b932e6d87 (fix(web): robustly display conditional task billing prices)
     "Unrecognized status code": "Code d'état non reconnu",
     "Unsaved changes": "Modifications non enregistrées",
     "Unset legacy prices use the billing engine defaults.": "Les anciens tarifs non définis utilisent les valeurs par défaut du moteur de facturation.",
