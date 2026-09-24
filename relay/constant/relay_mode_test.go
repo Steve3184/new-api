@@ -22,6 +22,8 @@ func TestPath2RelayMode(t *testing.T) {
 		{path: "/pg/videos/task_public", want: RelayModeVideoFetchByID},
 		{path: "/v1/alpha/search", want: RelayModeAlphaSearch},
 		{path: "/v1/alpha/search?foo=1", want: RelayModeAlphaSearch},
+		{path: "/v1/systemone", want: RelayModeSystemOne},
+		{path: "/v1/systemone?trace=1", want: RelayModeSystemOne},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {

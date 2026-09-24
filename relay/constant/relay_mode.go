@@ -1,6 +1,7 @@
 package constant
 
 import (
+	"net/url"
 	"strings"
 )
 
@@ -54,14 +55,20 @@ const (
 	RelayModeResponsesCompact
 
 	RelayModeAlphaSearch
+	RelayModeSystemOne
 )
 
 func Path2RelayMode(path string) int {
 	if strings.HasPrefix(path, "/pg/") {
 		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
 	}
+	if parsed, err := url.Parse(path); err == nil {
+		path = parsed.Path
+	}
 	relayMode := RelayModeUnknown
-	if strings.HasPrefix(path, "/v1/chat/completions") {
+	if path == "/v1/systemone" {
+		relayMode = RelayModeSystemOne
+	} else if strings.HasPrefix(path, "/v1/chat/completions") {
 		relayMode = RelayModeChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {
 		relayMode = RelayModeCompletions

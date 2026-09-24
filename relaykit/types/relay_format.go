@@ -15,6 +15,7 @@ const (
 	RelayFormatUnrealSpeechWebSocket                 = "unrealspeech_websocket"
 	RelayFormatRerank                                = "rerank"
 	RelayFormatEmbedding                             = "embedding"
+	RelayFormatSystemOne                             = "systemone"
 
 	RelayFormatTask    = "task"
 	RelayFormatMjProxy = "mj_proxy"

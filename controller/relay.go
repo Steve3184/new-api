@@ -50,6 +50,8 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.ResponsesHelper(c, info)
 	case relayconstant.RelayModeAlphaSearch:
 		err = relay.AlphaSearchHelper(c, info)
+	case relayconstant.RelayModeSystemOne:
+		err = relay.SystemOneHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
 	}
@@ -189,6 +191,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		service.AppendUsedChannel(c, channel.Id)
+		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+		if (channelType == constant.ChannelTypeTypeSafe) != (relayInfo.RelayMode == relayconstant.RelayModeSystemOne) {
+			newAPIError = types.NewErrorWithStatusCode(errors.New("TypeSafe channels support only /v1/systemone; /v1/systemone requires a TypeSafe channel"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			break
+		}
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break

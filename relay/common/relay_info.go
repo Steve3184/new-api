@@ -683,6 +683,14 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 	var info *RelayInfo
 	var err error
 	switch relayFormat {
+	case types.RelayFormatSystemOne:
+		if request, ok := request.(*dto.SystemOneRequest); ok {
+			info = genBaseRelayInfo(c, request)
+			info.RelayFormat = types.RelayFormatSystemOne
+			info.IsStream = false
+			break
+		}
+		err = errors.New("request is not a SystemOneRequest")
 	case types.RelayFormatOpenAI:
 		info = GenRelayInfoOpenAI(c, request)
 	case types.RelayFormatOpenAIAudio:

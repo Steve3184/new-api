@@ -18,4 +18,5 @@ const (
 	EndpointTypeEmbeddings            = types.EndpointTypeEmbeddings
 	EndpointTypeOpenAIVideo           = types.EndpointTypeOpenAIVideo
 	EndpointType3D                    = types.EndpointType3D
+	EndpointTypeSystemOne             = types.EndpointTypeSystemOne
 )

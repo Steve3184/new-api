@@ -41,5 +41,6 @@ const (
 	APITypeSub2API
 	APITypeNewAPI
 	APITypeAgnes
+	APITypeTypeSafe
 	APITypeDummy // this one is only for count, do not add any channel after this
 )

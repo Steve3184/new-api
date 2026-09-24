@@ -1464,6 +1464,7 @@
     "Connect to OpenAI Sora video generation services": "Подключение к сервисам генерации видео OpenAI Sora",
     "Connect to Perplexity model services": "Подключение к моделям Perplexity",
     "Connect to self-hosted models served by SGLang": "Подключение к моделям на собственном сервере SGLang",
+    "Connect to TypeSafe decision models through OpenCode Zen": "Подключение к моделям принятия решений TypeSafe через OpenCode Zen",
     "Connect to self-hosted models served by vLLM": "Подключение моделей на собственном сервере vLLM",
     "Connect to self-hosted models served by Xinference": "Подключение к моделям на собственном сервере Xinference",
     "Connect to SiliconFlow model inference services": "Подключение к сервисам инференса SiliconFlow",
