@@ -144,6 +144,8 @@ export interface LogOtherData {
       original: number
       clamped: number
     }
+    original_error?: string
+    original_status_code?: number
     // Reject / intercept reason (admin only)
     reject_reason?: string
     task_plugin?: TaskPluginInfo

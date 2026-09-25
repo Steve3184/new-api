@@ -27,7 +27,12 @@ const getErrorText = (code: string) => code
 describe('global error rewrite table', () => {
   test('adds a row and deletes it from the table', async () => {
     const user = userEvent.setup()
-    let rows: Array<{ id: string; statusCode: string; message: string }> = []
+    let rows: Array<{
+      id: string
+      statusCode: string
+      rewriteStatusCode: string
+      message: string
+    }> = []
     let addCount = 0
 
     const renderTable = () => (
@@ -37,7 +42,15 @@ describe('global error rewrite table', () => {
         disabled={false}
         onAddRow={() => {
           addCount += 1
-          rows = [...rows, { id: 'new-row', statusCode: '', message: '' }]
+          rows = [
+            ...rows,
+            {
+              id: 'new-row',
+              statusCode: '',
+              rewriteStatusCode: '',
+              message: '',
+            },
+          ]
           rendered.rerender(renderTable())
         }}
         onDeleteRow={(id) => {

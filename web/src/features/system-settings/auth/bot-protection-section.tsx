@@ -53,7 +53,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const botProtectionSchema = z
   .object({
-    CaptchaType: z.enum(['turnstile', 'hcaptcha', 'cap']),
+    CaptchaType: z.enum(['none', 'turnstile', 'hcaptcha', 'cap']),
     TurnstileCheckEnabled: z.boolean(),
     TurnstileSiteKey: z.string().optional(),
     TurnstileSecretKey: z.string().optional(),
@@ -173,7 +173,10 @@ const botProtectionSchema = z
             message: 'hCaptcha secret key is required',
           })
         }
-      } else if (!values.TurnstileCheckEnabled) {
+      } else if (
+        values.CaptchaType === 'turnstile' &&
+        !values.TurnstileCheckEnabled
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['TurnstileCheckEnabled'],
@@ -239,6 +242,22 @@ const botProtectionSchema = z
   })
 
 export type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
+
+function captchaProviderLabel(
+  value: BotProtectionFormValues['CaptchaType'],
+  translate: (key: string) => string
+) {
+  switch (value) {
+    case 'none':
+      return translate('None')
+    case 'cap':
+      return 'Cap (PoW)'
+    case 'hcaptcha':
+      return 'hCaptcha'
+    default:
+      return 'Cloudflare Turnstile'
+  }
+}
 
 type BotProtectionSectionProps = {
   defaultValues: BotProtectionFormValues
@@ -327,15 +346,12 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue>
-                        {field.value === 'turnstile'
-                          ? 'Cloudflare Turnstile'
-                          : field.value === 'cap'
-                            ? 'Cap (PoW)'
-                            : 'hCaptcha'}
+                        {captchaProviderLabel(field.value, t)}
                       </SelectValue>
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent alignItemWithTrigger={false}>
+                    <SelectItem value='none'>{t('None')}</SelectItem>
                     <SelectItem value='turnstile'>
                       Cloudflare Turnstile
                     </SelectItem>

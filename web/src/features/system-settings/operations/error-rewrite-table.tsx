@@ -43,7 +43,7 @@ type ErrorRewriteTableProps = {
   onDeleteRow: (id: string) => void
   onChangeRule: (
     id: string,
-    field: 'statusCode' | 'message',
+    field: 'statusCode' | 'rewriteStatusCode' | 'message',
     value: string
   ) => void
   getErrorText: (code: ErrorRewriteRuleErrorCode) => string
@@ -74,10 +74,13 @@ export function ErrorRewriteTable(props: ErrorRewriteTableProps) {
       </div>
 
       <div className='overflow-x-auto rounded-md border'>
-        <Table className='min-w-[42rem]'>
+        <Table className='min-w-[52rem]'>
           <TableHeader>
             <TableRow>
               <TableHead className='w-40'>{t('Status Code')}</TableHead>
+              <TableHead className='w-40'>
+                {t('Response Status Code')}
+              </TableHead>
               <TableHead>{t('Error Message')}</TableHead>
               <TableHead className='w-16 text-right'>{t('Actions')}</TableHead>
             </TableRow>
@@ -86,7 +89,7 @@ export function ErrorRewriteTable(props: ErrorRewriteTableProps) {
             {props.rules.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={3}
+                  colSpan={4}
                   className='text-muted-foreground h-24 text-center text-sm'
                 >
                   {t(
@@ -122,7 +125,11 @@ type ErrorRewriteTableRowProps = {
   disabled: boolean
   getErrorText: (code: ErrorRewriteRuleErrorCode) => string
   onDelete: (id: string) => void
-  onChange: (id: string, field: 'statusCode' | 'message', value: string) => void
+  onChange: (
+    id: string,
+    field: 'statusCode' | 'rewriteStatusCode' | 'message',
+    value: string
+  ) => void
 }
 
 function ErrorRewriteTableRow(props: ErrorRewriteTableRowProps) {
@@ -159,6 +166,36 @@ function ErrorRewriteTableRow(props: ErrorRewriteTableRowProps) {
         {statusErrorCode && (
           <p id={statusDescriptionId} className='text-destructive mt-1 text-xs'>
             {props.getErrorText(statusErrorCode)}
+          </p>
+        )}
+      </TableCell>
+      <TableCell className='align-top'>
+        <Input
+          type='number'
+          min={100}
+          max={599}
+          step={1}
+          inputMode='numeric'
+          value={props.rule.rewriteStatusCode}
+          placeholder={t('Keep original')}
+          aria-label={`${t('Response Status Code')} ${props.index + 1}`}
+          aria-invalid={
+            props.errors.includes('invalid-rewrite-status-code')
+              ? 'true'
+              : 'false'
+          }
+          onChange={(event) =>
+            props.onChange(
+              props.rule.id,
+              'rewriteStatusCode',
+              event.target.value
+            )
+          }
+          disabled={props.disabled}
+        />
+        {props.errors.includes('invalid-rewrite-status-code') && (
+          <p className='text-destructive mt-1 text-xs'>
+            {props.getErrorText('invalid-rewrite-status-code')}
           </p>
         )}
       </TableCell>

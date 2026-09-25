@@ -17,6 +17,8 @@ func CaptchaCheck() gin.HandlerFunc {
 			CapCheck()(c)
 		case "hcaptcha":
 			HCaptchaCheck()(c)
+		case "none":
+			c.Next()
 		default:
 			// "turnstile" or any unrecognised value falls back to Turnstile
 			TurnstileCheck()(c)
@@ -62,6 +64,8 @@ func captchaCheckFresh(required func() bool, capMiddleware func() gin.HandlerFun
 			return
 		}
 		switch common.CaptchaType {
+		case "none":
+			c.Next()
 		case "cap":
 			if !common.CapEnabled {
 				c.JSON(http.StatusOK, gin.H{"success": false, "message": "Cap is not enabled"})

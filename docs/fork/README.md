@@ -1740,15 +1740,21 @@ Files:
 
 Administrators can configure global client-facing error rewrites under
 **System Settings -> Operations -> Global Error Rewrite**. The feature is
-disabled by default and is stored as two additive options:
+disabled by default. Rules can optionally replace the client response status
+code, rewrite error-log content for users, or require a keyword in the
+upstream response body:
 
 | Option | Purpose |
 | --- | --- |
 | `error_rewrite.enabled` | Global switch for applying configured rewrites |
-| `error_rewrite.rules` | JSON array of unique upstream HTTP status codes and replacement messages |
+| `error_rewrite.affect_usage_logs` | Also rewrite user-visible error logs; admins and root admins retain the original error |
+| `error_rewrite.body_keyword_trigger_enabled` | Require a configured body keyword in addition to a matching status code |
+| `error_rewrite.body_keyword_triggers` | JSON array of case-insensitive upstream response body keywords |
+| `error_rewrite.rules` | JSON array of unique upstream HTTP status codes, optional replacement response status codes, and replacement messages |
 
-The UI exposes the rules as a table with status-code and message columns,
-row-level validation, deletion controls, and an **Add Row** action. Rule
+The UI exposes the rules as a table with upstream status, optional response
+status, and message columns, plus row-level validation and deletion controls.
+When body matching is enabled, any listed keyword may trigger a rule. Rule
 messages support these placeholders:
 
 | Placeholder | Value |
@@ -1758,17 +1764,19 @@ messages support these placeholders:
 | `{upstream_status_code}` | Original HTTP status received from the upstream |
 
 Rules match the original upstream status before per-channel status-code
-mapping. A rewrite changes only the client-facing message; the returned HTTP
-status, protocol-specific error shape, error code, retry behavior, channel
-health decisions, and diagnostic logging remain unchanged. Local validation,
-billing, quota, and routing failures are not rewritten. The same behavior is
-applied to synchronous relay formats and asynchronous task submissions,
-including video, 3D, and task-based speech endpoints.
+mapping. A rewrite can change the client-facing message and optionally the
+response status; protocol-specific error shape, error code, retry behavior,
+channel health decisions, and diagnostic logging remain unchanged. When usage
+log rewriting is enabled, users see the rewritten error while administrators
+and root administrators see the original error and status code. Local
+validation, billing, quota, and routing failures are not rewritten. The same
+behavior is applied to synchronous relay formats and asynchronous task
+submissions, including video, 3D, and task-based speech endpoints.
 
 The settings implementation uses a synchronized config codec so live option
 updates cannot race with relay requests. Invalid status ranges, duplicate
-codes, empty messages, non-array JSON, and invalid switch values are rejected
-at the option boundary.
+codes, empty messages, malformed keyword arrays, and invalid switch values are
+rejected at the option boundary.
 
 Files:
 

@@ -147,7 +147,7 @@ var CapCheckinSecretKey = ""
 var ForceCheckinCaptcha = false
 var ForceRedemptionCaptcha = false
 
-// CaptchaType selects the active captcha provider: "turnstile", "hcaptcha", or "cap".
+// CaptchaType selects the active captcha provider: "none", "turnstile", "hcaptcha", or "cap".
 var CaptchaType = "turnstile"
 
 // Difficulty values are synchronized to the corresponding Cap Standalone keys.

@@ -6,14 +6,15 @@ import (
 
 type TaskError struct {
 	// NoRetry prevents duplicate upstream work after a response has been accepted.
-	NoRetry            bool   `json:"-"`
-	Code               string `json:"code"`
-	Message            string `json:"message"`
-	Data               any    `json:"data"`
-	StatusCode         int    `json:"-"`
-	UpstreamStatusCode int    `json:"-"`
-	LocalError         bool   `json:"-"`
-	Error              error  `json:"-"`
+	NoRetry              bool   `json:"-"`
+	Code                 string `json:"code"`
+	Message              string `json:"message"`
+	Data                 any    `json:"data"`
+	StatusCode           int    `json:"-"`
+	UpstreamStatusCode   int    `json:"-"`
+	UpstreamResponseBody string `json:"-"`
+	LocalError           bool   `json:"-"`
+	Error                error  `json:"-"`
 }
 
 type TaskData interface {

@@ -86,9 +86,11 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	upstreamStatusCode := resp.StatusCode
+	responseBodyText := ""
 	defer func() {
 		if newApiErr != nil {
 			newApiErr.SetUpstreamStatusCode(upstreamStatusCode)
+			newApiErr.SetUpstreamResponseBody(responseBodyText)
 		}
 	}()
 
@@ -100,7 +102,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	}
 	CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
-	responseBodyText := string(responseBody)
+	responseBodyText = string(responseBody)
 	responseBodyPreview := common.LocalLogPreview(responseBodyText)
 	buildErrWithBody := func(message string) error {
 		if message == "" {
@@ -229,9 +231,11 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *taskdto.TaskError {
 		return nil
 	}
 	return &taskdto.TaskError{
-		Code:       string(apiErr.GetErrorCode()),
-		Message:    apiErr.Err.Error(),
-		StatusCode: apiErr.StatusCode,
-		Error:      apiErr.Err,
+		Code:                 string(apiErr.GetErrorCode()),
+		Message:              apiErr.Err.Error(),
+		StatusCode:           apiErr.StatusCode,
+		UpstreamStatusCode:   apiErr.GetUpstreamStatusCode(),
+		UpstreamResponseBody: apiErr.GetUpstreamResponseBody(),
+		Error:                apiErr.Err,
 	}
 }

@@ -34,6 +34,7 @@ describe('global error rewrite rule validation', () => {
       {
         id: 'error-rewrite-0',
         statusCode: '429',
+        rewriteStatusCode: '',
         message: 'Model {model} is unavailable',
       },
     ])
@@ -44,10 +45,25 @@ describe('global error rewrite rule validation', () => {
 
   test('rejects out-of-range, fractional, empty, and duplicate rules', () => {
     const errors = validateErrorRewriteRules([
-      { id: 'low', statusCode: '99', message: 'too low' },
-      { id: 'fraction', statusCode: '500.5', message: 'fractional' },
-      { id: 'empty', statusCode: '500', message: '  ' },
-      { id: 'duplicate', statusCode: '500', message: 'duplicate' },
+      {
+        id: 'low',
+        statusCode: '99',
+        rewriteStatusCode: '',
+        message: 'too low',
+      },
+      {
+        id: 'fraction',
+        statusCode: '500.5',
+        rewriteStatusCode: '',
+        message: 'fractional',
+      },
+      { id: 'empty', statusCode: '500', rewriteStatusCode: '', message: '  ' },
+      {
+        id: 'duplicate',
+        statusCode: '500',
+        rewriteStatusCode: '',
+        message: 'duplicate',
+      },
     ])
 
     expect(errors.low).toEqual(['invalid-status-code'])
@@ -58,5 +74,17 @@ describe('global error rewrite rule validation', () => {
 
   test('serializes an empty editor as an empty JSON array', () => {
     expect(serializeErrorRewriteRules([])).toBe('[]')
+  })
+
+  test('accepts an optional replacement response status code', () => {
+    const rows = parseErrorRewriteRules(
+      '[{"status_code":429,"rewrite_status_code":503,"message":"retry"}]'
+    )
+    expect(rows[0].rewriteStatusCode).toBe('503')
+    expect(JSON.parse(serializeErrorRewriteRules(rows))[0]).toEqual({
+      status_code: 429,
+      rewrite_status_code: 503,
+      message: 'retry',
+    })
   })
 })

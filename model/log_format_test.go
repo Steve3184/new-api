@@ -87,6 +87,31 @@ func TestTaskPluginLogVisibilityIsRoleSeparated(t *testing.T) {
 	})
 }
 
+func TestPrivilegedLogViewsRestoreOriginalRewrittenError(t *testing.T) {
+	other := common.MapToJsonStr(map[string]any{
+		"status_code": 503,
+		"admin_info": map[string]any{
+			"original_error":       "status_code=502, upstream failed",
+			"original_status_code": 502,
+		},
+	})
+
+	adminLogs := []*Log{{Type: LogTypeError, Content: "status_code=503, rewritten", Other: other}}
+	FormatAdminLogs(adminLogs)
+	assert.Equal(t, "status_code=502, upstream failed", adminLogs[0].Content)
+	adminOther, err := common.StrToMap(adminLogs[0].Other)
+	require.NoError(t, err)
+	assert.Equal(t, float64(502), adminOther["status_code"])
+
+	rootLogs := []*Log{{Type: LogTypeError, Content: "status_code=503, rewritten", Other: other}}
+	FormatRootLogs(rootLogs)
+	assert.Equal(t, "status_code=502, upstream failed", rootLogs[0].Content)
+
+	userLogs := []*Log{{Type: LogTypeError, Content: "status_code=503, rewritten", Other: other}}
+	formatUserLogs(userLogs, 0)
+	assert.Equal(t, "status_code=503, rewritten", userLogs[0].Content)
+}
+
 func TestLegacyLogOtherVisibilityIsRoleSeparated(t *testing.T) {
 	other := common.MapToJsonStr(map[string]any{
 		"request_path":  "/v1/chat/completions",
@@ -278,6 +303,19 @@ func TestUserCSVExportsOmitProviderIdentifiers(t *testing.T) {
 			"keep":                "log-value",
 		}),
 	}
+	errorLogEntry := &Log{
+		UserId:    userID,
+		CreatedAt: 2,
+		Type:      LogTypeError,
+		Content:   "status_code=503, rewritten",
+		Other: common.MapToJsonStr(map[string]any{
+			"status_code": 503,
+			"admin_info": map[string]any{
+				"original_error":       "status_code=502, upstream failed",
+				"original_status_code": 502,
+			},
+		}),
+	}
 	taskEntry := &Task{
 		TaskID:    "task_csv_public",
 		UserId:    userID,
@@ -307,11 +345,13 @@ func TestUserCSVExportsOmitProviderIdentifiers(t *testing.T) {
 		}}},
 	}
 	require.NoError(t, DB.Create(logEntry).Error)
+	require.NoError(t, DB.Create(errorLogEntry).Error)
 	require.NoError(t, DB.Create(taskEntry).Error)
 	require.NoError(t, DB.Create(midjourneyEntry).Error)
 	require.NoError(t, LOG_DB.Create(auditEntry).Error)
 	t.Cleanup(func() {
 		DB.Delete(&Log{}, logEntry.Id)
+		DB.Delete(&Log{}, errorLogEntry.Id)
 		DB.Delete(&Task{}, taskEntry.ID)
 		DB.Delete(&Midjourney{}, midjourneyEntry.Id)
 		LOG_DB.Delete(&AuditLog{}, auditEntry.Id)
@@ -334,6 +374,13 @@ func TestUserCSVExportsOmitProviderIdentifiers(t *testing.T) {
 	var logCSV bytes.Buffer
 	require.NoError(t, WriteLogsCSV(&logCSV, userID, 0, 0, 0, "", "", "", 0, "", "", "", 0, true))
 	assert.NotContains(t, logCSV.String(), "upstream-request-secret")
+	assert.Contains(t, logCSV.String(), "status_code=503, rewritten")
+	assert.NotContains(t, logCSV.String(), "status_code=502, upstream failed")
+
+	var adminLogCSV bytes.Buffer
+	require.NoError(t, WriteLogsCSV(&adminLogCSV, 0, 0, 0, 0, "", "", "", 0, "", "", "", common.RoleAdminUser, false))
+	assert.Contains(t, adminLogCSV.String(), "status_code=502, upstream failed")
+	assert.NotContains(t, adminLogCSV.String(), "status_code=503, rewritten")
 
 	taskHeader := readCSV(func(buffer *bytes.Buffer) error {
 		return WriteTaskCSV(buffer, userID, SyncTaskQueryParams{}, 0, true)

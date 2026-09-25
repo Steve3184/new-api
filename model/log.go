@@ -161,6 +161,7 @@ func formatUserLogs(logs []*Log, startIdx int) {
 // admin_info. Root callers must not pass their results through this formatter.
 func FormatAdminLogs(logs []*Log) {
 	for i := range logs {
+		restoreOriginalErrorContent(logs[i])
 		logs[i].Other = formatLogOtherJSON(logs[i].Other, logOtherVisibilityAdmin)
 	}
 }
@@ -169,7 +170,29 @@ func FormatAdminLogs(logs []*Log) {
 // without removing root-only diagnostics.
 func FormatRootLogs(logs []*Log) {
 	for i := range logs {
+		restoreOriginalErrorContent(logs[i])
 		logs[i].Other = formatLogOtherJSON(logs[i].Other, logOtherVisibilityRoot)
+	}
+}
+
+func restoreOriginalErrorContent(log *Log) {
+	if log == nil || log.Type != LogTypeError || log.Other == "" {
+		return
+	}
+	var metadata struct {
+		AdminInfo struct {
+			OriginalError      string `json:"original_error"`
+			OriginalStatusCode *int   `json:"original_status_code"`
+		} `json:"admin_info"`
+	}
+	if err := common.UnmarshalJsonStr(log.Other, &metadata); err == nil && metadata.AdminInfo.OriginalError != "" {
+		log.Content = metadata.AdminInfo.OriginalError
+		if metadata.AdminInfo.OriginalStatusCode != nil {
+			if other, mapErr := common.StrToMap(log.Other); mapErr == nil {
+				other["status_code"] = *metadata.AdminInfo.OriginalStatusCode
+				log.Other = common.MapToJsonStr(other)
+			}
+		}
 	}
 }
 
@@ -596,6 +619,9 @@ func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int6
 		rowID++
 		if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 			entry.Id = rowID
+		}
+		if !selfView && visibility != logOtherVisibilityUser {
+			restoreOriginalErrorContent(&entry)
 		}
 		if selfView {
 			entry.Other = formatLogOtherJSON(entry.Other, logOtherVisibilityUser)

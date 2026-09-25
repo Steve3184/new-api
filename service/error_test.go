@@ -106,6 +106,7 @@ func TestRelayErrorHandlerKeepsStructuredErrorMessage(t *testing.T) {
 
 	require.NotNil(t, newAPIError)
 	require.Equal(t, message, newAPIError.Error())
+	require.Equal(t, body, newAPIError.GetUpstreamResponseBody())
 }
 
 func TestRelayErrorHandlerKeepsOpenAIErrorMessage(t *testing.T) {

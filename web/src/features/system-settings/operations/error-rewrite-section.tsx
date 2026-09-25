@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Textarea } from '@/components/ui/textarea'
 
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
@@ -39,7 +40,23 @@ import {
 
 type ErrorRewriteSettings = {
   enabled: boolean
+  affectUsageLogs: boolean
+  bodyKeywordTriggerEnabled: boolean
+  bodyKeywordTriggers: string
   rules: string
+}
+
+function parseBodyKeywords(value: string): string {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((item): item is string => typeof item === 'string')
+          .join('\n')
+      : ''
+  } catch {
+    return ''
+  }
 }
 
 type ErrorRewriteSectionProps = {
@@ -48,6 +65,9 @@ type ErrorRewriteSectionProps = {
 
 type NormalizedErrorRewriteSettings = {
   enabled: boolean
+  affectUsageLogs: boolean
+  bodyKeywordTriggerEnabled: boolean
+  bodyKeywordTriggers: string
   rules: string
 }
 
@@ -55,6 +75,13 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const defaultEnabled = props.defaultValues.enabled
+  const defaultAffectUsageLogs = props.defaultValues.affectUsageLogs
+  const defaultBodyKeywordTriggerEnabled =
+    props.defaultValues.bodyKeywordTriggerEnabled
+  const defaultBodyKeywordTriggersJson = props.defaultValues.bodyKeywordTriggers
+  const defaultBodyKeywordTriggers = parseBodyKeywords(
+    defaultBodyKeywordTriggersJson
+  )
   const defaultRules = props.defaultValues.rules
   const defaultRulesJson = useMemo(
     () => canonicalErrorRewriteRules(defaultRules),
@@ -62,10 +89,20 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
   )
   const baselineRef = useRef<NormalizedErrorRewriteSettings>({
     enabled: defaultEnabled,
+    affectUsageLogs: defaultAffectUsageLogs,
+    bodyKeywordTriggerEnabled: defaultBodyKeywordTriggerEnabled,
+    bodyKeywordTriggers: defaultBodyKeywordTriggersJson,
     rules: defaultRulesJson,
   })
   const pendingSyncRef = useRef<NormalizedErrorRewriteSettings | null>(null)
   const [enabled, setEnabled] = useState(defaultEnabled)
+  const [affectUsageLogs, setAffectUsageLogs] = useState(defaultAffectUsageLogs)
+  const [bodyKeywordTriggerEnabled, setBodyKeywordTriggerEnabled] = useState(
+    defaultBodyKeywordTriggerEnabled
+  )
+  const [bodyKeywordTriggers, setBodyKeywordTriggers] = useState(
+    defaultBodyKeywordTriggers
+  )
   const [rules, setRules] = useState<ErrorRewriteRuleDraft[]>(() =>
     parseErrorRewriteRules(defaultRules)
   )
@@ -78,6 +115,10 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
     if (pending) {
       if (
         pending.enabled !== defaultEnabled ||
+        pending.affectUsageLogs !== defaultAffectUsageLogs ||
+        pending.bodyKeywordTriggerEnabled !==
+          defaultBodyKeywordTriggerEnabled ||
+        pending.bodyKeywordTriggers !== defaultBodyKeywordTriggersJson ||
         pending.rules !== defaultRulesJson
       ) {
         return
@@ -86,12 +127,26 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
     }
 
     setEnabled(defaultEnabled)
+    setAffectUsageLogs(defaultAffectUsageLogs)
+    setBodyKeywordTriggerEnabled(defaultBodyKeywordTriggerEnabled)
+    setBodyKeywordTriggers(defaultBodyKeywordTriggers)
     setRules(parseErrorRewriteRules(defaultRules))
     baselineRef.current = {
       enabled: defaultEnabled,
+      affectUsageLogs: defaultAffectUsageLogs,
+      bodyKeywordTriggerEnabled: defaultBodyKeywordTriggerEnabled,
+      bodyKeywordTriggers: defaultBodyKeywordTriggersJson,
       rules: defaultRulesJson,
     }
-  }, [defaultEnabled, defaultRules, defaultRulesJson])
+  }, [
+    defaultAffectUsageLogs,
+    defaultBodyKeywordTriggers,
+    defaultBodyKeywordTriggersJson,
+    defaultBodyKeywordTriggerEnabled,
+    defaultEnabled,
+    defaultRules,
+    defaultRulesJson,
+  ])
 
   const validationErrors = useMemo(
     () => validateErrorRewriteRules(rules),
@@ -103,6 +158,10 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
     switch (code) {
       case 'invalid-status-code':
         return t('Status code must be an integer between 100 and 599.')
+      case 'invalid-rewrite-status-code':
+        return t(
+          'Response status code must be empty or an integer between 100 and 599.'
+        )
       case 'duplicate-status-code':
         return t('Duplicate status codes are not allowed.')
       case 'empty-message':
@@ -116,6 +175,7 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
       {
         id: createErrorRewriteRuleId(),
         statusCode: '',
+        rewriteStatusCode: '',
         message: '',
       },
     ])
@@ -133,6 +193,14 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
 
     const normalized: NormalizedErrorRewriteSettings = {
       enabled,
+      affectUsageLogs,
+      bodyKeywordTriggerEnabled,
+      bodyKeywordTriggers: JSON.stringify(
+        bodyKeywordTriggers
+          .split('\n')
+          .map((keyword) => keyword.trim())
+          .filter(Boolean)
+      ),
       rules: serializeErrorRewriteRules(rules),
     }
     const updates: Array<{ key: string; value: string | boolean }> = []
@@ -142,6 +210,29 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
     }
     if (normalized.enabled !== baselineRef.current.enabled) {
       updates.push({ key: 'error_rewrite.enabled', value: normalized.enabled })
+    }
+    if (normalized.affectUsageLogs !== baselineRef.current.affectUsageLogs) {
+      updates.push({
+        key: 'error_rewrite.affect_usage_logs',
+        value: normalized.affectUsageLogs,
+      })
+    }
+    if (
+      normalized.bodyKeywordTriggers !== baselineRef.current.bodyKeywordTriggers
+    ) {
+      updates.push({
+        key: 'error_rewrite.body_keyword_triggers',
+        value: normalized.bodyKeywordTriggers,
+      })
+    }
+    if (
+      normalized.bodyKeywordTriggerEnabled !==
+      baselineRef.current.bodyKeywordTriggerEnabled
+    ) {
+      updates.push({
+        key: 'error_rewrite.body_keyword_trigger_enabled',
+        value: normalized.bodyKeywordTriggerEnabled,
+      })
     }
 
     if (updates.length === 0) {
@@ -167,6 +258,9 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
   const handleReset = () => {
     pendingSyncRef.current = null
     setEnabled(defaultEnabled)
+    setAffectUsageLogs(defaultAffectUsageLogs)
+    setBodyKeywordTriggerEnabled(defaultBodyKeywordTriggerEnabled)
+    setBodyKeywordTriggers(defaultBodyKeywordTriggers)
     setRules(parseErrorRewriteRules(defaultRules))
   }
 
@@ -189,6 +283,46 @@ export function ErrorRewriteSection(props: ErrorRewriteSectionProps) {
             'Replace client-facing error messages for matching upstream HTTP status codes.'
           )}
         />
+
+        <SettingsSwitchField
+          checked={affectUsageLogs}
+          onCheckedChange={setAffectUsageLogs}
+          disabled={saving}
+          label={t('Also rewrite usage log errors')}
+          description={t(
+            'Users see the rewritten error in usage logs; administrators can still view the original error.'
+          )}
+        />
+
+        <SettingsSwitchField
+          checked={bodyKeywordTriggerEnabled}
+          onCheckedChange={setBodyKeywordTriggerEnabled}
+          disabled={saving}
+          label={t('Match response body keywords')}
+          description={t(
+            'When enabled, a rewrite also requires one keyword below to appear in a non-200 response body.'
+          )}
+        />
+
+        {bodyKeywordTriggerEnabled && (
+          <div className='space-y-2'>
+            <label
+              htmlFor='error-rewrite-body-keywords'
+              className='text-sm font-medium'
+            >
+              {t('Response body keywords')}
+            </label>
+            <Textarea
+              id='error-rewrite-body-keywords'
+              className='border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 min-h-24 w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2'
+              value={bodyKeywordTriggers}
+              onChange={(event) => setBodyKeywordTriggers(event.target.value)}
+              disabled={saving}
+              placeholder={t('One keyword per line')}
+              aria-label={t('Response body keywords')}
+            />
+          </div>
+        )}
 
         <Alert>
           <AlertDescription className='text-xs'>

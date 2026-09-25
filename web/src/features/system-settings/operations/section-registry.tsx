@@ -51,6 +51,10 @@ const OPERATIONS_SECTIONS = [
       <ErrorRewriteSection
         defaultValues={{
           enabled: settings['error_rewrite.enabled'],
+          affectUsageLogs: settings['error_rewrite.affect_usage_logs'],
+          bodyKeywordTriggerEnabled:
+            settings['error_rewrite.body_keyword_trigger_enabled'],
+          bodyKeywordTriggers: settings['error_rewrite.body_keyword_triggers'],
           rules: settings['error_rewrite.rules'],
         }}
       />

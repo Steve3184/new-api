@@ -91,7 +91,17 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		}
 		other.SetPublic("error_type", err.GetErrorType())
 		other.SetPublic("error_code", err.GetErrorCode())
-		other.SetPublic("status_code", err.StatusCode)
+		logContent := err.MaskSensitiveErrorWithStatusCode()
+		logStatusCode := err.StatusCode
+		if rewriteSetting := operation_setting.GetErrorRewriteSetting(); rewriteSetting.AffectUsageLogs {
+			if rewrite, ok := operation_setting.GetErrorRewriteResult(err, modelName); ok {
+				other.SetAdmin("original_error", logContent)
+				other.SetAdmin("original_status_code", err.StatusCode)
+				logContent = fmt.Sprintf("status_code=%d, %s", rewrite.StatusCode, rewrite.Message)
+				logStatusCode = rewrite.StatusCode
+			}
+		}
+		other.SetPublic("status_code", logStatusCode)
 		AppendRelayLogAdminInfo(c, relayInfo, other)
 		AppendResponseModelLogInfo(relayInfo, other)
 		AppendTaskPluginContextAuditInfo(c, other)
@@ -100,6 +110,6 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, logContent, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 }

@@ -348,8 +348,8 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "CaptchaType":
-		if option.Value != "turnstile" && option.Value != "hcaptcha" && option.Value != "cap" {
-			common.ApiErrorMsg(c, "CaptchaType must be turnstile, hcaptcha, or cap")
+		if option.Value != "none" && option.Value != "turnstile" && option.Value != "hcaptcha" && option.Value != "cap" {
+			common.ApiErrorMsg(c, "CaptchaType must be none, turnstile, hcaptcha, or cap")
 			return
 		}
 	case "checkin_setting.min_quota", "checkin_setting.max_quota", "checkin_setting.min_user_quota", "checkin_setting.min_used_quota", "checkin_setting.daily_user_limit", "checkin_setting.daily_quota_limit":

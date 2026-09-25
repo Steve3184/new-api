@@ -45,6 +45,29 @@ func TestCaptchaCheckRegisterSkipsCaptchaWhenEmailVerificationEnabled(t *testing
 	assert.JSONEq(t, `{"success":true}`, recorder.Body.String())
 }
 
+func TestCaptchaCheckRegisterAllowsNoCaptchaProvider(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousEmailVerificationEnabled := common.EmailVerificationEnabled
+	previousCaptchaType := common.CaptchaType
+	common.EmailVerificationEnabled = false
+	common.CaptchaType = "none"
+	t.Cleanup(func() {
+		common.EmailVerificationEnabled = previousEmailVerificationEnabled
+		common.CaptchaType = previousCaptchaType
+	})
+
+	router := gin.New()
+	router.POST("/register", CaptchaCheckRegister(), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"success": true})
+	})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/register", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"success":true}`, recorder.Body.String())
+}
+
 func TestCaptchaCheckRegisterRequiresCaptchaWhenEmailVerificationDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousEmailVerificationEnabled := common.EmailVerificationEnabled

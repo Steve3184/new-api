@@ -38,6 +38,32 @@ func TestApplyErrorRewriteMatchesStatusAndExpandsTemplate(t *testing.T) {
 	assert.Equal(t, apiErr.Error(), apiErr.ToOpenAIError().Message)
 }
 
+func TestApplyErrorRewriteCanChangeStatusAndMatchBodyKeyword(t *testing.T) {
+	preserveErrorRewriteSetting(t)
+	replacementStatus := 503
+	errorRewriteSetting.replace(ErrorRewriteSetting{
+		Enabled:                   true,
+		BodyKeywordTriggerEnabled: true,
+		BodyKeywordTriggers:       []string{"overloaded"},
+		Rules: []ErrorRewriteRule{{
+			StatusCode:        429,
+			RewriteStatusCode: &replacementStatus,
+			Message:           "retry later",
+		}},
+	})
+
+	apiErr := types.NewOpenAIError(assert.AnError, types.ErrorCodeBadResponseStatusCode, 429)
+	apiErr.SetUpstreamStatusCode(429)
+	apiErr.SetUpstreamResponseBody(`{"error":"OVERLOADED"}`)
+	require.True(t, ApplyErrorRewrite(apiErr, "model"))
+	assert.Equal(t, 503, apiErr.StatusCode)
+	assert.Equal(t, "retry later", apiErr.Error())
+
+	apiErr.SetUpstreamResponseBody(`{"error":"other"}`)
+	apiErr.StatusCode = 429
+	assert.False(t, ApplyErrorRewrite(apiErr, "model"))
+}
+
 func TestApplyErrorRewriteDisabledOrUnmatched(t *testing.T) {
 	preserveErrorRewriteSetting(t)
 	errorRewriteSetting.replace(ErrorRewriteSetting{
@@ -137,10 +163,17 @@ func TestValidateErrorRewriteRulesJSON(t *testing.T) {
 		`[{"status_code":99,"message":"bad status"}]`,
 		`[{"status_code":429,"message":"first"},{"status_code":429,"message":"duplicate"}]`,
 		`[{"status_code":429,"message":"   "}]`,
+		`[{"status_code":429,"rewrite_status_code":700,"message":"bad replacement"}]`,
 	}
 	for _, value := range tests {
 		assert.Error(t, ValidateErrorRewriteRulesJSON(value), value)
 	}
+}
+
+func TestValidateErrorRewriteBodyKeywordsJSON(t *testing.T) {
+	require.NoError(t, ValidateErrorRewriteBodyKeywordsJSON(`["overloaded", "busy"]`))
+	assert.Error(t, ValidateErrorRewriteBodyKeywordsJSON(`{"keyword":"busy"}`))
+	assert.Error(t, ValidateErrorRewriteBodyKeywordsJSON(`["busy", " BUSY "]`))
 }
 
 func TestErrorRewriteConfigExportsOptionKeys(t *testing.T) {
@@ -149,17 +182,26 @@ func TestErrorRewriteConfigExportsOptionKeys(t *testing.T) {
 
 	exported := config.GlobalConfig.ExportAllConfigs()
 	assert.Equal(t, "false", exported["error_rewrite.enabled"])
+	assert.Equal(t, "false", exported["error_rewrite.affect_usage_logs"])
+	assert.Equal(t, "false", exported["error_rewrite.body_keyword_trigger_enabled"])
+	assert.JSONEq(t, "[]", exported["error_rewrite.body_keyword_triggers"])
 	assert.JSONEq(t, "[]", exported["error_rewrite.rules"])
 }
 
 func TestErrorRewriteConfigLoadsThroughConfigManager(t *testing.T) {
 	preserveErrorRewriteSetting(t)
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"error_rewrite.enabled": "true",
-		"error_rewrite.rules":   `[{"status_code":502,"message":"{model} unavailable"}]`,
+		"error_rewrite.enabled":                      "true",
+		"error_rewrite.affect_usage_logs":            "true",
+		"error_rewrite.body_keyword_trigger_enabled": "true",
+		"error_rewrite.body_keyword_triggers":        `["overloaded"]`,
+		"error_rewrite.rules":                        `[{"status_code":502,"message":"{model} unavailable"}]`,
 	}))
 
 	setting := GetErrorRewriteSetting()
 	require.True(t, setting.Enabled)
+	require.True(t, setting.AffectUsageLogs)
+	require.True(t, setting.BodyKeywordTriggerEnabled)
+	require.Equal(t, []string{"overloaded"}, setting.BodyKeywordTriggers)
 	require.Equal(t, []ErrorRewriteRule{{StatusCode: 502, Message: "{model} unavailable"}}, setting.Rules)
 }

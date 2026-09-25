@@ -832,6 +832,25 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
+        {props.isAdmin &&
+          other?.admin_info?.original_error &&
+          props.log.type === 5 && (
+            <DetailSection label={t('Original Upstream Error')}>
+              <DetailRow
+                label={t('Original Error')}
+                value={other.admin_info.original_error}
+                mono
+              />
+              {other.admin_info.original_status_code != null && (
+                <DetailRow
+                  label={t('Original Status Code')}
+                  value={String(other.admin_info.original_status_code)}
+                  mono
+                />
+              )}
+            </DetailSection>
+          )}
+
         {/* Reject reason (admin only) */}
         {props.isAdmin && adminInfo?.reject_reason && (
           <DetailSection

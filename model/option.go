@@ -346,8 +346,15 @@ func validateOptionValue(key string, value string) error {
 		_, err := strconv.ParseBool(value)
 		return err
 	}
+	if key == "error_rewrite.affect_usage_logs" || key == "error_rewrite.body_keyword_trigger_enabled" {
+		_, err := strconv.ParseBool(value)
+		return err
+	}
 	if key == "error_rewrite.rules" {
 		return operation_setting.ValidateErrorRewriteRulesJSON(value)
+	}
+	if key == "error_rewrite.body_keyword_triggers" {
+		return operation_setting.ValidateErrorRewriteBodyKeywordsJSON(value)
 	}
 	if key == operation_setting.ChannelTestConcurrencyOptionKey {
 		return operation_setting.ValidateChannelTestConcurrency(value)

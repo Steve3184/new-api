@@ -254,7 +254,7 @@ export type AuthSettings = {
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
-  CaptchaType: 'turnstile' | 'hcaptcha' | 'cap'
+  CaptchaType: 'none' | 'turnstile' | 'hcaptcha' | 'cap'
   HCaptchaEnabled: boolean
   HCaptchaSiteKey: string
   HCaptchaSecretKey: string
@@ -479,6 +479,9 @@ export type OperationsSettings = {
   SelfUseModeEnabled: boolean
   'console_setting.hide_upstream_request_id': boolean
   'error_rewrite.enabled': boolean
+  'error_rewrite.affect_usage_logs': boolean
+  'error_rewrite.body_keyword_trigger_enabled': boolean
+  'error_rewrite.body_keyword_triggers': string
   'error_rewrite.rules': string
   QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string

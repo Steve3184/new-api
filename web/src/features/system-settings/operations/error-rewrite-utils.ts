@@ -20,11 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 export type ErrorRewriteRuleDraft = {
   id: string
   statusCode: string
+  rewriteStatusCode: string
   message: string
 }
 
 export type ErrorRewriteRuleErrorCode =
   | 'invalid-status-code'
+  | 'invalid-rewrite-status-code'
   | 'duplicate-status-code'
   | 'empty-message'
 
@@ -64,6 +66,11 @@ export function parseErrorRewriteRules(value: string): ErrorRewriteRuleDraft[] {
           typeof statusCode === 'number' || typeof statusCode === 'string'
             ? String(statusCode)
             : '',
+        rewriteStatusCode:
+          typeof item.rewrite_status_code === 'number' ||
+          typeof item.rewrite_status_code === 'string'
+            ? String(item.rewrite_status_code)
+            : '',
         message: typeof message === 'string' ? message : '',
       },
     ]
@@ -77,6 +84,9 @@ export function serializeErrorRewriteRules(
   return JSON.stringify(
     rules.map((rule) => ({
       status_code: Number(rule.statusCode.trim()),
+      ...(rule.rewriteStatusCode?.trim()
+        ? { rewrite_status_code: Number(rule.rewriteStatusCode.trim()) }
+        : {}),
       message: rule.message.trim(),
     })),
     null,
@@ -101,6 +111,17 @@ export function validateErrorRewriteRules(
       const owners = statusOwners.get(statusCode) ?? []
       owners.push(rule.id)
       statusOwners.set(statusCode, owners)
+    }
+
+    if (rule.rewriteStatusCode.trim()) {
+      const rewriteStatusCode = Number(rule.rewriteStatusCode.trim())
+      if (
+        !Number.isInteger(rewriteStatusCode) ||
+        rewriteStatusCode < 100 ||
+        rewriteStatusCode > 599
+      ) {
+        rowErrors.push('invalid-rewrite-status-code')
+      }
     }
 
     if (!rule.message.trim()) rowErrors.push('empty-message')

@@ -838,19 +838,24 @@ func presentTaskSubmission(c *gin.Context, outcome *taskSubmissionOutcome) {
 func respondTaskSubmissionError(c *gin.Context, taskErr *taskdto.TaskError) {
 	service.RecordRequestPolicyTermination(c, taskSubmissionAPIError(taskErr))
 	newTaskPluginSubmitDiagnostics(c).presentError(taskErr)
+	rewriteTaskErrorForResponse(c, taskErr)
 	if middleware.RespondTaskPluginError(c, taskErr) {
 		return
 	}
-	respondTaskError(c, taskErr)
+	c.JSON(taskErr.StatusCode, taskErr)
 }
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
+	rewriteTaskErrorForResponse(c, taskErr)
+	c.JSON(taskErr.StatusCode, taskErr)
+}
+
+func rewriteTaskErrorForResponse(c *gin.Context, taskErr *taskdto.TaskError) {
 	modelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 	if !operation_setting.ApplyTaskErrorRewrite(taskErr, modelName) && taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
-	c.JSON(taskErr.StatusCode, taskErr)
 }
 
 // taskSubmissionAPIError adapts a task error for the shared relay error paths.
@@ -860,7 +865,10 @@ func taskSubmissionAPIError(taskErr *taskdto.TaskError) *types.NewAPIError {
 	if err == nil {
 		err = errors.New(taskErr.Message)
 	}
-	return types.NewOpenAIError(err, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
+	apiErr := types.NewOpenAIError(err, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
+	apiErr.SetUpstreamStatusCode(taskErr.UpstreamStatusCode)
+	apiErr.SetUpstreamResponseBody(taskErr.UpstreamResponseBody)
+	return apiErr
 }
 
 // decideTaskRetry is the single retry decision for task submissions. The

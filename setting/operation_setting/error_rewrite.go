@@ -3,6 +3,7 @@ package operation_setting
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,19 +15,23 @@ import (
 )
 
 // ErrorRewriteRule replaces the client-facing message for one upstream HTTP
-// status code. The status code itself is intentionally left unchanged so the
-// retry and channel-health decisions continue to use the upstream result.
+// status code. RewriteStatusCode is optional; retry and channel-health
+// decisions always use the original upstream result before this is applied.
 type ErrorRewriteRule struct {
-	StatusCode int    `json:"status_code"`
-	Message    string `json:"message"`
+	StatusCode        int    `json:"status_code"`
+	RewriteStatusCode *int   `json:"rewrite_status_code,omitempty"`
+	Message           string `json:"message"`
 }
 
 // ErrorRewriteSetting contains the global, operator-configurable error
 // rewrites. It is persisted through the generic option/config mechanism under
 // the error_rewrite.* keys.
 type ErrorRewriteSetting struct {
-	Enabled bool               `json:"enabled"`
-	Rules   []ErrorRewriteRule `json:"rules"`
+	Enabled                   bool               `json:"enabled"`
+	AffectUsageLogs           bool               `json:"affect_usage_logs"`
+	BodyKeywordTriggerEnabled bool               `json:"body_keyword_trigger_enabled"`
+	BodyKeywordTriggers       []string           `json:"body_keyword_triggers"`
+	Rules                     []ErrorRewriteRule `json:"rules"`
 }
 
 type errorRewriteConfig struct {
@@ -35,7 +40,10 @@ type errorRewriteConfig struct {
 }
 
 var errorRewriteSetting = errorRewriteConfig{
-	setting: ErrorRewriteSetting{Rules: []ErrorRewriteRule{}},
+	setting: ErrorRewriteSetting{
+		BodyKeywordTriggers: []string{},
+		Rules:               []ErrorRewriteRule{},
+	},
 }
 
 func init() {
@@ -50,9 +58,16 @@ func (c *errorRewriteConfig) ExportConfigMap() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	bodyKeywords, err := common.Marshal(c.setting.BodyKeywordTriggers)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]string{
-		"enabled": strconv.FormatBool(c.setting.Enabled),
-		"rules":   string(rules),
+		"enabled":                      strconv.FormatBool(c.setting.Enabled),
+		"affect_usage_logs":            strconv.FormatBool(c.setting.AffectUsageLogs),
+		"body_keyword_trigger_enabled": strconv.FormatBool(c.setting.BodyKeywordTriggerEnabled),
+		"body_keyword_triggers":        string(bodyKeywords),
+		"rules":                        string(rules),
 	}, nil
 }
 
@@ -68,6 +83,29 @@ func (c *errorRewriteConfig) UpdateConfigMap(values map[string]string) error {
 			return fmt.Errorf("error rewrite enabled must be a boolean: %w", err)
 		}
 		next.Enabled = enabled
+	}
+	if value, ok := values["affect_usage_logs"]; ok {
+		affectLogs, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("error rewrite affect usage logs must be a boolean: %w", err)
+		}
+		next.AffectUsageLogs = affectLogs
+	}
+	if value, ok := values["body_keyword_trigger_enabled"]; ok {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("error rewrite body keyword trigger enabled must be a boolean: %w", err)
+		}
+		next.BodyKeywordTriggerEnabled = enabled
+	}
+	if value, ok := values["body_keyword_triggers"]; ok {
+		if err := ValidateErrorRewriteBodyKeywordsJSON(value); err != nil {
+			return err
+		}
+		if err := common.UnmarshalJsonStr(value, &next.BodyKeywordTriggers); err != nil {
+			return err
+		}
+		next.BodyKeywordTriggers = normalizeErrorRewriteBodyKeywords(next.BodyKeywordTriggers)
 	}
 	if value, ok := values["rules"]; ok {
 		if err := ValidateErrorRewriteRulesJSON(value); err != nil {
@@ -85,6 +123,7 @@ func (c *errorRewriteConfig) replace(setting ErrorRewriteSetting) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	setting.Rules = append([]ErrorRewriteRule{}, setting.Rules...)
+	setting.BodyKeywordTriggers = normalizeErrorRewriteBodyKeywords(setting.BodyKeywordTriggers)
 	c.setting = setting
 }
 
@@ -97,6 +136,7 @@ func GetErrorRewriteSetting() ErrorRewriteSetting {
 
 	snapshot := errorRewriteSetting.setting
 	snapshot.Rules = append([]ErrorRewriteRule{}, errorRewriteSetting.setting.Rules...)
+	snapshot.BodyKeywordTriggers = append([]string{}, errorRewriteSetting.setting.BodyKeywordTriggers...)
 	return snapshot
 }
 
@@ -120,6 +160,9 @@ func ValidateErrorRewriteRulesJSON(value string) error {
 		if _, exists := seen[rule.StatusCode]; exists {
 			return fmt.Errorf("error rewrite rules contain duplicate HTTP status code %d", rule.StatusCode)
 		}
+		if rule.RewriteStatusCode != nil && (*rule.RewriteStatusCode < 100 || *rule.RewriteStatusCode > 599) {
+			return fmt.Errorf("error rewrite rule %d has invalid replacement HTTP status code %d", index, *rule.RewriteStatusCode)
+		}
 		seen[rule.StatusCode] = struct{}{}
 		if strings.TrimSpace(rule.Message) == "" {
 			return fmt.Errorf("error rewrite rule %d message must not be empty", index)
@@ -128,37 +171,107 @@ func ValidateErrorRewriteRulesJSON(value string) error {
 	return nil
 }
 
-// ApplyErrorRewrite updates only the error text and protocol payload message.
-// The HTTP status and error code are preserved. Unknown placeholders are left
-// untouched, allowing operators to use literal braces safely.
+func ValidateErrorRewriteBodyKeywordsJSON(value string) error {
+	var keywords []string
+	if err := common.UnmarshalJsonStr(value, &keywords); err != nil {
+		return fmt.Errorf("error rewrite body keywords must be a JSON array: %w", err)
+	}
+	if keywords == nil {
+		return fmt.Errorf("error rewrite body keywords must be a JSON array")
+	}
+	if len(keywords) > 100 {
+		return fmt.Errorf("error rewrite body keywords must not exceed 100 entries")
+	}
+	seen := make(map[string]struct{}, len(keywords))
+	for index, keyword := range keywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			return fmt.Errorf("error rewrite body keyword %d must not be empty", index)
+		}
+		if len(keyword) > 256 {
+			return fmt.Errorf("error rewrite body keyword %d must not exceed 256 characters", index)
+		}
+		key := strings.ToLower(keyword)
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("error rewrite body keywords contain duplicate keyword %q", keyword)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+func normalizeErrorRewriteBodyKeywords(keywords []string) []string {
+	normalized := make([]string, 0, len(keywords))
+	seen := make(map[string]struct{}, len(keywords))
+	for _, keyword := range keywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			continue
+		}
+		key := strings.ToLower(keyword)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, keyword)
+	}
+	return normalized
+}
+
+// ErrorRewriteResult contains the client-facing values after a matching rule.
+// It is also used to project a rewritten message into user-visible logs while
+// keeping the original error object unchanged for retry and channel health.
+type ErrorRewriteResult struct {
+	Message            string
+	StatusCode         int
+	UpstreamStatusCode int
+}
+
+func GetErrorRewriteResult(apiErr *types.NewAPIError, modelName string) (ErrorRewriteResult, bool) {
+	if apiErr == nil {
+		return ErrorRewriteResult{}, false
+	}
+	return getErrorRewriteResult(apiErr.GetUpstreamStatusCode(), apiErr.StatusCode, apiErr.GetUpstreamResponseBody(), modelName)
+}
+
+func GetTaskErrorRewriteResult(taskErr *taskdto.TaskError, modelName string) (ErrorRewriteResult, bool) {
+	if taskErr == nil {
+		return ErrorRewriteResult{}, false
+	}
+	return getErrorRewriteResult(taskErr.UpstreamStatusCode, taskErr.StatusCode, taskErr.UpstreamResponseBody, modelName)
+}
+
+// ApplyErrorRewrite updates the client-facing error text, status, and protocol
+// payload message. Retry and channel-health decisions use the original result
+// before this response-only projection is applied.
 func ApplyErrorRewrite(apiErr *types.NewAPIError, modelName string) bool {
 	if apiErr == nil {
 		return false
 	}
-	upstreamStatusCode := apiErr.GetUpstreamStatusCode()
-	message, ok := errorRewriteMessage(upstreamStatusCode, apiErr.StatusCode, modelName)
+	result, ok := GetErrorRewriteResult(apiErr, modelName)
 	if !ok {
 		return false
 	}
 
-	apiErr.SetMessage(message)
+	apiErr.SetMessage(result.Message)
+	apiErr.StatusCode = result.StatusCode
 
 	// ToOpenAIError/ToClaudeError use RelayError for upstream protocol errors,
 	// so keep that payload in sync with Err.
 	switch relayError := apiErr.RelayError.(type) {
 	case types.OpenAIError:
-		relayError.Message = message
+		relayError.Message = result.Message
 		apiErr.RelayError = relayError
 	case *types.OpenAIError:
 		if relayError != nil {
-			relayError.Message = message
+			relayError.Message = result.Message
 		}
 	case types.ClaudeError:
-		relayError.Message = message
+		relayError.Message = result.Message
 		apiErr.RelayError = relayError
 	case *types.ClaudeError:
 		if relayError != nil {
-			relayError.Message = message
+			relayError.Message = result.Message
 		}
 	}
 	return true
@@ -170,22 +283,23 @@ func ApplyTaskErrorRewrite(taskErr *taskdto.TaskError, modelName string) bool {
 	if taskErr == nil {
 		return false
 	}
-	message, ok := errorRewriteMessage(taskErr.UpstreamStatusCode, taskErr.StatusCode, modelName)
+	result, ok := GetTaskErrorRewriteResult(taskErr, modelName)
 	if !ok {
 		return false
 	}
-	taskErr.Message = message
-	taskErr.Error = errors.New(message)
+	taskErr.Message = result.Message
+	taskErr.StatusCode = result.StatusCode
+	taskErr.Error = errors.New(result.Message)
 	return true
 }
 
-func errorRewriteMessage(upstreamStatusCode int, responseStatusCode int, modelName string) (string, bool) {
-	if upstreamStatusCode < 100 || upstreamStatusCode > 599 {
-		return "", false
+func getErrorRewriteResult(upstreamStatusCode int, responseStatusCode int, responseBody string, modelName string) (ErrorRewriteResult, bool) {
+	if upstreamStatusCode < 100 || upstreamStatusCode > 599 || upstreamStatusCode == http.StatusOK {
+		return ErrorRewriteResult{}, false
 	}
 	settings := GetErrorRewriteSetting()
 	if !settings.Enabled {
-		return "", false
+		return ErrorRewriteResult{}, false
 	}
 
 	var rule *ErrorRewriteRule
@@ -196,7 +310,10 @@ func errorRewriteMessage(upstreamStatusCode int, responseStatusCode int, modelNa
 		}
 	}
 	if rule == nil {
-		return "", false
+		return ErrorRewriteResult{}, false
+	}
+	if settings.BodyKeywordTriggerEnabled && !errorRewriteBodyContainsKeyword(responseBody, settings.BodyKeywordTriggers) {
+		return ErrorRewriteResult{}, false
 	}
 
 	message := strings.NewReplacer(
@@ -204,5 +321,19 @@ func errorRewriteMessage(upstreamStatusCode int, responseStatusCode int, modelNa
 		"{status_code}", strconv.Itoa(responseStatusCode),
 		"{upstream_status_code}", strconv.Itoa(upstreamStatusCode),
 	).Replace(rule.Message)
-	return message, true
+	statusCode := responseStatusCode
+	if rule.RewriteStatusCode != nil {
+		statusCode = *rule.RewriteStatusCode
+	}
+	return ErrorRewriteResult{Message: message, StatusCode: statusCode, UpstreamStatusCode: upstreamStatusCode}, true
+}
+
+func errorRewriteBodyContainsKeyword(body string, keywords []string) bool {
+	body = strings.ToLower(body)
+	for _, keyword := range keywords {
+		if strings.Contains(body, strings.ToLower(keyword)) {
+			return true
+		}
+	}
+	return false
 }

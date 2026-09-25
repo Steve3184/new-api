@@ -89,15 +89,16 @@ const (
 )
 
 type NewAPIError struct {
-	Err                error
-	RelayError         any
-	skipRetry          bool
-	recordErrorLog     *bool
-	errorType          ErrorType
-	errorCode          ErrorCode
-	StatusCode         int
-	upstreamStatusCode int
-	Metadata           json.RawMessage
+	Err                  error
+	RelayError           any
+	skipRetry            bool
+	recordErrorLog       *bool
+	errorType            ErrorType
+	errorCode            ErrorCode
+	StatusCode           int
+	upstreamStatusCode   int
+	Metadata             json.RawMessage
+	upstreamResponseBody string
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -195,6 +196,23 @@ func (e *NewAPIError) GetUpstreamStatusCode() int {
 		return 0
 	}
 	return e.upstreamStatusCode
+}
+
+// SetUpstreamResponseBody stores the non-200 upstream body for internal
+// policy matching. It is never serialized into a client response.
+func (e *NewAPIError) SetUpstreamResponseBody(body string) {
+	if e != nil {
+		e.upstreamResponseBody = body
+	}
+}
+
+// GetUpstreamResponseBody returns the internal upstream body used by global
+// error rewrite conditions.
+func (e *NewAPIError) GetUpstreamResponseBody() string {
+	if e == nil {
+		return ""
+	}
+	return e.upstreamResponseBody
 }
 
 func (e *NewAPIError) ToOpenAIError() OpenAIError {

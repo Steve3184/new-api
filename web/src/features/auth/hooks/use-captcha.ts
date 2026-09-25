@@ -27,11 +27,13 @@ type CaptchaPurpose = 'auth' | 'checkin' | 'redemption'
 export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
   const { status } = useStatus()
   const [captchaToken, setCaptchaToken] = useState('')
-  let captchaType: 'turnstile' | 'hcaptcha' | 'cap' = 'turnstile'
+  let captchaType: 'none' | 'turnstile' | 'hcaptcha' | 'cap' = 'none'
   if (status?.captcha_type === 'cap') {
     captchaType = 'cap'
   } else if (status?.captcha_type === 'hcaptcha') {
     captchaType = 'hcaptcha'
+  } else if (status?.captcha_type === 'turnstile') {
+    captchaType = 'turnstile'
   }
   let isRequired = purpose === 'auth'
   if (purpose === 'checkin') {
