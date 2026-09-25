@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 
-import { HOST_PROTOCOL_ENDPOINTS } from '../lib/host-protocols'
+import { getHostProtocolEndpoints } from '../lib/host-protocols'
 import type { TaskPluginMeta, TaskPluginRoute } from '../types'
 import { PluginModelList } from './plugin-model-list'
 
@@ -100,7 +100,7 @@ export function PluginEndpoints(props: {
         const name = typeof claim === 'string' ? claim : claim.name
         const supports = typeof claim === 'string' ? undefined : claim.supports
         const models = typeof claim === 'string' ? undefined : claim.models
-        const endpoints = HOST_PROTOCOL_ENDPOINTS[name] ?? []
+        const endpoints = getHostProtocolEndpoints(name)
         const modeLabels = {
           stream: t('Streaming'),
           sync: t('Synchronous'),

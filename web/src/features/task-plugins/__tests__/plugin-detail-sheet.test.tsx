@@ -205,6 +205,19 @@ describe('PluginDetailSheet host protocol endpoints', () => {
     expect(screen.queryByText('background')).toBeNull()
   })
 
+  test('given an openai_speech string claim, all standard speech endpoints render', async () => {
+    renderSheet({ protocols: ['openai_speech'] })
+
+    expect(await screen.findByText('/v1/audio/speech')).toBeInTheDocument()
+    expect(screen.getByText('/v1/audio/speech/tasks')).toBeInTheDocument()
+    expect(
+      screen.getByText('/v1/audio/speech/tasks/{task_id}')
+    ).toBeInTheDocument()
+    expect(
+      screen.getAllByText('/v1/audio/speech/tasks/{task_id}/content')
+    ).toHaveLength(2)
+  })
+
   test('given a claim narrowing the protocol to a model subset, the subset is marked without printing the model list', async () => {
     renderSheet({
       models: ['kling-v1', 'kling-v2-master'],

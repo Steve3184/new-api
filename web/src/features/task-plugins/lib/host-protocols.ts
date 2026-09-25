@@ -60,3 +60,10 @@ export const HOST_PROTOCOL_ENDPOINTS: Record<string, HostProtocolEndpoint[]> = {
     { method: 'HEAD', path: '/v1/audio/speech/tasks/{task_id}/content' },
   ],
 }
+
+/** Resolve a manifest protocol claim to its host-owned endpoint bindings. */
+export function getHostProtocolEndpoints(
+  protocolName: string
+): HostProtocolEndpoint[] {
+  return HOST_PROTOCOL_ENDPOINTS[protocolName.trim().toLowerCase()] ?? []
+}
