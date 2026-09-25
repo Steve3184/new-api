@@ -32,6 +32,11 @@ const (
 	}};
 	export function listArtifacts() { return []; }
 	export function buildContentRequest() { return {}; }`
+	speechProtocolExport = `export const protocols = {openai_speech: {
+		decodeRequest: function(ctx) { return ctx; }
+	}};
+	export function listArtifacts() { return []; }
+	export function buildContentRequest() { return {}; }`
 )
 
 func TestProtocolSupportsLoadErrors(t *testing.T) {
@@ -167,6 +172,13 @@ func TestProtocolSupportsHappyPaths(t *testing.T) {
 			wantProtocols: []ProtocolClaim{
 				{Name: "openai_video"},
 			},
+		},
+		{
+			name:          "bare openai_speech",
+			models:        `['speech']`,
+			protocols:     `['openai_speech']`,
+			exports:       speechProtocolExport,
+			wantProtocols: []ProtocolClaim{{Name: "openai_speech"}},
 		},
 	}
 	for _, testCase := range tests {

@@ -33,14 +33,16 @@ export type SubmitIntent = {kind: "submit"; model: string; action?: string; requ
 export type QueryIntent = {kind: "query"; taskIds: readonly string[]};
 export type TaskIntent = SubmitIntent | QueryIntent;
 export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string; type: "submit" | "query" | "dynamic"; action?: string; taskIdParam?: string; decode?: string; render: string; models?: readonly string[]; retainResult?: boolean}
-export type ProtocolName = "openai_responses" | "openai_video" | "openai_image";
+export type ProtocolName = "openai_responses" | "openai_video" | "openai_image" | "openai_speech";
 export type ResponsesMode = "stream" | "sync" | "background";
 export type ProtocolClaim =
   | "openai_video"
   | "openai_image"
+  | "openai_speech"
   | {name: "openai_responses"; supports: readonly ResponsesMode[]; models?: readonly string[]}
   | {name: "openai_video"; models?: readonly string[]}
-  | {name: "openai_image"; models?: readonly string[]};
+  | {name: "openai_image"; models?: readonly string[]}
+  | {name: "openai_speech"; models?: readonly string[]};
 /** One entry of the OpenAI ImageResponse `data` array rendered by protocols.openai_image.render. */
 export type ImageResponseEntry = {url?: string; b64_json?: string; revised_prompt?: string};
 export type LocalizedText = string | ({ en: string } & Record<string, string>);
@@ -68,6 +70,8 @@ export declare const protocols: {
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};
   /** render returns the OpenAI ImageResponse; the host adds `created` when absent and resolves response_format b64_json. */
   openai_image?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): {created?: number; data: readonly ImageResponseEntry[]} & Record<string, unknown>};
+  /** The host polls the submitted task and streams its first audio artifact as the speech response. */
+  openai_speech?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent};
 };
 export declare function buildSubmitRequest(ctx: DriverContext): RequestDescriptor;
 export interface SubmitEvent {event: string; id: string; data: string}

@@ -980,6 +980,73 @@ func (a *TaskAdaptor) BuildContentRequest(task *model.Task, artifactKey string, 
 	}, nil
 }
 
+// ProbeAudioDuration reads only a bounded WAV prefix. AutoDL result URLs are
+// short-lived, so this runs immediately after a successful poll and reuses the
+// same artifact hook as content delivery.
+func (a *TaskAdaptor) ProbeAudioDuration(ctx context.Context, task *model.Task) (float64, error) {
+	artifacts, err := a.ListArtifacts(task)
+	if err != nil {
+		return 0, err
+	}
+	for _, artifact := range artifacts {
+		if artifact.Type != "audio" {
+			continue
+		}
+		descriptor, requestErr := a.BuildContentRequest(task, artifact.Key, channel.TaskArtifactClientRequest{Method: http.MethodGet})
+		if requestErr != nil || descriptor == nil {
+			if requestErr != nil {
+				return 0, requestErr
+			}
+			return 0, fmt.Errorf("audio artifact request is empty")
+		}
+		parsedURL, parseErr := url.Parse(strings.TrimSpace(descriptor.URL))
+		if parseErr != nil || parsedURL == nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.User != nil || parsedURL.Fragment != "" {
+			return 0, fmt.Errorf("audio artifact request URL is invalid")
+		}
+		if descriptor.Credentialless {
+			if len(descriptor.Headers) != 0 || len(descriptor.Body) != 0 {
+				return 0, fmt.Errorf("credentialless audio artifact request must not contain credentials or a body")
+			}
+		} else if requestErr = pluginruntime.ValidateRequestURL(descriptor.URL, a.info.ChannelBaseUrl, a.plugin.Meta.AllowedHosts); requestErr != nil {
+			return 0, requestErr
+		}
+		req, requestErr := http.NewRequestWithContext(ctx, http.MethodGet, descriptor.URL, nil)
+		if requestErr != nil {
+			return 0, requestErr
+		}
+		for name, value := range descriptor.Headers {
+			req.Header.Set(name, value)
+		}
+		req.Header.Set("Range", "bytes=0-65535")
+		proxy := strings.TrimSpace(a.info.ChannelSetting.Proxy)
+		client := service.GetSSRFProtectedHTTPClient()
+		if proxy != "" {
+			client, requestErr = service.GetHttpClientWithProxy(proxy)
+		}
+		if requestErr != nil {
+			return 0, requestErr
+		}
+		response, requestErr := client.Do(req)
+		if requestErr != nil {
+			return 0, requestErr
+		}
+		data, readErr := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+		response.Body.Close()
+		if readErr != nil {
+			return 0, readErr
+		}
+		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+			return 0, fmt.Errorf("audio artifact probe returned HTTP %d", response.StatusCode)
+		}
+		duration, durationErr := common.GetAudioDuration(ctx, bytes.NewReader(data), ".wav")
+		if durationErr != nil || duration <= 0 || duration > 3600 {
+			return 0, fmt.Errorf("invalid WAV duration")
+		}
+		return duration, nil
+	}
+	return 0, fmt.Errorf("audio artifact is unavailable")
+}
+
 func taskArtifactContext(task *model.Task) (map[string]any, error) {
 	if task == nil {
 		return nil, fmt.Errorf("task is required")

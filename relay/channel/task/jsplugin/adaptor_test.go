@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"math"
@@ -25,6 +26,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -451,6 +453,61 @@ export function parseTaskResult(){return {status:"SUCCESS"};}
 	descriptor, err = fallback.BuildContentRequest(&model.Task{}, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
 	require.NoError(t, err)
 	assert.Nil(t, descriptor)
+}
+
+func TestTaskAdaptorProbesAudioDurationWithBoundedRange(t *testing.T) {
+	fetchSetting := system_setting.GetFetchSetting()
+	originalFetchSetting := *fetchSetting
+	t.Cleanup(func() { *fetchSetting = originalFetchSetting })
+	fetchSetting.AllowPrivateIp = true
+	fetchSetting.AllowedPorts = []string{"80", "443", "1-65535"}
+	const sampleRate = 8000
+	const frameCount = sampleRate * 2
+	const dataSize = frameCount * 2
+	wav := &bytes.Buffer{}
+	wav.WriteString("RIFF")
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint32(36+dataSize)))
+	wav.WriteString("WAVEfmt ")
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint32(16)))
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint16(1)))
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint16(1)))
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint32(sampleRate)))
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint32(sampleRate*2)))
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint16(2)))
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint16(16)))
+	wav.WriteString("data")
+	require.NoError(t, binary.Write(wav, binary.LittleEndian, uint32(dataSize)))
+	wav.Write(make([]byte, dataSize))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "bytes=0-65535", r.Header.Get("Range"))
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Range", "bytes 0-32043/32044")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(wav.Bytes())
+	}))
+	defer server.Close()
+	service.InitHttpClient()
+
+	source := `
+export const meta = {apiVersion:1,key:"audio-probe",name:"Audio Probe",version:"1.0.0",author:{name:"Test"},models:["speech"],fetchMode:"per_task",protocols:["openai_speech"]};
+export function buildSubmitRequest(){return {url:"https://autodl.art/submit"};}
+export function parseSubmitResponse(){return {taskId:"upstream"};}
+export function buildQueryRequest(){return {url:"https://autodl.art/query"};}
+export function parseTaskResult(){return {status:"SUCCESS"};}
+export function listArtifacts(){return [{key:"audio",type:"audio",mimeType:"audio/wav"}];}
+export function buildContentRequest(ctx){return {url:ctx.data.url,method:"GET",headers:ctx.clientRequest.headers,credentialless:true};}
+export const protocols={openai_speech:{decodeRequest(ctx){return {kind:"submit",model:ctx.model,requestBody:ctx.body.value};}}};
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://autodl.art"}})
+	task := &model.Task{TaskID: "task-public", Status: model.TaskStatusSuccess, Data: []byte(`{"url":"` + server.URL + `/result.wav"}`)}
+
+	duration, err := adaptor.ProbeAudioDuration(context.Background(), task)
+	require.NoError(t, err)
+	assert.InDelta(t, 2, duration, 0.01)
 }
 
 func TestTaskAdaptorRejectsInvalidArtifactProjection(t *testing.T) {

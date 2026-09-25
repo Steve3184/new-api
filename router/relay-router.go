@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -18,7 +19,24 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
-	router.GET("/v1/artifacts/:artifact_id", service.ImageURLProxy)
+	artifactProxy := func(c *gin.Context) {
+		if taskID, ok := taskArtifactID(c.Param("artifact_id")); ok {
+			if _, exists, err := model.GetByOnlyTaskId(taskID); err != nil || !exists {
+				service.ImageURLProxy(c)
+				return
+			}
+			middleware.TokenOrUserAuth()(c)
+			if c.IsAborted() {
+				return
+			}
+			c.Params = append(c.Params, gin.Param{Key: "key", Value: taskID}, gin.Param{Key: "artifact_key", Value: "audio"})
+			controller.TaskArtifactContent(c)
+			return
+		}
+		service.ImageURLProxy(c)
+	}
+	router.GET("/v1/artifacts/:artifact_id", artifactProxy)
+	router.HEAD("/v1/artifacts/:artifact_id", artifactProxy)
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
@@ -156,9 +174,6 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/audio/translations", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
-		httpRouter.POST("/audio/speech", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIAudio)
-		})
 
 		// rerank related routes
 		httpRouter.POST("/rerank", func(c *gin.Context) {
@@ -225,6 +240,14 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatGemini)
 		})
 	}
+}
+
+func taskArtifactID(artifactID string) (string, bool) {
+	taskID := strings.TrimSpace(artifactID)
+	if dot := strings.LastIndexByte(taskID, '.'); dot > 0 {
+		taskID = taskID[:dot]
+	}
+	return taskID, taskID != ""
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {

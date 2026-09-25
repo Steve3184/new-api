@@ -31,6 +31,10 @@ type TaskPollingAdaptor interface {
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
+type taskAudioDurationProvider interface {
+	ProbeAudioDuration(context.Context, *model.Task) (float64, error)
+}
+
 type legacyTaskPollingFetch interface {
 	FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error)
 }
@@ -520,6 +524,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 		ChannelId:      cacheGetChannel.Id,
 		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
 	}
+	info.ChannelSetting.Proxy = cacheGetChannel.GetSetting().Proxy
 	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
 	disablePollingSleep := cacheGetChannel.GetOtherSettings().DisableTaskPollingSleep
@@ -692,6 +697,14 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		} else {
 			// No URL from adaptor — construct proxy URL using public task ID
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+		}
+		if durationProvider, ok := adaptor.(taskAudioDurationProvider); ok {
+			if duration, durationErr := durationProvider.ProbeAudioDuration(ctx, task); durationErr == nil && duration > 0 {
+				if taskResult.UsageFacts == nil {
+					taskResult.UsageFacts = make(map[string]any)
+				}
+				taskResult.UsageFacts["seconds"] = duration
+			}
 		}
 		shouldFinalizeBilling = true
 	case model.TaskStatusFailure:

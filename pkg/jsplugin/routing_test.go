@@ -82,6 +82,7 @@ func TestSupportsRegisteredHostProtocols(t *testing.T) {
 	assert.True(t, SupportsHostProtocol("openai_responses"))
 	assert.True(t, SupportsHostProtocol("openai_video"))
 	assert.True(t, SupportsHostProtocol(ProtocolOpenAIImage))
+	assert.True(t, SupportsHostProtocol(ProtocolOpenAISpeech))
 	assert.False(t, SupportsHostProtocol("plugin_owned_wire"))
 }
 
@@ -97,6 +98,11 @@ func TestLookupHostProtocolOperationExcludesRetrieveWithoutModelField(t *testing
 		assert.Equal(t, "model", operation.ModelField)
 		assert.Empty(t, operation.Modes, "the synchronous image protocol has no request modes")
 	}
+	protocol, operation, found := LookupHostProtocolOperation(http.MethodPost, "/v1/audio/speech")
+	require.True(t, found)
+	assert.Equal(t, ProtocolOpenAISpeech, protocol)
+	assert.Equal(t, "model", operation.ModelField)
+	assert.Equal(t, []string{"listArtifacts", "buildContentRequest"}, operation.RequiredDriverHooks)
 }
 
 // The OpenAI Images protocol is claimed in bare-string form, binds both image

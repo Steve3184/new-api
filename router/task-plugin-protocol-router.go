@@ -60,6 +60,14 @@ func taskPluginProtocolHandlers(protocol, operation string) ([]gin.HandlerFunc, 
 			middleware.PinTaskPluginEndpoint(), middleware.TaskPluginEndpointOnly(middleware.ModelRequestRateLimit()), middleware.PrepareTaskPluginEndpoint(), middleware.Distribute(),
 			func(c *gin.Context) { controller.RelayTaskPluginEndpoint(c, controller.RelayTask) },
 		}, nil
+	case "openai_speech.create":
+		return []gin.HandlerFunc{
+			middleware.RouteTag("relay"), middleware.TokenAuth(), middleware.SystemPerformanceCheck(),
+			middleware.PinTaskPluginEndpoint(), middleware.TaskPluginEndpointOnly(middleware.ModelRequestRateLimit()), middleware.PrepareTaskPluginEndpoint(), middleware.Distribute(),
+			func(c *gin.Context) {
+				controller.RelayTaskPluginEndpoint(c, func(c *gin.Context) { controller.Relay(c, types.RelayFormatOpenAIAudio) })
+			},
+		}, nil
 	case "openai_responses.retrieve":
 		return []gin.HandlerFunc{middleware.RouteTag("relay"), middleware.TokenAuth(), controller.RetrieveTaskPluginResponse}, nil
 	case "openai_video.retrieve":
