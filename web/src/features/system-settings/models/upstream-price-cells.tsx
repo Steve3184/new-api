@@ -79,15 +79,11 @@ export function SyncPriceCell(props: {
               </div>
             )}
           </div>
-<<<<<<< HEAD
         ) : (
           <code className='block text-xs! leading-relaxed break-all whitespace-pre-wrap'>
             {highlightExprDiff(String(props.values.billing_expr), props.compareTo?.billing_expr)}
           </code>
         )}
-=======
-        ) : <code className='block text-xs! leading-relaxed break-all whitespace-pre-wrap'>{highlightExprDiff(String(props.values.billing_expr), props.compareTo?.billing_expr)}</code>}
->>>>>>> 6c14c0762 (feat: highlight differing values in source price expressions (#7543))
       </div>
     )
   }
