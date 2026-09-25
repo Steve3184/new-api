@@ -103,6 +103,13 @@ func TestLookupHostProtocolOperationExcludesRetrieveWithoutModelField(t *testing
 	assert.Equal(t, ProtocolOpenAISpeech, protocol)
 	assert.Equal(t, "model", operation.ModelField)
 	assert.Equal(t, []string{"listArtifacts", "buildContentRequest"}, operation.RequiredDriverHooks)
+	protocol, operation, found = LookupHostProtocolOperation(http.MethodPost, "/v1/audio/speech/tasks")
+	require.True(t, found)
+	assert.Equal(t, ProtocolOpenAISpeech, protocol)
+	assert.Equal(t, "task_create", operation.Name)
+	assert.Equal(t, "model", operation.ModelField)
+	_, _, found = LookupHostProtocolOperation(http.MethodGet, "/v1/audio/speech/tasks/:task_id")
+	assert.False(t, found)
 }
 
 // The OpenAI Images protocol is claimed in bare-string form, binds both image

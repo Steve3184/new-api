@@ -47,6 +47,14 @@ func proxyAudioSpeechArtifact(c *gin.Context, timestamps bool) {
 		audioSpeechProxyError(c, http.StatusNotFound, "invalid_request_error", "Task not found")
 		return
 	}
+	if taskHasPluginExecution(task) && !timestamps {
+		c.Params = append(c.Params,
+			gin.Param{Key: "key", Value: taskID},
+			gin.Param{Key: "artifact_key", Value: "audio"},
+		)
+		TaskArtifactContent(c)
+		return
+	}
 	if task.Status != model.TaskStatusSuccess {
 		audioSpeechProxyError(c, http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("Task is not completed yet, current status: %s", task.Status))
 		return

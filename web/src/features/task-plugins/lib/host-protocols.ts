@@ -52,4 +52,11 @@ export const HOST_PROTOCOL_ENDPOINTS: Record<string, HostProtocolEndpoint[]> = {
     { method: 'POST', path: '/v1/images/generations' },
     { method: 'POST', path: '/v1/images/edits' },
   ],
+  openai_speech: [
+    { method: 'POST', path: '/v1/audio/speech', modeBearing: true },
+    { method: 'POST', path: '/v1/audio/speech/tasks', modeBearing: true },
+    { method: 'GET', path: '/v1/audio/speech/tasks/{task_id}' },
+    { method: 'GET', path: '/v1/audio/speech/tasks/{task_id}/content' },
+    { method: 'HEAD', path: '/v1/audio/speech/tasks/{task_id}/content' },
+  ],
 }

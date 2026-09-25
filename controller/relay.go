@@ -823,6 +823,15 @@ func presentTaskSubmission(c *gin.Context, outcome *taskSubmissionOutcome) {
 			return
 		}
 	}
+	if outcome.RelayInfo != nil && outcome.RelayInfo.RelayMode == relayconstant.RelayModeAudioSpeechTaskSubmit {
+		body, err := relay.TaskToOpenAIAudioSpeech(outcome.Task)
+		if err == nil {
+			diagnostics.present(outcome.Task, "openai_speech_task_create")
+			c.Data(http.StatusOK, "application/json", body)
+			return
+		}
+		logger.LogError(c, "render OpenAI speech task response failed: "+err.Error())
+	}
 	createdAt := outcome.Task.CreatedAt
 	if createdAt == 0 {
 		createdAt = outcome.Task.SubmitTime

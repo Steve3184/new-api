@@ -68,6 +68,20 @@ func taskPluginProtocolHandlers(protocol, operation string) ([]gin.HandlerFunc, 
 				controller.RelayTaskPluginEndpoint(c, func(c *gin.Context) { controller.Relay(c, types.RelayFormatOpenAIAudio) })
 			},
 		}, nil
+	case "openai_speech.task_create":
+		return []gin.HandlerFunc{
+			middleware.RouteTag("relay"), middleware.TokenAuth(), middleware.SystemPerformanceCheck(),
+			middleware.PinTaskPluginEndpoint(), middleware.TaskPluginEndpointOnly(middleware.ModelRequestRateLimit()), middleware.PrepareTaskPluginEndpoint(), middleware.Distribute(),
+			controller.RelayTask,
+		}, nil
+	case "openai_speech.retrieve":
+		return []gin.HandlerFunc{
+			middleware.RouteTag("relay"), middleware.SystemPerformanceCheck(), middleware.TokenAuth(), middleware.Distribute(), controller.RelayTaskFetch,
+		}, nil
+	case "openai_speech.content":
+		return []gin.HandlerFunc{
+			middleware.RouteTag("relay"), middleware.TokenOrUserAuth(), controller.AudioSpeechProxy,
+		}, nil
 	case "openai_responses.retrieve":
 		return []gin.HandlerFunc{middleware.RouteTag("relay"), middleware.TokenAuth(), controller.RetrieveTaskPluginResponse}, nil
 	case "openai_video.retrieve":

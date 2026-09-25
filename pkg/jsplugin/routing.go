@@ -96,6 +96,9 @@ var hostProtocols = []HostProtocolDefinition{
 	}},
 	{Name: "openai_speech", Operations: []HostProtocolOperation{
 		{Name: "create", Methods: []string{http.MethodPost}, Path: "/v1/audio/speech", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest"}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
+		{Name: "task_create", Methods: []string{http.MethodPost}, Path: "/v1/audio/speech/tasks", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest"}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
+		{Name: "retrieve", Methods: []string{http.MethodGet}, Path: "/v1/audio/speech/tasks/:task_id", BodyKinds: []BodyKind{BodyNone}},
+		{Name: "content", Methods: []string{http.MethodGet, http.MethodHead}, Path: "/v1/audio/speech/tasks/:task_id/content", BodyKinds: []BodyKind{BodyNone}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
 	}},
 	// The OpenAI Images API is synchronous: both operations create a task and
 	// the host answers with the rendered image response once the task is

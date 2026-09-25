@@ -15,6 +15,7 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -102,6 +103,24 @@ func TestTaskModel2DtoNormalizesLegacyAction(t *testing.T) {
 
 	assert.Equal(t, constant.TaskActionFirstTailToVideo, dtoTask.Action)
 	assert.Equal(t, "firstTailGenerate", task.Action)
+}
+
+func TestTaskToOpenAIAudioSpeechUsesArtifactProxyForPlugin(t *testing.T) {
+	task := &model.Task{
+		TaskID:      "task_public",
+		CreatedAt:   1710000000,
+		Status:      model.TaskStatusSuccess,
+		Progress:    "100%",
+		Properties:  model.Properties{OriginModelName: "indextts-2"},
+		PrivateData: model.TaskPrivateData{Execution: &model.TaskExecutionSnapshot{TaskPlugin: &model.TaskPluginSnapshot{Key: "autodl-comfyui"}}},
+	}
+
+	body, err := TaskToOpenAIAudioSpeech(task)
+	require.NoError(t, err)
+	var response kitdto.AudioSpeechTaskResponse
+	require.NoError(t, common.Unmarshal(body, &response))
+	assert.Equal(t, "completed", response.Status)
+	assert.Equal(t, "/v1/artifacts/task_public.wav", response.ContentURL)
 }
 
 func TestRelayTaskFetchRejectsUnknownRelayModeWithoutPanicking(t *testing.T) {

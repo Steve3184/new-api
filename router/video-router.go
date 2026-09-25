@@ -12,7 +12,12 @@ func SetVideoRouter(router *gin.Engine) {
 	audioSpeechContentRouter.Use(middleware.RouteTag("relay"))
 	audioSpeechContentRouter.Use(middleware.TokenOrUserAuth())
 	{
-		audioSpeechContentRouter.GET("/audio/speech/tasks/:task_id/content", controller.AudioSpeechProxy)
+		if !routeExists(router, "GET", "/v1/audio/speech/tasks/:task_id/content") {
+			audioSpeechContentRouter.GET("/audio/speech/tasks/:task_id/content", controller.AudioSpeechProxy)
+		}
+		if !routeExists(router, "HEAD", "/v1/audio/speech/tasks/:task_id/content") {
+			audioSpeechContentRouter.HEAD("/audio/speech/tasks/:task_id/content", controller.AudioSpeechProxy)
+		}
 		audioSpeechContentRouter.GET("/audio/speech/tasks/:task_id/timestamps", controller.AudioSpeechTimestampsProxy)
 	}
 
@@ -21,8 +26,12 @@ func SetVideoRouter(router *gin.Engine) {
 	audioSpeechTaskRouter.Use(middleware.SystemPerformanceCheck())
 	audioSpeechTaskRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
-		audioSpeechTaskRouter.POST("/audio/speech/tasks", controller.RelayTask)
-		audioSpeechTaskRouter.GET("/audio/speech/tasks/:task_id", controller.RelayTaskFetch)
+		if !routeExists(router, "POST", "/v1/audio/speech/tasks") {
+			audioSpeechTaskRouter.POST("/audio/speech/tasks", controller.RelayTask)
+		}
+		if !routeExists(router, "GET", "/v1/audio/speech/tasks/:task_id") {
+			audioSpeechTaskRouter.GET("/audio/speech/tasks/:task_id", controller.RelayTaskFetch)
+		}
 	}
 
 	threeDContentRouter := router.Group("/v1")

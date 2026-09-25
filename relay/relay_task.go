@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -516,8 +518,9 @@ func noteTaskQuotaClamp(info *relaycommon.RelayInfo, clamp *common.QuotaClamp) {
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
-	relayconstant.RelayModeVideoFetchByID:  videoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeThreeDFetchByID: videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeVideoFetchByID:           videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeThreeDFetchByID:          videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeAudioSpeechTaskFetchByID: audioSpeechTaskFetchRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
@@ -541,6 +544,70 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 		return
 	}
 	return
+}
+
+func audioSpeechTaskFetchRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		taskID = c.GetString("task_id")
+	}
+	task, exists, err := model.GetByTaskId(c.GetInt("id"), taskID)
+	if err != nil {
+		return nil, service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
+	}
+	if !exists || task == nil || !task.ResultRetrievable() {
+		return nil, service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
+	}
+	if adaptor := GetTaskAdaptor(task.Platform); adaptor != nil {
+		if converter, ok := adaptor.(channel.OpenAIAudioTaskConverter); ok {
+			converted, convertErr := converter.ConvertToOpenAIAudioTask(task)
+			if convertErr == nil {
+				return converted, nil
+			}
+		}
+	}
+	converted, convertErr := TaskToOpenAIAudioSpeech(task)
+	if convertErr != nil {
+		return nil, service.TaskErrorWrapper(convertErr, "marshal_response_failed", http.StatusInternalServerError)
+	}
+	return converted, nil
+}
+
+// TaskToOpenAIAudioSpeech renders the durable task envelope used by the
+// OpenAI-compatible asynchronous speech endpoint. Plugin audio is exposed via
+// the artifact proxy so the short-lived provider URL never reaches the client.
+func TaskToOpenAIAudioSpeech(task *model.Task) ([]byte, error) {
+	createdAt := task.CreatedAt
+	if createdAt == 0 {
+		createdAt = task.SubmitTime
+	}
+	response := kitdto.AudioSpeechTaskResponse{
+		ID:        task.TaskID,
+		Object:    "audio.speech",
+		CreatedAt: createdAt,
+		Status:    "queued",
+		Model:     task.Properties.OriginModelName,
+	}
+	if progress, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSpace(task.Progress), "%")); err == nil {
+		response.Progress = progress
+	}
+	switch task.Status {
+	case model.TaskStatusInProgress:
+		response.Status = "in_progress"
+	case model.TaskStatusSuccess:
+		response.Status = "completed"
+		response.Progress = 100
+		if task.PrivateData.Execution != nil && task.PrivateData.Execution.TaskPlugin != nil {
+			response.ContentURL = "/v1/artifacts/" + url.PathEscape(task.TaskID) + ".wav"
+		} else {
+			response.ContentURL = taskcommon.BuildAudioSpeechProxyURL(task.TaskID)
+		}
+	case model.TaskStatusFailure:
+		response.Status = "failed"
+		response.Progress = 100
+		response.Error = &kitdto.AudioSpeechTaskError{Code: "generation_failed", Message: task.FailReason}
+	}
+	return common.Marshal(response)
 }
 
 func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
