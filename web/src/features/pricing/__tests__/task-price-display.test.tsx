@@ -123,6 +123,7 @@ it('shows nested task conditions and prices in detail and group tables without a
         model={nestedModel}
         groupRatio={{ default: 2 }}
         usableGroup={{ default: { desc: '', ratio: 2 } }}
+        modelSquareGroups={[]}
         endpointMap={{}}
         autoGroups={[]}
         priceRate={1}

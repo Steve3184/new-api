@@ -2755,7 +2755,7 @@ test('the header override passthrough template button confirms before filling th
 test('a New API channel binds upstream task plugins and publishes their models', async () => {
   const channel = channelSchema.parse({
     ...editingChannel,
-    type: 60,
+    type: CHANNEL_TYPE_NEW_API,
     base_url: 'https://gateway.example',
     models: 'gpt-5',
     setting: JSON.stringify({ task_extend_plugin_keys: ['video-a'] }),

@@ -194,8 +194,6 @@ export function CCSwitchDialog(props: Props) {
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder={currentConfig.defaultName}
-            emptyText=''
-            allowCustomValue={true}
           />
         </div>
 
