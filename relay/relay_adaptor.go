@@ -43,6 +43,7 @@ import (
 	taskunrealspeech "github.com/QuantumNous/new-api/relay/channel/task/unrealspeech"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/typesafe"
+	"github.com/QuantumNous/new-api/relay/channel/unrealspeech"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
@@ -124,6 +125,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &codex.Adaptor{}
 	case constant.APITypeAdvancedCustom:
 		return &advancedcustom.Adaptor{}
+	case constant.APITypeUnrealSpeech:
+		return &unrealspeech.Adaptor{}
 	case constant.APITypeSub2API:
 		return &sub2api.Adaptor{}
 	case constant.APITypeNewAPI:
