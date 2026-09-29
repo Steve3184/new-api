@@ -208,7 +208,7 @@ func TestSecurityAccountDeletionRechecksTransactionAndConsumesFailedProof(t *tes
 }
 
 func TestSecurityAccountDeletionConcurrentRequestsHaveOneWinner(t *testing.T) {
-	user, identity := setupSecurityEnrollmentTest(t)
+	user, identity := setupSecurityEnrollmentTestWithSingleConnection(t)
 	proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccountDelete}, "password")
 	start := make(chan struct{})
 	responses := make(chan string, 2)

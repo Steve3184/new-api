@@ -40,6 +40,14 @@ import (
 )
 
 func setupSecurityEnrollmentTest(t *testing.T) (*model.User, service.AuthIdentity) {
+	return setupSecurityEnrollmentTestOptions(t, false)
+}
+
+func setupSecurityEnrollmentTestWithSingleConnection(t *testing.T) (*model.User, service.AuthIdentity) {
+	return setupSecurityEnrollmentTestOptions(t, true)
+}
+
+func setupSecurityEnrollmentTestOptions(t *testing.T, singleConnection bool) (*model.User, service.AuthIdentity) {
 	t.Helper()
 	require.NoError(t, i18n.Init())
 	gin.SetMode(gin.TestMode)
@@ -55,6 +63,14 @@ func setupSecurityEnrollmentTest(t *testing.T) (*model.User, service.AuthIdentit
 	dsn := os.Getenv("TEST_" + strings.ToUpper(dialect) + "_DSN")
 	db, _ := newAuditTestDatabase(t, dialect, dsn)
 	logDB, _ := newAuditTestDatabase(t, dialect, dsn)
+	if singleConnection && dialect == "sqlite" {
+		for _, database := range []*gorm.DB{db, logDB} {
+			sqlDB, err := database.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			sqlDB.SetMaxIdleConns(1)
+		}
+	}
 	db.Logger = logger.Default.LogMode(logger.Silent)
 	logDB.Logger = logger.Default.LogMode(logger.Silent)
 	versionQuery := "SELECT VERSION()"

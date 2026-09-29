@@ -438,13 +438,9 @@ func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 	t.Helper()
 	if kind == "sqlite" {
 		path := t.TempDir() + "/audit.db"
-		dsn := path + "?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+		dsn := path + "?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)"
 		db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 		require.NoError(t, err)
-		sqlDB, err := db.DB()
-		require.NoError(t, err)
-		sqlDB.SetMaxOpenConns(1)
-		sqlDB.SetMaxIdleConns(1)
 		return db, path
 	}
 	require.NotEmpty(t, dsn)
