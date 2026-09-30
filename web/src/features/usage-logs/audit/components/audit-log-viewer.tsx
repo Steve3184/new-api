@@ -94,8 +94,9 @@ export function AuditLogViewer(props: {
     totalCount: query.isError ? 0 : (query.data?.total ?? 0),
     pagination: { pageIndex: filters.p - 1, pageSize: filters.page_size },
     onPaginationChange: (updater) => {
-      if (query.isFetching || query.isError || invalidRange || !canQuery)
+      if (query.isFetching || query.isError || invalidRange || !canQuery) {
         return;
+      }
       setFilters((previous) => {
         const current = {
           pageIndex: previous.p - 1,
