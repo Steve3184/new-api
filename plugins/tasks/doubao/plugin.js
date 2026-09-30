@@ -110,6 +110,8 @@ const IMAGE_TIER_MAX_PIXELS = 2610000;
 const MAX_IMAGE_OUTPUTS = 17;
 // Documented reference-image ceiling across Seedream models; bounds usage.input_images.
 const MAX_REFERENCE_IMAGES = 14;
+// Documented per-image size ceiling for reference images.
+const MAX_INPUT_IMAGE_BYTES = 31457280;
 // Base64 references must be `data:image/<lowercase format>;base64,<payload>`.
 const IMAGE_DATA_URI = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/;
 // Responses fields copied verbatim into the Ark body. `background` is excluded:
@@ -246,7 +248,7 @@ export const meta = {
     en: "Volcengine Doubao Seedance video generation and Seedream image generation",
     zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
   },
-  version: "1.1.0",
+  version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
   models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
@@ -276,6 +278,7 @@ export const meta = {
   protocols: [
     { name: "openai_responses", supports: ["stream", "sync", "background"] },
     { name: "openai_video", models: Object.keys(VIDEO_MODELS) },
+    { name: "openai_image", models: Object.keys(IMAGE_MODELS) },
   ],
 };
 
@@ -488,6 +491,9 @@ function convertImage(ctx) {
   if (!layered && !trimmed(body.prompt)) throw new Error("prompt is required");
   const images = body.image === undefined ? [] : Array.isArray(body.image) ? body.image : [body.image];
   for (const image of images) {
+    // Multipart uploads stay host file placeholders until submit, when the host
+    // inlines them as data:image/<format>;base64 URLs.
+    if (image && typeof image === "object" && typeof image.__fileRef === "string" && image.encoding === "dataUrl") continue;
     const value = typeof image === "string" ? trimmed(image) : "";
     if (!/^https?:\/\//i.test(value) && !IMAGE_DATA_URI.test(value))
       throw new Error("image must be an HTTP URL or a data:image/<format>;base64 URL with a lowercase format");
@@ -999,6 +1005,78 @@ export const protocols = {
           },
         ],
         metadata: { vendor: "doubao" },
+      };
+    },
+  },
+  // OpenAI Images API. The host pins ctx.model, returns the synchronous result
+  // inline and owns response_format. Requests map onto the same Ark body as the
+  // native route, so validation and usage facts are identical.
+  openai_image: {
+    decodeRequest: function (ctx) {
+      const model = trimmed(ctx.model);
+      if (!model) throw new Error("model is required");
+      let req = {};
+      const uploads = [];
+      if (ctx.body && ctx.body.kind === "json") {
+        req = ctx.body.value;
+        if (!req || typeof req !== "object" || Array.isArray(req)) throw new Error("request body must be an object");
+      } else if (ctx.body && ctx.body.kind === "multipart") {
+        const fields = ctx.body.fields || {};
+        for (const name of Object.keys(fields)) {
+          if (fields[name].length > 1) throw new Error(name + " must be provided once");
+          req[name] = fields[name][0];
+        }
+        for (const key of ["n", "seed", "guidance_scale"]) {
+          if (req[key] !== undefined) req[key] = Number(req[key]);
+        }
+        for (const key of ["stream", "watermark", "optimize_prompt", "layer_decomposition"]) {
+          if (req[key] === undefined) continue;
+          if (req[key] !== "true" && req[key] !== "false") throw new Error(key + " must be true or false");
+          req[key] = req[key] === "true";
+        }
+        for (const key of ["optimize_prompt_options", "sequential_image_generation_options", "tools"]) {
+          if (req[key] === undefined) continue;
+          try {
+            req[key] = JSON.parse(req[key]);
+          } catch (e) {
+            throw new Error(key + " must be a JSON string");
+          }
+        }
+        for (const file of ctx.body.files || []) {
+          if (!/^image(\[\d*\])?$/.test(file.field)) throw new Error(file.field + " is not supported");
+          // Ark reads Base64 references only as data:image/<lowercase format>;base64 URLs.
+          const mimeType = trimmed(file.mimeType).toLowerCase();
+          uploads.push({
+            __fileRef: file.ref,
+            encoding: "dataUrl",
+            mimeType: /^image\/[a-z0-9.+-]+$/.test(mimeType) ? mimeType : "image/png",
+            maxBytes: MAX_INPUT_IMAGE_BYTES,
+          });
+        }
+      } else throw new Error("JSON or multipart body required");
+      if (req.stream !== undefined && req.stream !== false)
+        throw new Error("stream is not supported; the complete image response is returned once all images are generated");
+      if (req.response_format !== undefined && req.response_format !== "url" && req.response_format !== "b64_json")
+        throw new Error("response_format must be url or b64_json");
+      // Seedream has no per-request image count; multiple images come from group generation.
+      if (req.n !== undefined && req.n !== null && req.n !== 1) throw new Error("n must be 1; use sequential_image_generation for multiple images");
+      if (req.mask !== undefined) throw new Error("mask is not supported");
+      const requestBody = { model: model };
+      for (const key of IMAGE_REQUEST_KEYS.concat(["prompt", "image", "background", "tools"])) {
+        // The host inlines b64_json from the upstream URLs; Ark always answers with URLs.
+        if (key !== "response_format" && Object.prototype.hasOwnProperty.call(req, key)) requestBody[key] = req[key];
+      }
+      if (uploads.length) requestBody.image = [].concat(requestBody.image === undefined ? [] : requestBody.image, uploads);
+      const converted = convertImage({ model: model, requestBody: requestBody });
+      if (ctx.operation === "edit" && converted.action !== "image_to_image") throw new Error("image is required");
+      return { kind: "submit", model: model, action: converted.action, requestBody: requestBody };
+    },
+    render: function (ctx, task) {
+      return {
+        created: task.created_at,
+        data: imageURLEntries(artifactData(task)).map(function (item) {
+          return { url: trimmed(item.url) };
+        }),
       };
     },
   },

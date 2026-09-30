@@ -16,155 +16,179 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { Table } from '@tanstack/react-table'
-import { Power, PowerOff, Trash2 } from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import type { Table } from "@tanstack/react-table";
+import { Power, PowerOff, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
-import { Button } from '@/components/ui/button'
+import { DataTableBulkActions as BulkActionsToolbar } from "@/components/data-table";
+import { Dialog } from "@/components/dialog";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from "@/components/ui/tooltip";
 
-import { batchManageUsers } from '../api'
-import type { User } from '../types'
-import { useUsers } from './users-provider'
+import { batchManageUsers } from "../api";
+import type { User } from "../types";
+import { useUsers } from "./users-provider";
 
 interface DataTableBulkActionsProps {
-  table: Table<User>
+  table: Table<User>;
 }
 
 export function DataTableBulkActions({ table }: DataTableBulkActionsProps) {
-  const { t } = useTranslation()
-  const { triggerRefresh } = useUsers()
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const selectedRows = table.getFilteredSelectedRowModel().rows
+  const { t } = useTranslation();
+  const { triggerRefresh, requestVerification, verificationActive } =
+    useUsers();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
   const selectedIds = selectedRows
     .map((row) => row.original.id)
-    .filter((id): id is number => typeof id === 'number')
+    .filter((id): id is number => typeof id === "number");
 
-  const clearSelection = () => table.resetRowSelection()
+  const clearSelection = () => table.resetRowSelection();
 
-  const runManageAction = async (action: 'enable' | 'disable') => {
+  const runManageAction = async (action: "enable" | "disable") => {
     try {
-      const result = await batchManageUsers(selectedIds, action)
-      if (!result.success) throw new Error(result.message)
+      const proof = await requestVerification({
+        scope: "admin.user.manage.batch",
+        context: { user_ids: selectedIds, action },
+        title:
+          action === "enable"
+            ? t("Verify to enable user")
+            : t("Verify to disable user"),
+      });
+      if (!proof) return;
+      const result = await batchManageUsers(
+        selectedIds,
+        action,
+        proof.proof_token,
+      );
+      if (!result.success) throw new Error(result.message);
       toast.success(
-        action === 'enable'
-          ? t('User enabled successfully')
-          : t('User disabled successfully')
-      )
-      triggerRefresh()
-      clearSelection()
+        action === "enable"
+          ? t("User enabled successfully")
+          : t("User disabled successfully"),
+      );
+      triggerRefresh();
+      clearSelection();
     } catch {
-      toast.error(t('An unexpected error occurred'))
+      toast.error(t("An unexpected error occurred"));
     }
-  }
+  };
 
   const runDeleteAction = async () => {
     try {
-      const result = await batchManageUsers(selectedIds, 'delete')
-      if (!result.success) throw new Error(result.message)
-      toast.success(t('Users deleted successfully'))
-      setShowDeleteConfirm(false)
-      triggerRefresh()
-      clearSelection()
+      const proof = await requestVerification({
+        scope: "admin.user.manage.batch",
+        context: { user_ids: selectedIds, action: "delete" },
+        title: t("Verify to delete user"),
+      });
+      if (!proof) return;
+      const result = await batchManageUsers(
+        selectedIds,
+        "delete",
+        proof.proof_token,
+      );
+      if (!result.success) throw new Error(result.message);
+      toast.success(t("Users deleted successfully"));
+      setShowDeleteConfirm(false);
+      triggerRefresh();
+      clearSelection();
     } catch {
-      toast.error(t('An unexpected error occurred'))
+      toast.error(t("An unexpected error occurred"));
     }
-  }
+  };
 
   return (
     <>
-      <BulkActionsToolbar table={table} entityName='user'>
+      <BulkActionsToolbar table={table} entityName="user">
         <Tooltip>
           <TooltipTrigger
             render={
               <Button
-                variant='outline'
-                size='icon'
-                className='size-8'
-                onClick={() => runManageAction('enable')}
-                aria-label={t('Enable selected users')}
-                title={t('Enable selected users')}
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => runManageAction("enable")}
+                aria-label={t("Enable selected users")}
+                title={t("Enable selected users")}
               />
             }
           >
             <Power />
-            <span className='sr-only'>{t('Enable selected users')}</span>
+            <span className="sr-only">{t("Enable selected users")}</span>
           </TooltipTrigger>
-          <TooltipContent>{t('Enable selected users')}</TooltipContent>
+          <TooltipContent>{t("Enable selected users")}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger
             render={
               <Button
-                variant='outline'
-                size='icon'
-                className='size-8'
-                onClick={() => runManageAction('disable')}
-                aria-label={t('Disable selected users')}
-                title={t('Disable selected users')}
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => runManageAction("disable")}
+                aria-label={t("Disable selected users")}
+                title={t("Disable selected users")}
               />
             }
           >
             <PowerOff />
-            <span className='sr-only'>{t('Disable selected users')}</span>
+            <span className="sr-only">{t("Disable selected users")}</span>
           </TooltipTrigger>
-          <TooltipContent>{t('Disable selected users')}</TooltipContent>
+          <TooltipContent>{t("Disable selected users")}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger
             render={
               <Button
-                variant='destructive'
-                size='icon'
-                className='size-8'
+                variant="destructive"
+                size="icon"
+                className="size-8"
                 onClick={() => setShowDeleteConfirm(true)}
-                aria-label={t('Delete selected users')}
-                title={t('Delete selected users')}
+                aria-label={t("Delete selected users")}
+                title={t("Delete selected users")}
               />
             }
           >
             <Trash2 />
-            <span className='sr-only'>{t('Delete selected users')}</span>
+            <span className="sr-only">{t("Delete selected users")}</span>
           </TooltipTrigger>
-          <TooltipContent>{t('Delete selected users')}</TooltipContent>
+          <TooltipContent>{t("Delete selected users")}</TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
 
       <Dialog
-        open={showDeleteConfirm}
+        open={showDeleteConfirm && !verificationActive}
         onOpenChange={setShowDeleteConfirm}
-        title={t('Delete Users?')}
+        title={t("Delete Users?")}
         description={t(
-          'Are you sure you want to delete {{count}} user(s)? This action cannot be undone.',
-          { count: selectedIds.length }
+          "Are you sure you want to delete {{count}} user(s)? This action cannot be undone.",
+          { count: selectedIds.length },
         )}
-        contentHeight='auto'
+        contentHeight="auto"
         footer={
           <>
             <Button
-              variant='outline'
+              variant="outline"
               onClick={() => setShowDeleteConfirm(false)}
             >
-              {t('Cancel')}
+              {t("Cancel")}
             </Button>
-            <Button variant='destructive' onClick={runDeleteAction}>
-              {t('Delete')}
+            <Button variant="destructive" onClick={runDeleteAction}>
+              {t("Delete")}
             </Button>
           </>
         }
       >
-        {' '}
+        {" "}
       </Dialog>
     </>
-  )
+  );
 }

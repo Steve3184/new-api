@@ -700,6 +700,21 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 	updatePassword := updatedUser.Password != ""
+	auditParams := map[string]any{
+		"username": originUser.Username,
+		"id":       updatedUser.Id,
+	}
+	// Resetting a password or rewriting the admin permission matrix changes what
+	// the managed account can do or who can sign in to it.
+	if updatePassword || updatedUser.AdminPermissions != nil {
+		authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserUpdate, service.AdminUserContext{UserID: updatedUser.Id})
+		if authorization == nil {
+			return
+		}
+		auditParams["verification_method"] = authorization.Method
+		auditParams["password_reset"] = updatePassword
+		auditParams["admin_permissions_updated"] = updatedUser.AdminPermissions != nil
+	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
@@ -728,10 +743,7 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAuditFor(c, updatedUser.Id, "user.update", map[string]interface{}{
-		"username": originUser.Username,
-		"id":       updatedUser.Id,
-	})
+	recordManageAuditFor(c, updatedUser.Id, "user.update", auditParams)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -763,15 +775,20 @@ func AdminClearUserBinding(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
 		return
 	}
+	authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserBindingClear, service.AdminUserBindingContext{UserID: user.Id, BindingType: bindingType})
+	if authorization == nil {
+		return
+	}
 
 	if err := user.ClearBinding(bindingType); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	recordManageAuditFor(c, user.Id, "user.binding_clear", map[string]interface{}{
-		"bindingType": bindingType,
-		"username":    user.Username,
+	recordManageAuditFor(c, user.Id, "user.binding_clear", map[string]any{
+		"bindingType":         bindingType,
+		"username":            user.Username,
+		"verification_method": authorization.Method,
 	})
 
 	c.JSON(http.StatusOK, gin.H{
@@ -874,7 +891,7 @@ func UpdateSelf(c *gin.Context) {
 		DisplayName: user.DisplayName,
 	}
 	if user.Password != "" {
-		identity, ok := middleware.GetSessionAuthIdentity(c)
+		identity, ok := middleware.GetStepUpIdentity(c)
 		if !ok {
 			writeSecurityOperationError(c, service.ErrAuthTokenInvalid)
 			return
@@ -908,17 +925,13 @@ func UpdateSelf(c *gin.Context) {
 			writeSecurityOperationError(c, err)
 			return
 		}
+		data := authRotationData(bundle)
+		data["has_password"] = true
+		data["notification_warning"] = notificationFailed
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
-			"data": gin.H{
-				"access_token":         bundle.AccessToken,
-				"token_type":           bundle.TokenType,
-				"access_expires_at":    bundle.AccessExpiresAt,
-				"session":              bundle.Session,
-				"has_password":         true,
-				"notification_warning": notificationFailed,
-			},
+			"data":    data,
 		})
 		return
 	}
@@ -947,14 +960,20 @@ func DeleteUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
-	err = model.HardDeleteUserById(id)
+	authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserDelete, service.AdminUserContext{UserID: originUser.Id})
+	if authorization == nil {
+		return
+	}
+	revokedAccessTokens, err := model.HardDeleteUserById(id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAuditFor(c, originUser.Id, "user.delete", map[string]interface{}{
-		"username": originUser.Username,
-		"id":       originUser.Id,
+	recordManageAuditFor(c, originUser.Id, "user.delete", map[string]any{
+		"username":              originUser.Username,
+		"id":                    originUser.Id,
+		"verification_method":   authorization.Method,
+		"revoked_access_tokens": revokedAccessTokens,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -966,14 +985,20 @@ func DeleteUser(c *gin.Context) {
 func DeleteSelf(c *gin.Context) {
 	setAuthNoStore(c)
 	succeeded := false
+	var revokedAccessTokens int64
 	defer func() {
-		recordUserSecurityAudit(c, c.GetInt("id"), "user.account_delete", map[string]any{"success": succeeded})
+		params := map[string]any{"success": succeeded}
+		if succeeded {
+			params["revoked_access_tokens"] = revokedAccessTokens
+		}
+		recordUserSecurityAudit(c, c.GetInt("id"), "user.account_delete", params)
 	}()
 	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccountDelete}) == nil {
 		return
 	}
-	identity, _ := middleware.GetSessionAuthIdentity(c)
-	if err := model.DeleteUserForSession(identity); err != nil {
+	identity, _ := middleware.GetStepUpIdentity(c)
+	var err error
+	if revokedAccessTokens, err = model.DeleteUserForSession(identity); err != nil {
 		if errors.Is(err, model.ErrCannotDeleteRootUser) {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
 			return
@@ -1010,6 +1035,15 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
+	auditParams := map[string]any{"role": user.Role}
+	// Creating an administrator grants privilege just like promoting one.
+	if user.Role >= common.RoleAdminUser {
+		authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserCreate, service.AdminUserCreateContext{Role: user.Role})
+		if authorization == nil {
+			return
+		}
+		auditParams["verification_method"] = authorization.Method
+	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
 		Username:    user.Username,
@@ -1037,10 +1071,8 @@ func CreateUser(c *gin.Context) {
 	}
 	cleanUser.FinishInsert(0)
 
-	recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]interface{}{
-		"username": cleanUser.Username,
-		"role":     cleanUser.Role,
-	})
+	auditParams["username"] = cleanUser.Username
+	recordManageAuditFor(c, cleanUser.Id, "user.create", auditParams)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -1129,9 +1161,13 @@ func BatchManageUsers(c *gin.Context) {
 		users = append(users, user)
 	}
 
+	authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserBatchManage, service.AdminUserBatchManageContext{UserIDs: ids, Action: req.Action})
+	if authorization == nil {
+		return
+	}
 	if req.Action == "delete" {
 		for _, user := range users {
-			if err := model.HardDeleteUserById(user.Id); err != nil {
+			if _, err := model.HardDeleteUserById(user.Id); err != nil {
 				common.ApiError(c, err)
 				return
 			}
@@ -1146,9 +1182,10 @@ func BatchManageUsers(c *gin.Context) {
 			return
 		}
 	}
-	auditParams := map[string]interface{}{
-		"action": req.Action,
-		"count":  len(ids),
+	auditParams := map[string]any{
+		"action":              req.Action,
+		"count":               len(ids),
+		"verification_method": authorization.Method,
 	}
 	recordManageAudit(c, "user.batch_manage", auditParams)
 	c.JSON(http.StatusOK, gin.H{
@@ -1199,7 +1236,12 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
 			return
 		}
-		if err := user.Delete(); err != nil {
+		authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserDelete, service.AdminUserContext{UserID: user.Id})
+		if authorization == nil {
+			return
+		}
+		revokedAccessTokens, err := user.Delete()
+		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
@@ -1211,10 +1253,12 @@ func ManageUser(c *gin.Context) {
 		if err := model.InvalidateUserTokensCache(user.Id); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 		}
-		recordManageAuditFor(c, user.Id, "user.manage", map[string]interface{}{
-			"action":   req.Action,
-			"username": user.Username,
-			"id":       user.Id,
+		recordManageAuditFor(c, user.Id, "user.manage", map[string]any{
+			"action":                req.Action,
+			"username":              user.Username,
+			"id":                    user.Id,
+			"verification_method":   authorization.Method,
+			"revoked_access_tokens": revokedAccessTokens,
 		})
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
@@ -1246,6 +1290,10 @@ func ManageUser(c *gin.Context) {
 		return
 	}
 
+	authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserManage, service.AdminUserManageContext{UserID: user.Id, Action: req.Action})
+	if authorization == nil {
+		return
+	}
 	if req.Action == "demote" {
 		if err := model.DB.Transaction(func(tx *gorm.DB) error {
 			if err := user.UpdateWithTx(tx, false); err != nil {
@@ -1281,10 +1329,11 @@ func ManageUser(c *gin.Context) {
 	if err := model.InvalidateUserTokensCache(user.Id); err != nil {
 		common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 	}
-	recordManageAuditFor(c, user.Id, "user.manage", map[string]interface{}{
-		"action":   req.Action,
-		"username": user.Username,
-		"id":       user.Id,
+	recordManageAuditFor(c, user.Id, "user.manage", map[string]any{
+		"action":              req.Action,
+		"username":            user.Username,
+		"id":                  user.Id,
+		"verification_method": authorization.Method,
 	})
 	clearUser := model.User{
 		Role:   user.Role,

@@ -209,7 +209,10 @@ return an empty string, so the base request price remains the fallback.
 
 Task plugins can expose validated, provider-specific billing facts through
 `meta.usageSchema`. Expressions read those facts with `u("key")`. A literal key
-must be declared by the plugin schema before the expression can be saved.
+must be declared by the plugin schema before the expression can be saved. A
+single-plugin model's unchanged stored expression, and its unchanged provider
+override, stay saveable after the plugin narrows the model's profile; any edit
+must follow the current profile.
 
 Multiple plugins may serve the same model with different usage schemas. The
 executing channel identifies the plugin; clients do not select a billing

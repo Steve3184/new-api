@@ -16,71 +16,74 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
-import { isAxiosError } from 'axios'
-import { Download } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useQuery } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
+import { Download } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
-import { DataTablePage, useDataTable } from '@/components/data-table'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { requireServerSuccess } from '@/lib/server-error-message'
-import { useAuthStore } from '@/stores/auth-store'
+import { DataTablePage, useDataTable } from "@/components/data-table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { requireServerSuccess } from "@/lib/server-error-message";
+import { useAuthStore } from "@/stores/auth-store";
 
-import { LogsExportDialog } from '../../components/logs-export-dialog'
+import { LogsExportDialog } from "../../components/logs-export-dialog";
 import {
   exportAuditLogsCsv,
   getAuditLogs,
   type AuditFilters,
   type AuditLog,
-} from '../api'
-import { useAuditLogColumns } from './audit-log-columns'
-import { AuditLogFilterBar } from './audit-log-filter-bar'
+} from "../api";
+import { useAuditLogColumns } from "./audit-log-columns";
+import { AuditLogFilterBar } from "./audit-log-filter-bar";
 
-const EMPTY_LOGS: AuditLog[] = []
+const EMPTY_LOGS: AuditLog[] = [];
 
 export function AuditLogViewer(props: {
-  scope: 'all' | 'self'
-  accessOnly?: boolean
-  currentTokenRef?: string
-  onAccessDenied?: () => Promise<void>
+  scope: "all" | "self";
+  accessOnly?: boolean;
+  currentTokenRef?: string;
+  // The token scope the viewer opens with and returns to on reset.
+  defaultTokenScope?: "all" | "current";
+  onAccessDenied?: () => Promise<void>;
 }) {
-  const { t } = useTranslation()
-  const userId = useAuthStore((state) => state.auth.user?.id)
-  const [filters, setFilters] = useState<AuditFilters>({ p: 1, page_size: 20 })
-  const [tokenScope, setTokenScope] = useState('all')
-  const [exportOpen, setExportOpen] = useState(false)
-  const params = { ...filters }
-  if (props.accessOnly) params.category = 'access_token'
-  if (tokenScope === 'current') params.token_ref = props.currentTokenRef
-  if (tokenScope === 'historical') {
-    params.exclude_token_ref = props.currentTokenRef
+  const { t } = useTranslation();
+  const userId = useAuthStore((state) => state.auth.user?.id);
+  const [filters, setFilters] = useState<AuditFilters>({ p: 1, page_size: 20 });
+  const [exportOpen, setExportOpen] = useState(false);
+  const defaultTokenScope = props.defaultTokenScope ?? "all";
+  const [tokenScope, setTokenScope] = useState<string>(defaultTokenScope);
+  const params = { ...filters };
+  if (props.accessOnly) params.category = "access_token";
+  if (tokenScope === "current") params.token_ref = props.currentTokenRef;
+  if (tokenScope === "historical") {
+    params.exclude_token_ref = props.currentTokenRef;
   }
   const canQuery =
-    tokenScope === 'all' ||
+    tokenScope === "all" ||
     (props.currentTokenRef !== undefined &&
-      (tokenScope === 'historical' || !!props.currentTokenRef))
+      (tokenScope === "historical" || !!props.currentTokenRef));
   const invalidRange =
     filters.start_timestamp !== undefined &&
     filters.end_timestamp !== undefined &&
-    filters.start_timestamp > filters.end_timestamp
+    filters.start_timestamp > filters.end_timestamp;
   const query = useQuery({
-    queryKey: ['audit', userId, props.scope, params],
+    queryKey: ["audit", userId, props.scope, params],
     queryFn: async () =>
       requireServerSuccess(await getAuditLogs(props.scope, params)),
     enabled: canQuery && !invalidRange,
     retry: false,
-  })
+  });
   const accessDenied =
-    props.scope === 'all' &&
+    props.scope === "all" &&
     isAxiosError(query.error) &&
-    query.error.response?.status === 403
-  const onAccessDenied = props.onAccessDenied
+    query.error.response?.status === 403;
+  const onAccessDenied = props.onAccessDenied;
   useEffect(() => {
-    if (accessDenied) void onAccessDenied?.()
-  }, [accessDenied, onAccessDenied])
-  const columns = useAuditLogColumns(props.accessOnly)
+    if (accessDenied) void onAccessDenied?.();
+  }, [accessDenied, onAccessDenied]);
+  const columns = useAuditLogColumns(props.accessOnly);
   const { table } = useDataTable({
     columns,
     data:
@@ -91,46 +94,47 @@ export function AuditLogViewer(props: {
     totalCount: query.isError ? 0 : (query.data?.total ?? 0),
     pagination: { pageIndex: filters.p - 1, pageSize: filters.page_size },
     onPaginationChange: (updater) => {
-      if (query.isFetching || query.isError || invalidRange || !canQuery) return
+      if (query.isFetching || query.isError || invalidRange || !canQuery)
+        return;
       setFilters((previous) => {
         const current = {
           pageIndex: previous.p - 1,
           pageSize: previous.page_size,
-        }
-        const next = typeof updater === 'function' ? updater(current) : updater
+        };
+        const next = typeof updater === "function" ? updater(current) : updater;
         return {
           ...previous,
           p: next.pageSize === previous.page_size ? next.pageIndex + 1 : 1,
           page_size: next.pageSize,
-        }
-      })
+        };
+      });
     },
     enableRowSelection: false,
     enableSorting: false,
     manualFiltering: true,
     manualPagination: true,
-  })
+  });
   const update = (patch: Partial<AuditFilters>) =>
-    setFilters((previous) => ({ ...previous, ...patch, p: 1 }))
+    setFilters((previous) => ({ ...previous, ...patch, p: 1 }));
 
   return (
-    <div className='flex h-full min-h-0 flex-col'>
+    <div className="flex h-full min-h-0 flex-col">
       <DataTablePage
         table={table}
         columns={columns}
         isLoading={query.isPending && canQuery && !invalidRange}
         isFetching={query.isFetching}
         emptyTitle={
-          query.isError ? t('Failed to load audit records') : t('No records')
+          query.isError ? t("Failed to load audit records") : t("No records")
         }
         hideMobile={props.accessOnly}
         paginationInFooter={!props.accessOnly}
-        className='h-auto min-h-0 flex-1'
+        className="h-auto min-h-0 flex-1"
         applyHeaderSize
-        getColumnClassName={() => 'py-2'}
-        tableClassName='[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
+        getColumnClassName={() => "py-2"}
+        tableClassName="[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]"
         toolbar={
-          <div className='shrink-0 space-y-2'>
+          <div className="shrink-0 space-y-2">
             <AuditLogFilterBar
               table={table}
               filters={filters}
@@ -138,50 +142,51 @@ export function AuditLogViewer(props: {
               scope={props.scope}
               accessOnly={props.accessOnly}
               tokenScope={tokenScope}
+              defaultTokenScope={defaultTokenScope}
               currentTokenRef={props.currentTokenRef}
               onTokenScopeChange={(value) => {
-                setTokenScope(value)
-                update({})
+                setTokenScope(value);
+                update({});
               }}
               isFetching={query.isFetching}
               onSearch={() => {
-                if (!invalidRange && canQuery) void query.refetch()
+                if (!invalidRange && canQuery) void query.refetch();
               }}
               onReset={() => {
-                setTokenScope('all')
-                setFilters({ p: 1, page_size: filters.page_size })
+                setTokenScope(defaultTokenScope);
+                setFilters({ p: 1, page_size: filters.page_size });
               }}
               actionStart={
                 <Button
-                  type='button'
-                  variant='outline'
+                  type="button"
+                  variant="outline"
                   onClick={() => setExportOpen(true)}
                   disabled={
                     query.isFetching || exportOpen || invalidRange || !canQuery
                   }
                 >
                   <Download />
-                  {t('Export CSV')}
+                  {t("Export CSV")}
                 </Button>
               }
             />
             {invalidRange && (
-              <Alert variant='destructive'>
+              <Alert variant="destructive">
                 <AlertDescription>
-                  {t('End time must be after start time')}
+                  {t("End time must be after start time")}
                 </AlertDescription>
               </Alert>
             )}
             {query.isError && (
-              <Alert variant='destructive'>
-                <AlertDescription className='flex items-center justify-between gap-2'>
-                  <span>{t('Failed to load audit records')}</span>
+              <Alert variant="destructive">
+                <AlertDescription className="flex items-center justify-between gap-2">
+                  <span>{t("Failed to load audit records")}</span>
                   <Button
-                    size='sm'
-                    variant='outline'
+                    size="sm"
+                    variant="outline"
                     onClick={() => void query.refetch()}
                   >
-                    {t('Retry')}
+                    {t("Retry")}
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -198,5 +203,5 @@ export function AuditLogViewer(props: {
         />
       )}
     </div>
-  )
+  );
 }
