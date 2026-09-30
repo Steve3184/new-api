@@ -76,6 +76,7 @@ func resolveAutoRoutePricingModel(c *gin.Context, modelName string) string {
 	}
 	return routes[modelName][0]
 }
+
 // HandleGroupRatio checks for "auto_group" in the context and updates the group ratio and relayInfo.UsingGroup if present
 func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hosttypes.GroupRatioInfo {
 	groupRatioInfo := hosttypes.GroupRatioInfo{
