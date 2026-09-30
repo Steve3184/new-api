@@ -33,6 +33,7 @@ func TestWaffoPancakeWebhookReturnsFailureForUnresolvedSubscriptionOrder(t *test
 	previousMerchantID := setting.WaffoPancakeMerchantID
 	previousPrivateKey := setting.WaffoPancakePrivateKey
 	previousProductID := setting.WaffoPancakeProductID
+	previousStoreID := setting.WaffoPancakeStoreID
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())), &gorm.Config{})
 	require.NoError(t, err)
@@ -45,6 +46,7 @@ func TestWaffoPancakeWebhookReturnsFailureForUnresolvedSubscriptionOrder(t *test
 	setting.WaffoPancakeMerchantID = "merchant"
 	setting.WaffoPancakePrivateKey = "private"
 	setting.WaffoPancakeProductID = "product"
+	setting.WaffoPancakeStoreID = "STO_test"
 	t.Cleanup(func() {
 		model.DB, model.LOG_DB = previousDB, previousLogDB
 		common.SetDatabaseTypes(previousMainType, previousLogType)
@@ -52,6 +54,7 @@ func TestWaffoPancakeWebhookReturnsFailureForUnresolvedSubscriptionOrder(t *test
 		setting.WaffoPancakeMerchantID = previousMerchantID
 		setting.WaffoPancakePrivateKey = previousPrivateKey
 		setting.WaffoPancakeProductID = previousProductID
+		setting.WaffoPancakeStoreID = previousStoreID
 		sqlDB, dbErr := db.DB()
 		if dbErr == nil {
 			_ = sqlDB.Close()

@@ -31,6 +31,7 @@ const (
 	VerificationScopeLogin               = "auth.login"
 	VerificationScopeAccessTokenGenerate = "access_token.generate"
 	VerificationScopeAccessTokenRevoke   = "access_token.revoke"
+	VerificationScopeAccessTokenUpdate   = "access_token.update"
 	VerificationScopeAccountBind         = "account.binding.bind"
 	VerificationScopeAccountUnbind       = "account.binding.unbind"
 	VerificationScopePasswordSet         = "account.password.set"
@@ -114,6 +115,13 @@ type AdminUserCreateContext struct {
 type AccessTokenGenerateContext struct {
 	Scopes    []string `json:"scopes"`
 	ExpiresAt int64    `json:"expires_at"`
+}
+
+// AccessTokenUpdateContext binds a grant change to one token and the exact new
+// grant, compared as a sorted, de-duplicated set.
+type AccessTokenUpdateContext struct {
+	TokenID int      `json:"token_id"`
+	Scopes  []string `json:"scopes"`
 }
 
 // AccessTokenRevokeContext names exactly one token: a scoped token ID or the
@@ -251,6 +259,17 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 		}
 		context.Scopes = scopes
 		normalized = context
+	case VerificationScopeAccessTokenUpdate:
+		var context AccessTokenUpdateContext
+		if len(fields) != 2 || common.Unmarshal(operation.Context, &context) != nil || context.TokenID <= 0 {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		scopes, ok := NormalizeAccessTokenScopeList(context.Scopes)
+		if !ok {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		context.Scopes = scopes
+		normalized = context
 	case VerificationScopeAccessTokenRevoke:
 		var context AccessTokenRevokeContext
 		if len(fields) != 1 || common.Unmarshal(operation.Context, &context) != nil || context.TokenID < 0 {
@@ -332,7 +351,7 @@ func securityVerificationPolicy(scope string, state model.UserVerificationState)
 		}
 		methods = []string{VerificationMethodTwoFA}
 	case VerificationScopePasskeyRegister, VerificationScopeTwoFASetup,
-		VerificationScopeAccessTokenGenerate, VerificationScopeAccessTokenRevoke,
+		VerificationScopeAccessTokenGenerate, VerificationScopeAccessTokenUpdate, VerificationScopeAccessTokenRevoke,
 		VerificationScopeAccountBind, VerificationScopeAccountUnbind,
 		VerificationScopePasswordSet, VerificationScopePasswordChange, VerificationScopeAccountDelete,
 		VerificationScopeAdminUserCreate, VerificationScopeAdminUserUpdate, VerificationScopeAdminUserDelete,

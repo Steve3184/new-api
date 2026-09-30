@@ -164,19 +164,22 @@ type accessTokenEndpoint struct {
 func accessTokenMutationEndpoints(tokenID int) []accessTokenEndpoint {
 	return []accessTokenEndpoint{
 		{"create", "POST", "/api/user/access_tokens", `{"name":"ci","scopes":["profile:read"],"expires_at":0}`, service.VerificationScopeAccessTokenGenerate, []byte(`{"scopes":["profile:read"],"expires_at":0}`), CreateAccessToken},
+		{"update", "PATCH", fmt.Sprintf("/api/user/access_tokens/%d", tokenID), `{"name":"ci","scopes":["usage:read"]}`, service.VerificationScopeAccessTokenUpdate, []byte(fmt.Sprintf(`{"token_id":%d,"scopes":["usage:read"]}`, tokenID)), withAccessTokenID(UpdateAccessToken, tokenID)},
 		{"delete", "DELETE", fmt.Sprintf("/api/user/access_tokens/%d", tokenID), "", service.VerificationScopeAccessTokenRevoke, []byte(fmt.Sprintf(`{"token_id":%d}`, tokenID)), withAccessTokenID(DeleteAccessToken, tokenID)},
 		{"legacy", "DELETE", "/api/user/access_tokens/legacy", "", service.VerificationScopeAccessTokenRevoke, []byte(`{"legacy":true}`), RevokeLegacyAccessToken},
 	}
 }
 
-// assertAccessTokensUnchanged checks that the seeded scoped token and legacy
-// token both still authenticate.
+// assertAccessTokensUnchanged checks that the seeded scoped token keeps its
+// name and grant and that the legacy token still authenticates.
 func assertAccessTokensUnchanged(t *testing.T, userID int, scopedID int, legacy string) {
 	t.Helper()
 	tokens, err := model.ListUserAccessTokens(userID)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
 	assert.Equal(t, scopedID, tokens[0].Id)
+	assert.Equal(t, "test token", tokens[0].Name)
+	assert.Equal(t, []string{"profile:read"}, tokens[0].GetScopes())
 	stored, err := model.ValidateAccessToken(legacy)
 	require.NoError(t, err)
 	require.NotNil(t, stored)
@@ -245,7 +248,7 @@ func TestSecurityEnrollmentAccessTokenMethodPolicy(t *testing.T) {
 			if !test.password {
 				passwordScope = service.VerificationScopePasswordSet
 			}
-			for _, scope := range []string{service.VerificationScopeAccessTokenGenerate, service.VerificationScopeAccessTokenRevoke,
+			for _, scope := range []string{service.VerificationScopeAccessTokenGenerate, service.VerificationScopeAccessTokenUpdate, service.VerificationScopeAccessTokenRevoke,
 				service.VerificationScopeAccountBind, service.VerificationScopeAccountUnbind, passwordScope} {
 				requirements, err := service.GetVerificationRequirements(identity, scope)
 				require.NoError(t, err)
@@ -268,6 +271,8 @@ func TestSecurityEnrollmentAccessTokenMethodPolicy(t *testing.T) {
 						input.Context = []byte(`{"provider_id":1}`)
 					case service.VerificationScopeAccessTokenGenerate:
 						input.Context = []byte(`{"scopes":["profile:read"],"expires_at":0}`)
+					case service.VerificationScopeAccessTokenUpdate:
+						input.Context = []byte(`{"token_id":1,"scopes":["profile:read"]}`)
 					case service.VerificationScopeAccessTokenRevoke:
 						input.Context = []byte(`{"token_id":1}`)
 					}
@@ -396,6 +401,7 @@ func TestSecurityEnrollmentAccessTokenFailureDoesNotRestoreProof(t *testing.T) {
 	require.NoError(t, model.DB.Callback().Create().Before("gorm:create").Register("access_token_create_failure", failWrite("user_access_tokens")))
 	require.NoError(t, model.DB.Callback().Delete().Before("gorm:delete").Register("access_token_delete_failure", failWrite("user_access_tokens")))
 	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register("legacy_token_update_failure", failWrite("users")))
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register("access_token_update_failure", failWrite("user_access_tokens")))
 	for _, endpoint := range accessTokenMutationEndpoints(scoped.Id) {
 		t.Run(endpoint.name, func(t *testing.T) {
 			proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: endpoint.scope, Context: endpoint.context}, "password")
@@ -483,6 +489,7 @@ func TestSecurityEnrollmentAccessTokenStepUpBoundaries(t *testing.T) {
 			{"methods without account security", readOnly, "/api/verify/methods?scope=2fa.setup", ""},
 			{"verify without account security", readOnly, "/api/verify", `{"scope":"2fa.setup","method":"password","password":"enrollment-password"}`},
 			{"token creation", full, "/api/verify", `{"scope":"access_token.generate","method":"password","password":"enrollment-password","context":{"scopes":["profile:read"],"expires_at":0}}`},
+			{"token grant change", full, "/api/verify", `{"scope":"access_token.update","method":"password","password":"enrollment-password","context":{"token_id":1,"scopes":["profile:read"]}}`},
 			{"token revocation", full, "/api/verify", `{"scope":"access_token.revoke","method":"password","password":"enrollment-password","context":{"legacy":true}}`},
 		} {
 			method := http.MethodPost
@@ -768,6 +775,11 @@ func TestSecurityEnrollmentOperationContext(t *testing.T) {
 		{"generate access token without grant", "access_token.generate", `{}`, service.ErrVerificationContextInvalid},
 		{"generate access token empty grant", "access_token.generate", `{"scopes":[],"expires_at":0}`, service.ErrVerificationContextInvalid},
 		{"generate access token negative expiry", "access_token.generate", `{"scopes":["profile:read"],"expires_at":-1}`, service.ErrVerificationContextInvalid},
+		{"update access token", "access_token.update", `{"token_id":3,"scopes":["profile:read"]}`, nil},
+		{"update access token without target", "access_token.update", `{"scopes":["profile:read"]}`, service.ErrVerificationContextInvalid},
+		{"update access token without grant", "access_token.update", `{"token_id":3}`, service.ErrVerificationContextInvalid},
+		{"update access token empty grant", "access_token.update", `{"token_id":3,"scopes":[]}`, service.ErrVerificationContextInvalid},
+		{"update access token target injection", "access_token.update", `{"token_id":3,"scopes":["profile:read"],"user_id":42}`, service.ErrVerificationContextInvalid},
 		{"revoke access token", "access_token.revoke", `{"token_id":3}`, nil},
 		{"revoke legacy access token", "access_token.revoke", `{"legacy":true}`, nil},
 		{"revoke access token without target", "access_token.revoke", ``, service.ErrVerificationContextInvalid},

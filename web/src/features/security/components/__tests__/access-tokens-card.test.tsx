@@ -55,6 +55,11 @@ const catalog: AccessTokenCatalog = {
               label_key: 'View',
               description_key: 'View API keys',
             },
+            {
+              action: 'write',
+              label_key: 'Edit',
+              description_key: 'Edit API keys',
+            },
           ],
         },
       ],
@@ -81,6 +86,7 @@ function tokenItem(overrides: Partial<AccessTokenItem>): AccessTokenItem {
 
 let list: AccessTokenList
 let listFailure: Error | null
+let catalogGate: Promise<void>
 let proofCount: number
 
 function passwordProof(scope: string) {
@@ -123,6 +129,7 @@ beforeEach(() => {
   })
   list = { items: [], legacy: null }
   listFailure = null
+  catalogGate = Promise.resolve()
   vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
     if (url === '/api/audit/self') {
       return { data: { success: true, data: { items: [], total: 0 } } }
@@ -141,6 +148,7 @@ beforeEach(() => {
       }
     }
     if (url === '/api/user/access_tokens/catalog') {
+      await catalogGate
       return { data: { success: true, data: catalog } }
     }
     if (url === '/api/user/access_tokens') {
@@ -179,6 +187,24 @@ function renderCard() {
   return client
 }
 
+async function openEdit(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Open menu' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+  return screen.findByRole('dialog', { name: 'Edit access token' })
+}
+
+function permission(container: HTMLElement, action: string) {
+  return within(
+    within(container).getByRole('group', { name: 'API keys' })
+  ).getByRole('button', { name: action })
+}
+
+function mockPatch(item: AccessTokenItem) {
+  return vi.spyOn(api, 'patch').mockResolvedValue({
+    data: { success: true, data: item },
+  })
+}
+
 async function openRevoke(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Open menu' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Revoke' }))
@@ -212,6 +238,30 @@ describe('access tokens card', () => {
     expect(
       screen.getByRole('button', { name: 'Create access token' })
     ).toBeEnabled()
+  })
+
+  it('disables Edit while the permission catalog is loading or failed to load', async () => {
+    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    let failCatalog!: (error: Error) => void
+    catalogGate = new Promise((_, reject) => {
+      failCatalog = reject
+    })
+    const client = renderCard()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Open menu' }))
+    const edit = await screen.findByRole('menuitem', { name: 'Edit' })
+    expect(edit).toHaveAttribute('aria-disabled', 'true')
+    failCatalog(new Error('offline'))
+    await waitFor(() =>
+      expect(
+        client.getQueryState(['security', 'access-tokens', 'catalog', 1])
+          ?.status
+      ).toBe('error')
+    )
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    )
   })
 
   it('shows an empty state when there are no tokens', async () => {
@@ -395,20 +445,122 @@ describe('access tokens card', () => {
     expect(screen.queryByText('Access token revoked')).not.toBeInTheDocument()
   })
 
-  it('renames a token without identity verification', async () => {
+  it('renames a token without identity verification and blocks a second save while it runs', async () => {
     list = { items: [tokenItem({ id: 7 })], legacy: null }
-    const patch = vi.spyOn(api, 'patch').mockResolvedValue({
-      data: { success: true, data: tokenItem({ id: 7, name: 'renamed' }) },
+    let complete!: () => void
+    const saved = new Promise<{
+      data: { success: boolean; data: AccessTokenItem }
+    }>((resolve) => {
+      complete = () =>
+        resolve({
+          data: { success: true, data: tokenItem({ id: 7, name: 'renamed' }) },
+        })
     })
+    const patch = vi.spyOn(api, 'patch').mockReturnValue(saved)
     renderCard()
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Open menu' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }))
-    const input = await screen.findByLabelText('Token name')
+    const dialog = await openEdit(user)
+    const input = within(dialog).getByLabelText('Token name')
     expect(input).toHaveValue('deploy script')
     await user.clear(input)
     await user.type(input, '  renamed  ')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    const save = within(dialog).getByRole('button', { name: 'Save' })
+    await user.click(save)
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        '/api/user/access_tokens/7',
+        { name: 'renamed' },
+        expect.anything()
+      )
+    )
+    await waitFor(() => expect(save).toBeDisabled())
+    expect(verifyCalls()).toHaveLength(0)
+    complete()
+    expect(await screen.findByText('Saved successfully')).toBeVisible()
+    expect(patch).toHaveBeenCalledTimes(1)
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Edit access token' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('saves a permission change with a proof bound to the token and the new grant', async () => {
+    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    const scopes = ['tokens:read', 'tokens:write']
+    const patch = mockPatch(tokenItem({ id: 7, scopes }))
+    renderCard()
+    const user = userEvent.setup()
+    const dialog = await openEdit(user)
+    expect(
+      within(dialog).getByText(
+        'Saving permission changes requires security verification'
+      )
+    ).toBeVisible()
+    expect(permission(dialog, 'View')).toHaveAttribute('aria-pressed', 'true')
+    await user.click(permission(dialog, 'Edit'))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await verifyPassword(user)
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        '/api/user/access_tokens/7',
+        { name: 'deploy script', scopes },
+        expect.objectContaining({
+          headers: { 'X-Security-Proof': 'one-use-proof-1' },
+          singleUseAuthorization: true,
+        })
+      )
+    )
+    expect(verifyCalls()).toEqual([
+      expect.objectContaining({
+        scope: 'access_token.update',
+        context: { token_id: 7, scopes },
+      }),
+    ])
+    expect(await screen.findByText('Saved successfully')).toBeVisible()
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Edit access token' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('keeps the edited permissions and saves nothing when verification is cancelled', async () => {
+    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    const patch = mockPatch(tokenItem({ id: 7 }))
+    renderCard()
+    const user = userEvent.setup()
+    const dialog = await openEdit(user)
+    await user.click(permission(dialog, 'Edit'))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await screen.findByLabelText('Password', { selector: 'input' })
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    const restored = await screen.findByRole('dialog', {
+      name: 'Edit access token',
+    })
+    expect(permission(restored, 'Edit')).toHaveAttribute('aria-pressed', 'true')
+    expect(patch).not.toHaveBeenCalled()
+    expect(verifyCalls()).toHaveLength(0)
+  })
+
+  it('keeps permissions the catalog no longer offers on a rename and leaves them out of a new grant', async () => {
+    list = {
+      items: [tokenItem({ id: 7, scopes: ['retired:write'] })],
+      legacy: null,
+    }
+    const patch = mockPatch(tokenItem({ id: 7, name: 'renamed' }))
+    renderCard()
+    const user = userEvent.setup()
+    const dialog = await openEdit(user)
+    expect(permission(dialog, 'View')).toHaveAttribute('aria-pressed', 'false')
+    const input = within(dialog).getByLabelText('Token name')
+    await user.clear(input)
+    await user.type(input, 'renamed')
+    list = {
+      items: [tokenItem({ id: 7, name: 'renamed', scopes: ['retired:write'] })],
+      legacy: null,
+    }
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
     await waitFor(() =>
       expect(patch).toHaveBeenCalledWith(
         '/api/user/access_tokens/7',
@@ -417,9 +569,40 @@ describe('access tokens card', () => {
       )
     )
     expect(verifyCalls()).toHaveLength(0)
+
+    expect(await screen.findByText('renamed')).toBeVisible()
+    const regrant = await openEdit(user)
+    await user.click(permission(regrant, 'View'))
+    await user.click(within(regrant).getByRole('button', { name: 'Save' }))
+    await verifyPassword(user)
     await waitFor(() =>
-      expect(screen.queryByLabelText('Token name')).not.toBeInTheDocument()
+      expect(patch).toHaveBeenLastCalledWith(
+        '/api/user/access_tokens/7',
+        { name: 'renamed', scopes: ['tokens:read'] },
+        expect.objectContaining({ singleUseAuthorization: true })
+      )
     )
+    expect(verifyCalls()).toEqual([
+      expect.objectContaining({
+        scope: 'access_token.update',
+        context: { token_id: 7, scopes: ['tokens:read'] },
+      }),
+    ])
+  })
+
+  it('does not save a change that removes every permission', async () => {
+    list = { items: [tokenItem({ id: 7 })], legacy: null }
+    const patch = mockPatch(tokenItem({ id: 7 }))
+    renderCard()
+    const user = userEvent.setup()
+    const dialog = await openEdit(user)
+    await user.click(permission(dialog, 'View'))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(
+      await within(dialog).findByText('Select at least one permission')
+    ).toBeVisible()
+    expect(patch).not.toHaveBeenCalled()
+    expect(verifyCalls()).toHaveLength(0)
   })
 
   it('opens access records for every token or for one token', async () => {

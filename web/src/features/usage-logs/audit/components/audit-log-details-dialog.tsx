@@ -41,7 +41,10 @@ export function AuditLogDetailsDialog(props: { entry: AuditLog }) {
   const scopes = useQuery({
     queryKey: ['access-token-scopes'],
     queryFn: getAccessTokenScopes,
-    enabled: open && props.entry.action === 'access_token.generate',
+    enabled:
+      open &&
+      (props.entry.action === 'access_token.generate' ||
+        props.entry.action === 'access_token.update'),
     staleTime: Infinity,
   })
   const detail = buildAuditDetails(props.entry, t, {

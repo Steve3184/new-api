@@ -805,6 +805,47 @@ it('shows a token without expiry as never expiring', async () => {
   })
 })
 
+it('shows the previous grant next to the new one after a permission change', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: {} })
+  const detail = buildAuditDetails(
+    {
+      ...generatedToken({}),
+      action: 'access_token.update',
+      route: '/api/user/access_tokens/3',
+      method: 'PATCH',
+      other: {
+        op: {
+          action: 'access_token.update',
+          params: {
+            token_id: 3,
+            name: 'deploy',
+            scopes: ['profile:read', 'user:read'],
+            previous_scopes: ['profile:read', 'retired:read'],
+            token_ref: 'd'.repeat(64),
+          },
+        },
+      },
+    },
+    i18n.t,
+    { scopeResources }
+  )
+  expect(detail.summary).toBe('Changed access token permissions')
+  expect(detail.fields).toEqual(
+    expect.arrayContaining([
+      { label: 'Permissions', value: { Profile: 'View', Users: 'View' } },
+      {
+        label: 'Previous permissions',
+        value: {
+          Profile: 'View',
+          Other: '1 permissions are no longer available',
+        },
+      },
+    ])
+  )
+  expect(JSON.stringify(detail)).not.toMatch(/profile:|user:|retired/)
+})
+
 it('labels account operation parameters', async () => {
   const i18n = createInstance()
   await i18n.init({ lng: 'en', resources: {} })
@@ -869,6 +910,47 @@ it('loads scope labels for a generated token when its details open', async () =>
   expect(within(dialog).getByText('1 项权限不在当前权限目录中')).toBeVisible()
   expect(within(dialog).getByText('永不过期')).toBeVisible()
   expect(dialog).not.toHaveTextContent(/profile:|retired/)
+})
+
+it('loads scope labels for a permission change when its details open', async () => {
+  const get = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: { resources: scopeResources } },
+  })
+  const i18n = createInstance()
+  await i18n.init({ lng: 'zh', resources: { zh } })
+  renderWithQueryClient(
+    <I18nextProvider i18n={i18n}>
+      <AuditLogDetailsDialog
+        entry={{
+          ...generatedToken({}),
+          action: 'access_token.update',
+          route: '/api/user/access_tokens/3',
+          method: 'PATCH',
+          other: {
+            op: {
+              action: 'access_token.update',
+              params: {
+                token_id: 3,
+                name: 'deploy',
+                scopes: ['user:read'],
+                previous_scopes: ['profile:read', 'profile:write'],
+              },
+            },
+          },
+        }}
+      />
+    </I18nextProvider>
+  )
+  await userEvent.click(screen.getByRole('button', { name: '详情' }))
+  const dialog = await screen.findByRole('dialog', { name: '日志详情' })
+  expect(await within(dialog).findByText('查看, 编辑')).toBeVisible()
+  expect(get).toHaveBeenCalledWith(
+    '/api/user/access_tokens/scopes',
+    expect.anything()
+  )
+  expect(within(dialog).getByText('原权限')).toBeVisible()
+  expect(within(dialog).getByText('用户')).toBeVisible()
+  expect(dialog).not.toHaveTextContent(/profile:|user:/)
 })
 
 it('does not load scope labels for other records', async () => {

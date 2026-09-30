@@ -21,7 +21,6 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Dialog } from '@/components/dialog'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
@@ -35,8 +34,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
@@ -55,6 +52,7 @@ import { useAccessTokens } from '../hooks/use-access-tokens'
 import { AccessTokenItem } from './access-token-item'
 import { AccessTokenCreateDialog } from './dialogs/access-token-create-dialog'
 import { AccessTokenDialog } from './dialogs/access-token-dialog'
+import { AccessTokenEditDialog } from './dialogs/access-token-edit-dialog'
 
 export function AccessTokensCard() {
   const { t, i18n } = useTranslation()
@@ -74,8 +72,7 @@ export function AccessTokensCard() {
   const [revokeTarget, setRevokeTarget] = useState<
     AccessToken | 'legacy' | null
   >(null)
-  const [renameTarget, setRenameTarget] = useState<AccessToken | null>(null)
-  const [renameValue, setRenameValue] = useState('')
+  const [editTarget, setEditTarget] = useState<AccessToken | null>(null)
   // undefined shows every access record; a token ref opens the viewer on it.
   const [records, setRecords] = useState<{ tokenRef?: string } | null>(null)
   const catalog = access.catalog.data
@@ -100,15 +97,6 @@ export function AccessTokensCard() {
     setRevokeTarget(null)
     if (target === 'legacy') await access.revokeLegacy()
     else await access.revoke(target.id)
-  }
-  const submitRename = () => {
-    const target = renameTarget
-    const name = renameValue.trim()
-    if (!target || !name || access.rename.isPending) return
-    access.rename.mutate(
-      { id: target.id, name },
-      { onSuccess: () => setRenameTarget(null) }
-    )
   }
 
   let content: ReactNode
@@ -200,10 +188,8 @@ export function AccessTokensCard() {
                   formatTime={formatTime}
                   now={now}
                   disabled={access.pending}
-                  onRename={(target) => {
-                    setRenameValue(target.name)
-                    setRenameTarget(target)
-                  }}
+                  canEdit={!!catalog}
+                  onEdit={setEditTarget}
                   onShowRecords={(target) =>
                     setRecords({ tokenRef: target.token_ref })
                   }
@@ -262,6 +248,17 @@ export function AccessTokensCard() {
           onCreate={access.create}
         />
       )}
+      {catalog && editTarget && (
+        <AccessTokenEditDialog
+          key={editTarget.id}
+          token={editTarget}
+          hidden={access.showVerification}
+          catalog={catalog}
+          pending={access.updatePending}
+          onClose={() => setEditTarget(null)}
+          onSave={(input) => access.update(editTarget.id, input)}
+        />
+      )}
       {access.createdToken && (
         <AccessTokenDialog
           token={access.createdToken}
@@ -283,55 +280,6 @@ export function AccessTokensCard() {
         isLoading={access.pending}
         handleConfirm={() => void confirmRevoke()}
       />
-      <Dialog
-        open={renameTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setRenameTarget(null)
-        }}
-        title={t('Rename')}
-        contentClassName='sm:max-w-md'
-        contentHeight='auto'
-        footer={
-          <>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => setRenameTarget(null)}
-            >
-              {t('Cancel')}
-            </Button>
-            <Button
-              type='submit'
-              form='access-token-rename-form'
-              disabled={
-                access.rename.isPending ||
-                !renameValue.trim() ||
-                [...renameValue.trim()].length > 64
-              }
-            >
-              {t('Save')}
-            </Button>
-          </>
-        }
-      >
-        <form
-          id='access-token-rename-form'
-          className='space-y-2 py-2'
-          onSubmit={(event) => {
-            event.preventDefault()
-            submitRename()
-          }}
-        >
-          <Label htmlFor='access-token-rename'>{t('Token name')}</Label>
-          <Input
-            id='access-token-rename'
-            value={renameValue}
-            maxLength={64}
-            autoComplete='off'
-            onChange={(event) => setRenameValue(event.target.value)}
-          />
-        </form>
-      </Dialog>
       <Sheet
         open={records !== null}
         onOpenChange={(open) => {

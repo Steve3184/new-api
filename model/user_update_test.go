@@ -512,7 +512,7 @@ func TestUserAccessTokenLimitAndOwnership(t *testing.T) {
 	require.NoError(t, DB.Model(&UserAccessToken{}).Where("user_id = ?", owner.Id).Count(&count).Error)
 	assert.EqualValues(t, 20, count)
 
-	_, err := RenameUserAccessToken(other.Id, first.Id, "stolen")
+	_, err := UpdateUserAccessToken(other.Id, first.Id, "stolen", []string{"profile:read"})
 	require.ErrorIs(t, err, ErrAccessTokenNotFound)
 	_, err = DeleteUserAccessToken(other.Id, first.Id)
 	require.ErrorIs(t, err, ErrAccessTokenNotFound)
@@ -520,9 +520,16 @@ func TestUserAccessTokenLimitAndOwnership(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, first.Name, stored.Name)
 
-	renamed, err := RenameUserAccessToken(owner.Id, first.Id, "renamed")
+	assert.Equal(t, first.Scopes, stored.Scopes)
+
+	renamed, err := UpdateUserAccessToken(owner.Id, first.Id, "renamed", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "renamed", renamed.Name)
+	assert.Equal(t, first.Scopes, renamed.Scopes, "a rename keeps the grant")
+	regranted, err := UpdateUserAccessToken(owner.Id, first.Id, "regranted", []string{"usage:read"})
+	require.NoError(t, err)
+	assert.Equal(t, "regranted", regranted.Name)
+	assert.Equal(t, []string{"usage:read"}, regranted.GetScopes())
 	deleted, err := DeleteUserAccessToken(owner.Id, first.Id)
 	require.NoError(t, err)
 	assert.Equal(t, first.TokenHash, deleted.TokenHash)

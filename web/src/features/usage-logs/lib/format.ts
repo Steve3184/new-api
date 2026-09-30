@@ -458,6 +458,7 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'access_token.generate': 'Created an access token',
   'access_token.revoke': 'Revoked an access token',
   'access_token.rename': 'Renamed an access token',
+  'access_token.update': 'Changed access token permissions',
   'user.2fa_setup': 'Started two-factor authentication setup',
   'user.2fa_enable': 'Enabled two-factor authentication',
   'user.2fa_disable_self': 'Disabled two-factor authentication',

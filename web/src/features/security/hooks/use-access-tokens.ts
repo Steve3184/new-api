@@ -33,10 +33,11 @@ import {
   createAccessToken,
   getAccessTokenCatalog,
   listAccessTokens,
-  renameAccessToken,
   revokeAccessToken,
   revokeLegacyAccessToken,
+  updateAccessToken,
   type AccessTokenInput,
+  type AccessTokenUpdate,
 } from '../api'
 
 export function useAccessTokens() {
@@ -163,13 +164,41 @@ export function useAccessTokens() {
 
   const rename = useMutation({
     mutationFn: (input: { id: number; name: string }) =>
-      renameAccessToken(input.id, input.name),
-    onSuccess: () => {
-      toast.success(t('Renamed successfully'))
-      void invalidateList()
-    },
+      updateAccessToken(input.id, { name: input.name }),
+    onSuccess: () => void invalidateList(),
     onError: (error) => handleServerError(error),
   })
+  const renameToken = rename.mutateAsync
+
+  // A name-only edit saves directly; changing the grant asks for security
+  // verification bound to the token and the new scopes.
+  const update = useCallback(
+    async (id: number, input: AccessTokenUpdate) => {
+      const scopes = input.scopes
+      if (!scopes) {
+        try {
+          await renameToken({ id, name: input.name })
+        } catch {
+          return false
+        }
+        toast.success(t('Saved successfully'))
+        return true
+      }
+      const updated = await runVerified(
+        { scope: 'access_token.update', context: { token_id: id, scopes } },
+        (proofToken, signal) =>
+          updateAccessToken(
+            id,
+            { name: input.name, scopes },
+            { token: proofToken, signal }
+          )
+      )
+      if (!updated) return false
+      toast.success(t('Saved successfully'))
+      return true
+    },
+    [renameToken, runVerified, t]
+  )
 
   const verificationPhase = verification.dialogProps.state.phase
   return {
@@ -188,7 +217,8 @@ export function useAccessTokens() {
     create,
     revoke,
     revokeLegacy,
-    rename,
+    update,
+    updatePending: pending || rename.isPending,
     showVerification:
       verificationPhase !== 'idle' && verificationPhase !== 'loading',
     verificationDialogProps: verification.dialogProps,

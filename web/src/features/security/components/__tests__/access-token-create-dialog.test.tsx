@@ -98,6 +98,12 @@ async function verifyPassword(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Verify' }))
 }
 
+function permission(container: HTMLElement, resource: string, action: string) {
+  return within(
+    within(container).getByRole('group', { name: resource })
+  ).getByRole('button', { name: action })
+}
+
 function postCalls(url: string) {
   return vi.mocked(api.post).mock.calls.filter(([called]) => called === url)
 }
@@ -196,8 +202,12 @@ describe('create access token dialog', () => {
     renderCard()
     const user = userEvent.setup()
     const dialog = await openCreate(user)
-    expect(within(dialog).getByText('Personal')).toBeVisible()
-    expect(within(dialog).getByText('Administration')).toBeVisible()
+    expect(
+      within(dialog).getByRole('region', { name: 'Personal' })
+    ).toBeVisible()
+    expect(
+      within(dialog).getByRole('region', { name: 'Administration' })
+    ).toBeVisible()
     cleanup()
 
     catalog = {
@@ -206,12 +216,14 @@ describe('create access token dialog', () => {
     }
     renderCard()
     const restricted = await openCreate(userEvent.setup())
-    expect(within(restricted).getByText('Personal')).toBeVisible()
     expect(
-      within(restricted).queryByText('Administration')
+      within(restricted).getByRole('region', { name: 'Personal' })
+    ).toBeVisible()
+    expect(
+      within(restricted).queryByRole('region', { name: 'Administration' })
     ).not.toBeInTheDocument()
     expect(
-      within(restricted).queryByRole('checkbox', { name: /View channels/ })
+      within(restricted).queryByRole('group', { name: 'Channels' })
     ).not.toBeInTheDocument()
   })
 
@@ -231,12 +243,8 @@ describe('create access token dialog', () => {
     const user = userEvent.setup()
     const dialog = await openCreate(user)
     await user.type(within(dialog).getByLabelText('Token name'), '  ci  ')
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /View channels/ })
-    )
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /View API keys/ })
-    )
+    await user.click(permission(dialog, 'Channels', 'Read'))
+    await user.click(permission(dialog, 'API keys', 'View'))
     const before = Math.floor(Date.now() / 1000)
     await user.click(
       within(dialog).getByRole('button', { name: 'Create access token' })
@@ -300,9 +308,7 @@ describe('create access token dialog', () => {
       within(dialog).getByRole('button', { name: 'Never expires' })
     )
     expect(within(dialog).getByText(warning)).toBeVisible()
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /View API keys/ })
-    )
+    await user.click(permission(dialog, 'API keys', 'View'))
     await user.click(
       within(dialog).getByRole('button', { name: 'Create access token' })
     )
@@ -354,14 +360,71 @@ describe('create access token dialog', () => {
     ).not.toContain(token)
   })
 
+  it('selects and clears one group at a time and collapses it', async () => {
+    catalog = {
+      ...catalog,
+      groups: [
+        {
+          group: 'personal',
+          resources: [
+            {
+              ...personalGroup.resources[0],
+              actions: [
+                ...personalGroup.resources[0].actions,
+                {
+                  action: 'write',
+                  label_key: 'Edit',
+                  description_key: 'Edit API keys',
+                },
+              ],
+            },
+          ],
+        },
+        adminGroup,
+      ],
+    }
+    renderCard()
+    const user = userEvent.setup()
+    const dialog = await openCreate(user)
+    const personal = within(dialog).getByRole('region', { name: 'Personal' })
+    const view = permission(personal, 'API keys', 'View')
+    const edit = permission(personal, 'API keys', 'Edit')
+    expect(view).toHaveAccessibleDescription('View API keys')
+    expect(view).toHaveAttribute('aria-pressed', 'false')
+    await user.click(view)
+    expect(view).toHaveAttribute('aria-pressed', 'true')
+    expect(within(personal).getByText('Selected 1 / 2')).toBeVisible()
+
+    await user.click(
+      within(personal).getByRole('button', { name: 'Select all' })
+    )
+    expect(edit).toHaveAttribute('aria-pressed', 'true')
+    expect(within(personal).getByText('Selected 2 / 2')).toBeVisible()
+    expect(permission(dialog, 'Channels', 'Read')).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+    await user.click(within(personal).getByRole('button', { name: 'Clear' }))
+    expect(view).toHaveAttribute('aria-pressed', 'false')
+    expect(edit).toHaveAttribute('aria-pressed', 'false')
+
+    const header = within(personal).getByRole('button', { name: /^Personal/ })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    await user.click(header)
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() =>
+      expect(
+        within(personal).queryByRole('group', { name: 'API keys' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
   it('keeps the form and sends nothing when verification is cancelled', async () => {
     renderCard()
     const user = userEvent.setup()
     const dialog = await openCreate(user)
     await user.type(within(dialog).getByLabelText('Token name'), 'ci')
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /View API keys/ })
-    )
+    await user.click(permission(dialog, 'API keys', 'View'))
     await user.click(
       within(dialog).getByRole('button', { name: 'Create access token' })
     )

@@ -38,7 +38,9 @@ interface AccessTokenItemProps {
   formatTime: (seconds: number) => string
   now: number
   disabled: boolean
-  onRename: (token: AccessToken) => void
+  /** False while the permission catalog needed for editing is unavailable. */
+  canEdit: boolean
+  onEdit: (token: AccessToken) => void
   onShowRecords: (token: AccessToken) => void
   onRevoke: (token: AccessToken) => void
 }
@@ -103,10 +105,10 @@ export function AccessTokenItem(props: AccessTokenItemProps) {
       </div>
       <DataTableRowActionMenu ariaLabel={t('Open menu')}>
         <DropdownMenuItem
-          disabled={props.disabled}
-          onClick={() => props.onRename(token)}
+          disabled={props.disabled || !props.canEdit}
+          onClick={() => props.onEdit(token)}
         >
-          {t('Rename')}
+          {t('Edit')}
           <DropdownMenuShortcut>
             <Pencil size={16} />
           </DropdownMenuShortcut>

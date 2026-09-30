@@ -110,7 +110,7 @@ func SetApiRouter(router *gin.Engine) {
 					accessTokenRoute.GET("/catalog", controller.GetAccessTokenCatalog)
 					accessTokenRoute.GET("/scopes", controller.GetAccessTokenScopes)
 					accessTokenRoute.POST("", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.CreateAccessToken)
-					accessTokenRoute.PATCH("/:id", controller.RenameAccessToken)
+					accessTokenRoute.PATCH("/:id", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.UpdateAccessToken)
 					accessTokenRoute.DELETE("/:id", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.DeleteAccessToken)
 					accessTokenRoute.DELETE("/legacy", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.RevokeLegacyAccessToken)
 				}

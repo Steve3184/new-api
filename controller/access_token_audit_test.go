@@ -88,7 +88,7 @@ func newAccessTokenTestRouter() *gin.Engine {
 	tokenRoute.GET("/catalog", GetAccessTokenCatalog)
 	tokenRoute.GET("/scopes", GetAccessTokenScopes)
 	tokenRoute.POST("", CreateAccessToken)
-	tokenRoute.PATCH("/:id", RenameAccessToken)
+	tokenRoute.PATCH("/:id", UpdateAccessToken)
 	tokenRoute.DELETE("/:id", DeleteAccessToken)
 	tokenRoute.DELETE("/legacy", RevokeLegacyAccessToken)
 	adminRoute := userRoute.Group("/", middleware.AdminAuth())
@@ -144,6 +144,13 @@ func issueAccessTokenRevokeProof(t *testing.T, identity service.AuthIdentity, ta
 	context, err := common.Marshal(target)
 	require.NoError(t, err)
 	return issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenRevoke, Context: context}, "password")
+}
+
+func issueAccessTokenUpdateProof(t *testing.T, identity service.AuthIdentity, tokenID int, scopes ...string) string {
+	t.Helper()
+	context, err := common.Marshal(service.AccessTokenUpdateContext{TokenID: tokenID, Scopes: scopes})
+	require.NoError(t, err)
+	return issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenUpdate, Context: context}, "password")
 }
 
 // setLegacyAccessTokenRetireAt moves the stored transition deadline the way an
@@ -411,6 +418,99 @@ func TestAccessTokenCreationChecksGrantBeforeConsumingProof(t *testing.T) {
 	encoded, err := common.Marshal(history)
 	require.NoError(t, err)
 	for _, secret := range []string{raw, browser, proof} {
+		assert.NotContains(t, string(encoded), secret)
+	}
+}
+
+func TestAccessTokenUpdateRenamesFreelyAndChangesGrantOnlyWithProof(t *testing.T) {
+	user, _ := setupAccessTokenAudit(t)
+	router := newAccessTokenTestRouter()
+	identity, browser := createAccessTokenTestSession(t, user.Id, "update-session")
+	raw, token := createScopedAccessToken(t, user.Id, 0, "profile:read")
+	tokenPath := fmt.Sprintf("/api/user/access_tokens/%d", token.Id)
+	other := &model.User{Username: "audit-other", Password: "placeholder", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "audit-other"}
+	require.NoError(t, model.DB.Create(other).Error)
+	_, otherToken := createScopedAccessToken(t, other.Id, 0, "profile:read")
+
+	response := accessTokenRequest(router, "PATCH", tokenPath, browser, "", `{"name":" renamed "}`)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	stored, err := model.GetUserAccessToken(user.Id, token.Id)
+	require.NoError(t, err)
+	assert.Equal(t, "renamed", stored.Name)
+	assert.Equal(t, []string{"profile:read"}, stored.GetScopes(), "a rename keeps the grant")
+
+	response = accessTokenRequest(router, "PATCH", tokenPath, browser, "", `{"name":"ci","scopes":["usage:read"]}`)
+	assert.Equal(t, http.StatusForbidden, response.Code)
+	assert.Contains(t, response.Body.String(), `"code":"SECURITY_PROOF_REQUIRED"`)
+
+	generateProof := issueAccessTokenGenerateProof(t, identity, 0, "usage:read")
+	for _, test := range []struct {
+		name, path, body, proof, code string
+		status                        int
+	}{
+		{"permission the owner lacks", tokenPath, `{"name":"ci","scopes":["channel:sensitive_write"]}`, issueAccessTokenUpdateProof(t, identity, token.Id, "channel:sensitive_write"), "ACCESS_TOKEN_SCOPE_FORBIDDEN", http.StatusBadRequest},
+		{"empty grant", tokenPath, `{"name":"ci","scopes":[]}`, issueAccessTokenUpdateProof(t, identity, token.Id, "profile:read"), "ACCESS_TOKEN_SCOPE_INVALID", http.StatusBadRequest},
+		{"another user's token", fmt.Sprintf("/api/user/access_tokens/%d", otherToken.Id), `{"name":"ci","scopes":["usage:read"]}`, issueAccessTokenUpdateProof(t, identity, otherToken.Id, "usage:read"), "ACCESS_TOKEN_NOT_FOUND", http.StatusNotFound},
+		{"proof for another token", tokenPath, `{"name":"ci","scopes":["usage:read"]}`, issueAccessTokenUpdateProof(t, identity, otherToken.Id, "usage:read"), "SECURITY_PROOF_CONTEXT_MISMATCH", http.StatusForbidden},
+		{"proof for another grant", tokenPath, `{"name":"ci","scopes":["usage:read"]}`, issueAccessTokenUpdateProof(t, identity, token.Id, "profile:read"), "SECURITY_PROOF_CONTEXT_MISMATCH", http.StatusForbidden},
+		{"creation proof", tokenPath, `{"name":"ci","scopes":["usage:read"]}`, generateProof, "SECURITY_PROOF_SCOPE_MISMATCH", http.StatusForbidden},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := accessTokenRequest(router, "PATCH", test.path, browser, test.proof, test.body)
+			assert.Equal(t, test.status, response.Code)
+			assert.Contains(t, response.Body.String(), `"code":"`+test.code+`"`)
+			var consumed int64
+			require.NoError(t, model.DB.Model(&model.AuthFlow{}).Where("consumed_at IS NOT NULL").Count(&consumed).Error)
+			assert.Zero(t, consumed, "a rejected change must not spend the verification")
+		})
+	}
+	stored, err = model.GetUserAccessToken(user.Id, token.Id)
+	require.NoError(t, err)
+	assert.Equal(t, "renamed", stored.Name, "a rejected grant change does not apply the rename either")
+	assert.Equal(t, []string{"profile:read"}, stored.GetScopes())
+
+	assert.Equal(t, http.StatusOK, accessTokenRequest(router, "GET", "/api/user/self", raw, "", "").Code)
+	// The proof binds the grant as a set, so its order and repeats do not matter.
+	widenProof := issueAccessTokenUpdateProof(t, identity, token.Id, "usage:read", "profile:read", "profile:read")
+	response = accessTokenRequest(router, "PATCH", tokenPath, browser, widenProof, `{"name":"ci","scopes":["profile:read","usage:read"]}`)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	stored, err = model.GetUserAccessToken(user.Id, token.Id)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"profile:read", "usage:read"}, stored.GetScopes())
+
+	proof := issueAccessTokenUpdateProof(t, identity, token.Id, "usage:read")
+	response = accessTokenRequest(router, "PATCH", tokenPath, browser, proof, `{"name":"ci","scopes":["usage:read"," usage:read"]}`)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var updated struct {
+		Data struct {
+			Name   string   `json:"name"`
+			Scopes []string `json:"scopes"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &updated))
+	assert.Equal(t, "ci", updated.Data.Name)
+	assert.Equal(t, []string{"usage:read"}, updated.Data.Scopes)
+	response = accessTokenRequest(router, "GET", "/api/user/self", raw, "", "")
+	assert.Equal(t, http.StatusForbidden, response.Code, "a narrowed grant applies to the next request")
+	assert.Contains(t, response.Body.String(), `"code":"ACCESS_TOKEN_SCOPE_DENIED"`)
+	response = accessTokenRequest(router, "PATCH", tokenPath, browser, proof, `{"name":"ci","scopes":["usage:read"]}`)
+	assert.Contains(t, response.Body.String(), `"code":"SECURITY_PROOF_CONSUMED"`)
+
+	var audits []model.AuditLog
+	require.NoError(t, model.LOG_DB.Where("action IN ?", []string{"access_token.rename", "access_token.update"}).Order("id").Find(&audits).Error)
+	require.Len(t, audits, 3)
+	assert.Equal(t, "access_token.rename", audits[0].Action)
+	assert.Equal(t, "access_token.update", audits[1].Action)
+	assert.Equal(t, "access_token.update", audits[2].Action)
+	require.NotNil(t, audits[2].Other.Op)
+	params, err := common.Marshal(audits[2].Other.Op.Params)
+	require.NoError(t, err)
+	assert.Contains(t, string(params), `"previous_scopes":["profile:read","usage:read"]`)
+	assert.Contains(t, string(params), `"scopes":["usage:read"]`)
+	assert.Contains(t, string(params), fmt.Sprintf(`"token_ref":"%s"`, token.TokenHash))
+	encoded, err := common.Marshal(audits)
+	require.NoError(t, err)
+	for _, secret := range []string{raw, browser, widenProof, proof, generateProof} {
 		assert.NotContains(t, string(encoded), secret)
 	}
 }
@@ -1005,6 +1105,16 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 					require.NoError(t, err)
 					assert.Equal(t, scopedToken.Id, found.Id)
 					assert.Equal(t, []string{"profile:read"}, found.GetScopes())
+					renamed, err := model.UpdateUserAccessToken(1, scopedToken.Id, "renamed", nil)
+					require.NoError(t, err)
+					assert.Equal(t, []string{"profile:read"}, renamed.GetScopes())
+					updated, err := model.UpdateUserAccessToken(1, scopedToken.Id, "updated", []string{"usage:read"})
+					require.NoError(t, err)
+					assert.Equal(t, "updated", updated.Name)
+					assert.Equal(t, []string{"usage:read"}, updated.GetScopes())
+					assert.Equal(t, scopedToken.TokenHash, updated.TokenHash)
+					_, err = model.UpdateUserAccessToken(2, scopedToken.Id, "stolen", []string{"profile:read"})
+					assert.ErrorIs(t, err, model.ErrAccessTokenNotFound)
 					require.Error(t, db.Create(&model.UserAccessToken{UserId: 1, Name: "duplicate", TokenHash: scopedToken.TokenHash, TokenHint: "dupe", Scopes: found.Scopes}).Error, "token hashes stay unique")
 					model.RecordAuditLog(nil, model.AuditLog{ActorRole: common.RoleAdminUser, UserId: 1, Username: "owner", CreatedAt: 99, Category: model.AuditCategoryAccessToken, TokenRef: scopedToken.TokenHash, Ip: "192.0.2.1", Success: true})
 					byRef, _, err := model.GetAuditLogs(model.AuditLogFilter{UserId: 1, TokenRef: scopedToken.TokenHash}, 0, 10, common.RoleCommonUser)

@@ -36,11 +36,8 @@ import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { permissionMatrixToScopes } from '@/lib/admin-permissions'
 
-import type {
-  AccessTokenCatalog,
-  AccessTokenGroup,
-  AccessTokenInput,
-} from '../../api'
+import type { AccessTokenCatalog, AccessTokenInput } from '../../api'
+import { accessTokenPermissionGroups } from '../../lib/access-token-catalog'
 import {
   ACCESS_TOKEN_EXPIRY_OPTIONS,
   accessTokenFormSchema,
@@ -49,12 +46,6 @@ import {
   type AccessTokenExpiryPreset,
   type AccessTokenFormValues,
 } from '../../lib/access-token-schema'
-
-const GROUP_LABELS: Record<AccessTokenGroup, string> = {
-  personal: 'Personal',
-  admin: 'Administration',
-  system: 'System',
-}
 
 type AccessTokenCreateDialogProps = {
   open: boolean
@@ -73,9 +64,7 @@ export function AccessTokenCreateDialog(props: AccessTokenCreateDialogProps) {
     defaultValues: defaultAccessTokenFormValues,
   })
   const expiry = form.watch('expiry')
-  const groups = props.catalog.groups.filter(
-    (group) => group.resources.length > 0
-  )
+  const groups = accessTokenPermissionGroups(props.catalog)
 
   const close = () => {
     if (props.pending) return
@@ -201,21 +190,12 @@ export function AccessTokenCreateDialog(props: AccessTokenCreateDialogProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t('Permissions')}</FormLabel>
-                <div className='space-y-4'>
-                  {groups.map((group) => (
-                    <section key={group.group} className='space-y-2'>
-                      <h3 className='text-muted-foreground text-xs font-medium'>
-                        {t(GROUP_LABELS[group.group])}
-                      </h3>
-                      <PermissionMatrix
-                        resources={group.resources}
-                        value={field.value}
-                        disabled={props.pending}
-                        onChange={field.onChange}
-                      />
-                    </section>
-                  ))}
-                </div>
+                <PermissionMatrix
+                  groups={groups}
+                  value={field.value}
+                  disabled={props.pending}
+                  onChange={field.onChange}
+                />
                 <FormMessage />
               </FormItem>
             )}

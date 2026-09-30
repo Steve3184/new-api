@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -35,8 +36,9 @@ func TestSMTPTestEmailRouteRejectsNonRootAdministrator(t *testing.T) {
 	previousRedisEnabled := common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Option{}))
 	model.DB = db
+	require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 	common.RedisEnabled = false
 	t.Cleanup(func() {
 		model.DB = previousDB

@@ -31,8 +31,11 @@ type accessTokenCreateRequest struct {
 	ExpiresAt int64    `json:"expires_at"`
 }
 
-type accessTokenRenameRequest struct {
-	Name string `json:"name"`
+// accessTokenUpdateRequest renames a token; a present scopes field also
+// replaces its grant.
+type accessTokenUpdateRequest struct {
+	Name   string   `json:"name"`
+	Scopes []string `json:"scopes"`
 }
 
 func newAccessTokenItem(token *model.UserAccessToken) accessTokenItem {
@@ -185,7 +188,9 @@ func CreateAccessToken(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"token": raw, "item": newAccessTokenItem(token)})
 }
 
-func RenameAccessToken(c *gin.Context) {
+// UpdateAccessToken renames a token without verification. Changing the grant
+// is checked in full before the proof is consumed, like creation.
+func UpdateAccessToken(c *gin.Context) {
 	identity, ok := requireBrowserSession(c)
 	if !ok {
 		return
@@ -195,7 +200,7 @@ func RenameAccessToken(c *gin.Context) {
 		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
 		return
 	}
-	var req accessTokenRenameRequest
+	var req accessTokenUpdateRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		writeAccessTokenError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body.")
 		return
@@ -205,7 +210,37 @@ func RenameAccessToken(c *gin.Context) {
 		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_NAME_INVALID", "Access token name must be 1 to 64 characters.")
 		return
 	}
-	token, err := model.RenameUserAccessToken(identity.UserID, id, name)
+	var scopes []string
+	var previous *model.UserAccessToken
+	if req.Scopes != nil {
+		previous, err = model.GetUserAccessToken(identity.UserID, id)
+		if errors.Is(err, model.ErrAccessTokenNotFound) {
+			writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+			return
+		}
+		if err != nil {
+			writeSecurityOperationError(c, err)
+			return
+		}
+		scopes, err = service.NormalizeAccessTokenScopes(identity.UserID, c.GetInt("role"), req.Scopes)
+		switch {
+		case errors.Is(err, service.ErrAccessTokenScopeForbidden):
+			writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_SCOPE_FORBIDDEN", "You cannot grant one or more of these permissions.")
+			return
+		case err != nil:
+			writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_SCOPE_INVALID", "Select at least one valid permission.")
+			return
+		}
+		proofContext, err := common.Marshal(service.AccessTokenUpdateContext{TokenID: id, Scopes: scopes})
+		if err != nil {
+			writeSecurityOperationError(c, err)
+			return
+		}
+		if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenUpdate, Context: proofContext}) == nil {
+			return
+		}
+	}
+	token, err := model.UpdateUserAccessToken(identity.UserID, id, name, scopes)
 	if errors.Is(err, model.ErrAccessTokenNotFound) {
 		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
 		return
@@ -214,7 +249,18 @@ func RenameAccessToken(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	recordUserSecurityAudit(c, identity.UserID, "access_token.rename", map[string]any{"token_id": token.Id, "name": token.Name})
+	if previous == nil {
+		recordUserSecurityAudit(c, identity.UserID, "access_token.rename", map[string]any{"token_id": token.Id, "name": token.Name})
+		common.ApiSuccess(c, newAccessTokenItem(token))
+		return
+	}
+	recordUserSecurityAudit(c, identity.UserID, "access_token.update", map[string]any{
+		"token_id":        token.Id,
+		"name":            token.Name,
+		"scopes":          scopes,
+		"previous_scopes": previous.GetScopes(),
+		"token_ref":       token.TokenHash,
+	})
 	common.ApiSuccess(c, newAccessTokenItem(token))
 }
 

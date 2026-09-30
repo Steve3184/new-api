@@ -142,8 +142,18 @@ func CreateUserAccessToken(userID int, token *UserAccessToken, limit int) error 
 	})
 }
 
-func RenameUserAccessToken(userID, id int, name string) (*UserAccessToken, error) {
-	result := DB.Model(&UserAccessToken{}).Where("id = ? AND user_id = ?", id, userID).Update("name", name)
+// UpdateUserAccessToken renames one token owned by userID and, when scopes is
+// not nil, replaces its grant.
+func UpdateUserAccessToken(userID, id int, name string, scopes []string) (*UserAccessToken, error) {
+	updates := map[string]any{"name": name}
+	if scopes != nil {
+		var grant UserAccessToken
+		if err := grant.SetScopes(scopes); err != nil {
+			return nil, err
+		}
+		updates["scopes"] = grant.Scopes
+	}
+	result := DB.Model(&UserAccessToken{}).Where("id = ? AND user_id = ?", id, userID).Updates(updates)
 	if result.Error != nil {
 		return nil, result.Error
 	}

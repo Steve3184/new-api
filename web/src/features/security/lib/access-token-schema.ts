@@ -42,19 +42,26 @@ export const ACCESS_TOKEN_EXPIRY_OPTIONS = [
 export type AccessTokenExpiryPreset =
   (typeof ACCESS_TOKEN_EXPIRY_OPTIONS)[number]['value']
 
+const accessTokenNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Please enter a name')
+  // The server counts characters, not UTF-16 code units.
+  .refine((name) => [...name].length <= 64, {
+    message: 'Name must be 64 characters or fewer',
+  })
+
+const accessTokenPermissionsSchema = z.record(
+  z.string(),
+  z.record(z.string(), z.boolean())
+)
+
 export const accessTokenFormSchema = z
   .object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Please enter a name')
-      // The server counts characters, not UTF-16 code units.
-      .refine((name) => [...name].length <= 64, {
-        message: 'Name must be 64 characters or fewer',
-      }),
+    name: accessTokenNameSchema,
     expiry: z.enum(['30d', '90d', '180d', '1y', 'custom', 'never']),
     customExpiresAt: z.date().optional(),
-    permissions: z.record(z.string(), z.record(z.string(), z.boolean())),
+    permissions: accessTokenPermissionsSchema,
   })
   .superRefine((values, ctx) => {
     if (
@@ -78,6 +85,18 @@ export const accessTokenFormSchema = z
   })
 
 export type AccessTokenFormValues = z.infer<typeof accessTokenFormSchema>
+
+// The edit form has no expiry. An empty grant is only rejected once the
+// permissions change, so a token whose permissions can no longer be granted
+// can still be renamed.
+export const accessTokenEditFormSchema = z.object({
+  name: accessTokenNameSchema,
+  permissions: accessTokenPermissionsSchema,
+})
+
+export type AccessTokenEditFormValues = z.infer<
+  typeof accessTokenEditFormSchema
+>
 
 export const defaultAccessTokenFormValues: AccessTokenFormValues = {
   name: '',

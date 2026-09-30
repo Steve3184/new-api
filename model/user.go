@@ -150,25 +150,6 @@ func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
 }
 
-// UpdateUserAccessToken rotates a dashboard personal access token without
-// writing a stale user snapshot back over concurrently updated fields.
-func UpdateUserAccessToken(id int, token string) error {
-	if id == 0 {
-		return errors.New("id 为空！")
-	}
-	now := common.GetTimestamp()
-	result := DB.Model(&User{}).Where("id = ?", id).Updates(map[string]any{
-		"access_token": token, "access_token_created_at": now,
-	})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
-}
-
 // RevokeUserAccessToken returns the generation actually revoked under the row lock.
 //
 // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
