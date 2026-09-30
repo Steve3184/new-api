@@ -116,6 +116,10 @@ Ali JSON 和 multipart 请求都明确发送该生效数量。每次渠道重试
 `estimated_image_count` 保存本次发送前的数量；JSON/multipart 图片参数上下文只保留计费需要的标量，不保留图片或提示词内容。
 结算使用独立的实际数量，不修改被冻结的 `param("n")`。非法 Ali usage 数量记录诊断，并回退有效图片列表数量；缺少有效实际数量时保持发送数量。正常结束
 的 SSE 可以减少数量，客户端提前断开不能减少应收数量。最终消费日志记录 `image_count`。
+阿里百炼图片模型（万相、Qwen-Image、Z-Image）由 alibaba 任务插件通过 `openai_image` 宿主协议承接：
+其数量是任务用量事实 `u("image_count")`，提交时按请求数量预留，完成时按上游 `usage.image_count`
+（Qwen-Image-3.0 为 `usage.output_image_count`）或按各 `choices[].message.content[]` / `results[]`
+中的图片载荷数结算，任务消费日志同样记录 `image_count`。
 
 > **注意：** 自动扣除针对 GPT/OpenAI 格式的 API（prompt_tokens 包含子类别）。Claude 格式的 API 不重复扣除缓存；未独立计价的缓存读取加回输入。系统根据上游返回格式自动处理。
 
@@ -256,7 +260,9 @@ pricing and expression-save APIs use the declared target; an ambiguous alias
 with multiple targets in the same plugin retains the plugin defaults. Request
 and usage validation use the executing plugin and final upstream model. Polling
 selects metadata from each saved task's model, including in mixed-model batches.
-Unmatched models and plugins without profiles retain the plugin defaults.
+An upstream name that no profile declares, such as a channel mapping to a vendor
+endpoint ID, falls back to the client-facing model's profile. Unmatched models
+and plugins without profiles retain the plugin defaults.
 
 Profiles do not introduce a request-body whitelist or remove legacy multiplier
 extensions. Numeric hook facts retain a consistent floating-point representation

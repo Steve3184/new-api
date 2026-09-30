@@ -73,7 +73,7 @@ export const STATIC_I18N_KEYS = [
   'Connect to Jimeng image and video generation services',
   'Connect to Vidu video generation services',
   'Connect to Submodel model services',
-  'Generate Doubao Seedance videos through Volcengine Ark',
+  'Connect to Doubao Seedance video and Seedream image generation through Volcengine Ark',
   'Connect to OpenAI Sora video generation services',
   'Access hosted model predictions through Replicate',
   'Access Codex using ChatGPT subscription credentials',
