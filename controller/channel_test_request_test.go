@@ -108,6 +108,16 @@ func TestChannelTestOpenAIChatCompatibility(t *testing.T) {
 	}
 }
 
+func TestTypeSafeChannelTestDefaultsToSystemOne(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeTypeSafe}
+
+	assert.Equal(t, string(constant.EndpointTypeSystemOne), normalizeChannelTestEndpoint(channel, ""))
+
+	request, ok := buildTestRequest("jev-1.13", string(constant.EndpointTypeSystemOne), channel, false).(*dto.SystemOneRequest)
+	require.True(t, ok)
+	require.NoError(t, request.Validate())
+}
+
 func TestOpenAIChatSamplingCompatibility(t *testing.T) {
 	const sampling = `{"temperature":0.2,"top_p":0.8,"logprobs":true,"top_logprobs":5}`
 	for _, tt := range []struct {

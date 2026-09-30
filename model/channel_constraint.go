@@ -93,6 +93,12 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		if filter.RequestPath == "" {
 			return true
 		}
+		// TypeSafe exposes only the System One protocol. Keep it out of
+		// ordinary endpoint selection, and make System One select it even
+		// when another channel serves the same model.
+		if ch.Type == constant.ChannelTypeTypeSafe || filter.RequestPath == "/v1/systemone" {
+			return ch.Type == constant.ChannelTypeTypeSafe && filter.RequestPath == "/v1/systemone"
+		}
 		if !constant.IsAdvancedCustomChannel(ch.Type) {
 			return true
 		}

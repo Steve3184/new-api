@@ -46,8 +46,14 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 	if normalized != "" {
 		return normalized
 	}
-	if channel != nil && channel.Type == constant.ChannelTypeCodex {
+	if channel == nil {
+		return normalized
+	}
+	switch channel.Type {
+	case constant.ChannelTypeCodex:
 		return string(constant.EndpointTypeOpenAIResponse)
+	case constant.ChannelTypeTypeSafe:
+		return string(constant.EndpointTypeSystemOne)
 	}
 	return normalized
 }
@@ -202,6 +208,8 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 			relayFormat = types.RelayFormatOpenAIResponses
 		case constant.EndpointTypeOpenAIResponseCompact:
 			relayFormat = types.RelayFormatOpenAIResponsesCompaction
+		case constant.EndpointTypeSystemOne:
+			relayFormat = types.RelayFormatSystemOne
 		case constant.EndpointTypeAnthropic:
 			relayFormat = types.RelayFormatClaude
 		case constant.EndpointTypeGemini:
@@ -385,6 +393,23 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
+	case relayconstant.RelayModeSystemOne:
+		req, ok := request.(*dto.SystemOneRequest)
+		if !ok {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid System One request type"),
+				newAPIError: types.NewError(errors.New("invalid System One request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+		converter, ok := adaptor.(interface {
+			ConvertSystemOneRequest(*relaycommon.RelayInfo, *dto.SystemOneRequest) (*dto.SystemOneRequest, error)
+		})
+		if !ok {
+			err = errors.New("channel does not support System One requests")
+			break
+		}
+		convertedRequest, err = converter.ConvertSystemOneRequest(info, req)
 	default:
 		switch req := request.(type) {
 		case *dto.GeneralOpenAIRequest:
@@ -752,6 +777,17 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &dto.OpenAIResponsesCompactionRequest{
 				Model: model,
 				Input: testResponsesInput,
+			}
+		case constant.EndpointTypeSystemOne:
+			return &dto.SystemOneRequest{
+				Model: model,
+				State: json.RawMessage(`{"source":"channel-test"}`),
+				Questions: map[string]dto.SystemOneQuestion{
+					"decision": {
+						Type:         "noul",
+						Instructions: json.RawMessage(`"Return the best decision."`),
+					},
+				},
 			}
 		case constant.EndpointTypeAnthropic:
 			return &dto.ClaudeRequest{

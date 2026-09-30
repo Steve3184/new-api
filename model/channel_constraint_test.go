@@ -37,8 +37,10 @@ func TestFilterCandidateIDs(t *testing.T) {
 			}},
 		},
 	})
+	typeSafe := &Channel{Id: 900012, Type: constant.ChannelTypeTypeSafe, Status: common.ChannelStatusEnabled}
 
 	pathFilter := dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: "/v1/chat/completions"}
+	systemOnePathFilter := dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: "/v1/systemone"}
 	emptyPathFilter := dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: ""}
 
 	tests := []struct {
@@ -122,6 +124,20 @@ func TestFilterCandidateIDs(t *testing.T) {
 			wantKept:  []int{900003, 900010},
 		},
 		{
+			name:      "system one path selects TypeSafe",
+			ids:       []int{900003, 900012},
+			modelName: "jev-1.13",
+			filters:   []dto.ChannelFilter{systemOnePathFilter},
+			wantKept:  []int{900012},
+		},
+		{
+			name:      "ordinary path excludes TypeSafe",
+			ids:       []int{900003, 900012},
+			modelName: "jev-1.13",
+			filters:   []dto.ChannelFilter{pathFilter},
+			wantKept:  []int{900003},
+		},
+		{
 			name:      "request path empties when only unmatched type-58 remains",
 			ids:       []int{900011},
 			modelName: "gpt-4",
@@ -157,6 +173,7 @@ func TestFilterCandidateIDs(t *testing.T) {
 		900005: jimeng,
 		900010: matchingCustom,
 		900011: otherCustom,
+		900012: typeSafe,
 	}
 	t.Cleanup(func() {
 		channelsIDM = previous
@@ -189,6 +206,7 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 			}},
 		},
 	})
+	typeSafe := &Channel{Id: 4, Type: constant.ChannelTypeTypeSafe}
 
 	ok, kind := ChannelSatisfiesFilters(nil, "gpt-4", nil)
 	assert.False(t, ok)
@@ -212,6 +230,20 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	ok, kind = ChannelSatisfiesFilters(custom, "gpt-4", []dto.ChannelFilter{{
 		Kind:        dto.FilterRequestPath,
 		RequestPath: "/v1/responses",
+	}})
+	assert.False(t, ok)
+	assert.Equal(t, dto.FilterRequestPath, kind)
+
+	ok, kind = ChannelSatisfiesFilters(typeSafe, "jev-1.13", []dto.ChannelFilter{{
+		Kind:        dto.FilterRequestPath,
+		RequestPath: "/v1/systemone",
+	}})
+	assert.True(t, ok)
+	assert.Equal(t, dto.ChannelFilterKind(""), kind)
+
+	ok, kind = ChannelSatisfiesFilters(typeSafe, "jev-1.13", []dto.ChannelFilter{{
+		Kind:        dto.FilterRequestPath,
+		RequestPath: "/v1/chat/completions",
 	}})
 	assert.False(t, ok)
 	assert.Equal(t, dto.FilterRequestPath, kind)
