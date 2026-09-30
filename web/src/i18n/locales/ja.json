@@ -1468,7 +1468,7 @@
     "Connect to Meshy2API 3D generation services": "Meshy2API の3D生成サービスに接続",
     "Connect to MiniMax model services": "MiniMax のモデルサービスに接続",
     "Connect to Mistral AI model services": "Mistral AI のモデルサービスに接続",
-    "Connect to model services from another New API instance": "別の New API インスタンスのモデルサービスに接続",
+    "Connect to model services from another New API instance": "Connecter les services de modèles d’une autre instance New API",
     "Connect to model services through a Sub2API gateway": "Sub2API ゲートウェイ経由でモデルサービスに接続",
     "Connect to models through the Google Gemini API": "Google Gemini API 経由でモデルに接続",
     "Connect to Moonshot AI model services": "Moonshot AI のモデルサービスに接続",
