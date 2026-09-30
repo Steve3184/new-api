@@ -45,6 +45,7 @@ import type {
   LoginChallenge,
   SecurityProofScope,
   VerificationInput,
+  VerificationMethod,
   VerificationOperation,
   VerificationRequirements,
 } from './types'
@@ -260,18 +261,32 @@ export async function verify(
         break
     }
     signal.throwIfAborted()
-    if (
-      !proof.proof_token ||
-      proof.scope !== operation.scope ||
-      proof.method !== input.method ||
-      proof.expires_at * 1000 <= Date.now()
-    ) {
+    // The server validates expiry when consuming this single-use proof. A
+    // browser clock comparison can reject a newly issued proof before the
+    // protected request is sent when the client and server clocks differ.
+    if (!isMatchingSecurityProof(proof, operation, input.method)) {
       throw new AuthOperationError('Verification proof was not returned')
     }
     return proof
   } catch (error) {
     throw AuthOperationError.from(error)
   }
+}
+
+function isMatchingSecurityProof(
+  proof: SecurityProof,
+  operation: VerificationOperation,
+  method: VerificationMethod
+): boolean {
+  return (
+    typeof proof.proof_token === 'string' &&
+    proof.proof_token.length > 0 &&
+    proof.scope === operation.scope &&
+    proof.method === method &&
+    typeof proof.expires_at === 'number' &&
+    Number.isFinite(proof.expires_at) &&
+    proof.expires_at > 0
+  )
 }
 
 async function verifyPasskey(
@@ -291,12 +306,7 @@ async function verifyPasskey(
     signal
   )
   signal.throwIfAborted()
-  if (
-    proof.proof_token &&
-    proof.method === 'passkey' &&
-    proof.scope === operation.scope &&
-    proof.expires_at * 1000 > Date.now()
-  ) {
+  if (isMatchingSecurityProof(proof, operation, 'passkey')) {
     rememberPasskeyRPID(passkey.rpID)
   }
   return proof

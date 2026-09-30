@@ -369,6 +369,28 @@ it('binds a channel verification to the requested channel context', async () => 
   )
 })
 
+it('accepts a server-issued password proof when the browser clock is ahead', async () => {
+  const proof = {
+    proof_token: 'access-token-proof',
+    method: 'password',
+    scope: 'access_token.generate',
+    expires_at: 1_790_786_646,
+  } satisfies SecurityProof
+  vi.spyOn(Date, 'now').mockReturnValue((proof.expires_at + 120) * 1000)
+  vi.spyOn(api, 'post').mockResolvedValue({
+    data: { success: true, data: proof },
+  })
+
+  await expect(
+    verify(
+      { method: 'password', password: 'current-password' },
+      { scope: 'access_token.generate' },
+      false,
+      new AbortController().signal
+    )
+  ).resolves.toEqual(proof)
+})
+
 it('passes the operation context to Passkey begin and completes with only its flow and assertion', async () => {
   vi.stubGlobal('navigator', {
     credentials: {
