@@ -29,7 +29,17 @@ export function readThemePreference<T extends string>(
   key: string,
   allowed: ReadonlySet<T>,
   fallback: T
-): T {
+): T
+export function readThemePreference<T extends string>(
+  key: string,
+  allowed: ReadonlySet<T>,
+  fallback: null
+): T | null
+export function readThemePreference<T extends string>(
+  key: string,
+  allowed: ReadonlySet<T>,
+  fallback: T | null
+): T | null {
   if (typeof window === 'undefined') return fallback
 
   try {

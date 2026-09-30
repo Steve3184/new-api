@@ -20,7 +20,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from 'react'
@@ -40,12 +40,12 @@ import {
   type ThemeRadius,
   type ThemeScale,
 } from '@/lib/theme-customization'
-import { useSystemConfigStore } from '@/stores/system-config-store'
 import {
   readThemePreference,
   THEME_STORAGE_KEYS,
   writeThemePreference,
 } from '@/lib/theme-storage'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 function applyAttribute(name: string, value: string | null) {
   if (typeof document === 'undefined') return
@@ -121,45 +121,36 @@ export function ThemeCustomizationProvider(props: {
     }),
     [appearance]
   )
-  const [preset, _setPreset] = useState<ThemePreset>(() =>
-    readThemePreference<ThemePreset>(
-      THEME_STORAGE_KEYS.preset,
-      THEME_PRESET_VALUES,
-      defaults.preset
-    )
+  const [presetOverride, setPresetOverride] = useState<ThemePreset | null>(() =>
+    readThemePreference(THEME_STORAGE_KEYS.preset, THEME_PRESET_VALUES, null)
   )
-  const [font, _setFont] = useState<ThemeFont>(() =>
-    readThemePreference<ThemeFont>(
-      THEME_STORAGE_KEYS.font,
-      THEME_FONT_VALUES,
-      defaults.font
-    )
+  const [fontOverride, setFontOverride] = useState<ThemeFont | null>(() =>
+    readThemePreference(THEME_STORAGE_KEYS.font, THEME_FONT_VALUES, null)
   )
-  const [radius, _setRadius] = useState<ThemeRadius>(() =>
-    readThemePreference<ThemeRadius>(
-      THEME_STORAGE_KEYS.radius,
-      THEME_RADIUS_VALUES,
-      defaults.radius
-    )
+  const [radiusOverride, setRadiusOverride] = useState<ThemeRadius | null>(() =>
+    readThemePreference(THEME_STORAGE_KEYS.radius, THEME_RADIUS_VALUES, null)
   )
-  const [scale, _setScale] = useState<ThemeScale>(() =>
-    readThemePreference<ThemeScale>(
-      THEME_STORAGE_KEYS.scale,
-      THEME_SCALE_VALUES,
-      defaults.scale
-    )
+  const [scaleOverride, setScaleOverride] = useState<ThemeScale | null>(() =>
+    readThemePreference(THEME_STORAGE_KEYS.scale, THEME_SCALE_VALUES, null)
   )
-  const [contentLayout, _setContentLayout] = useState<ContentLayout>(() =>
-    readThemePreference<ContentLayout>(
-      THEME_STORAGE_KEYS.contentLayout,
-      CONTENT_LAYOUT_VALUES,
-      defaults.contentLayout
+  const [contentLayoutOverride, setContentLayoutOverride] =
+    useState<ContentLayout | null>(() =>
+      readThemePreference(
+        THEME_STORAGE_KEYS.contentLayout,
+        CONTENT_LAYOUT_VALUES,
+        null
+      )
     )
-  )
+
+  const preset = presetOverride ?? defaults.preset
+  const font = fontOverride ?? defaults.font
+  const radius = radiusOverride ?? defaults.radius
+  const scale = scaleOverride ?? defaults.scale
+  const contentLayout = contentLayoutOverride ?? defaults.contentLayout
 
   // Mirror state to the <body> via data-* attributes so theme-presets.css can
   // override CSS variables at the right cascade layer.
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute(
       'data-theme-preset',
       preset === DEFAULT_THEME_CUSTOMIZATION.preset ? null : preset
@@ -172,73 +163,73 @@ export function ThemeCustomizationProvider(props: {
   // Resolving here (instead of in CSS via `:not()` selectors) keeps the
   // stylesheet to one simple `[data-theme-font='serif']` selector and lets
   // future presets opt into typography via `PRESET_DEFAULT_FONT` alone.
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute('data-theme-font', resolveThemeFont(font, preset))
   }, [font, preset])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute(
       'data-theme-radius',
       radius === DEFAULT_THEME_CUSTOMIZATION.radius ? null : radius
     )
   }, [radius])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute(
       'data-theme-scale',
       scale === DEFAULT_THEME_CUSTOMIZATION.scale ? null : scale
     )
   }, [scale])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyAttribute('data-theme-content-layout', contentLayout)
   }, [contentLayout])
 
   const setPreset = useCallback((value: ThemePreset) => {
-    _setPreset(value)
+    setPresetOverride(value)
     writeThemePreference(THEME_STORAGE_KEYS.preset, value)
   }, [])
 
   const setFont = useCallback((value: ThemeFont) => {
-    _setFont(value)
+    setFontOverride(value)
     writeThemePreference(THEME_STORAGE_KEYS.font, value)
   }, [])
 
   const setRadius = useCallback((value: ThemeRadius) => {
-    _setRadius(value)
+    setRadiusOverride(value)
     writeThemePreference(THEME_STORAGE_KEYS.radius, value)
   }, [])
 
   const setScale = useCallback((value: ThemeScale) => {
-    _setScale(value)
+    setScaleOverride(value)
     writeThemePreference(THEME_STORAGE_KEYS.scale, value)
   }, [])
 
   const setContentLayout = useCallback((value: ContentLayout) => {
-    _setContentLayout(value)
+    setContentLayoutOverride(value)
     writeThemePreference(THEME_STORAGE_KEYS.contentLayout, value)
   }, [])
 
   const resetPreset = useCallback(() => {
     writeThemePreference(THEME_STORAGE_KEYS.preset, null)
-    _setPreset(defaults.preset)
-  }, [defaults.preset])
+    setPresetOverride(null)
+  }, [])
   const resetFont = useCallback(() => {
     writeThemePreference(THEME_STORAGE_KEYS.font, null)
-    _setFont(defaults.font)
-  }, [defaults.font])
+    setFontOverride(null)
+  }, [])
   const resetRadius = useCallback(() => {
     writeThemePreference(THEME_STORAGE_KEYS.radius, null)
-    _setRadius(defaults.radius)
-  }, [defaults.radius])
+    setRadiusOverride(null)
+  }, [])
   const resetScale = useCallback(() => {
     writeThemePreference(THEME_STORAGE_KEYS.scale, null)
-    _setScale(defaults.scale)
-  }, [defaults.scale])
+    setScaleOverride(null)
+  }, [])
   const resetContentLayout = useCallback(() => {
     writeThemePreference(THEME_STORAGE_KEYS.contentLayout, null)
-    _setContentLayout(defaults.contentLayout)
-  }, [defaults.contentLayout])
+    setContentLayoutOverride(null)
+  }, [])
 
   const resetCustomization = useCallback(() => {
     resetPreset()

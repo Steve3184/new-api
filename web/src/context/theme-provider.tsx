@@ -20,10 +20,8 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 
@@ -77,10 +75,6 @@ function resolveTheme(theme: Theme): ResolvedTheme {
   return theme === 'system' ? getSystemTheme() : theme
 }
 
-function getStoredTheme(storageKey: string, fallback: Theme): Theme {
-  return readThemePreference(storageKey, THEMES, fallback)
-}
-
 export function ThemeProvider({
   children,
   defaultTheme = DEFAULT_THEME,
@@ -102,26 +96,13 @@ export function ThemeProvider({
     (THEMES.has(configuredDefaultTheme as Theme)
       ? (configuredDefaultTheme as Theme)
       : defaultTheme)
-  const previousForcedTheme = useRef<ResolvedTheme | null>(forcedTheme)
-  const [theme, _setTheme] = useState<Theme>(
-    () => forcedTheme ?? getStoredTheme(storageKey, effectiveDefaultTheme)
+  const [preference, setPreference] = useState<Theme | null>(() =>
+    readThemePreference(storageKey, THEMES, null)
   )
+  const theme = forcedTheme ?? preference ?? effectiveDefaultTheme
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(
-      forcedTheme ?? getStoredTheme(storageKey, effectiveDefaultTheme)
-    )
+    resolveTheme(theme)
   )
-
-  useEffect(() => {
-    if (forcedTheme) {
-      _setTheme(forcedTheme)
-    } else if (previousForcedTheme.current) {
-      _setTheme(getStoredTheme(storageKey, effectiveDefaultTheme))
-    } else if (getStoredTheme(storageKey, effectiveDefaultTheme) === effectiveDefaultTheme) {
-      _setTheme(effectiveDefaultTheme)
-    }
-    previousForcedTheme.current = forcedTheme
-  }, [effectiveDefaultTheme, forcedTheme, storageKey])
 
   useLayoutEffect(() => {
     const root = window.document.documentElement
@@ -146,19 +127,16 @@ export function ThemeProvider({
     (nextTheme: Theme) => {
       if (forcedTheme) return
       writeThemePreference(storageKey, nextTheme)
-      _setTheme(nextTheme)
+      setPreference(nextTheme)
     },
     [forcedTheme, storageKey]
   )
 
   const resetTheme = useCallback(() => {
-    if (forcedTheme) {
-      _setTheme(forcedTheme)
-      return
-    }
+    if (forcedTheme) return
     writeThemePreference(storageKey, null)
-    _setTheme(effectiveDefaultTheme)
-  }, [effectiveDefaultTheme, forcedTheme, storageKey])
+    setPreference(null)
+  }, [forcedTheme, storageKey])
 
   const contextValue = useMemo(
     () => ({

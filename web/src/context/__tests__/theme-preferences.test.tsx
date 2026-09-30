@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,6 +26,20 @@ import {
 } from '@/context/theme-customization-provider'
 import { ThemeProvider, useTheme } from '@/context/theme-provider'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
+import {
+  DEFAULT_SITE_APPEARANCE,
+  useSystemConfigStore,
+} from '@/stores/system-config-store'
+
+const adminAppearance = {
+  ...DEFAULT_SITE_APPEARANCE,
+  defaultTheme: 'dark',
+  defaultThemePreset: 'ocean-breeze',
+  defaultThemeFont: 'serif',
+  defaultThemeRadius: 'xl',
+  defaultThemeScale: 'lg',
+  defaultContentLayout: 'centered',
+} as const
 
 const savedPreferences = {
   'newapi:theme:v1:mode': 'dark',
@@ -43,6 +57,19 @@ function ThemeControls() {
   return (
     <>
       <output aria-label='Theme mode'>{theme.theme}</output>
+      <button
+        type='button'
+        onClick={() => {
+          theme.setTheme('light')
+          customization.setPreset('default')
+          customization.setFont('sans')
+          customization.setRadius('default')
+          customization.setScale('default')
+          customization.setContentLayout('full')
+        }}
+      >
+        Choose built-in
+      </button>
       <button
         type='button'
         onClick={() => {
@@ -81,6 +108,9 @@ function ThemeFixture() {
 
 beforeEach(() => {
   localStorage.clear()
+  useSystemConfigStore.getState().setConfig({
+    appearance: { ...DEFAULT_SITE_APPEARANCE },
+  })
 })
 
 afterEach(() => {
@@ -98,6 +128,109 @@ afterEach(() => {
 })
 
 describe('theme preference persistence', () => {
+  it('applies all administrator defaults when config arrives after first mount', () => {
+    render(<ThemeFixture />)
+
+    act(() => {
+      useSystemConfigStore.getState().setConfig({ appearance: adminAppearance })
+    })
+
+    expect(screen.getByLabelText('Theme mode')).toHaveTextContent('dark')
+    expect(document.documentElement).toHaveClass('dark')
+    expect(document.body).toHaveAttribute('data-theme-preset', 'ocean-breeze')
+    expect(document.body).toHaveAttribute('data-theme-font', 'serif')
+    expect(document.body).toHaveAttribute('data-theme-radius', 'xl')
+    expect(document.body).toHaveAttribute('data-theme-scale', 'lg')
+    expect(document.body).toHaveAttribute(
+      'data-theme-content-layout',
+      'centered'
+    )
+    for (const key of Object.keys(savedPreferences)) {
+      expect(localStorage.getItem(key)).toBeNull()
+    }
+  })
+
+  it('preserves saved custom preferences when administrator defaults arrive', () => {
+    for (const [key, value] of Object.entries(savedPreferences)) {
+      localStorage.setItem(key, value)
+    }
+    render(<ThemeFixture />)
+
+    act(() => {
+      useSystemConfigStore.getState().setConfig({ appearance: adminAppearance })
+    })
+
+    expect(document.body).toHaveAttribute('data-theme-preset', 'rose-garden')
+    expect(document.body).toHaveAttribute('data-theme-radius', 'lg')
+    expect(document.body).toHaveAttribute('data-theme-scale', 'sm')
+  })
+
+  it('keeps an explicit built-in choice when administrator defaults change', async () => {
+    const user = userEvent.setup()
+    render(<ThemeFixture />)
+    await user.click(screen.getByRole('button', { name: 'Choose built-in' }))
+
+    act(() => {
+      useSystemConfigStore.getState().setConfig({ appearance: adminAppearance })
+    })
+
+    expect(screen.getByLabelText('Theme mode')).toHaveTextContent('light')
+    expect(document.body).not.toHaveAttribute('data-theme-preset')
+    expect(document.body).toHaveAttribute('data-theme-font', 'sans')
+    expect(document.body).not.toHaveAttribute('data-theme-radius')
+    expect(document.body).not.toHaveAttribute('data-theme-scale')
+    expect(document.body).toHaveAttribute('data-theme-content-layout', 'full')
+  })
+
+  it('continues following administrator defaults after resetting customization', async () => {
+    const user = userEvent.setup()
+    render(<ThemeFixture />)
+    await user.click(screen.getByRole('button', { name: 'Customize' }))
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+
+    act(() => {
+      useSystemConfigStore.getState().setConfig({ appearance: adminAppearance })
+    })
+
+    expect(screen.getByLabelText('Theme mode')).toHaveTextContent('dark')
+    expect(document.body).toHaveAttribute('data-theme-preset', 'ocean-breeze')
+    expect(document.body).toHaveAttribute('data-theme-radius', 'xl')
+    expect(document.body).toHaveAttribute('data-theme-scale', 'lg')
+  })
+
+  it('restores the in-memory user mode after a forced theme is released with blocked storage', async () => {
+    const writeStorage = localStorage.setItem.bind(localStorage)
+    vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key.startsWith('newapi:theme:')) {
+        throw new DOMException('Storage blocked', 'SecurityError')
+      }
+      writeStorage(key, value)
+    })
+    const user = userEvent.setup()
+    render(<ThemeFixture />)
+    await user.click(screen.getByRole('button', { name: 'Customize' }))
+
+    act(() => {
+      useSystemConfigStore.getState().setConfig({
+        appearance: {
+          ...DEFAULT_SITE_APPEARANCE,
+          defaultThemeOverride: 'light',
+        },
+      })
+    })
+    expect(document.documentElement).toHaveClass('light')
+    await user.click(screen.getByRole('button', { name: 'Choose built-in' }))
+    expect(document.documentElement).toHaveClass('light')
+
+    act(() => {
+      useSystemConfigStore.getState().setConfig({
+        appearance: { ...DEFAULT_SITE_APPEARANCE },
+      })
+    })
+    expect(screen.getByLabelText('Theme mode')).toHaveTextContent('dark')
+    expect(document.documentElement).toHaveClass('dark')
+  })
+
   it('starts with defaults when only shared legacy theme cookies exist', () => {
     document.cookie = 'theme_preset=ocean-breeze; path=/'
     document.cookie = 'vite-ui-theme=dark; path=/'
