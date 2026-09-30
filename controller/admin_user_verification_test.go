@@ -210,6 +210,33 @@ func TestAdminUserRoutineEditsDoNotRequireProof(t *testing.T) {
 	assert.EqualValues(t, 1, count)
 }
 
+func TestCreateUserRejectsNonStandardRole(t *testing.T) {
+	_, identity, _ := setupAdminUserTest(t)
+	for i, test := range []struct {
+		name         string
+		role         int
+		operatorRole int
+	}{
+		{"between common and admin", 5, common.RoleAdminUser},
+		{"negative", -1, common.RoleAdminUser},
+		{"between admin and root", 99, common.RoleRootUser},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			username := fmt.Sprintf("odd-role-%d", i)
+			body := fmt.Sprintf(`{"username":%q,"password":"member-password-1","role":%d}`, username, test.role)
+			response := adminUserRequest(http.MethodPost, "/api/user/", body, "", identity, test.operatorRole, nil, CreateUser)
+			var result securityEnrollmentResponse
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+			assert.Equal(t, http.StatusOK, response.Code)
+			assert.False(t, result.Success)
+			assert.Empty(t, result.Code)
+			var count int64
+			require.NoError(t, model.DB.Model(&model.User{}).Where("username = ?", username).Count(&count).Error)
+			assert.Zero(t, count)
+		})
+	}
+}
+
 func TestAdminUserProofIsBoundToTargetAndActionAndConsumedOnce(t *testing.T) {
 	_, identity, target := setupAdminUserTest(t)
 	other := &model.User{Username: "other-user", Password: target.Password, Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "other-aff"}
