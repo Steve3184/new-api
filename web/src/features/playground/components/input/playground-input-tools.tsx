@@ -41,6 +41,7 @@ import {
 
 import { ATTACHMENT_ACTIONS, getSearchActionNotice } from '../../lib'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
+import { PlaygroundEffortSelector } from './playground-effort-selector'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
 
 type PlaygroundInputToolsProps = {
@@ -266,6 +267,11 @@ export function PlaygroundInputTools({
             <p>{t('Clear chat history')}</p>
           </TooltipContent>
         </Tooltip>
+        <PlaygroundEffortSelector
+          value={config.reasoning_effort}
+          disabled={disabled}
+          onChange={(value) => onConfigChange('reasoning_effort', value)}
+        />
       </PromptInputTools>
 
       <input

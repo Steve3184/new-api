@@ -76,7 +76,16 @@ export interface ContentPart {
   }
 }
 
+export type ReasoningEffort =
+  | 'none'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+
 export interface ChatCompletionRequest {
+  reasoning_effort?: ReasoningEffort
   model: string
   group?: string
   messages: ChatCompletionMessage[]
@@ -128,6 +137,7 @@ export interface ChatCompletionResponse {
 
 // Configuration types
 export interface PlaygroundConfig {
+  reasoning_effort: ReasoningEffort | 'default'
   model: string
   group: string
   temperature: number

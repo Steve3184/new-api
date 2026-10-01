@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+import { REASONING_EFFORTS } from '../../constants'
+
 export const STORAGE_VERSION = 1
 export const MAX_STORED_MESSAGES = 100
 export const MAX_STORED_MESSAGES_BYTES = 1024 * 1024
@@ -25,6 +27,7 @@ export const MAX_LOADED_MESSAGES_CHARS = 120_000
 export const MAX_LOADED_MESSAGE_CHARS = 40_000
 
 export const playgroundConfigSchema = z.object({
+  reasoning_effort: z.enum(['default', ...REASONING_EFFORTS]).catch('default'),
   model: z.string().optional(),
   group: z.string().optional(),
   temperature: z.number().optional(),

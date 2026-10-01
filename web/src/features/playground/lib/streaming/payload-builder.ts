@@ -44,6 +44,10 @@ export function buildChatCompletionPayload(
     stream: config.stream,
   }
 
+  if (config.reasoning_effort && config.reasoning_effort !== 'default') {
+    payload.reasoning_effort = config.reasoning_effort
+  }
+
   if (parameterEnabled.temperature) {
     payload.temperature = config.temperature
   }

@@ -104,8 +104,18 @@ export const UNREAL_SPEECH_VOICES = [
 // only selected when the backend confirms it is available for the user.
 export const DEFAULT_GROUP = 'default' as const
 
+export const REASONING_EFFORTS = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const
+
 // Default configuration
 export const DEFAULT_CONFIG: PlaygroundConfig = {
+  reasoning_effort: 'default',
   model: 'gpt-4o',
   group: DEFAULT_GROUP,
   temperature: 0.7,
