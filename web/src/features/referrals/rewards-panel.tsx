@@ -222,7 +222,7 @@ export function ReferralRewardsPanel(props: { admin?: boolean }) {
             <div className='text-muted-foreground text-xs'>{labels[key]}</div>
             <div className='mt-1 text-lg font-semibold'>
               {formatQuota(
-                query.data?.summary.find((entry) => entry.status === key)
+                query.data?.summary?.find((entry) => entry.status === key)
                   ?.quota ?? 0
               )}
             </div>

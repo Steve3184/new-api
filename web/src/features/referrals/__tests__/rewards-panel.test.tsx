@@ -122,7 +122,7 @@ test('admin reversal requires a reason and submits only after confirmation', asy
 test('empty rewards show an empty state and API failure exposes retry', async () => {
   vi.spyOn(api, 'get')
     .mockResolvedValueOnce({
-      data: { success: true, data: { ...data, items: [], total: 0 } },
+      data: { success: true, data: { ...data, items: [], total: 0, summary: null } },
     })
     .mockRejectedValue(new Error('unavailable'))
   const view = renderPanel()

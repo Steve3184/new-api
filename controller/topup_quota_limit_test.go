@@ -62,6 +62,12 @@ func TestReferralRewardUserIsolation(t *testing.T) {
 	assert.Equal(t, 1, response.Data.Total)
 	require.Len(t, response.Data.Summary, 1)
 	assert.Equal(t, 50, response.Data.Summary[0].Quota)
+	recorder = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(recorder)
+	ctx.Set("id", 999)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/referral-rewards", nil)
+	GetReferralRewards(ctx)
+	assert.Contains(t, recorder.Body.String(), `"summary":[]`)
 }
 
 func TestTopUpQuotaValidation(t *testing.T) {

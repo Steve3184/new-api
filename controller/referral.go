@@ -55,11 +55,11 @@ func listReferralRewards(c *gin.Context, admin bool) {
 			records[i].TopUpID = 0
 		}
 	}
-	var totals []struct {
+	totals := []struct {
 		Status string `json:"status"`
 		Quota  int64  `json:"quota"`
 		Count  int64  `json:"count"`
-	}
+	}{}
 	summary := model.DB.Model(&model.ReferralReward{})
 	if !admin {
 		summary = summary.Where("inviter_id = ?", c.GetInt("id"))
