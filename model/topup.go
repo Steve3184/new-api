@@ -12,6 +12,8 @@ import (
 )
 
 type TopUp struct {
+	PaymentCurrency  string  `json:"payment_currency" gorm:"type:varchar(3)"`
+	ReferralSnapshot string  `json:"-" gorm:"type:text"`
 	Id               int     `json:"id"`
 	UserId           int     `json:"user_id" gorm:"index"`
 	Amount           int64   `json:"amount"`
@@ -67,6 +69,17 @@ var (
 )
 
 func (topUp *TopUp) Insert() error {
+	if topUp.PaymentCurrency == "" {
+		switch topUp.PaymentProvider {
+		case PaymentProviderEpay:
+			topUp.PaymentCurrency = "CNY"
+		case PaymentProviderStripe:
+			topUp.PaymentCurrency = "USD"
+		}
+	}
+	if err := topUp.SnapshotReferral(topUp.PaymentCurrency); err != nil {
+		return err
+	}
 	var err error
 	err = DB.Create(topUp).Error
 	return err
@@ -146,6 +159,14 @@ func settleTopUp(tx *gorm.DB, topUp *TopUp, quota int, updates map[string]interf
 	}
 	if !topUp.IsRedemptionPurchase() {
 		if err := creditTopUpQuota(tx, topUp.UserId, quota, updates); err != nil {
+			return 0, err
+		}
+		// Persist the verified payment basis (or manual-completion exclusion)
+		// alongside the wallet credit and referral ledger in the same transaction.
+		if err := tx.Model(topUp).Update("referral_snapshot", topUp.ReferralSnapshot).Error; err != nil {
+			return 0, err
+		}
+		if err := createReferralReward(tx, topUp); err != nil {
 			return 0, err
 		}
 		return quota, nil
@@ -242,7 +263,7 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 // 在同一个事务内完成，因此同一订单的并发/重复回调（包括多实例部署下）最多充值一次。
 // alreadyDone=true 表示订单此前已完成，本次为幂等重复回调。
 // 进程内的 LockOrder 只是优化，正确性由本函数的数据库行锁保证。
-func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (alreadyDone bool, err error) {
+func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string, paid ...PaidFiat) (alreadyDone bool, err error) {
 	if tradeNo == "" {
 		return false, errors.New("未提供支付单号")
 	}
@@ -287,6 +308,9 @@ func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
+		if err := applyReferralPaid(topUp, paid); err != nil {
+			return err
+		}
 		var settleErr error
 		quotaToAdd, settleErr = settleTopUp(tx, topUp, quotaToAdd, nil)
 		return settleErr
@@ -311,7 +335,7 @@ func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (
 	return false, nil
 }
 
-func Recharge(referenceId string, customerId string, callerIp string) (err error) {
+func Recharge(referenceId string, customerId string, callerIp string, paid ...PaidFiat) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -354,6 +378,9 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			if err != nil || quota <= 0 {
 				return ErrInvalidTopUpQuota
 			}
+		}
+		if err := applyReferralPaid(topUp, paid); err != nil {
+			return err
 		}
 		quota, err = settleTopUp(tx, topUp, quota, map[string]interface{}{
 			"stripe_customer": customerId,
@@ -599,6 +626,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 增加用户额度（立即写库，保持一致性）
+		// Administrator completion is not a verified fiat payment callback.
+		topUp.ReferralSnapshot = ""
 		var settleErr error
 		quotaToAdd, settleErr = settleTopUp(tx, topUp, quotaToAdd, nil)
 		if settleErr != nil {
@@ -628,7 +657,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 	return nil
 }
-func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
+func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string, paid ...PaidFiat) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -690,6 +719,9 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			}
 		}
 
+		if err := applyReferralPaid(topUp, paid); err != nil {
+			return err
+		}
 		quota, err = settleTopUp(tx, topUp, quota, updateFields)
 		return err
 	})
@@ -709,7 +741,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	return nil
 }
 
-func RechargeWaffo(tradeNo string, callerIp string) (err error) {
+func RechargeWaffo(tradeNo string, callerIp string, paid ...PaidFiat) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -757,6 +789,9 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
+		if err := applyReferralPaid(topUp, paid); err != nil {
+			return err
+		}
 		var settleErr error
 		quotaToAdd, settleErr = settleTopUp(tx, topUp, quotaToAdd, nil)
 		return settleErr
@@ -779,7 +814,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	return nil
 }
 
-func RechargeWaffoPancake(tradeNo string) (err error) {
+func RechargeWaffoPancake(tradeNo string, paid ...PaidFiat) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -827,6 +862,9 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return err
 		}
 
+		if err := applyReferralPaid(topUp, paid); err != nil {
+			return err
+		}
 		var settleErr error
 		quotaToAdd, settleErr = settleTopUp(tx, topUp, quotaToAdd, nil)
 		return settleErr

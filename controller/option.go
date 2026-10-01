@@ -302,6 +302,12 @@ func UpdateOption(c *gin.Context) {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
+	if key, ok := strings.CutPrefix(option.Key, "referral_setting."); ok {
+		if err := operation_setting.ValidateReferralOption(key, option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	}
 	// Reject the read-only sentinel that GetOptions emits for already-set
 	// sensitive fields. The frontend skips unchanged password fields, but
 	// guard here as well so a stale client can never accidentally overwrite

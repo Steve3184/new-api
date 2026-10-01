@@ -18,6 +18,52 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestReferralRewardUserIsolation(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ReferralReward{}, &model.User{}))
+	original := model.DB
+	model.DB = db
+	t.Cleanup(func() {
+		model.DB = original
+		sqlDB, err := db.DB()
+		require.NoError(t, err)
+		require.NoError(t, sqlDB.Close())
+	})
+	for _, reward := range []model.ReferralReward{
+		{TopUpID: 1, InviterID: 10, InviteeID: 11, Status: "pending", Quota: 50, TradeNo: "private-order", Reason: "admin-note", OperatorID: 1},
+		{TopUpID: 2, InviterID: 20, InviteeID: 21, Status: "pending", Quota: 99},
+	} {
+		require.NoError(t, db.Create(&reward).Error)
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", 10)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/referral-rewards?inviter_id=20&invitee_id=21", nil)
+	GetReferralRewards(ctx)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Items   []model.ReferralReward `json:"items"`
+			Total   int                    `json:"total"`
+			Summary []struct {
+				Quota int `json:"quota"`
+			} `json:"summary"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success, recorder.Body.String())
+	require.Len(t, response.Data.Items, 1)
+	assert.Equal(t, 10, response.Data.Items[0].InviterID)
+	assert.Empty(t, response.Data.Items[0].TradeNo)
+	assert.Empty(t, response.Data.Items[0].Reason)
+	assert.Zero(t, response.Data.Items[0].OperatorID)
+	assert.Zero(t, response.Data.Items[0].TopUpID)
+	assert.Equal(t, 1, response.Data.Total)
+	require.Len(t, response.Data.Summary, 1)
+	assert.Equal(t, 50, response.Data.Summary[0].Quota)
+}
+
 func TestTopUpQuotaValidation(t *testing.T) {
 	oldQuotaPerUnit := common.QuotaPerUnit
 	oldDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType

@@ -297,6 +297,11 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	profile, _ := createMiddlewareScopedToken(t, admin.Id, 0, "profile:read")
 	channel, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()+3600, "channel:read")
 	expired, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()-1, "profile:read")
+	wallet, _ := createMiddlewareScopedToken(t, admin.Id, 0, "wallet:read")
+	billing, _ := createMiddlewareScopedToken(t, admin.Id, 0, "billing:read")
+	billingWrite, _ := createMiddlewareScopedToken(t, admin.Id, 0, "billing:write")
+	ordinary := createMiddlewarePATUser(t, "referral-ordinary", "referral-ordinary-legacy")
+	ordinaryBilling, _ := createMiddlewareScopedToken(t, ordinary.Id, 0, "billing:write")
 
 	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")}) }
 	router := gin.New()
@@ -305,6 +310,9 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	router.GET("/api/undeclared", UserAuth(), ok)
 	router.GET("/api/channel/", AdminAuth(), RequirePermission(authz.ChannelRead), ok)
 	router.GET("/api/pricing", TryUserAuth(), ok)
+	router.GET("/api/user/self/referral-rewards", UserAuth(), ok)
+	router.GET("/api/user/referral-rewards", AdminAuth(), ok)
+	router.POST("/api/user/referral-rewards/:id/reverse", AdminAuth(), ok)
 
 	for _, test := range []struct {
 		name, path, token, code, reason string
@@ -319,6 +327,9 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 		{name: "expired token", path: "/api/user/self", token: expired, status: http.StatusUnauthorized, code: "ACCESS_TOKEN_EXPIRED", reason: "expired"},
 		{name: "legacy token before the deadline", path: "/api/user/self", token: legacy, status: http.StatusOK},
 		{name: "legacy token on a session route", path: "/api/user/access_tokens", token: legacy, status: http.StatusForbidden, code: "AUTH_SESSION_REQUIRED", reason: "session_required"},
+		{name: "wallet grant reads own rewards", path: "/api/user/self/referral-rewards", token: wallet, status: http.StatusOK},
+		{name: "wallet grant cannot read admin rewards", path: "/api/user/referral-rewards", token: wallet, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
+		{name: "billing grant reads admin rewards", path: "/api/user/referral-rewards", token: billing, status: http.StatusOK},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			response := middlewareBearerRequest(router, test.path, test.token)
@@ -340,6 +351,25 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 			if test.code == "ACCESS_TOKEN_SCOPE_DENIED" {
 				assert.Contains(t, string(params), `"required_scope":"`)
 			}
+		})
+	}
+	for _, test := range []struct {
+		name, token string
+		status      int
+	}{
+		{"read grant cannot reverse", billing, http.StatusForbidden},
+		{"write grant can reverse", billingWrite, http.StatusOK},
+		{"ordinary user cannot reverse with admin scope", ordinaryBilling, http.StatusForbidden},
+		{"anonymous cannot reverse", "", http.StatusUnauthorized},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/user/referral-rewards/1/reverse", nil)
+			if test.token != "" {
+				request.Header.Set("Authorization", "Bearer "+test.token)
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			assert.Equal(t, test.status, response.Code, response.Body.String())
 		})
 	}
 

@@ -663,7 +663,8 @@ func EpayNotify(c *gin.Context) {
 		// 数据库行锁 + 事务内状态校验保证（多实例部署下同样安全）。
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		alreadyDone, err := model.RechargeEpay(verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP())
+		paid, _ := strconv.ParseFloat(verifyInfo.Money, 64) // already validated above
+		alreadyDone, err := model.RechargeEpay(verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), model.PaidFiat{Amount: paid, Currency: "CNY"})
 		if err != nil {
 			switch {
 			case errors.Is(err, model.ErrTopUpNotFound):

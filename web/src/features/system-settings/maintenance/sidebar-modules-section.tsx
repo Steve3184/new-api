@@ -142,6 +142,10 @@ export function SidebarModulesSection({
       },
     },
     admin: {
+      referrals: {
+        title: t('Referral management'),
+        description: t('Review and reverse referral rewards.'),
+      },
       channel: {
         title: t('Channels'),
         description: t('Configure upstream providers and routing.'),

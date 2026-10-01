@@ -68,6 +68,11 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
           items: getBillingSectionNavItems(t),
         },
         {
+          title: t('Invitation settings'),
+          icon: CreditCard,
+          url: '/system-settings/referrals',
+        },
+        {
           title: t('Models'),
           icon: Box,
           items: getModelsSectionNavItems(t),

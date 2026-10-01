@@ -25,6 +25,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ReferralRewardsPanel } from '@/features/referrals/rewards-panel'
 import { formatQuota } from '@/lib/format'
 
 import type { UserWalletData } from '../types'
@@ -74,21 +75,24 @@ export function AffiliateRewardsCard({
               {t('Referral Program')}
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {t(
-                'Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.'
-              )}
+              {t('Share your invitation link to earn rewards.')}
             </p>
           </div>
         </div>
 
-        <div className='grid grid-cols-3 gap-1.5 text-center'>
+        <div className='grid grid-cols-2 gap-1.5 text-center'>
           {[
-            [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
-            [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
-            [t('Invites'), String(user?.aff_count ?? 0)],
+            [
+              t('Untransferred registration rewards'),
+              formatQuota(user?.aff_quota ?? 0),
+            ],
+            [
+              t('Total registration rewards'),
+              formatQuota(user?.aff_history_quota ?? 0),
+            ],
           ].map(([label, value]) => (
             <div key={label}>
-              <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+              <div className='text-muted-foreground text-[10px] font-medium'>
                 {label}
               </div>
               <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>
@@ -130,6 +134,9 @@ export function AffiliateRewardsCard({
             )}
           </p>
         ) : null}
+      </CardContent>
+      <CardContent className='min-w-0 border-t p-3 sm:p-4'>
+        <ReferralRewardsPanel />
       </CardContent>
     </Card>
   )

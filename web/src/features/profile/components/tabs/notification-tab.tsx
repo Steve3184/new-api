@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -49,9 +50,14 @@ const NOTIFICATION_ICONS: Record<NotifyType, typeof Mail> = {
 interface NotificationTabProps {
   profile: UserProfile | null
   onUpdate: () => void
+  preferencesContainer?: HTMLElement | null
 }
 
-export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
+export function NotificationTab({
+  profile,
+  onUpdate,
+  preferencesContainer,
+}: NotificationTabProps) {
   const { t } = useTranslation()
   const isAdmin = (profile?.role ?? 0) >= ROLE.ADMIN
   const [loading, setLoading] = useState(false)
@@ -92,6 +98,93 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       setLoading(false)
     }
   }
+
+  const preferences = (
+    <div className='space-y-4'>
+      {/* Preferences Section */}
+      <div className='space-y-3'>
+        <div>
+          <h4 className='text-sm font-medium'>{t('Preferences')}</h4>
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t('Configure your account behavior preferences')}
+          </p>
+        </div>
+
+        {/* Receive Upstream Model Update Notifications (admin only) */}
+        {isAdmin && (
+          <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
+            <div className='space-y-0.5'>
+              <Label htmlFor='upstreamModelUpdateNotify'>
+                {t('Receive Upstream Model Update Notifications')}
+              </Label>
+              <p className='text-muted-foreground line-clamp-3 text-xs sm:line-clamp-none sm:text-sm'>
+                {t(
+                  'Only available for admins. When enabled, you will receive a summary notification via your selected method when the scheduled model check detects upstream model changes or check failures.'
+                )}
+              </p>
+            </div>
+            <Switch
+              id='upstreamModelUpdateNotify'
+              className='shrink-0'
+              checked={settings.upstream_model_update_notify_enabled}
+              onCheckedChange={(checked) =>
+                updateField('upstream_model_update_notify_enabled', checked)
+              }
+            />
+          </div>
+        )}
+
+        {/* Accept Unset Model Price */}
+        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
+          <div className='space-y-0.5'>
+            <Label htmlFor='acceptUnsetPrice'>
+              {t('Accept Unpriced Models')}
+            </Label>
+            <p className='text-muted-foreground text-xs sm:text-sm'>
+              {t('Allow using models without price configuration')}
+            </p>
+          </div>
+          <Switch
+            id='acceptUnsetPrice'
+            className='shrink-0'
+            checked={settings.accept_unset_model_ratio_model}
+            onCheckedChange={(checked) =>
+              updateField('accept_unset_model_ratio_model', checked)
+            }
+          />
+        </div>
+
+        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
+          <div className='space-y-0.5'>
+            <Label htmlFor='excludeFromLeaderboard'>
+              {t('Exclude me from user leaderboards')}
+            </Label>
+            <p className='text-muted-foreground text-xs sm:text-sm'>
+              {t(
+                'When enabled, your usage will not appear in public user rankings.'
+              )}
+            </p>
+          </div>
+          <Switch
+            id='excludeFromLeaderboard'
+            className='shrink-0'
+            checked={settings.exclude_from_leaderboard}
+            onCheckedChange={(checked) =>
+              updateField('exclude_from_leaderboard', checked)
+            }
+          />
+        </div>
+      </div>
+
+      {preferencesContainer && (
+        <div className='flex justify-end'>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? t('Saving...') : t('Save Settings')}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
 
   const notifyType = settings.notify_type
 
@@ -280,83 +373,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         </>
       )}
 
-      {/* Divider */}
-      <div className='border-t' />
-
-      {/* Preferences Section */}
-      <div className='space-y-3'>
-        <div>
-          <h4 className='text-sm font-medium'>{t('Preferences')}</h4>
-          <p className='text-muted-foreground mt-1 text-xs'>
-            {t('Configure your account behavior preferences')}
-          </p>
-        </div>
-
-        {/* Receive Upstream Model Update Notifications (admin only) */}
-        {isAdmin && (
-          <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
-            <div className='space-y-0.5'>
-              <Label htmlFor='upstreamModelUpdateNotify'>
-                {t('Receive Upstream Model Update Notifications')}
-              </Label>
-              <p className='text-muted-foreground line-clamp-3 text-xs sm:line-clamp-none sm:text-sm'>
-                {t(
-                  'Only available for admins. When enabled, you will receive a summary notification via your selected method when the scheduled model check detects upstream model changes or check failures.'
-                )}
-              </p>
-            </div>
-            <Switch
-              id='upstreamModelUpdateNotify'
-              className='shrink-0'
-              checked={settings.upstream_model_update_notify_enabled}
-              onCheckedChange={(checked) =>
-                updateField('upstream_model_update_notify_enabled', checked)
-              }
-            />
-          </div>
-        )}
-
-        {/* Accept Unset Model Price */}
-        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
-          <div className='space-y-0.5'>
-            <Label htmlFor='acceptUnsetPrice'>
-              {t('Accept Unpriced Models')}
-            </Label>
-            <p className='text-muted-foreground text-xs sm:text-sm'>
-              {t('Allow using models without price configuration')}
-            </p>
-          </div>
-          <Switch
-            id='acceptUnsetPrice'
-            className='shrink-0'
-            checked={settings.accept_unset_model_ratio_model}
-            onCheckedChange={(checked) =>
-              updateField('accept_unset_model_ratio_model', checked)
-            }
-          />
-        </div>
-
-        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
-          <div className='space-y-0.5'>
-            <Label htmlFor='excludeFromLeaderboard'>
-              {t('Exclude me from user leaderboards')}
-            </Label>
-            <p className='text-muted-foreground text-xs sm:text-sm'>
-              {t(
-                'When enabled, your usage will not appear in public user rankings.'
-              )}
-            </p>
-          </div>
-          <Switch
-            id='excludeFromLeaderboard'
-            className='shrink-0'
-            checked={settings.exclude_from_leaderboard}
-            onCheckedChange={(checked) =>
-              updateField('exclude_from_leaderboard', checked)
-            }
-          />
-        </div>
-      </div>
+      {preferencesContainer
+        ? createPortal(preferences, preferencesContainer)
+        : preferences}
 
       {/* Save Button */}
       <div className='flex justify-end'>

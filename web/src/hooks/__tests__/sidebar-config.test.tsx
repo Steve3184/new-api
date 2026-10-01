@@ -74,6 +74,22 @@ function sidebarFor(admin?: object, user?: object, canConfigure = true) {
 }
 
 describe('security sidebar visibility', () => {
+  it('referral management defaults to visible for legacy configs and respects the admin visibility switch', () => {
+    expect(parseSidebarModulesAdmin('{}').admin.referrals).toBe(true)
+    const visible = sidebarFor({ admin: { enabled: true, user: true } })
+    expect(
+      visible.result.current
+        .flatMap((g) => g.items)
+        .some((item) => item.title === 'Referral management')
+    ).toBe(true)
+    visible.unmount()
+    const hidden = sidebarFor({ admin: { enabled: true, referrals: false } })
+    expect(
+      hidden.result.current
+        .flatMap((g) => g.items)
+        .some((item) => item.title === 'Referral management')
+    ).toBe(false)
+  })
   it('old configurations show Security & Access immediately after Profile and keep API Keys', () => {
     const { result } = sidebarFor(
       { personal: { enabled: true, personal: true, topup: true } },

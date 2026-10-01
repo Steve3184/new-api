@@ -16,11 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Main } from '@/components/layout'
 import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
+import { Card, CardContent } from '@/components/ui/card'
 import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -32,6 +36,9 @@ import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { useProfile } from './hooks'
 
 export function Profile() {
+  const { t } = useTranslation()
+  const [preferencesContainer, setPreferencesContainer] =
+    useState<HTMLDivElement | null>(null)
   const { profile, loading, refreshProfile } = useProfile()
   const { status } = useStatus()
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
@@ -54,6 +61,7 @@ export function Profile() {
                   profile={profile}
                   loading={loading}
                   onProfileUpdate={refreshProfile}
+                  preferencesContainer={preferencesContainer}
                 />
                 <LanguagePreferencesCard
                   profile={profile}
@@ -61,12 +69,20 @@ export function Profile() {
                 />
               </div>
 
-              <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
+              <aside
+                aria-label={t('Preferences')}
+                className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'
+              >
+                <Card data-card-hover='false'>
+                  <CardContent>
+                    <div ref={setPreferencesContainer} />
+                  </CardContent>
+                </Card>
                 {checkinEnabled && (
                   <CheckinCalendarCard checkinEnabled={checkinEnabled} />
                 )}
                 {canConfigureSidebar && <SidebarModulesCard />}
-              </div>
+              </aside>
             </div>
           </CardStaggerItem>
         </CardStaggerContainer>
