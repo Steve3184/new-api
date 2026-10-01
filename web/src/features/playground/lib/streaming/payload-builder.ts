@@ -44,7 +44,7 @@ export function buildChatCompletionPayload(
     stream: config.stream,
   }
 
-  if (config.reasoning_effort && config.reasoning_effort !== 'default') {
+  if (config.reasoning_effort) {
     payload.reasoning_effort = config.reasoning_effort
   }
 

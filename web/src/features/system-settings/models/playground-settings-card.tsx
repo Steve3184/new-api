@@ -41,6 +41,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { PlaygroundPresetsEditor } from './playground-presets-editor'
 import {
   playgroundSettingsSchema,
   type PlaygroundFeature,
@@ -154,6 +155,8 @@ export function PlaygroundSettingsCard(props: PlaygroundSettingsCardProps) {
               'Chat is enabled by default. An empty model list allows every model available to the user.'
             )}
           </p>
+
+          <PlaygroundPresetsEditor />
 
           {FEATURE_ROWS.map((row) => {
             const enabled = enabledFeatures.includes(row.feature)

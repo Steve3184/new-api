@@ -16,52 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  BarChartIcon,
-  CodeSquareIcon,
-  GraduationCapIcon,
-  MessageSquarePlusIcon,
-  NotepadTextIcon,
-} from 'lucide-react'
+import { MessageSquarePlusIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { ReactIconByName } from '@/components/react-icon-by-name'
 import { Button } from '@/components/ui/button'
+import { useStatus } from '@/hooks/use-status'
+
+import { DEFAULT_CHAT_PRESETS } from '../../constants'
+import type { PlaygroundPublicSettings } from '../../types'
 
 type PlaygroundEmptyStateProps = {
   onSelectPrompt: (prompt: string) => void
 }
 
-const starterPrompts = [
-  {
-    icon: BarChartIcon,
-    text: 'Analyze data',
-    prompt:
-      'I have a dataset I need help analyzing. What steps would you recommend to explore it, identify patterns, and draw meaningful conclusions?',
-  },
-  {
-    icon: NotepadTextIcon,
-    text: 'Summarize text',
-    prompt:
-      'Please summarize the following text concisely, preserving the key points and main ideas:\n\n[Paste your text here]',
-  },
-  {
-    icon: CodeSquareIcon,
-    text: 'Code',
-    prompt:
-      'Help me write a function that [describe what the function should do]. Please include clear variable names and a brief explanation of how it works.',
-  },
-  {
-    icon: GraduationCapIcon,
-    text: 'Get advice',
-    prompt:
-      'I need advice on [describe your situation or challenge]. What are the key considerations and what would you recommend?',
-  },
-]
-
 export function PlaygroundEmptyState({
   onSelectPrompt,
 }: PlaygroundEmptyStateProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const configured = (
+    status?.playground as PlaygroundPublicSettings | undefined
+  )?.chat_presets
+  const presets = configured ?? DEFAULT_CHAT_PRESETS
 
   return (
     <div className='flex min-h-[min(520px,calc(100svh-18rem))] items-center justify-center px-1 py-8 md:py-12'>
@@ -82,15 +59,21 @@ export function PlaygroundEmptyState({
         </div>
 
         <div className='grid gap-2 sm:grid-cols-2'>
-          {starterPrompts.map(({ icon: Icon, text, prompt }) => (
+          {presets.map((preset) => (
             <Button
               className='h-auto min-h-11 justify-start gap-2 px-3 py-2.5 text-left whitespace-normal'
-              key={text}
-              onClick={() => onSelectPrompt(prompt)}
+              key={preset.title + preset.content + preset.icon}
+              onClick={() => onSelectPrompt(preset.content)}
               variant='outline'
             >
-              <Icon className='text-muted-foreground size-4' />
-              <span>{t(text)}</span>
+              <ReactIconByName
+                name={preset.icon}
+                aria-hidden='true'
+                className='text-muted-foreground size-4 shrink-0'
+              />
+              <span className='min-w-0 break-words'>
+                {configured == null ? t(preset.title) : preset.title}
+              </span>
             </Button>
           ))}
         </div>

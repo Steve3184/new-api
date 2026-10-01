@@ -115,7 +115,7 @@ export const REASONING_EFFORTS = [
 
 // Default configuration
 export const DEFAULT_CONFIG: PlaygroundConfig = {
-  reasoning_effort: 'default',
+  reasoning_effort: 'medium',
   model: 'gpt-4o',
   group: DEFAULT_GROUP,
   temperature: 0.7,
@@ -128,11 +128,11 @@ export const DEFAULT_CONFIG: PlaygroundConfig = {
 }
 
 export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
-  temperature: true,
-  top_p: true,
+  temperature: false,
+  top_p: false,
   max_tokens: false,
-  frequency_penalty: true,
-  presence_penalty: true,
+  frequency_penalty: false,
+  presence_penalty: false,
   seed: false,
 }
 
@@ -172,3 +172,30 @@ export const MESSAGE_ACTION_LABELS = {
   NO_CONTENT: 'No content to copy',
   WAIT_GENERATION: 'Please wait for the current generation to complete',
 } as const
+
+export const DEFAULT_CHAT_PRESETS = [
+  {
+    icon: 'LuChartNoAxesCombined',
+    title: 'Analyze data',
+    content:
+      'I have a dataset I need help analyzing. What steps would you recommend to explore it, identify patterns, and draw meaningful conclusions?',
+  },
+  {
+    icon: 'LuNotepadText',
+    title: 'Summarize text',
+    content:
+      'Please summarize the following text concisely, preserving the key points and main ideas:\n\n[Paste your text here]',
+  },
+  {
+    icon: 'LuCodeXml',
+    title: 'Code',
+    content:
+      'Help me write a function that [describe what the function should do]. Please include clear variable names and a brief explanation of how it works.',
+  },
+  {
+    icon: 'LuGraduationCap',
+    title: 'Get advice',
+    content:
+      'I need advice on [describe your situation or challenge]. What are the key considerations and what would you recommend?',
+  },
+]

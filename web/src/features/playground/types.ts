@@ -137,7 +137,7 @@ export interface ChatCompletionResponse {
 
 // Configuration types
 export interface PlaygroundConfig {
-  reasoning_effort: ReasoningEffort | 'default'
+  reasoning_effort: ReasoningEffort
   model: string
   group: string
   temperature: number
@@ -179,7 +179,14 @@ export type PlaygroundFeature =
   | 'video'
 export type SpeechModelType = 'openai' | 'azure' | 'unrealspeech'
 
+export interface ChatPreset {
+  icon: string
+  title: string
+  content: string
+}
+
 export interface PlaygroundPublicSettings {
+  chat_presets?: ChatPreset[] | null
   enabled_features: PlaygroundFeature[]
   models: Record<PlaygroundFeature, string[]>
   speech_model_types: Record<string, SpeechModelType>

@@ -19,49 +19,63 @@ For commercial licensing, please contact support@quantumnous.com
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import type { PlaygroundConfig } from '../../../types'
 import { PlaygroundEffortSelector } from '../playground-effort-selector'
 
+// Base UI measures edge-aligned thumbs; jsdom has no layout.
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function (this: HTMLElement) {
+      return new DOMRect(
+        0,
+        0,
+        this.dataset.slot === 'slider-thumb' ? 28 : 256,
+        28
+      )
+    }
+  )
+})
+afterEach(() => vi.restoreAllMocks())
+
 function EffortControl() {
   const [value, setValue] =
-    useState<PlaygroundConfig['reasoning_effort']>('default')
+    useState<PlaygroundConfig['reasoning_effort']>('medium')
   return <PlaygroundEffortSelector value={value} onChange={setValue} />
 }
 
-test('shows all six levels and updates the visible and accessible selection', async () => {
+test('keyboard steps through all six levels and reset restores the default', async () => {
   const user = userEvent.setup()
   render(<EffortControl />)
   const trigger = screen.getByRole('button', { name: 'Reasoning effort' })
   await user.click(trigger)
   expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  const slider = await screen.findByRole('slider', { name: 'Reasoning effort' })
+  expect(trigger).toHaveTextContent('medium')
+  slider.focus()
+  await user.keyboard('{Home}')
   for (const effort of ['none', 'low', 'medium', 'high', 'xhigh', 'max']) {
-    expect(
-      screen.getByRole('menuitemradio', { name: effort })
-    ).toBeInTheDocument()
+    expect(trigger).toHaveTextContent(effort)
+    expect(slider).toHaveAttribute('aria-valuetext', effort)
+    await user.keyboard('{ArrowRight}')
   }
-  await user.click(
-    screen.getByRole('menuitemradio', { name: 'none' })
-  )
-  expect(trigger).toHaveTextContent('none')
-  await user.click(trigger)
-  expect(
-    screen.getByRole('menuitemradio', { name: 'none' })
-  ).toHaveAttribute('aria-checked', 'true')
+  await user.click(screen.getByRole('button', { name: 'Reset to medium' }))
+  expect(trigger).toHaveTextContent('medium')
+  expect(slider).toHaveValue('2')
+  expect(screen.getByRole('button', { name: 'Reset to medium' })).toBeDisabled()
 })
 
-test('supports opening, selecting and returning focus with the keyboard', async () => {
+test('keyboard opens the popover and Escape restores trigger focus', async () => {
   const user = userEvent.setup()
   render(<EffortControl />)
   const trigger = screen.getByRole('button', { name: 'Reasoning effort' })
   trigger.focus()
-  await user.keyboard('{ArrowDown}')
-  await waitFor(() =>
-    expect(screen.getByRole('menuitemradio', { name: 'Default' })).toHaveFocus()
-  )
-  await user.keyboard('{End}{Enter}')
-  expect(trigger).toHaveTextContent('max')
+  await user.keyboard('{Enter}')
+  expect(
+    await screen.findByRole('slider', { name: 'Reasoning effort' })
+  ).toBeInTheDocument()
+  await user.keyboard('{Escape}')
   await waitFor(() => expect(trigger).toHaveFocus())
   expect(trigger).toHaveAttribute('aria-expanded', 'false')
 })
@@ -73,6 +87,6 @@ test('disabled control cannot open or change the selection', async () => {
   const trigger = screen.getByRole('button', { name: 'Reasoning effort' })
   expect(trigger).toBeDisabled()
   await user.click(trigger)
-  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  expect(screen.queryByRole('slider')).not.toBeInTheDocument()
   expect(onChange).not.toHaveBeenCalled()
 })

@@ -48,7 +48,7 @@ describe('reasoning effort configuration and requests', () => {
     }
   )
 
-  test.each([undefined, null, 'unsupported', 3, {}])(
+  test.each([undefined, null, 'default', 'unsupported', 3, {}])(
     'falls back for old or invalid saved effort %j without losing the model',
     (effort) => {
       localStorage.setItem(
@@ -57,22 +57,47 @@ describe('reasoning effort configuration and requests', () => {
       )
       const config = getInitialPlaygroundConfig()
       expect(config.model).toBe('saved-model')
-      expect(config.reasoning_effort).toBe('default')
+      expect(config.reasoning_effort).toBe('medium')
       expect(
         buildChatCompletionPayload([], config, DEFAULT_PARAMETER_ENABLED)
-      ).not.toHaveProperty('reasoning_effort')
+      ).toHaveProperty('reasoning_effort', 'medium')
     }
   )
 
-  test('returning to default removes an explicit effort from subsequent requests', () => {
+  test('resetting sends medium in subsequent requests', () => {
     saveConfig({ ...DEFAULT_CONFIG, reasoning_effort: 'max' })
-    saveConfig({ ...getInitialPlaygroundConfig(), reasoning_effort: 'default' })
+    saveConfig({ ...getInitialPlaygroundConfig(), reasoning_effort: 'medium' })
     expect(
       buildChatCompletionPayload(
         [],
         getInitialPlaygroundConfig(),
         DEFAULT_PARAMETER_ENABLED
       )
-    ).not.toHaveProperty('reasoning_effort')
+    ).toHaveProperty('reasoning_effort', 'medium')
   })
+})
+
+test('fresh settings omit optional model parameters and explicit opt-in preserves zero values', () => {
+  const payload = buildChatCompletionPayload(
+    [],
+    DEFAULT_CONFIG,
+    DEFAULT_PARAMETER_ENABLED
+  )
+  for (const key of [
+    'temperature',
+    'top_p',
+    'max_tokens',
+    'frequency_penalty',
+    'presence_penalty',
+    'seed',
+  ]) {
+    expect(payload).not.toHaveProperty(key)
+  }
+  expect(
+    buildChatCompletionPayload(
+      [],
+      { ...DEFAULT_CONFIG, top_p: 0 },
+      { ...DEFAULT_PARAMETER_ENABLED, top_p: true }
+    )
+  ).toHaveProperty('top_p', 0)
 })

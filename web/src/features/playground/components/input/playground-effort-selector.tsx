@@ -16,24 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { BrainIcon, ChevronDownIcon } from 'lucide-react'
+import { BrainIcon, ChevronDownIcon, RotateCcwIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 
 import { REASONING_EFFORTS } from '../../constants'
 import type { PlaygroundConfig } from '../../types'
+
+const EFFORT_STEPS = REASONING_EFFORTS
 
 type PlaygroundEffortSelectorProps = {
   value: PlaygroundConfig['reasoning_effort']
@@ -43,11 +43,13 @@ type PlaygroundEffortSelectorProps = {
 
 export function PlaygroundEffortSelector(props: PlaygroundEffortSelectorProps) {
   const { t } = useTranslation()
-  const isDefault = props.value === 'default'
+  const isDefault = props.value === 'medium'
+  const label = props.value
+  const selectedIndex = EFFORT_STEPS.indexOf(props.value)
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
+    <Popover>
+      <PopoverTrigger
         render={
           <Button
             type='button'
@@ -56,7 +58,7 @@ export function PlaygroundEffortSelector(props: PlaygroundEffortSelectorProps) {
             disabled={props.disabled}
             aria-label={t('Reasoning effort')}
             className={cn(
-              'h-8 gap-1.5 rounded-md px-2 text-xs',
+              'h-8 gap-1.5 rounded-full px-2.5 text-xs',
               isDefault
                 ? 'text-muted-foreground'
                 : 'bg-primary/10 text-primary hover:bg-primary/15'
@@ -65,65 +67,78 @@ export function PlaygroundEffortSelector(props: PlaygroundEffortSelectorProps) {
         }
       >
         <BrainIcon aria-hidden='true' className='size-4' />
-        <span className='max-w-20 truncate font-medium'>
-          {isDefault ? t('Default') : props.value}
-        </span>
+        <span className='max-w-20 truncate font-medium'>{label}</span>
         <ChevronDownIcon aria-hidden='true' className='size-3 opacity-60' />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
+      </PopoverTrigger>
+      <PopoverContent
         side='top'
-        align='start'
-        className='w-56 rounded-xl p-1.5'
+        align='center'
+        sideOffset={10}
+        collisionPadding={12}
+        className='border-border/50 w-72 gap-3 rounded-2xl border p-4 shadow-xl'
       >
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className='flex items-center gap-2 px-2 py-2'>
-            <BrainIcon aria-hidden='true' className='text-primary size-4' />
+        <div className='relative flex flex-col items-center gap-1 px-7'>
+          <PopoverTitle className='text-primary text-sm font-semibold'>
+            {label}
+          </PopoverTitle>
+          <span className='text-muted-foreground text-xs'>
             {t('Reasoning effort')}
-          </DropdownMenuLabel>
-          <p className='text-muted-foreground px-2 pb-2 text-xs leading-relaxed'>
-            {t('Available effort levels depend on the model.')}
-          </p>
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup
-            value={props.value}
-            onValueChange={(value) =>
-              props.onChange(value as PlaygroundConfig['reasoning_effort'])
-            }
+          </span>
+          <Button
+            type='button'
+            size='icon'
+            variant='ghost'
+            aria-label={t('Reset to medium')}
+            title={t('Reset to medium')}
+            disabled={props.disabled || isDefault}
+            onClick={() => props.onChange('medium')}
+            className='text-muted-foreground absolute -top-1 -right-1 size-7 rounded-full'
           >
-            <DropdownMenuRadioItem
-              closeOnClick
-              value='default'
-              className='rounded-lg px-2 py-2'
+            <RotateCcwIcon aria-hidden='true' className='size-3.5' />
+          </Button>
+        </div>
+        <div>
+          <div className='relative'>
+            <Slider
+              min={0}
+              max={EFFORT_STEPS.length - 1}
+              step={1}
+              largeStep={1}
+              value={[selectedIndex]}
+              disabled={props.disabled}
+              thumbProps={{
+                getAriaLabel: () => t('Reasoning effort'),
+                getAriaValueText: () => label,
+              }}
+              onValueChange={(value) => {
+                const index = Array.isArray(value) ? value[0] : value
+                props.onChange(EFFORT_STEPS[index])
+              }}
+              className='[&_[data-slot=slider-track]]:bg-muted-foreground/15 py-1 [&_[data-slot=slider-thumb]]:size-7 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:shadow-md [&_[data-slot=slider-track]]:h-6'
+            />
+            <div
+              aria-hidden='true'
+              className='pointer-events-none absolute inset-x-3.5 top-1/2 flex -translate-y-1/2 justify-between'
             >
-              {t('Default')}
-            </DropdownMenuRadioItem>
-            {REASONING_EFFORTS.map((effort, index) => (
-              <DropdownMenuRadioItem
-                closeOnClick
-                key={effort}
-                value={effort}
-                className='data-checked:bg-primary/10 data-checked:text-primary rounded-lg px-2 py-2'
-              >
+              {EFFORT_STEPS.map((effort, index) => (
                 <span
-                  aria-hidden='true'
-                  className='flex h-4 w-8 items-end gap-0.5'
-                >
-                  {REASONING_EFFORTS.slice(1).map((level, bar) => (
-                    <span
-                      key={level}
-                      className={cn(
-                        'h-3 w-1 rounded-full',
-                        bar < index ? 'bg-primary' : 'bg-muted-foreground/20'
-                      )}
-                    />
-                  ))}
-                </span>
-                <span className='font-medium'>{effort}</span>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+                  key={effort}
+                  className={cn(
+                    'size-1 rounded-full',
+                    index <= selectedIndex
+                      ? 'bg-primary-foreground/60'
+                      : 'bg-muted-foreground/40',
+                    index === selectedIndex && 'invisible'
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <PopoverDescription className='text-center text-[11px] leading-relaxed'>
+          {t('Available effort levels depend on the model.')}
+        </PopoverDescription>
+      </PopoverContent>
+    </Popover>
   )
 }

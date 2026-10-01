@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { GlobeIcon, PaperclipIcon, Trash2Icon } from 'lucide-react'
+import { PaperclipIcon, Trash2Icon } from 'lucide-react'
 import { type ChangeEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -39,7 +39,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { ATTACHMENT_ACTIONS, getSearchActionNotice } from '../../lib'
+import { ATTACHMENT_ACTIONS } from '../../lib'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundEffortSelector } from './playground-effort-selector'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
@@ -173,11 +173,6 @@ export function PlaygroundInputTools({
     event.currentTarget.value = ''
   }
 
-  const handleSearchAction = () => {
-    const notice = getSearchActionNotice()
-    toast.info(t(notice.title))
-  }
-
   const handleClearMessages = () => {
     onClearMessages?.()
     setClearConfirmOpen(false)
@@ -220,25 +215,6 @@ export function PlaygroundInputTools({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <PromptInputButton
-                aria-label={t('Search')}
-                className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
-                disabled={disabled}
-                onClick={handleSearchAction}
-                variant='ghost'
-              >
-                <GlobeIcon size={16} />
-              </PromptInputButton>
-            }
-          />
-          <TooltipContent>
-            <p>{t('Search')}</p>
-          </TooltipContent>
         </Tooltip>
 
         <PlaygroundParameterPanel

@@ -3,9 +3,12 @@ package playground_setting
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -34,7 +37,17 @@ type ModelAllowlist struct {
 	Video  []string `json:"video"`
 }
 
+type ChatPreset struct {
+	Icon    string `json:"icon"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
+}
+
+var presetIconPattern = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+
 type Settings struct {
+	// nil uses built-in localized presets; an empty slice hides them.
+	ChatPresets      []ChatPreset      `json:"chat_presets"`
 	EnabledFeatures  []Feature         `json:"enabled_features"`
 	Models           ModelAllowlist    `json:"models"`
 	SpeechModelTypes map[string]string `json:"speech_model_types"`
@@ -153,6 +166,23 @@ func GetSpeechModelType(modelName string) string {
 }
 
 func normalize(value *Settings) error {
+	if len(value.ChatPresets) > 12 {
+		return errors.New("at most 12 chat presets are allowed")
+	}
+	for i := range value.ChatPresets {
+		preset := &value.ChatPresets[i]
+		preset.Icon = strings.TrimSpace(preset.Icon)
+		preset.Title = strings.TrimSpace(preset.Title)
+		if preset.Title == "" || utf8.RuneCountInString(preset.Title) > 80 {
+			return fmt.Errorf("chat preset %d title must contain 1 to 80 characters", i+1)
+		}
+		if strings.TrimSpace(preset.Content) == "" || utf8.RuneCountInString(preset.Content) > 8000 {
+			return fmt.Errorf("chat preset %d content must contain 1 to 8000 characters", i+1)
+		}
+		if len(preset.Icon) > 80 || (preset.Icon != "" && !presetIconPattern.MatchString(preset.Icon)) {
+			return fmt.Errorf("chat preset %d icon must be a React Icons component name", i+1)
+		}
+	}
 	knownFeatures := map[Feature]struct{}{
 		FeatureChat: {}, FeatureImage: {}, FeatureSpeech: {}, FeatureThreeD: {}, FeatureVideo: {},
 	}
@@ -220,6 +250,7 @@ func normalizeModels(models []string) []string {
 
 func cloneSettings(source Settings) Settings {
 	result := source
+	result.ChatPresets = slices.Clone(source.ChatPresets)
 	result.EnabledFeatures = append([]Feature(nil), source.EnabledFeatures...)
 	result.Models.Chat = append([]string(nil), source.Models.Chat...)
 	result.Models.Image = append([]string(nil), source.Models.Image...)

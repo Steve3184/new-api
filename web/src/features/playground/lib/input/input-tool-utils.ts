@@ -30,11 +30,6 @@ type AttachmentAction = {
   label: string
 }
 
-type InputToolNotice = {
-  description?: string
-  title: string
-}
-
 export const ATTACHMENT_ACTIONS = [
   { action: 'upload-file', icon: FileIcon, label: 'Upload file' },
   { action: 'upload-photo', icon: ImageIcon, label: 'Upload photo' },
@@ -45,9 +40,3 @@ export const ATTACHMENT_ACTIONS = [
   },
   { action: 'take-photo', icon: CameraIcon, label: 'Take photo' },
 ] satisfies AttachmentAction[]
-
-export function getSearchActionNotice(): InputToolNotice {
-  return {
-    title: 'Search feature in development',
-  }
-}
