@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 
 import type { UserProfile } from '../types'
+import { DisplayNameForm } from './display-name-form'
 import { NotificationTab } from './tabs/notification-tab'
 
 // ============================================================================
@@ -69,6 +70,9 @@ export function ProfileSettingsCard({
       iconTone='info'
       disableHoverEffect
     >
+      {profile && (
+        <DisplayNameForm profile={profile} onProfileUpdate={onProfileUpdate} />
+      )}
       <NotificationTab
         profile={profile}
         onUpdate={onProfileUpdate}
