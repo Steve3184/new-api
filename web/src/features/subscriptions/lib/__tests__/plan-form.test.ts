@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
 import { describe, expect, test } from 'vitest'
 
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
@@ -24,10 +25,49 @@ import { subscriptionPlanSchema } from '../../types'
 import {
   formValuesToPlanPayload,
   PLAN_FORM_DEFAULTS,
+  getPlanFormSchema,
   planToFormValues,
 } from '../plan-form'
 
 describe('subscription plan usage limit form mapping', () => {
+  test('preserves independent lifetime and simultaneous limits when creating and editing', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      max_purchase_per_user: 10,
+      max_active_per_user: 1,
+    })
+    expect(payload.plan).toMatchObject({
+      max_purchase_per_user: 10,
+      max_active_per_user: 1,
+    })
+    const plan = subscriptionPlanSchema.parse({ ...payload.plan, id: 1 })
+    expect(planToFormValues(plan).max_active_per_user).toBe(1)
+    expect(
+      formValuesToPlanPayload({
+        ...planToFormValues(plan),
+        max_active_per_user: 0,
+      }).plan.max_active_per_user
+    ).toBe(0)
+  })
+
+  test('rejects negative and fractional simultaneous limits', () => {
+    const schema = getPlanFormSchema(i18next.t)
+    expect(
+      schema.safeParse({
+        ...PLAN_FORM_DEFAULTS,
+        title: 'Plan',
+        max_active_per_user: -1,
+      }).success
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...PLAN_FORM_DEFAULTS,
+        title: 'Plan',
+        max_active_per_user: 1.5,
+      }).success
+    ).toBe(false)
+  })
   test('converts independent usage limits to quota units for the plan payload', () => {
     const payload = formValuesToPlanPayload({
       ...PLAN_FORM_DEFAULTS,

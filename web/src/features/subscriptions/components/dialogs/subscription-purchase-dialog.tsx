@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CalendarClock, Crown, Package } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarClock, Crown, Package, WalletCards } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -25,23 +26,20 @@ import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { NowPaymentsCurrencyDialog } from '@/features/wallet/components/dialogs/nowpayments-currency-dialog'
+import { PaymentMethodCard } from '@/features/wallet/components/payment-method-card'
+import { submitPaymentForm } from '@/features/wallet/lib/payment'
 import type { NowPaymentsInvoice } from '@/features/wallet/types'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatQuota } from '@/lib/format'
+import { formatQuota, formatNumber } from '@/lib/format'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
 
 import {
+  quoteSubscriptionPayment,
   paySubscriptionStripe,
   paySubscriptionCreem,
   paySubscriptionEpay,
@@ -58,6 +56,7 @@ interface PaymentMethod {
   gateway?: string
   fee?: number
   fee_rate?: number
+  icon?: string
 }
 
 interface Props {
@@ -71,30 +70,47 @@ interface Props {
   nowPaymentsCurrencies?: string[]
   enableOnlineTopUp?: boolean
   epayMethods?: PaymentMethod[]
+  paymentMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
+  activePurchaseLimit?: number
+  activePurchaseCount?: number
   userQuota?: number
   onPurchaseSuccess?: () => void | Promise<void>
   onNowPaymentsInvoice?: (invoice: NowPaymentsInvoice) => void
 }
 
 export function SubscriptionPurchaseDialog(props: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
-  const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const [selectedPayment, setSelectedPayment] = useState('balance')
   const [selectedNowPaymentsCurrency, setSelectedNowPaymentsCurrency] =
     useState('')
   const [nowPaymentsCurrencyDialogOpen, setNowPaymentsCurrencyDialogOpen] =
     useState(false)
 
   useEffect(() => {
-    if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-      setSelectedEpayMethod('0')
-    } else if (!props.open) {
-      setSelectedEpayMethod('')
-    }
-  }, [props.open, props.epayMethods])
+    if (!props.open) return
+    const currentPlan = props.plan?.plan
+    if (currentPlan?.allow_balance_pay !== false) setSelectedPayment('balance')
+    else if (props.enableStripe) setSelectedPayment('stripe')
+    else if (props.enableCreem) setSelectedPayment('creem')
+    else if (props.enableWaffoPancake) setSelectedPayment('waffo_pancake')
+    else if (props.enableNowPayments) setSelectedPayment('nowpayments')
+    else if (props.enableOnlineTopUp && props.epayMethods?.length) {
+      setSelectedPayment('epay-0')
+    } else setSelectedPayment('')
+  }, [
+    props.open,
+    props.plan?.plan,
+    props.enableStripe,
+    props.enableCreem,
+    props.enableWaffoPancake,
+    props.enableNowPayments,
+    props.enableOnlineTopUp,
+    props.epayMethods,
+  ])
 
   useEffect(() => {
     const currencies = props.nowPaymentsCurrencies || []
@@ -108,42 +124,53 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }, [props.open, props.nowPaymentsCurrencies, selectedNowPaymentsCurrency])
 
+  const selectedEpayMethodConfig = selectedPayment.startsWith('epay-')
+    ? (props.epayMethods || [])[Number.parseInt(selectedPayment.slice(5), 10)]
+    : undefined
+  const quoteMethod = selectedEpayMethodConfig?.type || selectedPayment
+  const paymentQuote = useQuery({
+    queryKey: [
+      'subscription-payment-quote',
+      props.plan?.plan.id,
+      quoteMethod,
+      selectedEpayMethodConfig?.gateway,
+    ],
+    queryFn: async () => {
+      if (!props.plan) throw new Error(t('Payment request failed'))
+      const result = await quoteSubscriptionPayment({
+        plan_id: props.plan.plan.id,
+        payment_method: quoteMethod,
+        epay_gateway: selectedEpayMethodConfig?.gateway,
+      })
+      requireServerSuccess(result)
+      if (!result.data) throw new Error(t('Payment request failed'))
+      return result.data
+    },
+    enabled:
+      props.open &&
+      !!props.plan &&
+      !!quoteMethod &&
+      selectedPayment !== 'balance',
+    retry: false,
+    staleTime: 0,
+  })
   const plan = props.plan?.plan
   if (!plan) return null
 
-  const hasStripe = props.enableStripe && !!plan.stripe_price_id
-  const hasCreem = props.enableCreem && !!plan.creem_product_id
-  const hasWaffoPancake =
-    props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+  const hasStripe = props.enableStripe
+  const hasCreem = props.enableCreem
+  const hasWaffoPancake = props.enableWaffoPancake
   const nowPaymentsCurrencies = props.nowPaymentsCurrencies || []
   const hasNowPayments =
     props.enableNowPayments && nowPaymentsCurrencies.length > 0
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment =
-    hasStripe || hasCreem || hasWaffoPancake || hasEpay || hasNowPayments
-  const selectedEpayMethodConfig =
-    selectedEpayMethod === ''
-      ? undefined
-      : (props.epayMethods || [])[Number.parseInt(selectedEpayMethod, 10)]
-  const selectedEpayMethodLabel =
-    selectedEpayMethodConfig?.name ||
-    selectedEpayMethodConfig?.type ||
-    t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
   const price = formatBillingCurrencyFromUSD(Number(plan.price_amount || 0), {
     digitsLarge: 2,
     digitsSmall: 2,
     abbreviate: false,
   })
-  const epayFixedFee = Math.max(0, Number(selectedEpayMethodConfig?.fee) || 0)
-  const epayFeeRate = Math.max(
-    0,
-    Number(selectedEpayMethodConfig?.fee_rate) || 0
-  )
-  const epayFee =
-    Number(plan.price_amount || 0) * (epayFeeRate / 100) + epayFixedFee
-  const epayTotal = Number(plan.price_amount || 0) + epayFee
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
       ? currency.quotaPerUnit
@@ -158,6 +185,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
+  const activeLimitReached =
+    (props.activePurchaseLimit || 0) > 0 &&
+    (props.activePurchaseCount || 0) >= (props.activePurchaseLimit || 0)
+  const blocked = limitReached || activeLimitReached
 
   const handlePayStripe = async () => {
     setPaying(true)
@@ -226,10 +257,6 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
-  const isSafari =
-    typeof navigator !== 'undefined' &&
-    /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-
   const handlePayEpay = async () => {
     if (!selectedEpayMethodConfig) {
       toast.error(t('Please select a payment method'))
@@ -243,22 +270,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         epay_gateway: selectedEpayMethodConfig.gateway,
       })
       if (res.message === 'success' && res.url) {
-        const form = document.createElement('form')
-        form.action = res.url
-        form.method = 'POST'
-        if (!isSafari) {
-          form.target = '_blank'
-        }
-        Object.entries(res.data || {}).forEach(([key, value]) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = key
-          input.value = String(value)
-          form.appendChild(input)
-        })
-        document.body.appendChild(form)
-        form.submit()
-        document.body.removeChild(form)
+        submitPaymentForm(res.url, res.data || {})
         toast.success(t('Payment initiated'))
         props.onOpenChange(false)
       } else {
@@ -330,6 +342,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
+  let payableLabel = '—'
+  if (selectedPayment === 'balance') payableLabel = price
+  else if (
+    paymentQuote.data &&
+    !paymentQuote.isFetching &&
+    !paymentQuote.isError
+  ) {
+    payableLabel = `${paymentQuote.data.currency} ${formatNumber(paymentQuote.data.amount, toIntlLocale(i18n.resolvedLanguage || i18n.language))}`
+  }
+
   return (
     <>
       <Dialog
@@ -345,6 +367,42 @@ export function SubscriptionPurchaseDialog(props: Props) {
         titleClassName='flex items-center gap-2'
         contentHeight='auto'
         bodyClassName='space-y-4'
+        footerClassName='flex-row items-center justify-between gap-3'
+        footer={
+          <>
+            <div className='min-w-0 text-sm'>
+              <div className='text-muted-foreground text-xs'>
+                {t('You Pay')}
+              </div>
+              <div className='font-semibold tabular-nums'>{payableLabel}</div>
+            </div>
+            <Button
+              disabled={
+                blocked ||
+                paying ||
+                !selectedPayment ||
+                (selectedPayment !== 'balance' &&
+                  (!paymentQuote.data ||
+                    paymentQuote.isFetching ||
+                    paymentQuote.isError)) ||
+                (selectedPayment === 'balance' &&
+                  (!allowBalancePay || insufficientBalance))
+              }
+              onClick={() => {
+                if (selectedPayment === 'balance') void handlePayBalance()
+                else if (selectedPayment === 'stripe') void handlePayStripe()
+                else if (selectedPayment === 'creem') void handlePayCreem()
+                else if (selectedPayment === 'waffo_pancake') {
+                  void handlePayWaffoPancake()
+                } else if (selectedPayment === 'nowpayments') {
+                  setNowPaymentsCurrencyDialogOpen(true)
+                } else void handlePayEpay()
+              }}
+            >
+              {t('Pay')}
+            </Button>
+          </>
+        }
       >
         <div className='space-y-3 sm:space-y-4'>
           <div className='bg-muted/50 space-y-2.5 rounded-lg border p-3 sm:space-y-3 sm:p-4'>
@@ -397,163 +455,146 @@ export function SubscriptionPurchaseDialog(props: Props) {
             </div>
           </div>
 
-          {limitReached && (
+          {blocked && (
             <Alert variant='destructive'>
               <AlertDescription>
-                {t('Purchase limit reached')} ({props.purchaseCount}/
-                {props.purchaseLimit})
+                {activeLimitReached
+                  ? t('Active subscription limit reached')
+                  : t('Purchase limit reached')}{' '}
+                (
+                {activeLimitReached
+                  ? props.activePurchaseCount
+                  : props.purchaseCount}
+                /
+                {activeLimitReached
+                  ? props.activePurchaseLimit
+                  : props.purchaseLimit}
+                )
               </AlertDescription>
             </Alert>
           )}
 
-          <div className='flex flex-col gap-2 rounded-md border p-3'>
-            <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-muted-foreground'>{t('Required')}</span>
-              <span>{formatQuota(balanceCost)}</span>
+          <div className='space-y-3'>
+            <p className='text-muted-foreground text-xs'>
+              {t('Select payment method')}
+            </p>
+            <div className='grid grid-cols-2 gap-2'>
+              {allowBalancePay && (
+                <PaymentMethodCard
+                  name={t('Balance')}
+                  type='balance'
+                  iconNode={<WalletCards className='h-4 w-4' />}
+                  selected={selectedPayment === 'balance'}
+                  onClick={() => setSelectedPayment('balance')}
+                  disabled={blocked || paying}
+                  description={formatQuota(userQuota)}
+                />
+              )}
+              {hasStripe && (
+                <PaymentMethodCard
+                  name={
+                    props.paymentMethods?.find((m) => m.type === 'stripe')
+                      ?.name || 'Stripe'
+                  }
+                  type='stripe'
+                  icon={
+                    props.paymentMethods?.find((m) => m.type === 'stripe')?.icon
+                  }
+                  selected={selectedPayment === 'stripe'}
+                  onClick={() => setSelectedPayment('stripe')}
+                  disabled={blocked || paying}
+                />
+              )}
+              {hasCreem && (
+                <PaymentMethodCard
+                  name={
+                    props.paymentMethods?.find((m) => m.type === 'creem')
+                      ?.name || 'Creem'
+                  }
+                  type='creem'
+                  icon={
+                    props.paymentMethods?.find((m) => m.type === 'creem')?.icon
+                  }
+                  selected={selectedPayment === 'creem'}
+                  onClick={() => setSelectedPayment('creem')}
+                  disabled={blocked || paying}
+                />
+              )}
+              {hasWaffoPancake && (
+                <PaymentMethodCard
+                  name={
+                    props.paymentMethods?.find(
+                      (m) => m.type === 'waffo_pancake'
+                    )?.name || 'Waffo Pancake'
+                  }
+                  type='waffo_pancake'
+                  icon={
+                    props.paymentMethods?.find(
+                      (m) => m.type === 'waffo_pancake'
+                    )?.icon
+                  }
+                  selected={selectedPayment === 'waffo_pancake'}
+                  onClick={() => setSelectedPayment('waffo_pancake')}
+                  disabled={blocked || paying}
+                />
+              )}
+              {hasNowPayments && (
+                <PaymentMethodCard
+                  name={
+                    props.paymentMethods?.find((m) => m.type === 'nowpayments')
+                      ?.name || 'NOWPayments'
+                  }
+                  type='nowpayments'
+                  icon={
+                    props.paymentMethods?.find((m) => m.type === 'nowpayments')
+                      ?.icon
+                  }
+                  selected={selectedPayment === 'nowpayments'}
+                  onClick={() => setSelectedPayment('nowpayments')}
+                  disabled={blocked || paying}
+                />
+              )}
+              {hasEpay &&
+                (props.epayMethods || []).map((m, index) => (
+                  <PaymentMethodCard
+                    key={`${m.gateway || 'epay'}-${m.type}`}
+                    name={m.name || m.type}
+                    type={m.type}
+                    icon={m.icon}
+                    selected={selectedPayment === `epay-${index}`}
+                    onClick={() => {
+                      setSelectedPayment(`epay-${index}`)
+                    }}
+                    disabled={blocked || paying}
+                  />
+                ))}
             </div>
-            <div className='flex items-center justify-between gap-2 text-xs'>
-              <span className='text-muted-foreground'>{t('Available')}</span>
-              <span>{formatQuota(userQuota)}</span>
-            </div>
-            {!allowBalancePay ? (
-              <Alert variant='destructive'>
-                <AlertDescription>
-                  {t('This plan does not allow balance redemption')}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              insufficientBalance && (
+          </div>
+          {selectedPayment !== 'balance' && paymentQuote.isError && (
+            <Alert variant='destructive'>
+              <AlertDescription>
+                {t(
+                  'Unable to calculate payment amount. Please choose another payment method.'
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+          {selectedPayment === 'balance' && (
+            <div className='flex flex-col gap-2 rounded-md border p-3'>
+              <div className='flex items-center justify-between gap-2 text-xs'>
+                <span className='text-muted-foreground'>{t('Required')}</span>
+                <span>{formatQuota(balanceCost)}</span>
+              </div>
+              <div className='flex items-center justify-between gap-2 text-xs'>
+                <span className='text-muted-foreground'>{t('Available')}</span>
+                <span>{formatQuota(userQuota)}</span>
+              </div>
+              {selectedPayment === 'balance' && insufficientBalance && (
                 <Alert variant='destructive'>
                   <AlertDescription>
                     {t('Insufficient balance')}
                   </AlertDescription>
                 </Alert>
-              )
-            )}
-            <Button
-              variant='outline'
-              onClick={handlePayBalance}
-              disabled={
-                paying ||
-                limitReached ||
-                !allowBalancePay ||
-                insufficientBalance
-              }
-            >
-              {t('Pay with Balance')}
-            </Button>
-          </div>
-
-          {hasAnyPayment && (
-            <div className='space-y-3'>
-              <p className='text-muted-foreground text-xs'>
-                {t('Select payment method')}
-              </p>
-              {(hasStripe || hasCreem || hasWaffoPancake || hasNowPayments) && (
-                <div className='grid grid-cols-2 gap-2 sm:flex'>
-                  {hasStripe && (
-                    <Button
-                      variant='outline'
-                      className='flex-1'
-                      onClick={handlePayStripe}
-                      disabled={paying || limitReached}
-                    >
-                      Stripe
-                    </Button>
-                  )}
-                  {hasCreem && (
-                    <Button
-                      variant='outline'
-                      className='flex-1'
-                      onClick={handlePayCreem}
-                      disabled={paying || limitReached}
-                    >
-                      Creem
-                    </Button>
-                  )}
-                  {hasWaffoPancake && (
-                    <Button
-                      variant='outline'
-                      className='flex-1'
-                      onClick={handlePayWaffoPancake}
-                      disabled={paying || limitReached}
-                    >
-                      Waffo Pancake
-                    </Button>
-                  )}
-                  {hasNowPayments && (
-                    <Button
-                      variant='outline'
-                      className='flex-1'
-                      onClick={() => setNowPaymentsCurrencyDialogOpen(true)}
-                      disabled={paying || limitReached}
-                    >
-                      {t('NOWPayments')}
-                    </Button>
-                  )}
-                </div>
-              )}
-              {hasEpay && (
-                <div className='space-y-2'>
-                  {epayFee > 0 && (
-                    <div className='text-muted-foreground flex items-center justify-between gap-3 text-xs'>
-                      <span>
-                        {t('Payment fee')}:{' '}
-                        {formatBillingCurrencyFromUSD(epayFee, {
-                          digitsLarge: 2,
-                          digitsSmall: 2,
-                          abbreviate: false,
-                        })}
-                      </span>
-                      <span>
-                        {t('You Pay')}:{' '}
-                        {formatBillingCurrencyFromUSD(epayTotal, {
-                          digitsLarge: 2,
-                          digitsSmall: 2,
-                          abbreviate: false,
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
-                    <Select
-                      items={(props.epayMethods || []).map((m, index) => ({
-                        value: String(index),
-                        label: m.name || m.type,
-                      }))}
-                      value={selectedEpayMethod}
-                      onValueChange={(v) =>
-                        v !== null && setSelectedEpayMethod(v)
-                      }
-                      disabled={limitReached}
-                    >
-                      <SelectTrigger className='flex-1'>
-                        <SelectValue>{selectedEpayMethodLabel}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectGroup>
-                          {(props.epayMethods || []).map((m, index) => (
-                            <SelectItem
-                              key={JSON.stringify([
-                                m.gateway ?? 'legacy',
-                                m.type,
-                              ])}
-                              value={String(index)}
-                            >
-                              {m.name || m.type}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={handlePayEpay}
-                      disabled={paying || !selectedEpayMethod || limitReached}
-                    >
-                      {t('Pay')}
-                    </Button>
-                  </div>
-                </div>
               )}
             </div>
           )}

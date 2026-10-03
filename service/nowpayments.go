@@ -500,6 +500,24 @@ func CreateNowPaymentsRedemptionInvoice(ctx context.Context, userID int, unitAmo
 	return invoice, nil
 }
 
+func GetNowPaymentsSubscriptionPriceUSD(plan *model.SubscriptionPlan) (decimal.Decimal, error) {
+	if plan == nil || plan.PriceAmount <= 0 || math.IsNaN(plan.PriceAmount) || math.IsInf(plan.PriceAmount, 0) {
+		return decimal.Zero, errors.New("subscription plan is unavailable")
+	}
+	priceUSD := decimal.NewFromFloat(plan.PriceAmount)
+	if !strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
+		rate := setting.NowPaymentsUSDToCurrencyRate
+		if rate == 0 {
+			rate = operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
+		}
+		if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+			return decimal.Zero, errors.New("NOWPayments USD to system currency rate must be positive")
+		}
+		priceUSD = priceUSD.Div(decimal.NewFromFloat(rate))
+	}
+	return priceUSD, nil
+}
+
 func CreateNowPaymentsSubscription(ctx context.Context, userID, planID int, payCurrency string) (*NowPaymentsInvoice, error) {
 	if !IsNowPaymentsTopUpEnabled() {
 		return nil, errors.New("NOWPayments is not configured")
@@ -515,25 +533,12 @@ func CreateNowPaymentsSubscription(ctx context.Context, userID, planID int, payC
 	if !plan.Enabled || plan.PriceAmount <= 0 || math.IsNaN(plan.PriceAmount) || math.IsInf(plan.PriceAmount, 0) {
 		return nil, errors.New("subscription plan is unavailable")
 	}
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userID, plan.Id)
-		if err != nil {
-			return nil, err
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			return nil, errors.New("subscription purchase limit reached")
-		}
+	if err := model.CheckSubscriptionPurchaseCapacity(nil, userID, plan); err != nil {
+		return nil, err
 	}
-	priceUSD := decimal.NewFromFloat(plan.PriceAmount)
-	if !strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
-		rate := setting.NowPaymentsUSDToCurrencyRate
-		if rate == 0 {
-			rate = operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)
-		}
-		if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
-			return nil, errors.New("NOWPayments USD to system currency rate must be positive")
-		}
-		priceUSD = priceUSD.Div(decimal.NewFromFloat(rate))
+	priceUSD, err := GetNowPaymentsSubscriptionPriceUSD(plan)
+	if err != nil {
+		return nil, err
 	}
 	tradeID, err := common.GenerateRandomCharsKey(24)
 	if err != nil {

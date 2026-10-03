@@ -82,6 +82,17 @@ func CreateNowPaymentsSubscription(order *SubscriptionOrder, payment *NowPayment
 		return errors.New("NOWPayments subscription invoice is required")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&user).Error; err != nil {
+			return err
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
+		if err != nil {
+			return err
+		}
+		if err := CheckSubscriptionPurchaseCapacity(tx, order.UserId, plan); err != nil {
+			return err
+		}
 		if err := tx.Create(order).Error; err != nil {
 			return err
 		}

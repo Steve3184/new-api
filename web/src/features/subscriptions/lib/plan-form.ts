@@ -54,6 +54,7 @@ export function getPlanFormSchema(t: TFunction) {
     ),
     benefits_only: z.boolean(),
     max_purchase_per_user: z.coerce.number().min(0),
+    max_active_per_user: z.coerce.number().int().min(0).max(2147483647),
     total_amount: z.coerce.number(),
     five_hour_limit: z.coerce.number().min(0),
     weekly_limit: z.coerce.number().min(0),
@@ -87,6 +88,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   rate_limit_groups: [],
   benefits_only: false,
   max_purchase_per_user: 0,
+  max_active_per_user: 0,
   total_amount: 0,
   five_hour_limit: 0,
   weekly_limit: 0,
@@ -136,6 +138,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     })(),
     benefits_only: Number(plan.total_amount || 0) < 0,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
+    max_active_per_user: Number(plan.max_active_per_user || 0),
     total_amount:
       Number(plan.total_amount || 0) < 0
         ? -1
@@ -170,6 +173,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
           : 0,
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
+      max_active_per_user: Number(values.max_active_per_user || 0),
       total_amount:
         values.benefits_only || values.total_amount < 0
           ? -1

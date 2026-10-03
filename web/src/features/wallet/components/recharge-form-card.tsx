@@ -56,6 +56,7 @@ import type {
   WaffoPayMethod,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
+import { PaymentMethodCard } from './payment-method-card'
 
 interface RechargeFormCardProps {
   topupInfo: TopupInfo | null
@@ -364,52 +365,20 @@ export function RechargeFormCard({
                         : undefined
 
                       const button = (
-                        <Button
+                        <PaymentMethodCard
                           key={methodKey}
-                          variant='outline'
+                          name={method.name}
+                          type={method.type}
+                          icon={method.icon}
                           onClick={() => onPaymentMethodSelect(method)}
                           disabled={disabled || !!paymentLoading}
-                          title={disabledReason}
-                          aria-label={
-                            disabledReason
-                              ? `${method.name}. ${disabledReason}`
-                              : method.name
-                          }
-                          className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
-                        >
-                          {paymentLoading === methodKey ? (
-                            <Loader2 className='h-4 w-4 animate-spin' />
-                          ) : (
-                            getPaymentIcon(
-                              method.type,
-                              'h-4 w-4',
-                              method.icon,
-                              method.name
-                            )
-                          )}
-                          <span className='flex min-w-0 flex-col items-start gap-0.5'>
-                            <span className='max-w-full truncate'>
-                              {method.name}
-                            </span>
-                            {disabledLabel && (
-                              <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
-                                {disabledLabel}
-                              </span>
-                            )}
-                          </span>
-                        </Button>
+                          loading={paymentLoading === methodKey}
+                          disabledReason={disabledReason}
+                          description={disabledLabel}
+                        />
                       )
 
-                      return disabled ? (
-                        <TooltipProvider key={methodKey}>
-                          <Tooltip>
-                            <TooltipTrigger render={button} />
-                            <TooltipContent>{disabledReason}</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : (
-                        button
-                      )
+                      return button
                     })}
                   </div>
                 ) : null}

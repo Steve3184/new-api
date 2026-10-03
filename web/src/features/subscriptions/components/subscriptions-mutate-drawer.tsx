@@ -599,6 +599,36 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name='max_active_per_user'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Maximum simultaneous subscriptions')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={1}
+                          onChange={(e) =>
+                            field.onChange(
+                              Number.parseInt(e.target.value, 10) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Maximum active subscriptions of this plan per user. 0 means unlimited.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
               <FormField

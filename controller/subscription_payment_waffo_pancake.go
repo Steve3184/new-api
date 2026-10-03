@@ -39,8 +39,9 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
 	}
-	if strings.TrimSpace(plan.WaffoPancakeProductId) == "" {
-		common.ApiErrorMsg(c, "该套餐未配置 WaffoPancakeProductId")
+	price, err := resolveSubscriptionPancakePrice(c.Request.Context(), plan)
+	if err != nil {
+		common.ApiErrorMsg(c, "获取 Waffo Pancake 商品价格失败")
 		return
 	}
 	// Plan targets its own Pancake product, so we only require credentials
@@ -61,16 +62,9 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		return
 	}
 
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
+	if err := model.CheckSubscriptionPurchaseCapacity(nil, userId, plan); err != nil {
+		common.ApiError(c, err)
+		return
 	}
 
 	// WAFFO_PANCAKE_SUB- prefix (vs. wallet's WAFFO_PANCAKE-) drives webhook
@@ -80,7 +74,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           0,
+		Money:           price.Amount,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
 		PaymentProvider: model.PaymentProviderWaffoPancake,
@@ -89,13 +83,15 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	}
 	if err := order.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅订单创建失败 user_id=%d plan_id=%d trade_no=%s error=%q", userId, plan.Id, tradeNo, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		common.ApiError(c, err)
 		return
 	}
 
 	expiresInSeconds := 45 * 60
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
-		ProductID:               plan.WaffoPancakeProductId,
+		ProductID:               price.ProductID,
+		PriceSnapshot:           price.Snapshot,
+		Currency:                price.Currency,
 		BuyerIdentity:           service.WaffoPancakeBuyerIdentityFromUserID(user.Id),
 		BuyerEmail:              getWaffoPancakeBuyerEmail(user),
 		ExpiresInSeconds:        &expiresInSeconds,

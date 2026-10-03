@@ -292,6 +292,7 @@ type SubscriptionPlan struct {
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
+	MaxActivePerUser   int `json:"max_active_per_user" gorm:"type:int;default:0"`
 
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
@@ -467,7 +468,20 @@ func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
 	}
-	return DB.Create(o).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", o.UserId).First(&user).Error; err != nil {
+			return err
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, o.PlanId)
+		if err != nil {
+			return err
+		}
+		if err := CheckSubscriptionPurchaseCapacity(tx, o.UserId, plan); err != nil {
+			return err
+		}
+		return tx.Create(o).Error
+	})
 }
 
 func (o *SubscriptionOrder) Update() error {
@@ -704,6 +718,33 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	return count, nil
 }
 
+// CheckSubscriptionPurchaseCapacity checks lifetime and currently active limits.
+// Callers creating a subscription hold the user's row lock in the same transaction.
+func CheckSubscriptionPurchaseCapacity(tx *gorm.DB, userId int, plan *SubscriptionPlan) error {
+	if tx == nil {
+		tx = DB
+	}
+	if plan.MaxPurchasePerUser > 0 {
+		var ids []int
+		if err := lockForUpdate(tx).Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ?", userId, plan.Id).Limit(plan.MaxPurchasePerUser).Pluck("id", &ids).Error; err != nil {
+			return err
+		}
+		if len(ids) >= plan.MaxPurchasePerUser {
+			return errors.New("已达到该套餐购买上限")
+		}
+	}
+	if plan.MaxActivePerUser > 0 {
+		var ids []int
+		if err := lockForUpdate(tx).Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?", userId, plan.Id, "active", getDBTimestamp(tx)).Limit(plan.MaxActivePerUser).Pluck("id", &ids).Error; err != nil {
+			return err
+		}
+		if len(ids) >= plan.MaxActivePerUser {
+			return errors.New("已达到该套餐同时生效数量上限")
+		}
+	}
+	return nil
+}
+
 func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	if userId <= 0 {
 		return "", errors.New("invalid userId")
@@ -772,16 +813,12 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
-	if plan.MaxPurchasePerUser > 0 {
-		var count int64
-		if err := tx.Model(&UserSubscription{}).
-			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
-			Count(&count).Error; err != nil {
-			return nil, err
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			return nil, errors.New("已达到该套餐购买上限")
-		}
+	var user User
+	if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+		return nil, err
+	}
+	if err := CheckSubscriptionPurchaseCapacity(tx, userId, plan); err != nil {
+		return nil, err
 	}
 	nowUnix := getDBTimestamp(tx)
 	now := time.Unix(nowUnix, 0)
@@ -1143,6 +1180,9 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		}
 		if requiredQuota > 0 && user.Quota < requiredQuota {
 			return errors.New("余额不足")
+		}
+		if err := CheckSubscriptionPurchaseCapacity(tx, userId, plan); err != nil {
+			return err
 		}
 		if requiredQuota > 0 {
 			if err := tx.Model(&User{}).Where("id = ?", userId).

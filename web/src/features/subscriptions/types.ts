@@ -44,6 +44,7 @@ export const subscriptionPlanSchema = z.object({
   wallet_only_groups: z.string().optional().default(''),
   rate_limit_groups: z.string().optional().default('[]'),
   max_purchase_per_user: z.number(),
+  max_active_per_user: z.number().optional().default(0),
   total_amount: z.number(),
   five_hour_limit: z.number().optional(),
   weekly_limit: z.number().optional(),

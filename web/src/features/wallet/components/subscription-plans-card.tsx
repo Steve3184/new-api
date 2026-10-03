@@ -78,6 +78,9 @@ function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
       m?.type &&
       m.type !== 'stripe' &&
       m.type !== 'creem' &&
+      m.type !== 'waffo_pancake' &&
+      m.type !== 'waffo' &&
+      m.type !== 'monero' &&
       m.type !== 'nowpayments'
   )
 }
@@ -217,6 +220,22 @@ export function SubscriptionPlansCard({
     }
     return map
   }, [allSubscriptions])
+
+  const planActiveCountMap = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const entry of activeSubscriptions) {
+      const sub = entry.subscription
+      if (
+        !sub ||
+        sub.status !== 'active' ||
+        sub.end_time <= Date.now() / 1000
+      ) {
+        continue
+      }
+      map.set(sub.plan_id, (map.get(sub.plan_id) || 0) + 1)
+    }
+    return map
+  }, [activeSubscriptions])
 
   useEffect(() => {
     onAvailabilityChange?.(isAvailable)
@@ -599,7 +618,11 @@ export function SubscriptionPlansCard({
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
-              const reached = limit > 0 && count >= limit
+              const activeLimit = Number(plan.max_active_per_user || 0)
+              const activeCount = planActiveCountMap.get(plan.id) || 0
+              const reached =
+                (limit > 0 && count >= limit) ||
+                (activeLimit > 0 && activeCount >= activeLimit)
               const configuredGroups = (plan.wallet_only_groups || '')
                 .split(',')
                 .map((group) => group.trim())
@@ -645,6 +668,9 @@ export function SubscriptionPlansCard({
                 ...usageLimitBenefits,
                 groupAvailability,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
+                activeLimit > 0
+                  ? `${t('Maximum simultaneous subscriptions')}: ${activeLimit}`
+                  : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
                   : null,
@@ -708,7 +734,9 @@ export function SubscriptionPlansCard({
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {t('Purchase limit reached')} ({count}/{limit})
+                          {activeLimit > 0 && activeCount >= activeLimit
+                            ? `${t('Active subscription limit reached')} (${activeCount}/${activeLimit})`
+                            : `${t('Purchase limit reached')} (${count}/${limit})`}
                         </TooltipContent>
                       </Tooltip>
                     ) : (
@@ -744,6 +772,10 @@ export function SubscriptionPlansCard({
           }
         }}
         plan={selectedPlan}
+        activePurchaseLimit={selectedPlan?.plan.max_active_per_user}
+        activePurchaseCount={
+          selectedPlan ? planActiveCountMap.get(selectedPlan.plan.id) : 0
+        }
         enableStripe={enableStripe}
         enableCreem={enableCreem}
         enableWaffoPancake={enableWaffoPancake}
@@ -751,6 +783,7 @@ export function SubscriptionPlansCard({
         nowPaymentsCurrencies={topupInfo?.nowpayments_pay_currencies}
         enableOnlineTopUp={enableOnlineTopUp}
         epayMethods={epayMethods}
+        paymentMethods={topupInfo?.pay_methods}
         userQuota={userQuota}
         onPurchaseSuccess={onPurchaseSuccess}
         onNowPaymentsInvoice={(invoice) => {

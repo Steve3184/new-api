@@ -31,6 +31,9 @@ func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
 	if plan == nil {
 		return fmt.Errorf("套餐不能为空")
 	}
+	if plan.MaxActivePerUser < 0 || plan.MaxActivePerUser > 2147483647 {
+		return fmt.Errorf("同时生效数量上限必须在 0 到 2147483647 之间")
+	}
 	plan.Currency = strings.TrimSpace(plan.Currency)
 	if plan.Currency == "" {
 		plan.Currency = "USD"
@@ -341,7 +344,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
-		updateMap := map[string]interface{}{
+		updateMap := map[string]any{
 			"title":                      req.Plan.Title,
 			"subtitle":                   req.Plan.Subtitle,
 			"price_amount":               req.Plan.PriceAmount,
@@ -355,6 +358,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":           req.Plan.CreemProductId,
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
+			"max_active_per_user":        req.Plan.MaxActivePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"five_hour_limit":            req.Plan.FiveHourLimit,
 			"weekly_limit":               req.Plan.WeeklyLimit,

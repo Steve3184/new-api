@@ -140,6 +140,15 @@ export async function resetPlanSubscriptions(
 // User-facing Subscription Payment
 // ============================================================================
 
+export async function quoteSubscriptionPayment(data: {
+  plan_id: number
+  payment_method: string
+  epay_gateway?: string
+}): Promise<ApiResponse<{ amount: number; currency: string }>> {
+  const res = await api.post('/api/subscription/payment/quote', data)
+  return res.data
+}
+
 export async function paySubscriptionStripe(
   data: SubscriptionPayRequest
 ): Promise<SubscriptionPayResponse> {

@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/thanhpk/randstr"
 )
@@ -50,8 +49,9 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
 	}
-	if plan.CreemProductId == "" {
-		common.ApiErrorMsg(c, "该套餐未配置 CreemProductId")
+	product, err := resolveSubscriptionCreemProduct(plan)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	if setting.CreemWebhookSecret == "" && !setting.CreemTestMode {
@@ -70,16 +70,9 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		return
 	}
 
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
-			return
-		}
+	if err := model.CheckSubscriptionPurchaseCapacity(nil, userId, plan); err != nil {
+		common.ApiError(c, err)
+		return
 	}
 
 	reference := "sub-creem-ref-" + randstr.String(6)
@@ -89,7 +82,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           product.Price,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
@@ -97,30 +90,15 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		Status:          common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		common.ApiError(c, err)
 		return
 	}
 
 	// Reuse Creem checkout generator by building a lightweight product reference.
-	currency := "USD"
-	switch operation_setting.GetGeneralSetting().QuotaDisplayType {
-	case operation_setting.QuotaDisplayTypeCNY:
-		currency = "CNY"
-	case operation_setting.QuotaDisplayTypeUSD:
-		currency = "USD"
-	default:
-		currency = "USD"
-	}
-	product := &CreemProduct{
-		ProductId: plan.CreemProductId,
-		Name:      plan.Title,
-		Price:     plan.PriceAmount,
-		Currency:  currency,
-		Quota:     0,
-	}
-
 	checkoutUrl, err := genCreemLink(c.Request.Context(), referenceId, product, user.Email, user.Username)
 	if err != nil {
+		order.Status = common.TopUpStatusFailed
+		_ = order.Update()
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 订阅支付链接创建失败 trade_no=%s product_id=%s error=%q", referenceId, product.ProductId, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
