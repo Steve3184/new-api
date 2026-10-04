@@ -188,7 +188,7 @@ func GetWaffoPancakeConfiguredProductPrice(ctx context.Context, productID string
 		} `json:"onetimeProduct"`
 	}
 	response, err := pancake.GraphQLQuery[queryShape](ctx, client, pancake.GraphQLParams{
-		Query: `query ($id: ID!) {
+		Query: `query ($id: String!) {
 			onetimeProduct(id: $id) {
 				prices {
 					currency
