@@ -70,9 +70,9 @@ export const MOTION_VARIANTS = {
     animate: { opacity: 1, y: 0, scale: 1 },
   },
   sidebarSlide: {
-    initial: { opacity: 0, x: -8 },
+    initial: { opacity: 0, x: -4 },
     animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -8 },
+    exit: { opacity: 0, x: -4 },
   },
 } as const
 

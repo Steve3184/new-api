@@ -33,12 +33,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarView } from '@/hooks/use-sidebar-view'
-import {
-  MOTION_TRANSITION,
-  MOTION_VARIANTS,
-  SIDEBAR_ITEM_VARIANTS,
-  SIDEBAR_STAGGER_VARIANTS,
-} from '@/lib/motion'
+import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
 
 import { NavGroup } from './nav-group'
 import { SidebarViewHeader } from './sidebar-view-header'
@@ -87,24 +82,14 @@ export function AppSidebar() {
             }
             animate={MOTION_VARIANTS.sidebarSlide.animate}
             exit={shouldReduce ? undefined : MOTION_VARIANTS.sidebarSlide.exit}
-            transition={MOTION_TRANSITION.fast}
+            transition={
+              shouldReduce ? MOTION_TRANSITION.none : MOTION_TRANSITION.default
+            }
             className='flex flex-col'
           >
-            <motion.div
-              variants={shouldReduce ? undefined : SIDEBAR_STAGGER_VARIANTS}
-              initial='initial'
-              animate='animate'
-              className='flex flex-col'
-            >
-              {navGroups.map((props) => (
-                <motion.div
-                  key={props.id || props.title}
-                  variants={shouldReduce ? undefined : SIDEBAR_ITEM_VARIANTS}
-                >
-                  <NavGroup {...props} />
-                </motion.div>
-              ))}
-            </motion.div>
+            {navGroups.map((props) => (
+              <NavGroup key={props.id || props.title} {...props} />
+            ))}
           </motion.div>
         </AnimatePresence>
       </SidebarContent>
