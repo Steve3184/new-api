@@ -69,7 +69,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible={collapsible}
       variant={variant}
-      className='bg-sidebar/60 [&_[data-slot=sidebar-inner]]:bg-sidebar/55 backdrop-blur-md [&_[data-slot=sidebar-inner]]:backdrop-blur-md'
+      className='bg-sidebar/60 [&_[data-slot=sidebar-inner]]:bg-sidebar/55'
     >
       {view && <SidebarViewHeader view={view} />}
 
