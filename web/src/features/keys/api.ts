@@ -139,6 +139,26 @@ export async function updateApiKey(
   return res.data
 }
 
+export async function updateApiKeyGroup(
+  apiKey: ApiKey,
+  group: string
+): Promise<ApiResponse<ApiKey>> {
+  return updateApiKey({
+    id: apiKey.id,
+    name: apiKey.name,
+    remain_quota: apiKey.remain_quota,
+    expired_time: apiKey.expired_time,
+    unlimited_quota: apiKey.unlimited_quota,
+    model_limits_enabled: apiKey.model_limits_enabled,
+    model_limits: apiKey.model_limits ?? '',
+    allow_ips: apiKey.allow_ips ?? '',
+    group,
+    auto_groups: group === 'auto' ? (apiKey.auto_groups ?? []) : [],
+    auto_routes: group === 'auto' ? (apiKey.auto_routes ?? {}) : {},
+    cross_group_retry: group === 'auto' ? true : false,
+  })
+}
+
 // Delete a single API key
 export async function deleteApiKey(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/token/${id}/`)

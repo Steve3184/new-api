@@ -20,30 +20,17 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import useDialogState from '@/hooks/use-dialog'
+import { getUserGroups } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
 
-import { fetchTokenKey, fetchTokenKeysBatch } from '../api'
+import { fetchTokenKey, fetchTokenKeysBatch, updateApiKeyGroup } from '../api'
 import { ERROR_MESSAGES } from '../constants'
 import type { ApiKey, ApiKeysDialogType } from '../types'
-
-type ApiKeysContextType = {
-  open: ApiKeysDialogType | null
-  setOpen: (str: ApiKeysDialogType | null) => void
-  currentRow: ApiKey | null
-  setCurrentRow: React.Dispatch<React.SetStateAction<ApiKey | null>>
-  refreshTrigger: number
-  triggerRefresh: () => void
-  resolvedKey: string
-  setResolvedKey: React.Dispatch<React.SetStateAction<string>>
-  resolveRealKey: (id: number) => Promise<string | null>
-  resolveRealKeysBatch: (ids: number[]) => Promise<Record<number, string>>
-  resolvedKeys: Record<number, string>
-  loadingKeys: Record<number, boolean>
-  copiedKeyId: number | null
-  markKeyCopied: (id: number) => void
-}
-
-const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null)
+import type { ApiKeyGroupOption } from './api-key-group-combobox'
+import {
+  ApiKeysContext,
+  useApiKeys as useApiKeysFromContext,
+} from './api-keys-context'
 
 export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
@@ -51,6 +38,7 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const [currentRow, setCurrentRow] = useState<ApiKey | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [resolvedKey, setResolvedKey] = useState('')
+  const [groupOptions, setGroupOptions] = useState<ApiKeyGroupOption[]>([])
 
   const [resolvedKeys, setResolvedKeys] = useState<Record<number, string>>({})
   const [loadingKeys, setLoadingKeys] = useState<Record<number, boolean>>({})
@@ -63,6 +51,24 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(copiedTimerRef.current)
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    void getUserGroups().then((result) => {
+      if (cancelled || !result.success || !result.data) return
+      setGroupOptions(
+        Object.entries(result.data).map(([value, info]) => ({
+          value,
+          label: value,
+          desc: info.desc?.trim() || undefined,
+          ratio: info.ratio,
+        }))
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const markKeyCopied = useCallback((id: number) => {
     setCopiedKeyId(id)
     clearTimeout(copiedTimerRef.current)
@@ -72,6 +78,23 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const triggerRefresh = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1)
   }, [])
+
+  const updateGroup = useCallback(
+    async (apiKey: ApiKey, group: string) => {
+      try {
+        const result = await updateApiKeyGroup(apiKey, group)
+        if (result.success) {
+          triggerRefresh()
+          return true
+        }
+        handleServerError(result, t(ERROR_MESSAGES.UPDATE_FAILED))
+      } catch (error) {
+        handleServerError(error, t(ERROR_MESSAGES.UPDATE_FAILED))
+      }
+      return false
+    },
+    [t, triggerRefresh]
+  )
 
   const resolveRealKey = useCallback(
     async (id: number): Promise<string | null> => {
@@ -171,6 +194,8 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         loadingKeys,
         copiedKeyId,
         markKeyCopied,
+        updateGroup,
+        groupOptions,
       }}
     >
       {children}
@@ -179,12 +204,4 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const useApiKeys = () => {
-  const apiKeysContext = React.useContext(ApiKeysContext)
-
-  if (!apiKeysContext) {
-    throw new Error('useApiKeys has to be used within <ApiKeysContext>')
-  }
-
-  return apiKeysContext
-}
+export const useApiKeys = useApiKeysFromContext

@@ -29,6 +29,10 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
+import {
+  ApiKeyGroupCombobox,
+  type ApiKeyGroupOption,
+} from './api-key-group-combobox'
 import { GroupRatioBadge, type GroupRatio } from './auto-group-visuals'
 
 type ApiKeyGroupCellProps = {
@@ -36,6 +40,9 @@ type ApiKeyGroupCellProps = {
   group: string
   ratio?: GroupRatio
   shouldReduceMotion: boolean
+  options?: ApiKeyGroupOption[]
+  onValueChange?: (value: string) => void
+  disabled?: boolean
 }
 
 export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
@@ -46,6 +53,18 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
   if (group !== 'auto') {
     const ratio =
       group && typeof props.ratio === 'number' ? props.ratio : undefined
+    if (props.options && props.onValueChange) {
+      return (
+        <ApiKeyGroupCombobox
+          options={props.options}
+          value={group || undefined}
+          onValueChange={props.onValueChange}
+          placeholder={t('Follow user group')}
+          disabled={props.disabled}
+          compact
+        />
+      )
+    }
     return (
       <TruncatedCell
         className={isMobile ? 'w-full' : 'max-w-50'}
@@ -61,6 +80,19 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
           containerClassName={cn('gap-3', isMobile && 'w-full justify-between')}
         />
       </TruncatedCell>
+    )
+  }
+
+  if (props.options && props.onValueChange) {
+    return (
+      <ApiKeyGroupCombobox
+        options={props.options}
+        value='auto'
+        onValueChange={props.onValueChange}
+        placeholder={t('Select a group')}
+        disabled={props.disabled}
+        compact
+      />
     )
   }
 

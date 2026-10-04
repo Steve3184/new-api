@@ -56,6 +56,7 @@ type ApiKeyGroupComboboxProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  compact?: boolean
 }
 
 export function ApiKeyGroupCombobox({
@@ -64,6 +65,7 @@ export function ApiKeyGroupCombobox({
   onValueChange,
   placeholder,
   disabled,
+  compact = false,
 }: ApiKeyGroupComboboxProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -105,7 +107,10 @@ export function ApiKeyGroupCombobox({
             data-auto-group-effect={isAutoSelected ? 'trigger' : undefined}
             disabled={disabled}
             className={cn(
-              'border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 relative h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3',
+              'border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 relative h-auto justify-between text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px]',
+              compact
+                ? 'min-h-8 w-auto max-w-50 gap-1 rounded-md border-transparent bg-transparent px-1.5 py-0.5 text-xs hover:bg-muted/60 sm:min-h-8 sm:gap-1 sm:px-1.5 sm:py-0.5'
+                : 'min-h-14 w-full gap-2 rounded-lg px-3 py-2 sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3',
               isAutoSelected &&
                 cn(
                   AUTO_GROUP_FRAME_CLASS_NAME,
@@ -120,16 +125,21 @@ export function ApiKeyGroupCombobox({
         )}
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
-            <span className='block truncate font-medium'>
+            <span
+              className={cn(
+                'block truncate font-medium',
+                compact && 'font-normal'
+              )}
+            >
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
-            {selectedOption?.desc && (
+            {selectedOption?.desc && !compact && (
               <span className='text-muted-foreground block text-[11px] leading-4 break-words whitespace-normal sm:text-xs'>
                 {selectedOption.desc}
               </span>
             )}
           </span>
-          <span className='hidden sm:block'>
+          <span className={compact ? 'shrink-0' : 'hidden sm:block'}>
             <GroupRatioBadge
               ratio={selectedOption?.ratio}
               isAuto={isAutoSelected}
@@ -139,7 +149,7 @@ export function ApiKeyGroupCombobox({
         </span>
         <ChevronsUpDown
           aria-hidden='true'
-          className='size-4 shrink-0 opacity-50'
+          className={cn('size-4 shrink-0 opacity-50', compact && 'size-3')}
         />
       </PopoverTrigger>
       <PopoverContent
@@ -188,7 +198,12 @@ export function ApiKeyGroupCombobox({
                       )}
                     />
                     <span className='min-w-0 flex-1'>
-                      <span className='block truncate font-medium'>
+                      <span
+                        className={cn(
+                          'block truncate font-medium',
+                          compact && 'font-normal'
+                        )}
+                      >
                         {option.label}
                       </span>
                       {option.desc && (

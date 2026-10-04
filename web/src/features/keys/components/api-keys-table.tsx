@@ -66,6 +66,7 @@ import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
 const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
+const API_KEYS_VIEW_MODE_STORAGE_KEY = 'api-keys:view-mode'
 const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
   { length: 5 },
   (_, index) => `api-key-mobile-skeleton-${index + 1}`
@@ -365,6 +366,9 @@ export function ApiKeysTable() {
       )}
       skeletonKeyPrefix='api-keys-skeleton'
       applyHeaderSize
+      enableCardView
+      defaultViewMode='table'
+      viewModeStorageKey={API_KEYS_VIEW_MODE_STORAGE_KEY}
       toolbarProps={{
         searchPlaceholder: t('Filter by name...'),
         searchDebounceMs: 500,

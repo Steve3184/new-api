@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
@@ -33,6 +33,7 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 import { API_KEY_STATUSES } from '../constants'
 import type { ApiKey } from '../types'
 import { ApiKeyGroupCell } from './api-key-group-cell'
+import type { ApiKeyGroupOption } from './api-key-group-combobox'
 import { ApiKeyQuotaCell } from './api-key-quota-cell'
 import {
   ApiKeyActivityCell,
@@ -43,9 +44,11 @@ import {
   IpRestrictionsCell,
   ModelLimitsCell,
 } from './api-keys-cells'
+import { useOptionalApiKeys } from './api-keys-context'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const EMPTY_GROUP_RATIOS: Record<string, number | string> = {}
+const EMPTY_GROUP_OPTIONS: ApiKeyGroupOption[] = []
 
 function useGroupRatios(): Record<string, number | string> {
   const { data } = useQuery({
@@ -73,6 +76,10 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   const { meta: currency } = getCurrencyDisplay()
   const quotaUnit = currency.kind === 'tokens' ? t('Tokens') : currency.symbol
   const groupRatios = useGroupRatios()
+  const apiKeysContext = useOptionalApiKeys()
+  const groupOptions = apiKeysContext?.groupOptions ?? EMPTY_GROUP_OPTIONS
+  const updateGroup = apiKeysContext?.updateGroup
+  const [updatingGroupId, setUpdatingGroupId] = useState<number | null>(null)
   const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const justNowLabel = t('Just now')
@@ -172,6 +179,21 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
               ratio={groupRatios[group]}
               crossGroupRetry={apiKey.cross_group_retry}
               shouldReduceMotion={shouldReduceMotion}
+              options={groupOptions}
+              disabled={updatingGroupId === apiKey.id}
+              onValueChange={(nextGroup) => {
+                if (
+                  !updateGroup ||
+                  nextGroup === group ||
+                  updatingGroupId !== null
+                ) {
+                  return
+                }
+                setUpdatingGroupId(apiKey.id)
+                void updateGroup(apiKey, nextGroup).finally(() =>
+                  setUpdatingGroupId(null)
+                )
+              }}
             />
           )
         },
@@ -245,6 +267,17 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         meta: { pinned: 'right' as const },
       },
     ],
-    [t, quotaUnit, now, groupRatios, shouldReduceMotion, locale, justNowLabel]
+    [
+      t,
+      quotaUnit,
+      now,
+      groupRatios,
+      shouldReduceMotion,
+      locale,
+      justNowLabel,
+      groupOptions,
+      updatingGroupId,
+      updateGroup,
+    ]
   )
 }
