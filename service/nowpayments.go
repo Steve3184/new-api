@@ -505,7 +505,14 @@ func GetNowPaymentsSubscriptionPriceUSD(plan *model.SubscriptionPlan) (decimal.D
 		return decimal.Zero, errors.New("subscription plan is unavailable")
 	}
 	priceUSD := decimal.NewFromFloat(plan.PriceAmount)
-	if !strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") {
+	// Subscription prices are stored in the system's billing currency. New
+	// plans are persisted as USD even when the site displays CNY/custom
+	// currency, so use the NOWPayments-specific rate whenever a currency
+	// conversion is required instead of relying only on plan.Currency.
+	needsCurrencyConversion := !strings.EqualFold(strings.TrimSpace(plan.Currency), "USD") ||
+		(operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeUSD &&
+			operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens)
+	if needsCurrencyConversion {
 		rate := setting.NowPaymentsUSDToCurrencyRate
 		if rate == 0 {
 			rate = operation_setting.GetUsdToCurrencyRate(operation_setting.USDExchangeRate)

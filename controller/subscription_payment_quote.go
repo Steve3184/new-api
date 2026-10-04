@@ -62,7 +62,15 @@ func resolveSubscriptionPancakePrice(ctx context.Context, plan *model.Subscripti
 	if productID == "" {
 		return nil, errors.New("Waffo Pancake 未配置商品")
 	}
-	price, err := finalizeWaffoPancakeCheckoutPrice(&waffoPancakeCheckoutPrice{Money: plan.PriceAmount, Currency: "USD", PriceSnapshot: &service.WaffoPancakePriceSnapshot{TaxCategory: "saas"}})
+	amount := decimal.NewFromFloat(plan.PriceAmount)
+	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeUSD &&
+		operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
+		rate := setting.WaffoPancakeUSDToCurrencyRate
+		if rate > 0 && !math.IsNaN(rate) && !math.IsInf(rate, 0) {
+			amount = amount.Div(decimal.NewFromFloat(rate))
+		}
+	}
+	price, err := finalizeWaffoPancakeCheckoutPrice(&waffoPancakeCheckoutPrice{Money: amount.InexactFloat64(), Currency: "USD", PriceSnapshot: &service.WaffoPancakePriceSnapshot{TaxCategory: "saas"}})
 	if err != nil {
 		return nil, err
 	}

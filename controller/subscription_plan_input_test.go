@@ -67,6 +67,32 @@ func TestSubscriptionPancakeFallbackUsesWalletProductAndFees(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSubscriptionPancakeFallbackUsesChannelRateForUSDPlans(t *testing.T) {
+	originalProduct := setting.WaffoPancakeProductID
+	originalRate := setting.WaffoPancakeUSDToCurrencyRate
+	originalDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	originalMethods := operation_setting.PayMethods
+	t.Cleanup(func() {
+		setting.WaffoPancakeProductID = originalProduct
+		setting.WaffoPancakeUSDToCurrencyRate = originalRate
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+		operation_setting.PayMethods = originalMethods
+	})
+
+	setting.WaffoPancakeProductID = "wallet-product"
+	setting.WaffoPancakeUSDToCurrencyRate = 5
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeCNY
+	operation_setting.PayMethods = []map[string]string{{"type": model.PaymentMethodWaffoPancake}}
+
+	price, err := resolveSubscriptionPancakePrice(context.Background(), &model.SubscriptionPlan{
+		PriceAmount: 10,
+		Currency:    "USD",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 2.0, price.Amount)
+	assert.Equal(t, "2.00", price.Snapshot.Amount)
+}
+
 func TestNormalizeSubscriptionPlanInputNormalizesBenefitsOnlyQuota(t *testing.T) {
 	plan := &model.SubscriptionPlan{
 		TotalAmount:   -42,

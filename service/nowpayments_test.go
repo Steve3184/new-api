@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/glebarez/sqlite"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -312,6 +313,25 @@ func TestQuoteNowPaymentsPayMoneyUsesConfiguredCurrencyRate(t *testing.T) {
 	quote, err := QuoteNowPaymentsPayMoney(50, "default")
 	require.NoError(t, err)
 	assert.Equal(t, 10.0, quote)
+}
+
+func TestGetNowPaymentsSubscriptionPriceUSDUsesChannelRateForUSDPlans(t *testing.T) {
+	setupNowPaymentsServiceTest(t)
+	originalDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	originalRate := setting.NowPaymentsUSDToCurrencyRate
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+		setting.NowPaymentsUSDToCurrencyRate = originalRate
+	})
+
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeCNY
+	setting.NowPaymentsUSDToCurrencyRate = 5
+	price, err := GetNowPaymentsSubscriptionPriceUSD(&model.SubscriptionPlan{
+		PriceAmount: 10,
+		Currency:    "USD",
+	})
+	require.NoError(t, err)
+	assert.True(t, decimal.NewFromInt(2).Equal(price))
 }
 
 func TestNowPaymentsSubscriptionCompletesAfterFinishedPayment(t *testing.T) {
