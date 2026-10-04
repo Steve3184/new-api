@@ -6948,6 +6948,7 @@
     "Total time": "Tổng thời gian",
     "Total tokens": "Tổng số token",
     "Total Tokens": "Tổng số token",
+    "Total tokens in filtered logs: input + output + cache read + cache write.": "Tổng token trong nhật ký đã lọc: đầu vào + đầu ra + đọc bộ nhớ đệm + ghi bộ nhớ đệm.",
     "Total Usage": "Tổng Mức Sử dụng",
     "Total Used": "Tổng đã dùng",
     "Total:": "Tổng cộng:",

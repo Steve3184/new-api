@@ -6948,6 +6948,7 @@
     "Total time": "Общее время",
     "Total tokens": "Всего токенов",
     "Total Tokens": "Всего токенов",
+    "Total tokens in filtered logs: input + output + cache read + cache write.": "Всего токенов в отфильтрованных журналах: ввод + вывод + чтение кэша + запись в кэш.",
     "Total Usage": "Общее использование",
     "Total Used": "Всего использовано",
     "Total:": "Всего:",

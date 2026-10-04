@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -752,9 +753,10 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 }
 
 type Stat struct {
-	Quota int `json:"quota"`
-	Rpm   int `json:"rpm"`
-	Tpm   int `json:"tpm"`
+	Quota       int   `json:"quota"`
+	Rpm         int   `json:"rpm"`
+	Tpm         int   `json:"tpm"`
+	TotalTokens int64 `json:"total_tokens"`
 }
 
 // fillLogModelIcons populates the transient model/provider icon fields on each
@@ -863,65 +865,79 @@ func GetUserTokenRPM(userID int, tokenIDs []int) (map[int]int, error) {
 	return GetTokenRPM(ownedTokenIDs)
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
+// sumLogTokens streams only token counts and metadata; decoding in Go keeps
+// historical empty/malformed metadata safe across all supported log databases.
+func sumLogTokens(tx *gorm.DB) (int64, error) {
+	rows, err := tx.Select("COALESCE(prompt_tokens, 0), COALESCE(completion_tokens, 0), COALESCE(other, '')").Rows()
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var total int64
+	for rows.Next() {
+		var input, output int64
+		var other string
+		if err := rows.Scan(&input, &output, &other); err != nil {
+			return 0, err
+		}
+		var cache struct {
+			Read    int64 `json:"cache_tokens"`
+			Write   int64 `json:"cache_creation_tokens"`
+			Write5m int64 `json:"cache_creation_tokens_5m"`
+			Write1h int64 `json:"cache_creation_tokens_1h"`
+		}
+		values := []int64{input, output}
+		if common.UnmarshalJsonStr(other, &cache) == nil {
+			values = append(values, cache.Read)
+			if cache.Write5m > 0 || cache.Write1h > 0 {
+				values = append(values, cache.Write5m, cache.Write1h)
+			} else {
+				values = append(values, cache.Write)
+			}
+		}
+		for _, value := range values {
+			if value <= 0 {
+				continue
+			}
+			if total > math.MaxInt64-value {
+				return 0, errors.New("log token total exceeds supported range")
+			}
+			total += value
+		}
+	}
+	return total, rows.Err()
+}
 
-	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
-
-	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+func SumUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string) (stat Stat, err error) {
+	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	if err != nil {
 		return stat, err
 	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
-		return stat, err
-	}
-	if tokenName != "" {
-		tx = tx.Where("token_name = ?", tokenName)
-		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", endTimestamp)
-	}
-	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
-		return stat, err
-	}
-	if channel != 0 {
-		tx = tx.Where("channel_id = ?", channel)
-		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
-	}
-	if group != "" {
-		tx = tx.Where(logGroupCol+" = ?", group)
-		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
-	}
-
-	tx = tx.Where("type = ?", LogTypeConsume)
-	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
-
-	// 只统计最近60秒的rpm和tpm
-	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
-
-	// 执行查询
-	if err := tx.Scan(&stat).Error; err != nil {
+	tx = tx.Where("logs.type = ?", LogTypeConsume).Session(&gorm.Session{})
+	if err := tx.Select("COALESCE(sum(quota), 0) quota").Scan(&stat).Error; err != nil {
 		common.SysError("failed to query log stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
+	}
+	stat.TotalTokens, err = sumLogTokens(tx)
+	if err != nil {
+		common.SysError("failed to query log token total: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+
+	// Rates continue to describe the last minute, independently of the chosen date range.
+	rpmTpmQuery, err := buildLogsQuery(userId, LogTypeConsume, time.Now().Add(-60*time.Second).Unix(), 0, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	if err != nil {
+		return stat, err
 	}
 	var rateStat struct {
 		Rpm int
 		Tpm int
 	}
-	if err := rpmTpmQuery.Scan(&rateStat).Error; err != nil {
+	if err := rpmTpmQuery.Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm").Scan(&rateStat).Error; err != nil {
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
-	stat.Rpm = rateStat.Rpm
-	stat.Tpm = rateStat.Tpm
-
+	stat.Rpm, stat.Tpm = rateStat.Rpm, rateStat.Tpm
 	return stat, nil
 }
 

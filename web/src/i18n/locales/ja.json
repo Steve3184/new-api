@@ -6948,6 +6948,7 @@
     "Total time": "総時間",
     "Total tokens": "合計トークン",
     "Total Tokens": "合計トークン",
+    "Total tokens in filtered logs: input + output + cache read + cache write.": "絞り込んだログの合計トークン数：入力 + 出力 + キャッシュ読み取り + キャッシュ書き込み。",
     "Total Usage": "総使用量",
     "Total Used": "累計使用額",
     "Total:": "合計:",

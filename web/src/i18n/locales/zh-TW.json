@@ -6948,6 +6948,7 @@
     "Total time": "總耗時",
     "Total tokens": "總 Token",
     "Total Tokens": "總 Token 數",
+    "Total tokens in filtered logs: input + output + cache read + cache write.": "篩選日誌範圍內的總 Tokens：輸入 + 輸出 + 快取命中 + 快取寫入。",
     "Total Usage": "總用量",
     "Total Used": "累計已用",
     "Total:": "總計：",

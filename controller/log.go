@@ -161,7 +161,7 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	stat, err := model.SumUsedQuota(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, c.Query("request_id"), c.Query("upstream_request_id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -171,24 +171,24 @@ func GetLogsStat(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"quota": stat.Quota,
-			"rpm":   stat.Rpm,
-			"tpm":   stat.Tpm,
+			"quota":        stat.Quota,
+			"rpm":          stat.Rpm,
+			"tpm":          stat.Tpm,
+			"total_tokens": stat.TotalTokens,
 		},
 	})
 	return
 }
 
 func GetLogsSelfStat(c *gin.Context) {
-	username := c.GetString("username")
+	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	quotaNum, err := model.SumUsedQuota(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, c.Query("request_id"), c.Query("upstream_request_id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -198,9 +198,10 @@ func GetLogsSelfStat(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"quota": quotaNum.Quota,
-			"rpm":   quotaNum.Rpm,
-			"tpm":   quotaNum.Tpm,
+			"quota":        quotaNum.Quota,
+			"rpm":          quotaNum.Rpm,
+			"tpm":          quotaNum.Tpm,
+			"total_tokens": quotaNum.TotalTokens,
 			//"token": tokenNum,
 		},
 	})
