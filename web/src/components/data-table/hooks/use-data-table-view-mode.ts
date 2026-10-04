@@ -33,6 +33,11 @@ function isViewMode(value: unknown): value is DataTableViewMode {
   )
 }
 
+function getDefaultStorageKey() {
+  if (typeof window === 'undefined') return undefined
+  return `data-table:view-mode:${window.location.pathname}`
+}
+
 function readViewMode(
   storageKey: string | undefined,
   fallback: DataTableViewMode
@@ -51,8 +56,8 @@ function readViewMode(
 
 type UseDataTableViewModeOptions = {
   /**
-   * localStorage key for persisting the selected view mode. When omitted the
-   * selection lives only in memory (resets on reload).
+   * localStorage key for persisting the selected view mode. When omitted, a
+   * key is derived from the current pathname.
    */
   storageKey?: string
   /** Initial mode used when nothing is persisted. Defaults to `'table'`. */
@@ -68,7 +73,7 @@ export function useDataTableViewMode(
   options: UseDataTableViewModeOptions = {}
 ): [DataTableViewMode, (mode: DataTableViewMode) => void] {
   const defaultMode = options.defaultMode ?? DATA_TABLE_VIEW_MODES.TABLE
-  const storageKey = options.storageKey
+  const storageKey = options.storageKey ?? getDefaultStorageKey()
 
   const [viewMode, setViewModeState] = React.useState<DataTableViewMode>(() =>
     readViewMode(storageKey, defaultMode)

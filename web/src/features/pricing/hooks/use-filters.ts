@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useSearch } from '@tanstack/react-router'
 import { useMemo, useCallback, useState } from 'react'
 
+import { useDataTableViewMode } from '@/components/data-table'
 import { useDebounce } from '@/hooks/use-debounce'
 
 import {
@@ -67,6 +68,11 @@ export function useFilters(models: PricingModel[], defaultViewMode: ViewMode) {
     rechargePrice: search.rechargePrice,
   }))
 
+  const [persistedViewMode, setPersistedViewMode] = useDataTableViewMode({
+    storageKey: 'pricing:view-mode',
+    defaultMode: defaultViewMode,
+  })
+
   const searchInput = filterState.search || ''
   const debouncedSearchInput = useDebounce(searchInput, 200)
   const sortBy = filterState.sort || SORT_OPTIONS.NAME
@@ -77,7 +83,7 @@ export function useFilters(models: PricingModel[], defaultViewMode: ViewMode) {
   const tagFilter = filterState.tag || FILTER_ALL
   const tokenUnit: TokenUnit =
     filterState.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
-  const viewMode = normalizeViewMode(filterState.view, defaultViewMode)
+  const viewMode = normalizeViewMode(filterState.view, persistedViewMode)
   const showRechargePrice = filterState.rechargePrice === true
 
   const updateFilters = useCallback((updates: Record<string, unknown>) => {
@@ -131,9 +137,11 @@ export function useFilters(models: PricingModel[], defaultViewMode: ViewMode) {
     [updateFilters]
   )
   const setViewMode = useCallback(
-    (v: ViewMode) =>
-      updateFilters({ view: v === defaultViewMode ? undefined : v }),
-    [defaultViewMode, updateFilters]
+    (v: ViewMode) => {
+      setPersistedViewMode(v)
+      updateFilters({ view: v === defaultViewMode ? undefined : v })
+    },
+    [defaultViewMode, setPersistedViewMode, updateFilters]
   )
   const setShowRechargePrice = useCallback(
     (v: boolean) => updateFilters({ rechargePrice: v || undefined }),
