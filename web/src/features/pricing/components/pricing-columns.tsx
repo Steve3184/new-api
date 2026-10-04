@@ -32,13 +32,16 @@ import { parseTags } from '../lib/filters'
 import type { PricingModel } from '../types'
 import { CachedPriceCell } from './cached-price-cell'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
+import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
 import { ModelPriceCell, type ModelPriceCellOptions } from './model-price-cell'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
 // ----------------------------------------------------------------------------
 
-export type PricingColumnsOptions = ModelPriceCellOptions
+export type PricingColumnsOptions = ModelPriceCellOptions & {
+  perfMap?: Map<string, ModelPerfBadgeData>
+}
 
 export function usePricingColumns(
   options: PricingColumnsOptions = {}
@@ -68,6 +71,20 @@ export function usePricingColumns(
         )
       },
       minSize: 200,
+    },
+
+    // Status column
+    {
+      id: 'status',
+      header: t('Status'),
+      cell: ({ row }) => (
+        <ModelPerfBadge
+          perf={options.perfMap?.get(row.original.model_name || '')}
+          className='min-w-56'
+        />
+      ),
+      size: 320,
+      enableSorting: false,
     },
 
     // Type column

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import type { Row, PaginationState } from '@tanstack/react-table'
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,12 +27,15 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
+import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import {
   DEFAULT_PRICING_TABLE_PAGE_SIZE,
   DEFAULT_TOKEN_UNIT,
 } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
+import type { ModelPerfBadgeData } from './model-perf-badge'
 import { usePricingColumns } from './pricing-columns'
 
 export interface PricingTableProps {
@@ -71,12 +75,29 @@ export function PricingTable(props: PricingTableProps) {
     })
   }, [props.pageSize])
 
+  const perfQuery = useQuery({
+    queryKey: ['perf-metrics-summary', 24],
+    queryFn: async () => requireServerSuccess(await getPerfMetricsSummary(24)),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
+  const perfMap = new Map<string, ModelPerfBadgeData>()
+  for (const model of perfQuery.data?.data?.models ?? []) {
+    perfMap.set(model.model_name, {
+      ...model,
+      window_start: perfQuery.data?.data.window_start,
+      window_end: perfQuery.data?.data.window_end,
+    })
+  }
+
   const columns = usePricingColumns({
     tokenUnit,
     priceRate,
     usdExchangeRate,
     showRechargePrice,
     selectedGroup,
+    perfMap,
   })
 
   const { table } = useDataTable({
