@@ -7,6 +7,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router'
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -14,6 +15,7 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { Button } from '@/components/ui/button'
@@ -68,10 +70,11 @@ async function renderStats(role: number) {
   return router
 }
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
   vi.restoreAllMocks()
   useAuthStore.getState().auth.setUser(null)
+  await i18next.changeLanguage('en')
 })
 
 it.each([1, 10])(
@@ -83,7 +86,7 @@ it.each([1, 10])(
         data: {
           quota: 0,
           rpm: 1,
-          tpm: 7,
+          tpm: 12345,
           total_tokens: String(url).includes('model_name=model-a')
             ? 1234567
             : 80,
@@ -94,9 +97,13 @@ it.each([1, 10])(
     const total = await screen.findByTitle(
       'Total tokens in filtered logs: input + output + cache read + cache write.'
     )
-    expect(within(total).getByText('1,234,567')).toBeVisible()
+    expect(within(total).getByText('1.23M')).toBeVisible()
+    await act(() => i18next.changeLanguage('fr'))
+    expect(within(total).getByText('1,23M')).toBeVisible()
+    expect(screen.getByText('12,35K')).toBeVisible()
+    await act(() => i18next.changeLanguage('en'))
     expect(within(total).getByText('Total Tokens')).toBeVisible()
-    expect(screen.getByText('TPM')).toBeVisible()
+    expect(screen.getByText('12.35K')).toBeVisible()
     expect(total.parentElement).toHaveClass('flex-wrap')
     expect(request).toHaveBeenCalledWith(
       expect.stringContaining(

@@ -50,6 +50,34 @@ export function formatCompactNumber(
   }).format(value as number)
 }
 
+export function formatTokenCount(
+  value: number | null | undefined,
+  locales?: Intl.LocalesArgument
+): string {
+  if (value == null || Number.isNaN(value)) return '-'
+
+  const absoluteValue = Math.abs(value)
+  if (absoluteValue < 1_000) {
+    return Intl.NumberFormat(locales, { maximumFractionDigits: 0 }).format(
+      value
+    )
+  }
+
+  const units = [
+    { threshold: 1_000_000_000_000, suffix: 'T' },
+    { threshold: 1_000_000_000, suffix: 'B' },
+    { threshold: 1_000_000, suffix: 'M' },
+    { threshold: 1_000, suffix: 'K' },
+  ]
+  const unit = units.find((candidate) => absoluteValue >= candidate.threshold)
+  if (!unit) return String(Math.round(value))
+
+  return `${Intl.NumberFormat(locales, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value / unit.threshold)}${unit.suffix}`
+}
+
 export function formatPercent(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value as number)) return '-'
   return Intl.NumberFormat(undefined, {

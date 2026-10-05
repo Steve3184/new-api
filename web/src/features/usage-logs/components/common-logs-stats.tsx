@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatLogQuota, formatNumber } from '@/lib/format'
+import { formatLogQuota, formatTokenCount } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -114,14 +114,17 @@ export function CommonLogsStats() {
       />
       <StatBadge
         label={t('TPM')}
-        value={stats?.tpm || 0}
+        value={formatTokenCount(
+          stats?.tpm || 0,
+          toIntlLocale(i18n.resolvedLanguage || i18n.language)
+        )}
         accent='bg-slate-400/70'
       />
       <StatBadge
         label={t('Total Tokens')}
         value={
           sensitiveVisible
-            ? formatNumber(
+            ? formatTokenCount(
                 stats?.total_tokens || 0,
                 toIntlLocale(i18n.resolvedLanguage || i18n.language)
               )
