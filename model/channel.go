@@ -37,7 +37,7 @@ type Channel struct {
 	Balance            float64 `json:"balance"` // in USD
 	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
 	Models             string  `json:"models"`
-	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
+	Group              string  `json:"group" gorm:"type:text"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`
 	//MaxInputTokens     *int    `json:"max_input_tokens" gorm:"default:0"`
@@ -60,6 +60,15 @@ type Channel struct {
 }
 
 const ChannelStatusReasonAllKeysDisabled = "All keys are disabled"
+
+func (channel *Channel) BeforeCreate(_ *gorm.DB) error {
+	// MySQL 5.7 cannot store a default on TEXT columns. Apply the existing
+	// default here for both individual and batch channel creation.
+	if channel.Group == "" {
+		channel.Group = "default"
+	}
+	return nil
+}
 
 type ChannelInfo struct {
 	IsMultiKey                      bool                  `json:"is_multi_key"`                        // 是否多Key模式
