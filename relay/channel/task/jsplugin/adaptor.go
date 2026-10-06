@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -593,11 +594,11 @@ func (a *TaskAdaptor) FetchBatchTasks(baseURL, key string, tasks []*model.Task, 
 	if err != nil {
 		return nil, err
 	}
-	value, err := a.plugin.Engine.Call(context.Background(), "buildBatchQueryRequest", ctx, taskContexts)
-	if err != nil {
+	var descriptor requestDescriptor
+	if err = a.plugin.Engine.CallInto(context.Background(), &descriptor, "buildBatchQueryRequest", ctx, taskContexts); err != nil {
 		return nil, err
 	}
-	return a.doFetchDescriptor(baseURL, proxy, value)
+	return a.doFetchDescriptor(baseURL, proxy, descriptor)
 }
 
 func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error) {
@@ -605,18 +606,14 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy str
 	if err != nil {
 		return nil, err
 	}
-	value, err := a.plugin.Engine.Call(context.Background(), "buildQueryRequest", ctx)
-	if err != nil {
+	var descriptor requestDescriptor
+	if err = a.plugin.Engine.CallInto(context.Background(), &descriptor, "buildQueryRequest", ctx); err != nil {
 		return nil, err
 	}
-	return a.doFetchDescriptor(baseURL, proxy, value)
+	return a.doFetchDescriptor(baseURL, proxy, descriptor)
 }
 
-func (a *TaskAdaptor) doFetchDescriptor(baseURL, proxy string, value any) (*http.Response, error) {
-	descriptor, err := decodeRequestDescriptor(value)
-	if err != nil {
-		return nil, err
-	}
+func (a *TaskAdaptor) doFetchDescriptor(baseURL, proxy string, descriptor requestDescriptor) (*http.Response, error) {
 	if err := pluginruntime.ValidateRequestURL(descriptor.URL, baseURL, a.plugin.Meta.AllowedHosts); err != nil {
 		return nil, err
 	}
@@ -690,11 +687,6 @@ func (a *TaskAdaptor) ParseBatchResult(tasks []*model.Task, resp *http.Response,
 	if err != nil {
 		return nil, err
 	}
-	value, err := a.plugin.Engine.Call(context.Background(), "parseBatchResult", ctx, input, hookHTTPResponse(resp))
-	if err != nil {
-		logger.LogDebug(context.Background(), "task_plugin subsystem=adaptor event=parse_batch_failed plugin=%q reason=hook_failed body_bytes=%d elapsed_ms=%d", a.plugin.Meta.Key, len(body), time.Since(started).Milliseconds())
-		return nil, err
-	}
 	var parsed []struct {
 		TaskID     string `json:"taskId"`
 		Action     string `json:"action"`
@@ -708,8 +700,13 @@ func (a *TaskAdaptor) ParseBatchResult(tasks []*model.Task, resp *http.Response,
 		Data       any    `json:"data"`
 		State      any    `json:"state"`
 	}
-	if err = convert(value, &parsed); err != nil {
-		logger.LogDebug(context.Background(), "task_plugin subsystem=adaptor event=parse_batch_failed plugin=%q reason=invalid_result body_bytes=%d elapsed_ms=%d", a.plugin.Meta.Key, len(body), time.Since(started).Milliseconds())
+	if err = a.plugin.Engine.CallInto(context.Background(), &parsed, "parseBatchResult", ctx, input, hookHTTPResponse(resp)); err != nil {
+		reason := "hook_failed"
+		var invalid *pluginruntime.ResultError
+		if errors.As(err, &invalid) {
+			reason = "invalid_result"
+		}
+		logger.LogDebug(context.Background(), "task_plugin subsystem=adaptor event=parse_batch_failed plugin=%q reason=%s body_bytes=%d elapsed_ms=%d", a.plugin.Meta.Key, reason, len(body), time.Since(started).Milliseconds())
 		return nil, err
 	}
 	results := make(map[string]*service.BatchTaskResult, len(parsed))
@@ -867,16 +864,15 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	value, err := a.plugin.Engine.CallPath(context.Background(), "protocols", []string{"openai_video", "render"}, map[string]any{"protocol": "openai_video", "operation": "retrieve"}, pluginruntime.RawJSON(encodedView))
+	// Decoding into any leaves only encoding failures to CallPathInto, so they
+	// keep the codec's message.
+	var value any
+	err = a.plugin.Engine.CallPathInto(context.Background(), &value, "protocols", []string{"openai_video", "render"}, map[string]any{"protocol": "openai_video", "operation": "retrieve"}, pluginruntime.RawJSON(encodedView))
 	if err != nil {
 		return nil, err
 	}
-	encoded, err := common.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	var rendered map[string]any
-	if err = common.Unmarshal(encoded, &rendered); err != nil || rendered == nil {
+	rendered, _ := value.(map[string]any)
+	if rendered == nil {
 		return nil, fmt.Errorf("plugin returned an invalid OpenAI video object")
 	}
 	// Keep provider extensions intact while the host owns the public task's
@@ -933,12 +929,8 @@ func (a *TaskAdaptor) BuildContentRequest(task *model.Task, artifactKey string, 
 	if err = a.applyUpstreamCredentials(ctx, a.info.ChannelType, a.info.ApiKey, a.info.ChannelSetting.Proxy); err != nil {
 		return nil, err
 	}
-	value, err := a.plugin.Engine.Call(context.Background(), "buildContentRequest", ctx)
-	if err != nil {
-		return nil, err
-	}
-	descriptor, err := decodeRequestDescriptor(value)
-	if err != nil {
+	var descriptor requestDescriptor
+	if err = a.plugin.Engine.CallInto(context.Background(), &descriptor, "buildContentRequest", ctx); err != nil {
 		return nil, err
 	}
 	method := strings.ToUpper(strings.TrimSpace(descriptor.Method))
@@ -1270,22 +1262,19 @@ func (a *TaskAdaptor) buildSubmit(c *gin.Context, info *relaycommon.RelayInfo) (
 		return a.submit, nil
 	}
 	started := time.Now()
-	value, err := a.plugin.Engine.Call(c.Request.Context(), "buildSubmitRequest", a.submitContext(c, info))
+	var descriptor requestDescriptor
+	err := a.plugin.Engine.CallInto(c.Request.Context(), &descriptor, "buildSubmitRequest", a.submitContext(c, info))
 	if err != nil {
+		reason := "hook_failed"
+		var invalid *pluginruntime.ResultError
+		if errors.As(err, &invalid) {
+			reason = "invalid_descriptor"
+		}
 		logger.LogDebug(
 			c,
-			"task_plugin subsystem=adaptor event=build_submit_failed plugin=%q stage=build_submit_request reason=hook_failed elapsed_ms=%d",
+			"task_plugin subsystem=adaptor event=build_submit_failed plugin=%q stage=build_submit_request reason=%s elapsed_ms=%d",
 			a.plugin.Meta.Key,
-			time.Since(started).Milliseconds(),
-		)
-		return nil, err
-	}
-	descriptor, err := decodeRequestDescriptor(value)
-	if err != nil {
-		logger.LogDebug(
-			c,
-			"task_plugin subsystem=adaptor event=build_submit_failed plugin=%q stage=build_submit_request reason=invalid_descriptor elapsed_ms=%d",
-			a.plugin.Meta.Key,
+			reason,
 			time.Since(started).Milliseconds(),
 		)
 		return nil, err
@@ -1710,39 +1699,6 @@ func (a *TaskAdaptor) logRejectedUsage(hook string, _ error) {
 
 func (a *TaskAdaptor) hasHook(_ context.Context, hook string) bool {
 	return a.plugin.Engine.HasExport(hook)
-}
-
-// decodeRequestDescriptor reads the result of a request-building hook. Fields
-// other than body keep the codec's semantics: case-insensitive names, and type
-// errors reject the descriptor. A plain JSON body is copied instead of encoded
-// and decoded again; anything else takes the codec path unchanged.
-func decodeRequestDescriptor(value any) (requestDescriptor, error) {
-	var descriptor requestDescriptor
-	fields, ok := value.(map[string]any)
-	if !ok {
-		return descriptor, convert(value, &descriptor)
-	}
-	body, plain := fields["body"]
-	for key := range fields {
-		// The codec picks among case variants by its own rule; keep it.
-		if key != "body" && strings.EqualFold(key, "body") {
-			plain = false
-			break
-		}
-	}
-	if plain {
-		body, plain = cloneJSONValue(body, 1)
-	}
-	if !plain {
-		return descriptor, convert(value, &descriptor)
-	}
-	rest := maps.Clone(fields)
-	delete(rest, "body")
-	if err := convert(rest, &descriptor); err != nil {
-		return descriptor, err
-	}
-	descriptor.Body = body
-	return descriptor, nil
 }
 
 func convert(value any, target any) error {

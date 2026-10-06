@@ -52,6 +52,21 @@ func (e *HookError) Unwrap() error {
 	return e.wrapped
 }
 
+// ResultError reports a hook result that CallInto could not store: one the
+// host codec cannot encode (a NaN, an infinity, a cycle) or one the target's
+// type rejects. Its message is the codec's.
+type ResultError struct {
+	err error
+}
+
+func (e *ResultError) Error() string {
+	return e.err.Error()
+}
+
+func (e *ResultError) Unwrap() error {
+	return e.err
+}
+
 func newHookError(hook, rawMessage string, wrapped error) *HookError {
 	var b strings.Builder
 	b.Grow(len(rawMessage))
@@ -281,19 +296,34 @@ type RawJSON []byte
 
 // Call invokes one named module export and returns its JSON-compatible value.
 func (e *Engine) Call(ctx context.Context, exportName string, args ...any) (result any, err error) {
-	return e.call(ctx, 0, exportName, nil, args...)
+	return e.call(ctx, 0, exportName, nil, nil, args...)
+}
+
+// CallInto invokes one named module export and stores its result in target as
+// the host codec decodes the encoding of the value Call returns, without that
+// round trip for plain results. A result the codec cannot encode or target's
+// type rejects is a *ResultError, and target may then hold part of it.
+func (e *Engine) CallInto(ctx context.Context, target any, exportName string, args ...any) error {
+	_, err := e.call(ctx, 0, exportName, nil, target, args...)
+	return err
 }
 
 // CallMember invokes a function stored on an exported object, such as a
 // renderer in the renderers export.
 func (e *Engine) CallMember(ctx context.Context, exportName, memberName string, args ...any) (result any, err error) {
-	return e.call(ctx, 0, exportName, []string{memberName}, args...)
+	return e.call(ctx, 0, exportName, []string{memberName}, nil, args...)
 }
 
 // CallPath invokes a function nested below an exported object. It is used for
 // protocol hooks such as protocols.openai_responses.renderEvents.
 func (e *Engine) CallPath(ctx context.Context, exportName string, members []string, args ...any) (result any, err error) {
-	return e.call(ctx, 0, exportName, members, args...)
+	return e.call(ctx, 0, exportName, members, nil, args...)
+}
+
+// CallPathInto is CallInto for a function nested below an exported object.
+func (e *Engine) CallPathInto(ctx context.Context, target any, exportName string, members []string, args ...any) error {
+	_, err := e.call(ctx, 0, exportName, members, target, args...)
+	return err
 }
 
 // CallPathWithAdmissionTimeout gives long-lived observers a separate bound for
@@ -307,7 +337,7 @@ func (e *Engine) CallPathWithAdmissionTimeout(
 	members []string,
 	args ...any,
 ) (result any, err error) {
-	return e.call(ctx, admissionTimeout, exportName, members, args...)
+	return e.call(ctx, admissionTimeout, exportName, members, nil, args...)
 }
 
 func (e *Engine) call(
@@ -315,6 +345,7 @@ func (e *Engine) call(
 	admissionTimeout time.Duration,
 	exportName string,
 	members []string,
+	target any,
 	args ...any,
 ) (any, error) {
 	if err := e.acquireCallSlot(ctx, admissionTimeout); err != nil {
@@ -373,12 +404,23 @@ func (e *Engine) call(
 	var exception *moejs.Exception
 	if err == nil {
 		var result any
-		if result, err = instance.runtime.ToGo(value); err == nil {
+		if target != nil {
+			err = instance.runtime.ToGoInto(value, target)
+		} else {
+			result, err = instance.runtime.ToGo(value)
+		}
+		if err == nil {
 			return result, nil
 		}
 		if errors.As(err, &interrupted) {
 			reusable = false
 			return nil, fmt.Errorf("plugin %s@%s hook %s interrupted: %w", e.key, e.version, hook.Name(), interruptCause(interrupted))
+		}
+		// Past ToGo's errors, ToGoInto fails as json.Marshal and
+		// json.Unmarshal do, which is the host codec (common/json.go).
+		var internal *moejs.InternalError
+		if target != nil && !errors.As(err, &exception) && !errors.As(err, &internal) {
+			return nil, &ResultError{err: err}
 		}
 	}
 	switch {

@@ -167,7 +167,7 @@ require (
 )
 
 require (
-	github.com/Calcium-Ion/moejs v0.1.0-alpha.3
+	github.com/Calcium-Ion/moejs v0.1.0-alpha.5
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/QuantumNous/new-api/relaykit v0.0.0
 )
