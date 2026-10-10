@@ -361,6 +361,7 @@ export type BillingSettings = {
   QuotaForInvitee: number
   TopUpLink: string
   'quota_setting.enable_free_model_pre_consume': boolean
+  'quota_setting.zero_output_token_insurance': boolean
   'quota_setting.trust_quota_usd': number
   'quota_setting.pre_consume_multiplier': number
   QuotaPerUnit: number

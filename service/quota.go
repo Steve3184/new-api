@@ -355,6 +355,12 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
 	}
 
+	zeroOutputInsured := zeroOutputTokenInsuranceApplies(relayInfo, usage)
+	if zeroOutputInsured {
+		quota = 0
+		logContent += "，零输出 Token 保险：本次请求免计费"
+	}
+
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 && !fixedPriceBilling {
 		// in this case, must be some error happened
@@ -378,6 +384,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	other := GenerateAudioOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	if zeroOutputInsured {
+		other.SetPublic("zero_output_token_insurance", true)
+	}
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}

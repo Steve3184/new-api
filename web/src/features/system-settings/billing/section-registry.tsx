@@ -71,6 +71,8 @@ const BILLING_SECTIONS = [
           QuotaForInvitee: settings.QuotaForInvitee,
           TopUpLink: settings.TopUpLink,
           quota_setting: {
+            zero_output_token_insurance:
+              settings['quota_setting.zero_output_token_insurance'],
             trust_quota_usd: settings['quota_setting.trust_quota_usd'],
             pre_consume_multiplier:
               settings['quota_setting.pre_consume_multiplier'],

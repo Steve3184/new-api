@@ -46,6 +46,7 @@ function Fixture() {
             QuotaForInvitee: 0,
             TopUpLink: '',
             quota_setting: {
+              zero_output_token_insurance: false,
               enable_free_model_pre_consume: true,
               trust_quota_usd: 10,
               pre_consume_multiplier: 1,
@@ -77,6 +78,35 @@ async function renderSettings() {
 
 beforeEach(() => {
   vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+})
+
+test('zero output insurance defaults off and saves both toggle states', async () => {
+  const user = userEvent.setup()
+  await renderSettings()
+  const toggle = screen.getByRole('switch', {
+    name: 'Zero Output Token Insurance',
+  })
+  expect(toggle).not.toBeChecked()
+  toggle.focus()
+  await user.keyboard(' ')
+  expect(toggle).toBeChecked()
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(api.put).toHaveBeenCalledWith('/api/option/', {
+      key: 'quota_setting.zero_output_token_insurance',
+      value: true,
+    })
+  )
+  await waitFor(() => expect(toggle).toBeEnabled())
+  await user.click(toggle)
+  expect(toggle).not.toBeChecked()
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(api.put).toHaveBeenLastCalledWith('/api/option/', {
+      key: 'quota_setting.zero_output_token_insurance',
+      value: false,
+    })
+  )
 })
 
 test.each(['0.5', '1.5', '2.5', '0.0001'])(

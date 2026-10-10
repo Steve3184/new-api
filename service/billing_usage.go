@@ -1,9 +1,43 @@
 package service
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
+
+// zeroOutputTokenInsuranceApplies only covers generation requests. Embeddings,
+// standalone search, images and other task APIs can succeed without output tokens.
+// Inspect canonical totals before expression pricing subtracts output categories.
+func zeroOutputTokenInsuranceApplies(info *relaycommon.RelayInfo, usage *dto.Usage) bool {
+	if !operation_setting.GetQuotaSetting().ZeroOutputTokenInsurance {
+		return false
+	}
+	if info.RelayFormat != types.RelayFormatClaude {
+		switch info.RelayMode {
+		case relayconstant.RelayModeChatCompletions, relayconstant.RelayModeCompletions,
+			relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact,
+			relayconstant.RelayModeSystemOne, relayconstant.RelayModeEdits:
+		case relayconstant.RelayModeGemini:
+			if strings.Contains(strings.ToLower(info.RequestURLPath), "embed") {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	usage = effectiveBillingUsage(usage)
+	if usage == nil {
+		return true
+	}
+	return usage.CompletionTokens == 0 && usage.OutputTokens == 0 &&
+		usage.CompletionTokenDetails == (dto.OutputTokenDetails{})
+}
 
 const (
 	usageBillingPathLocal              = "local"

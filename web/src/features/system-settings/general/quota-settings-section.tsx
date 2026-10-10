@@ -57,6 +57,7 @@ const quotaSchema = z.object({
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
   quota_setting: z.object({
+    zero_output_token_insurance: z.boolean(),
     enable_free_model_pre_consume: z.boolean(),
     trust_quota_usd: z.preprocess(
       (value) => (value === '' ? undefined : value),
@@ -278,6 +279,32 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='quota_setting.zero_output_token_insurance'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Zero Output Token Insurance')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Waive all charges and refund reserved quota for generation requests with zero output tokens. Applies to streaming and non-streaming requests, including input, cache and tool fees. Embeddings, standalone search, image, audio and video APIs are excluded.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
 
             <SettingsFormGridItem span='full'>
               <FormField

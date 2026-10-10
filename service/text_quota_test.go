@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 
@@ -90,7 +92,162 @@ func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
 			t.Logf("database: %s", version)
 			runFixedPriceAccountingCases(t, db, logDB)
+			runZeroOutputInsuranceCases(t, db, logDB)
 		})
+	}
+}
+
+func runZeroOutputInsuranceCases(t *testing.T, db, logDB *gorm.DB) {
+	t.Helper()
+	const optionKey = "quota_setting.zero_output_token_insurance"
+	const initialQuota = 100000
+	previousConfig := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(previousConfig)) })
+	common.OptionMapRWMutex.Lock()
+	previousOptions := common.OptionMap
+	common.OptionMap = map[string]string{}
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptions
+		common.OptionMapRWMutex.Unlock()
+	})
+	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}))
+	t.Cleanup(func() { require.NoError(t, db.Where(&model.Option{Key: optionKey}).Delete(&model.Option{}).Error) })
+	operation_setting.SetToolPriceForTest("insurance_tool", 4)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest("insurance_tool") })
+	inputOnly := &dto.Usage{PromptTokens: 1000, TotalTokens: 1000}
+	nonzero := &dto.Usage{PromptTokens: 1000, CompletionTokens: 10, TotalTokens: 1010}
+	for _, funding := range []string{"wallet_only", "subscription_only"} {
+		for index, tc := range []struct {
+			name, expression, path                       string
+			format                                       types.RelayFormat
+			mode                                         int
+			usage                                        *dto.Usage
+			disabled, fixed, stream, audio, tool, bypass bool
+			want                                         int
+			insured                                      bool
+		}{
+			{name: "disabled preserves input charge", disabled: true, usage: inputOnly, want: 1000},
+			{name: "zero output refunds reservation", usage: inputOnly, insured: true},
+			{name: "trust bypass stays free", usage: inputOnly, bypass: true, insured: true},
+			{name: "stream refunds reservation", usage: inputOnly, stream: true, insured: true},
+			{name: "missing usage refunds estimate", insured: true},
+			{name: "normal output still charges", usage: nonzero, want: 1010},
+			{name: "legacy fixed price waived", usage: inputOnly, fixed: true, insured: true},
+			{name: "expression input charge waived", usage: inputOnly, expression: `tier("base", p * 2 + c * 10)`, insured: true},
+			{name: "expression fixed charge waived", usage: inputOnly, expression: `tier("request", fixed(0.01))`, insured: true},
+			{name: "expression error fallback waived", usage: inputOnly, expression: `tier("base", param("missing") * p)`, insured: true},
+			{name: "tool fees also waived", usage: inputOnly, tool: true, insured: true},
+			{name: "claude input and cache waived", format: types.RelayFormatClaude, usage: &dto.Usage{PromptTokens: 1000, TotalTokens: 1000, UsageSemantic: "anthropic", PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 500, CachedCreationTokens: 200}}, insured: true},
+			{name: "gemini generation waived", mode: relayconstant.RelayModeGemini, path: "/v1beta/models/gemini:generateContent", usage: inputOnly, insured: true},
+			{name: "responses websocket usage waived", mode: relayconstant.RelayModeResponses, stream: true, usage: inputOnly, insured: true},
+			{name: "audio chat waived", audio: true, usage: inputOnly, expression: `tier("base", p * 2)`, insured: true},
+			{name: "canonical zero output overrides converted usage", usage: &dto.Usage{PromptTokens: 1000, CompletionTokens: 10, BillingUsage: dto.NewOpenAIResponsesBillingUsage(inputOnly)}, insured: true},
+			{name: "canonical output prevents waiver", usage: &dto.Usage{PromptTokens: 1000, BillingUsage: dto.NewOpenAIResponsesBillingUsage(nonzero)}, want: 1010},
+			{name: "reasoning output prevents waiver", usage: &dto.Usage{PromptTokens: 1000, TotalTokens: 1000, CompletionTokenDetails: dto.OutputTokenDetails{ReasoningTokens: 10}}, want: 1000},
+			{name: "audio output prevents waiver", audio: true, usage: &dto.Usage{PromptTokens: 1000, TotalTokens: 1000, CompletionTokenDetails: dto.OutputTokenDetails{AudioTokens: 10}}, expression: `tier("base", p * 2)`, want: 1000},
+			{name: "embeddings still charge", mode: relayconstant.RelayModeEmbeddings, usage: inputOnly, want: 1000},
+			{name: "gemini embeddings still charge", mode: relayconstant.RelayModeGemini, path: "/v1beta/models/gemini:embedContent", usage: inputOnly, want: 1000},
+			{name: "gemini batch embeddings still charge", mode: relayconstant.RelayModeGemini, path: "/v1beta/models/gemini:batchEmbedContents", usage: inputOnly, want: 1000},
+			{name: "images still charge", mode: relayconstant.RelayModeImagesGenerations, usage: inputOnly, fixed: true, want: 5000},
+			{name: "standalone search still charges", mode: relayconstant.RelayModeAlphaSearch, usage: inputOnly, tool: true, want: 3000},
+		} {
+			t.Run("insurance/"+funding+"/"+tc.name, func(t *testing.T) {
+				require.NoError(t, model.UpdateOption(optionKey, strconv.FormatBool(!tc.disabled)))
+				var saved model.Option
+				require.NoError(t, db.Where(&model.Option{Key: optionKey}).Take(&saved).Error)
+				assert.Equal(t, strconv.FormatBool(!tc.disabled), saved.Value)
+				for range 2 {
+					operation_setting.GetQuotaSetting().ZeroOutputTokenInsurance = tc.disabled
+					require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{optionKey: saved.Value}))
+					assert.Equal(t, !tc.disabled, operation_setting.GetQuotaSetting().ZeroOutputTokenInsurance)
+				}
+				require.Error(t, model.UpdateOption(optionKey, "invalid"))
+				assert.Equal(t, !tc.disabled, operation_setting.GetQuotaSetting().ZeroOutputTokenInsurance)
+				user := model.User{Username: fmt.Sprintf("insurance-%s-%d", funding, index), Quota: initialQuota, Group: "default"}
+				require.NoError(t, db.Create(&user).Error)
+				token := model.Token{UserId: user.Id, Key: fmt.Sprintf("insurance-%s-%d", funding, index), RemainQuota: initialQuota}
+				require.NoError(t, db.Create(&token).Error)
+				channel := model.Channel{Name: "insurance", Key: "unused"}
+				require.NoError(t, db.Create(&channel).Error)
+				t.Cleanup(func() {
+					require.NoError(t, logDB.Where("user_id = ?", user.Id).Delete(&model.Log{}).Error)
+					require.NoError(t, db.Unscoped().Delete(&token).Error)
+					require.NoError(t, db.Unscoped().Delete(&user).Error)
+					require.NoError(t, db.Unscoped().Delete(&channel).Error)
+				})
+				var subscription model.UserSubscription
+				if funding == "subscription_only" {
+					plan := model.SubscriptionPlan{Title: "insurance", TotalAmount: initialQuota}
+					require.NoError(t, db.Create(&plan).Error)
+					model.InvalidateSubscriptionPlanCache(plan.Id)
+					subscription = model.UserSubscription{UserId: user.Id, PlanId: plan.Id, AmountTotal: initialQuota, Status: "active", StartTime: time.Now().Add(-time.Hour).Unix(), EndTime: time.Now().Add(time.Hour).Unix()}
+					require.NoError(t, db.Create(&subscription).Error)
+					t.Cleanup(func() {
+						require.NoError(t, db.Where("user_subscription_id = ?", subscription.Id).Delete(&model.SubscriptionPreConsumeRecord{}).Error)
+						require.NoError(t, db.Delete(&subscription).Error)
+						require.NoError(t, db.Delete(&plan).Error)
+						model.InvalidateSubscriptionPlanCache(plan.Id)
+					})
+				}
+				mode := tc.mode
+				if mode == 0 {
+					mode = relayconstant.RelayModeChatCompletions
+				}
+				info := &relaycommon.RelayInfo{RequestId: token.Key, UserId: user.Id, TokenId: token.Id, TokenKey: token.Key, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: channel.Id}, RelayMode: mode, RelayFormat: tc.format, RequestURLPath: tc.path, OriginModelName: "insurance", UserGroup: "default", UsingGroup: "default", ForcePreConsume: !tc.bypass, StartTime: time.Now(), IsStream: tc.stream, UserSetting: dto.UserSetting{BillingPreference: funding}, PriceData: hosttypes.PriceData{ModelRatio: 1, CompletionRatio: 1, CacheRatio: 1, CacheCreationRatio: 1, UsePrice: tc.fixed, ModelPrice: 0.01, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}}}
+				info.SetEstimatePromptTokens(1000)
+				if tc.expression != "" {
+					info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: "tiered_expr", ExprString: tc.expression, ExprHash: billingexpr.ExprHashString(tc.expression), QuotaPerUnit: common.QuotaPerUnit, GroupRatio: 1}
+				}
+				if tc.tool {
+					info.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{"insurance_tool": {CallCount: 1}}}
+				}
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+				ctx.Set("token_quota", initialQuota)
+				operation_setting.GetQuotaSetting().TrustQuotaUSD = 0.01
+				require.Nil(t, PreConsumeBilling(ctx, 5000, info))
+				expectedHold := 5000
+				if tc.bypass && funding == "wallet_only" {
+					expectedHold = 0
+				}
+				assert.Equal(t, expectedHold, info.FinalPreConsumedQuota)
+				if tc.audio {
+					PostAudioConsumeQuota(ctx, info, tc.usage, "")
+				} else {
+					PostTextConsumeQuota(ctx, info, tc.usage, nil)
+				}
+				require.NoError(t, info.Billing.Settle(tc.want))
+				info.Billing.Refund(ctx) // A settled refund must not credit the reservation twice.
+				require.NoError(t, db.First(&user, user.Id).Error)
+				require.NoError(t, db.First(&token, token.Id).Error)
+				require.NoError(t, db.First(&channel, channel.Id).Error)
+				walletCharge := tc.want
+				if funding == "subscription_only" {
+					walletCharge = 0
+					require.NoError(t, db.First(&subscription, subscription.Id).Error)
+					assert.EqualValues(t, tc.want, subscription.AmountUsed)
+				}
+				assert.Equal(t, initialQuota-walletCharge, user.Quota)
+				assert.Equal(t, initialQuota-tc.want, token.RemainQuota)
+				assert.Equal(t, tc.want, user.UsedQuota)
+				assert.Equal(t, tc.want, token.UsedQuota)
+				assert.EqualValues(t, tc.want, channel.UsedQuota)
+				var log model.Log
+				require.NoError(t, logDB.Where("user_id = ?", user.Id).Take(&log).Error)
+				assert.Equal(t, tc.want, log.Quota)
+				assert.Equal(t, 1000, log.PromptTokens)
+				assert.Equal(t, tc.stream, log.IsStream)
+				var other map[string]any
+				require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+				if tc.insured {
+					assert.Equal(t, true, other["zero_output_token_insurance"])
+				} else {
+					assert.NotContains(t, other, "zero_output_token_insurance")
+				}
+			})
+		}
 	}
 }
 
