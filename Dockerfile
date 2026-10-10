@@ -30,7 +30,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY . .
 COPY --from=builder /build/web/dist ./web/dist
-RUN go build -pgo="$(go list -m -f '{{.Dir}}' github.com/Calcium-Ion/moejs)/default.pgo" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
+# Cache mounts are not part of cached layers; restore dependencies before
+# resolving the PGO profile, including when CI restores only the download layer.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/cache/go-build \
+    go mod download \
+    && pgo_dir="$(go list -m -f '{{.Dir}}' github.com/Calcium-Ion/moejs)" \
+    && test -s "$pgo_dir/default.pgo" \
+    && GOCACHE=/cache/go-build go build -pgo="$pgo_dir/default.pgo" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 
