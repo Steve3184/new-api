@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/gin-contrib/gzip"
-	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/html"
 )
@@ -120,13 +119,20 @@ func renderSPAIndex(indexPage []byte, logo, systemName string, meta console_sett
 
 func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
+	compress := gzip.Gzip(gzip.DefaultCompression)
+	serveFrontend := middleware.ServeFrontendFiles(frontendFS)
 
 	router.NoRoute(
 		pluginDispatcher,
 		middleware.RouteTag("web"),
-		gzip.Gzip(gzip.DefaultCompression),
+		func(c *gin.Context) {
+			// ServeFrontendFiles sends build files already compressed.
+			if !frontendFS.Exists("/", c.Request.URL.Path) {
+				compress(c)
+			}
+		},
 		middleware.AccessTokenAudit(),
-		middleware.GlobalWebRateLimit(),
+		middleware.GlobalWebRateLimit(frontendFS),
 		func(c *gin.Context) {
 			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
 				c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
@@ -135,7 +141,7 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 			}
 			if frontendFS.Exists("/", c.Request.URL.Path) {
 				middleware.Cache()(c)
-				static.Serve("/", frontendFS)(c)
+				serveFrontend(c)
 				return
 			}
 			middleware.Cache()(c)

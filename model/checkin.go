@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/QuantumNous/new-api/common"
 	"math/rand"
 	"time"
 
@@ -137,7 +138,7 @@ func checkinEligibilityError(eligibility CheckinEligibility, setting *operation_
 func UserCheckin(userId int) (*Checkin, error) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
-		return nil, errors.New("签到功能未启用")
+		return nil, common.NewMessage("Check-in feature is not enabled")
 	}
 	if setting.MinQuota < 0 || setting.MaxQuota < setting.MinQuota {
 		return nil, errors.New("签到奖励范围配置无效")
@@ -163,7 +164,7 @@ func UserCheckin(userId int) (*Checkin, error) {
 			CreatedAt:    time.Now().Unix(),
 		}
 		if err := tx.Create(checkin).Error; err != nil {
-			return errors.New("签到失败，请稍后重试")
+			return common.NewMessage("Check-in failed, please try again later")
 		}
 		column := "quota"
 		if setting.DeductibleGroups != "" {

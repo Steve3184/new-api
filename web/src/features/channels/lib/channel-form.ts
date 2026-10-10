@@ -316,6 +316,7 @@ export const channelFormSchema = z
       .min(0)
       .max(MAX_STREAM_FIRST_RESPONSE_TIMEOUT_SECONDS)
       .optional(),
+    tls_insecure_skip_verify: z.boolean().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
@@ -519,6 +520,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
   stream_first_response_timeout: 0,
+  tls_insecure_skip_verify: false,
   pass_through_body_enabled: false,
   responses_websocket_enabled: false,
   system_prompt: '',
@@ -571,6 +573,7 @@ export function transformChannelToFormDefaults(
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
     stream_first_response_timeout: 0,
+    tls_insecure_skip_verify: false,
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
     system_prompt: '',
@@ -602,6 +605,7 @@ export function transformChannelToFormDefaults(
           typeof parsed.stream_first_response_timeout === 'number'
             ? parsed.stream_first_response_timeout
             : 0,
+        tls_insecure_skip_verify: parsed.tls_insecure_skip_verify === true,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         responses_websocket_enabled:
           parsed.responses_websocket_enabled === true,
@@ -788,6 +792,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
   if ((formData.stream_first_response_timeout ?? 0) > 0) {
     settingObj.stream_first_response_timeout =
       formData.stream_first_response_timeout
+  }
+  if (formData.tls_insecure_skip_verify === true) {
+    settingObj.tls_insecure_skip_verify = true
   }
 
   return JSON.stringify(settingObj)

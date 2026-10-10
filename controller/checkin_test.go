@@ -32,7 +32,7 @@ func TestDoCheckinRequiresBalanceStrictlyAboveConfiguredThreshold(t *testing.T) 
 		message string
 	}{
 		{name: "equal balance is rejected", quota: 100, success: false, message: "用户余额必须大于 100 才能签到"},
-		{name: "greater balance is accepted", quota: 101, success: true, message: "签到成功"},
+		{name: "greater balance is accepted", quota: 101, success: true, message: "Check-in successful"},
 	}
 
 	for index, test := range tests {

@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"strings"
 
@@ -215,7 +214,7 @@ func CreditReferralReward(id int, now int64) error {
 	})
 	if err == nil && credited {
 		syncCreditUserQuotaCache(reward.InviterID, reward.Quota, "referral reward")
-		RecordLog(reward.InviterID, LogTypeSystem, fmt.Sprintf("邀请充值奖励到账，奖励ID %d，额度 %d", reward.ID, reward.Quota))
+		RecordLog(reward.InviterID, LogTypeSystem, common.NewMessage("Referral top-up reward received, reward ID {{id}}, quota {{quota}}", map[string]any{"id": reward.ID, "quota": reward.Quota}))
 	}
 	return err
 }

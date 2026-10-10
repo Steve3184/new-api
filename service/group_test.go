@@ -34,8 +34,8 @@ func TestUserUsableGroupsAssignedGroupDescription(t *testing.T) {
 		name, usable, visible, special, want string
 	}{
 		{"assigned group description", `{"default":"Default"}`, `{"assigned":"Assigned plan\nFor existing users","other":"Public only"}`, "", "Assigned plan\nFor existing users"},
-		{"blank description fallback", `{"default":"Default"}`, `{"assigned":"  "}`, "", "用户分组"},
-		{"legacy visible array fallback", `{"default":"Default"}`, `["assigned","other"]`, "", "用户分组"},
+		{"blank description fallback", `{"default":"Default"}`, `{"assigned":"  "}`, "", "User group"},
+		{"legacy visible array fallback", `{"default":"Default"}`, `["assigned","other"]`, "", "User group"},
 		{"selectable description wins", `{"default":"Default","assigned":"Selectable plan"}`, `{"assigned":"Public plan"}`, "", "Selectable plan"},
 		{"special description wins", `{"default":"Default"}`, `{"assigned":"Public plan"}`, "Special plan", "Special plan"},
 	} {

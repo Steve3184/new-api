@@ -247,7 +247,9 @@ describe('security page migration', () => {
     await renderPage('/profile')
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: 'Save Settings' })
+        within(
+          screen.getByRole('complementary', { name: 'Preferences' })
+        ).getByRole('button', { name: 'Save Settings' })
       ).toBeVisible()
     )
     expect(

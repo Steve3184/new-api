@@ -236,7 +236,7 @@ func SettleMoneroPayment(paymentID int, receivedAtomic string, transactionIDs []
 	})
 	RecordTopupLog(
 		settled.TopUp.UserId,
-		fmt.Sprintf("使用 Monero 充值成功，充值额度: %v，支付金额：%.8f USD", logger.FormatQuota(quotaToAdd), settled.TopUp.Money),
+		common.NewMessage("{{provider}} top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"provider": "Monero", "quota": logger.FormatQuota(quotaToAdd), "amount": fmt.Sprintf("%.8f USD", settled.TopUp.Money)}),
 		"monero-rpc",
 		PaymentMethodMonero,
 		PaymentProviderMonero,

@@ -77,7 +77,7 @@ func newSMTPClient(addr string) (*smtp.Client, error) {
 
 func SendEmail(subject string, receiver string, content string) error {
 	if strings.TrimSpace(SMTPServer) == "" {
-		return fmt.Errorf("SMTP 服务器未配置")
+		return NewMessage("SMTP server is not configured")
 	}
 	if SMTPFrom == "" { // for compatibility
 		SMTPFrom = SMTPAccount
@@ -130,7 +130,7 @@ func SendEmail(subject string, receiver string, content string) error {
 	}
 	err = client.Quit()
 	if err != nil {
-		SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, err))
+		SysError(LogText("failed to send email to %s: %v", receiver, err))
 	}
 	return err
 }

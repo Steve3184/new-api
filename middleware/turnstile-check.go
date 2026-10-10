@@ -26,10 +26,7 @@ func turnstileCheck(cacheSession bool) gin.HandlerFunc {
 		if common.TurnstileCheckEnabled {
 			response := c.Query("turnstile")
 			if response == "" {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "Turnstile token 为空",
-				})
+				common.ApiErrorT(c, "Turnstile token is empty")
 				c.Abort()
 				return
 			}
@@ -60,10 +57,7 @@ func turnstileCheck(cacheSession bool) gin.HandlerFunc {
 				return
 			}
 			if !res.Success {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "Turnstile 校验失败，请刷新重试！",
-				})
+				common.ApiErrorT(c, "Turnstile verification failed, please refresh and try again!")
 				c.Abort()
 				return
 			}

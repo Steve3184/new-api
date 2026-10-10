@@ -438,7 +438,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 							}
 							info.StreamStatus.MarkFailed(code, rejection.Error.Type, rejection.Status)
 						}
-						accumulator.Observe(&event.ResponsesStreamResponse)
+						accumulator.Observe(&event.ResponsesStreamResponse, incoming.body)
 						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 						s.lastResponseID = responseID
 						state.terminalMessages, state.closeAfter = []*responsesWSMessage{&incoming}, ambiguous
@@ -466,7 +466,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 						responseID = event.Response.ID
 					}
 				}
-				accumulator.Observe(&event.ResponsesStreamResponse)
+				accumulator.Observe(&event.ResponsesStreamResponse, incoming.body)
 				handled, simulationTerminal, outputs, simulationErr := helper.HandleSimulatedRemoteCompactV2WebSocketEvent(c, event.ResponsesStreamResponse, incoming.body)
 				if simulationErr != nil {
 					info.StreamStatus.RecordError(simulationErr.Error())

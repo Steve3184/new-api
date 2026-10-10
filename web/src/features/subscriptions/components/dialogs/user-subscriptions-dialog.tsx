@@ -57,6 +57,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
+import { getServerMessage } from '@/lib/server-error-message'
 
 import {
   getAdminPlans,
@@ -175,7 +176,7 @@ export function UserSubscriptionsDialog(props: Props) {
         plan_id: Number(selectedPlanId),
       })
       if (res.success) {
-        toast.success(res.data?.message || t('Added successfully'))
+        toast.success(getServerMessage(res.data) || t('Added successfully'))
         setSelectedPlanId('')
         await loadData()
         props.onSuccess?.()
@@ -193,7 +194,7 @@ export function UserSubscriptionsDialog(props: Props) {
       if (confirmAction.type === 'invalidate') {
         const res = await invalidateUserSubscription(confirmAction.subId)
         if (res.success) {
-          toast.success(res.data?.message || t('Has been invalidated'))
+          toast.success(getServerMessage(res.data) || t('Has been invalidated'))
           await loadData()
           props.onSuccess?.()
         }

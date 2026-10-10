@@ -92,6 +92,7 @@ const CONFIGURATION_BLOCKS = {
       'http_protocol',
       'http2_connection_shards',
       'stream_first_response_timeout',
+      'tls_insecure_skip_verify',
       'disable_task_polling_sleep',
       'agnes_auto_image_url',
     ],
@@ -170,7 +171,7 @@ export function getChannelConfigurationState(
         values.pass_through_body_enabled) ||
       ((values.type === 1 || values.type === 24) && values.proxy_image_urls) ||
       (supportsResponsesWebSocket(values.type) &&
-         values.responses_websocket_enabled) ||
+        values.responses_websocket_enabled) ||
       (values.type === CHANNEL_TYPE_OLLAMA && values.ollama_openai_chat) ||
       values.system_prompt?.trim() ||
       values.system_prompt_override
@@ -191,6 +192,7 @@ export function getChannelConfigurationState(
       values.proxy?.trim() ||
       (values.http_protocol && values.http_protocol !== 'auto') ||
       (values.http2_connection_shards ?? 1) > 1 ||
+      values.tls_insecure_skip_verify ||
       (values.stream_first_response_timeout ?? 0) > 0 ||
       values.disable_task_polling_sleep ||
       (values.type === CHANNEL_TYPE_AGNES && values.agnes_auto_image_url)

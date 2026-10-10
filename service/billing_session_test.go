@@ -49,6 +49,7 @@ func TestNewBillingSessionUsesEffectiveRequestGroupForSubscriptionWhitelist(t *t
 	require.NoError(t, model.DB.Create(subscription).Error)
 
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		RequestId:       "subscription-whitelist-request",
 		UserId:          user.Id,

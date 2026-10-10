@@ -331,7 +331,7 @@ func TestSendEmailRejectsMissingSMTPConfiguration(t *testing.T) {
 	SMTPFrom = ""
 
 	err := SendSMTPTestEmail("receiver@example.com")
-	require.EqualError(t, err, "SMTP 服务器未配置")
+	require.EqualError(t, err, "SMTP server is not configured")
 }
 
 func TestSendEmailExplicitStartTLSRequiresServerSupport(t *testing.T) {

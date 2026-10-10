@@ -120,7 +120,7 @@ func serveTaskPluginSpeechProtocol(c *gin.Context, pinned pluginruntime.PinnedEn
 		respondPluginProtocolError(c, http.StatusInternalServerError, "task_protocol_error", "Task protocol request failed")
 		return
 	}
-	descriptor, err := provider.BuildContentRequest(task, artifactKey, channel.TaskArtifactClientRequest{Method: http.MethodGet})
+	descriptor, err := provider.BuildContentRequest(c.Request.Context(), task, artifactKey, channel.TaskArtifactClientRequest{Method: http.MethodGet})
 	if err != nil || descriptor == nil {
 		respondPluginProtocolError(c, http.StatusInternalServerError, "task_protocol_error", "Task protocol request failed")
 		return

@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -174,7 +173,7 @@ func applyRedemptionCreatorFilter(query *gorm.DB, creatorType []string) *gorm.DB
 
 func GetRedemptionById(id int) (*Redemption, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, common.NewMessage("ID is empty")
 	}
 	redemption := Redemption{Id: id}
 	var err error = nil
@@ -276,9 +275,9 @@ func RedeemWithResult(key string, userId int) (result *RedemptionResult, err err
 				if upgradeGroup != "" {
 					refreshSubscriptionUserGroupCache(userId, "redemption completion")
 				}
-				RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码兑换订阅套餐 %s，兑换码ID %d", result.SubscriptionPlanTitle, redemption.Id))
+				RecordLog(userId, LogTypeTopup, common.NewMessage("Redeemed subscription plan {{plan}}, code ID {{id}}", map[string]any{"plan": result.SubscriptionPlanTitle, "id": redemption.Id}))
 			} else {
-				RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(result.Quota), redemption.Id))
+				RecordLog(userId, LogTypeTopup, common.NewMessage("Topped up {{quota}} with a redemption code, code ID {{id}}", map[string]any{"quota": logger.FormatQuota(result.Quota), "id": redemption.Id}))
 			}
 			return result, nil
 		}
@@ -439,7 +438,7 @@ func RefundPurchasedRedemption(id int, userId int) (int, error) {
 		return 0, err
 	}
 	syncCreditUserQuotaCache(userId, quota, "redemption refund")
-	RecordLog(userId, LogTypeRefund, fmt.Sprintf("兑换码退款到账 %s，兑换码ID %d", logger.LogQuota(quota), id))
+	RecordLog(userId, LogTypeRefund, common.NewMessage("Redemption code refund received: {{quota}}, code ID {{id}}", map[string]any{"quota": logger.FormatQuota(quota), "id": id}))
 	return quota, nil
 }
 
@@ -451,7 +450,7 @@ func (redemption *Redemption) Delete() error {
 
 func DeleteRedemptionById(id int) (err error) {
 	if id == 0 {
-		return errors.New("id 为空！")
+		return common.NewMessage("ID is empty")
 	}
 	redemption := Redemption{Id: id}
 	err = DB.Where(redemption).First(&redemption).Error

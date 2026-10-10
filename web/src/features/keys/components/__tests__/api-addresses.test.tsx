@@ -28,6 +28,7 @@ import {
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import { api } from '@/lib/api'
 import { STATUS_QUERY_KEY, type StatusData } from '@/lib/status-query'
 
 import { ApiKeysPrimaryButtons } from '../api-keys-primary-buttons'
@@ -37,6 +38,7 @@ let client: QueryClient
 
 beforeEach(() => {
   localStorage.clear()
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data: {} } })
   client = new QueryClient({
     defaultOptions: { queries: { enabled: false, retry: false } },
   })

@@ -45,8 +45,8 @@ func GetUserGroups(c *gin.Context) {
 		if autoDescription == "" {
 			autoDescription = setting.GetUsableGroupDescription("auto")
 		}
-		usableGroups["auto"] = map[string]interface{}{
-			"ratio":         "自动",
+		usableGroups["auto"] = map[string]any{
+			"ratio":         "auto",
 			"desc":          autoDescription,
 			"default_model": ratio_setting.GetGroupDefaultModel("auto"),
 		}

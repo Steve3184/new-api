@@ -60,6 +60,8 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { getPaymentErrorTranslation } from '@/features/wallet/lib/payment'
+import { handleServerError } from '@/lib/handle-server-error'
 import { cn } from '@/lib/utils'
 
 import { confirmPaymentCompliance } from '../api'
@@ -1059,12 +1061,14 @@ export function PaymentSettingsSection({
         return
       }
 
-      const reason = typeof body?.data === 'string' ? body.data : undefined
-      toast.error(
-        reason
+      const reason =
+        getPaymentErrorTranslation(body) ??
+        (typeof body?.data === 'string' ? body.data : undefined)
+      handleServerError(body, undefined, {
+        title: reason
           ? `${t('Waffo Pancake save failed')}: ${reason}`
-          : t('Waffo Pancake save failed')
-      )
+          : t('Waffo Pancake save failed'),
+      })
     } catch (error) {
       toast.error(
         `${t('Waffo Pancake save failed')}: ${

@@ -298,7 +298,7 @@ func SettleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, cal
 	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "NOWPayments topup")
 	RecordTopupLog(
 		topUp.UserId,
-		fmt.Sprintf("使用 NOWPayments 充值成功，充值额度: %v，支付金额：%.8f USD", logger.FormatQuota(quotaToAdd), topUp.Money),
+		common.NewMessage("{{provider}} top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"provider": "NOWPayments", "quota": logger.FormatQuota(quotaToAdd), "amount": fmt.Sprintf("%.8f USD", topUp.Money)}),
 		callerIP,
 		PaymentMethodNowPayments,
 		PaymentProviderNowPayments,

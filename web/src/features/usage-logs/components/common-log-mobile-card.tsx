@@ -32,7 +32,7 @@ import dayjs from '@/lib/dayjs'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
-import { formatModelName, parseLogOther } from '../lib/format'
+import { formatModelName, logTokenName, parseLogOther } from '../lib/format'
 import {
   getLogTypeConfig,
   isDisplayableLogType,
@@ -106,7 +106,7 @@ export function CommonLogMobileCard<TData>(props: {
     },
     token: {
       label: t('Token'),
-      value: log.token_name,
+      value: logTokenName(log, t),
       visible: displayable && props.cells.has('token_name') && !!log.token_name,
       sensitive: true,
     },
@@ -146,13 +146,13 @@ export function CommonLogMobileCard<TData>(props: {
       <div className='flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2'>
         {fields.model.visible && (
           <div className='min-w-0 flex-[1_1_10rem]'>
-              <ModelBadge
-                modelName={model.name}
-                actualModel={model.actualModel}
-                responseModel={model.responseModel}
-                modelIcon={log.model_icon}
-                providerIcon={log.provider_icon}
-                wrapText
+            <ModelBadge
+              modelName={model.name}
+              actualModel={model.actualModel}
+              responseModel={model.responseModel}
+              modelIcon={log.model_icon}
+              providerIcon={log.provider_icon}
+              wrapText
               onInspect={() => setSelectedField('model')}
             />
           </div>
