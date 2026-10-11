@@ -249,8 +249,9 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormItem>
                     <FormLabel>{t('Auto group description')}</FormLabel>
                     <FormControl>
-                      <Input
+                      <Textarea
                         {...field}
+                        rows={3}
                         placeholder={t(
                           'Optional description for the auto group'
                         )}
@@ -469,8 +470,9 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormItem>
                     <FormLabel>{t('Auto group description')}</FormLabel>
                     <FormControl>
-                      <Input
+                      <Textarea
                         {...field}
+                        rows={3}
                         placeholder={t(
                           'Optional description for the auto group'
                         )}

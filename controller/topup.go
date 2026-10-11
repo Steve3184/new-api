@@ -33,7 +33,7 @@ func GetTopUpInfo(c *gin.Context) {
 	payMethods := make([]map[string]string, 0, len(operation_setting.PayMethods)+4)
 	for _, gateway := range operation_setting.GetEpayGateways() {
 		for _, method := range gateway.PayMethods {
-			if method["type"] == model.PaymentMethodWaffoPancake {
+			if method["type"] == model.PaymentMethodWaffoPancake || method["type"] == model.PaymentMethodNowPayments {
 				continue
 			}
 			copy := make(map[string]string, len(method)+1)
@@ -133,21 +133,21 @@ func GetTopUpInfo(c *gin.Context) {
 
 	enableNowPayments := isNowPaymentsTopUpEnabled()
 	if enableNowPayments {
-		hasNowPayments := false
-		for _, method := range payMethods {
-			if method["type"] == model.PaymentMethodNowPayments {
-				hasNowPayments = true
-				break
-			}
+		nowPaymentsMethod := map[string]string{
+			"name":  "NOWPayments",
+			"type":  model.PaymentMethodNowPayments,
+			"color": "#111827",
 		}
-		if !hasNowPayments {
-			payMethods = append(payMethods, map[string]string{
-				"name":      "NOWPayments",
-				"type":      model.PaymentMethodNowPayments,
-				"color":     "#111827",
-				"min_topup": strconv.Itoa(setting.NowPaymentsMinTopUp),
-			})
+		if configured := operation_setting.GetGlobalPayMethod(model.PaymentMethodNowPayments); configured != nil {
+			maps.Copy(nowPaymentsMethod, configured)
 		}
+		if strings.TrimSpace(nowPaymentsMethod["name"]) == "" {
+			nowPaymentsMethod["name"] = "NOWPayments"
+		}
+		nowPaymentsMethod["type"] = model.PaymentMethodNowPayments
+		nowPaymentsMethod["min_topup"] = strconv.Itoa(setting.NowPaymentsMinTopUp)
+		delete(nowPaymentsMethod, "gateway")
+		payMethods = append(payMethods, nowPaymentsMethod)
 	}
 
 	data := gin.H{

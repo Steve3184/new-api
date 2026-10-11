@@ -89,6 +89,7 @@ type PaymentMethodDialogProps = {
 const PAYMENT_TYPE_ICON_NAMES: Record<string, string> = {
   alipay: 'SiAlipay',
   stripe: 'SiStripe',
+  nowpayments: 'LuWallet',
   waffo_pancake: 'LuCreditCard',
   wxpay: 'SiWechat',
 }
@@ -125,6 +126,11 @@ export function PaymentMethodDialog({
       label: 'Waffo Pancake (waffo_pancake)',
       value: 'waffo_pancake',
     },
+    {
+      iconName: 'LuWallet',
+      label: 'NOWPayments (nowpayments)',
+      value: 'nowpayments',
+    },
   ]
   const getPaymentTypeOption = (value: string) =>
     paymentTypeOptions.find((option) => option.value === value)
@@ -143,6 +149,7 @@ export function PaymentMethodDialog({
   })
 
   const iconValue = form.watch('icon')
+  const isNowPayments = form.watch('type') === 'nowpayments'
 
   useEffect(() => {
     if (editData) {
@@ -250,7 +257,11 @@ export function PaymentMethodDialog({
                     <Input type='number' min='0' step='0.01' {...field} />
                   </FormControl>
                   <FormDescription>
-                    {t('Added to the final payment amount.')}
+                    {isNowPayments
+                      ? t(
+                          'NOWPayments fixed fees are in USD and apply after currency conversion and discounts.'
+                        )
+                      : t('Added to the final payment amount.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -308,7 +319,7 @@ export function PaymentMethodDialog({
                 </FormControl>
                 <FormDescription className='leading-relaxed'>
                   {t(
-                    'Used to decide the payment flow. Built-in keys include stripe for Stripe and waffo_pancake for Waffo Pancake; other values are sent to Epay as the type parameter.'
+                    'Used to decide the payment flow. Built-in keys include stripe for Stripe, waffo_pancake for Waffo Pancake, and nowpayments for NOWPayments; other values are sent to Epay as the type parameter.'
                   )}
                 </FormDescription>
                 <FormMessage />
@@ -359,11 +370,14 @@ export function PaymentMethodDialog({
                     type='number'
                     step='0.01'
                     placeholder={t('e.g., 50')}
+                    disabled={isNowPayments}
                     {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  {t('Optional minimum recharge amount for this method.')}
+                  {isNowPayments
+                    ? t('Configure the minimum top-up in the NOWPayments tab.')
+                    : t('Optional minimum recharge amount for this method.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

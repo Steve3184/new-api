@@ -292,6 +292,31 @@ func createNowPaymentsPayment(ctx context.Context, request nowPaymentsCreateRequ
 	}, nil
 }
 
+// finalizeNowPaymentsPrice applies global fees in USD after currency conversion
+// and discounts. Credited quota is calculated separately from the payment price.
+func finalizeNowPaymentsPrice(amount decimal.Decimal) (decimal.Decimal, error) {
+	configured := operation_setting.GetGlobalPayMethod(model.PaymentMethodNowPayments)
+	fees := make(map[string]decimal.Decimal, 2)
+	for _, field := range []string{"fee", "fee_rate"} {
+		value := strings.TrimSpace(configured[field])
+		if value == "" {
+			fees[field] = decimal.Zero
+			continue
+		}
+		number, err := strconv.ParseFloat(value, 64)
+		if err != nil || math.IsNaN(number) || math.IsInf(number, 0) || number < 0 {
+			return decimal.Zero, errors.New("Billing values must be finite and non-negative.")
+		}
+		fees[field] = decimal.NewFromFloat(number)
+	}
+	amount = amount.Mul(decimal.NewFromInt(100).Add(fees["fee_rate"])).Div(decimal.NewFromInt(100)).Add(fees["fee"]).Round(8)
+	money := amount.InexactFloat64()
+	if !amount.IsPositive() || math.IsNaN(money) || math.IsInf(money, 0) {
+		return decimal.Zero, errors.New("NOWPayments quote must be positive")
+	}
+	return amount, nil
+}
+
 func nowPaymentsTopUpQuote(amount int64, group string) (decimal.Decimal, int, error) {
 	if amount <= 0 || math.IsNaN(common.QuotaPerUnit) || math.IsInf(common.QuotaPerUnit, 0) || common.QuotaPerUnit <= 0 {
 		return decimal.Zero, 0, errors.New("invalid NOWPayments top-up amount")
@@ -338,7 +363,8 @@ func nowPaymentsTopUpQuote(amount int64, group string) (decimal.Decimal, int, er
 	if !quote.IsPositive() {
 		return decimal.Zero, 0, errors.New("NOWPayments quote must be positive")
 	}
-	return quote, quota, nil
+	quote, err = finalizeNowPaymentsPrice(quote)
+	return quote, quota, err
 }
 
 func QuoteNowPaymentsPayMoney(amount int64, group string) (float64, error) {
@@ -522,7 +548,7 @@ func GetNowPaymentsSubscriptionPriceUSD(plan *model.SubscriptionPlan) (decimal.D
 		}
 		priceUSD = priceUSD.Div(decimal.NewFromFloat(rate))
 	}
-	return priceUSD, nil
+	return finalizeNowPaymentsPrice(priceUSD)
 }
 
 func CreateNowPaymentsSubscription(ctx context.Context, userID, planID int, payCurrency string) (*NowPaymentsInvoice, error) {

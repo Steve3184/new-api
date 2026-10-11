@@ -124,7 +124,7 @@ describe('API key group combobox Auto effect', () => {
     expect(triggerRatio).not.toHaveTextContent('x')
     expect(trigger).not.toHaveTextContent('自动')
     expect(screen.getByText('Global automatic routing')).toHaveClass(
-      'whitespace-normal',
+      'whitespace-pre-wrap',
       'break-words'
     )
     expect(screen.getByText('Global automatic routing')).not.toHaveClass(
@@ -163,7 +163,7 @@ describe('API key group combobox Auto effect', () => {
 
     const defaultOption = getCommandItem('User group')
     expect(within(defaultOption).getByText('User group')).toHaveClass(
-      'whitespace-normal',
+      'whitespace-pre-wrap',
       'break-words'
     )
     expect(defaultOption).not.toHaveAttribute('data-auto-group-effect')
@@ -233,3 +233,45 @@ describe('API key group combobox Auto effect', () => {
     setReducedMotion(false)
   })
 })
+
+test.each([false, true])(
+  'preserves multiline descriptions and gives the popup room with compact=%s',
+  (compact) => {
+    const description =
+      'Priority access\nStable capacity\nLongUnbrokenDescriptionWithoutSpaces'
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ApiKeyGroupCombobox
+          options={[
+            { value: 'vip', label: 'VIP', desc: description, ratio: 0.35 },
+          ]}
+          value='vip'
+          compact={compact}
+          onValueChange={() => {}}
+        />
+      </I18nextProvider>
+    )
+    const trigger = getTrigger()
+    if (!compact) {
+      const detail = within(trigger).getByText(description, {
+        normalizer: (text) => text,
+      })
+      expect(detail).toHaveClass('whitespace-pre-wrap', 'break-words')
+    }
+    fireEvent.click(trigger)
+    const popup = screen.getByRole('dialog')
+    expect(popup).toHaveClass(
+      'w-[max(var(--anchor-width),24rem)]',
+      'max-w-[calc(100vw-1rem)]'
+    )
+    const detail = within(popup).getByText(description, {
+      normalizer: (text) => text,
+    })
+    expect(detail).toHaveClass('whitespace-pre-wrap', 'break-words')
+    expect(detail.textContent).toBe(description)
+    expect(detail.parentElement).toHaveClass('min-w-0', 'flex-1')
+    expect(within(popup).getByText('VIP').parentElement).toHaveTextContent(
+      '0.35x'
+    )
+  }
+)

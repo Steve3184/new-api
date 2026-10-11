@@ -134,7 +134,7 @@ export function ApiKeyGroupCombobox({
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
             {selectedOption?.desc && !compact && (
-              <span className='text-muted-foreground block text-[11px] leading-4 break-words whitespace-normal sm:text-xs'>
+              <span className='text-muted-foreground block text-[11px] leading-4 break-words whitespace-pre-wrap sm:text-xs'>
                 {selectedOption.desc}
               </span>
             )}
@@ -153,10 +153,7 @@ export function ApiKeyGroupCombobox({
         />
       </PopoverTrigger>
       <PopoverContent
-        className={cn(
-          'data-closed:zoom-out-100 data-open:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[var(--anchor-width)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl p-0 shadow-lg data-closed:duration-75 data-open:duration-100',
-          compact && 'min-w-64'
-        )}
+        className='data-closed:zoom-out-100 data-open:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[max(var(--anchor-width),24rem)] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl p-0 shadow-lg data-closed:duration-75 data-open:duration-100'
         onWheel={(event) => event.stopPropagation()}
         onTouchMove={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -196,30 +193,32 @@ export function ApiKeyGroupCombobox({
                     <Check
                       aria-hidden='true'
                       className={cn(
-                        'mt-0.5 size-4',
+                        'mt-0.5 size-4 shrink-0',
                         value === option.value ? 'opacity-100' : 'opacity-0'
                       )}
                     />
                     <span className='min-w-0 flex-1'>
-                      <span
-                        className={cn(
-                          'block truncate font-medium',
-                          compact && 'font-normal'
-                        )}
-                      >
-                        {option.label}
+                      <span className='flex min-w-0 items-center justify-between gap-3'>
+                        <span
+                          className={cn(
+                            'min-w-0 truncate font-medium',
+                            compact && 'font-normal'
+                          )}
+                        >
+                          {option.label}
+                        </span>
+                        <GroupRatioBadge
+                          ratio={option.ratio}
+                          isAuto={isAutoOption}
+                          shouldReduceMotion={shouldReduceMotion}
+                        />
                       </span>
                       {option.desc && (
-                        <span className='text-muted-foreground block text-xs leading-5 break-words whitespace-normal'>
+                        <span className='text-muted-foreground block text-xs leading-5 break-words whitespace-pre-wrap'>
                           {option.desc}
                         </span>
                       )}
                     </span>
-                    <GroupRatioBadge
-                      ratio={option.ratio}
-                      isAuto={isAutoOption}
-                      shouldReduceMotion={shouldReduceMotion}
-                    />
                   </CommandItem>
                 )
               })}

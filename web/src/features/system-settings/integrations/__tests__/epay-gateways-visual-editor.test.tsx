@@ -330,3 +330,41 @@ describe('Epay gateway visual editor serialization', () => {
     ).toHaveClass('z-[61]')
   })
 })
+
+test('adds NOWPayments with a custom name and fees through the global payment editor', async () => {
+  const user = userEvent.setup()
+  const onSave = vi.fn()
+  render(<PaymentMethodDialog open onOpenChange={() => {}} onSave={onSave} />)
+  const dialog = screen.getByRole('dialog', { name: 'Add payment method' })
+  await user.click(
+    within(dialog).getByRole('combobox', { name: 'Payment type key' })
+  )
+  await user.click(
+    screen.getByRole('option', { name: 'NOWPayments (nowpayments)' })
+  )
+  await user.type(
+    within(dialog).getByRole('textbox', {
+      name: 'Custom method name (optional)',
+    }),
+    'Crypto checkout'
+  )
+  await user.type(
+    within(dialog).getByRole('spinbutton', { name: 'Fixed payment fee' }),
+    '0.50'
+  )
+  await user.type(
+    within(dialog).getByRole('spinbutton', { name: 'Payment fee rate (%)' }),
+    '3'
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Add' }))
+  await waitFor(() =>
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'nowpayments',
+        name: 'Crypto checkout',
+        fee: '0.5',
+        fee_rate: '3',
+      })
+    )
+  )
+})

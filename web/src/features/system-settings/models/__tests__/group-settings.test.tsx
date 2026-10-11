@@ -131,7 +131,7 @@ describe('group settings workspace', () => {
     )
     await user.type(
       screen.getByRole('textbox', { name: 'Auto group description' }),
-      'Balanced routing'
+      'Balanced routing\nFallback enabled'
     )
     await user.click(
       screen.getByRole('switch', { name: 'Default to auto groups' })
@@ -141,7 +141,7 @@ describe('group settings workspace', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0][0]).toEqual(
       expect.objectContaining({
-        AutoGroupDescription: 'Balanced routing',
+        AutoGroupDescription: 'Balanced routing\nFallback enabled',
         DefaultUseAutoGroup: true,
       })
     )
