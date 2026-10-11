@@ -302,3 +302,38 @@ it('keeps historical auto values editable when auto is the only available group'
     expect(router.state.location.search).toMatchObject({ group: 'retired' })
   )
 })
+
+it.each([1, 10])(
+  'applies and clears the User Agent filter for role %s',
+  async (role) => {
+    useAuthStore.getState().auth.setUser({ id: 1, username: 'viewer', role })
+    const router = await renderFilter('/usage-logs/common?userAgent=old-client')
+    await userEvent.click(screen.getByRole('button', { name: /^Expand/ }))
+    const input = screen.getByRole('textbox', { name: 'User Agent' })
+    expect(input).toHaveValue('old-client')
+    expect(input).toHaveAttribute('maxlength', '1024')
+    await userEvent.clear(input)
+    await userEvent.type(input, 'Claude_Code/2.0')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(router.state.location.search).toMatchObject({
+        userAgent: 'Claude_Code/2.0',
+        page: 1,
+      })
+    )
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith(
+        expect.stringMatching(
+          new RegExp(
+            `${role === 10 ? '/api/log/stat' : '/api/log/self/stat'}.*user_agent=Claude_Code%2F2.0`
+          )
+        )
+      )
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(router.state.location.search).not.toHaveProperty('userAgent')
+    await router.history.push('/usage-logs/common?userAgent=restored-client')
+    await waitFor(() => expect(input).toHaveValue('restored-client'))
+  }
+)

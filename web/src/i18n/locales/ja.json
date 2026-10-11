@@ -3965,6 +3965,7 @@
     "Matched models": "一致モデル",
     "Matched Tier": "一致した階層",
     "Matches models not claimed by earlier splits.": "前の分岐で使われていないモデルに一致します。",
+    "Matches part of the User Agent, ignoring case.": "User Agent の一部を、大文字と小文字を区別せずに検索します。",
     "Matching Rules": "マッチングルール",
     "Matching rules apply to metadata. Pricing is configured for each concrete model.": "マッチングルールはメタデータに適用されます。料金は個々のモデルに設定します。",
     "Max context tokens": "最大コンテキストトークン数",

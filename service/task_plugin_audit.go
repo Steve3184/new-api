@@ -16,6 +16,9 @@ func TaskExecutionSnapshotFromContext(ctx *gin.Context) *model.TaskExecutionSnap
 	snapshot := &model.TaskExecutionSnapshot{
 		RequestID: ctx.GetString(common.RequestIdKey),
 	}
+	if ctx.Request != nil {
+		snapshot.UserAgent = model.NormalizeLogUserAgent(ctx.Request.UserAgent())
+	}
 	if ctx.Request != nil && ctx.Request.URL != nil {
 		snapshot.RequestPath = ctx.Request.URL.Path
 	}
@@ -43,7 +46,7 @@ func TaskExecutionSnapshotFromContext(ctx *gin.Context) *model.TaskExecutionSnap
 		}
 	}
 
-	if snapshot.RequestID == "" && snapshot.RequestPath == "" && snapshot.TaskPlugin == nil {
+	if snapshot.UserAgent == "" && snapshot.RequestID == "" && snapshot.RequestPath == "" && snapshot.TaskPlugin == nil {
 		return nil
 	}
 	return snapshot

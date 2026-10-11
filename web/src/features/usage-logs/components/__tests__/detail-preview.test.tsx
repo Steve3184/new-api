@@ -79,9 +79,12 @@ function DetailPreview(props: {
   other: LogOtherData
   isAdmin: boolean
   type?: number
+  userAgent?: string
 }) {
   const table = useReactTable({
-    data: [makeLog(props.other, props.type)],
+    data: [
+      { ...makeLog(props.other, props.type), user_agent: props.userAgent },
+    ],
     columns: useCommonLogsColumns(props.isAdmin, false),
     getCoreRowModel: getCoreRowModel(),
   })
@@ -407,5 +410,28 @@ test.each(['missing schema', 'unsupported expression', 'unknown tier'])(
       matched_tier: scenario === 'unknown tier' ? 'old' : 'music',
     })
     expect(preview.textContent).toBe('Dynamic Pricing · No matching results')
+  }
+)
+
+test.each([false, true])(
+  'shows a long User Agent as plain text in log details (admin=%s)',
+  async (isAdmin) => {
+    const userAgent = `<script>alert(1)</script>${'x'.repeat(1000)}`
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={client}>
+          <DetailPreview
+            other={{ model_price: 0.25 }}
+            isAdmin={isAdmin}
+            userAgent={userAgent}
+          />
+        </QueryClientProvider>
+      </I18nextProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Per-call · $0.25' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('User Agent')).toBeVisible()
+    expect(within(dialog).getByText(userAgent)).toBeVisible()
+    expect(dialog.querySelector('script')).toBeNull()
   }
 )

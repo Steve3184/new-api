@@ -3965,6 +3965,7 @@
     "Matched models": "Matched models",
     "Matched Tier": "Matched Tier",
     "Matches models not claimed by earlier splits.": "Matches models not claimed by earlier splits.",
+    "Matches part of the User Agent, ignoring case.": "Matches part of the User Agent, ignoring case.",
     "Matching Rules": "Matching Rules",
     "Matching rules apply to metadata. Pricing is configured for each concrete model.": "Matching rules apply to metadata. Pricing is configured for each concrete model.",
     "Max context tokens": "Max context tokens",

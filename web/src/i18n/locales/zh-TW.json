@@ -3965,6 +3965,7 @@
     "Matched models": "匹配模型",
     "Matched Tier": "命中階梯",
     "Matches models not claimed by earlier splits.": "匹配前面分流未佔用的模型。",
+    "Matches part of the User Agent, ignoring case.": "依 User Agent 包含的內容篩選，不區分大小寫。",
     "Matching Rules": "匹配規則",
     "Matching rules apply to metadata. Pricing is configured for each concrete model.": "比對規則僅用於中繼資料，價格依具體模型設定。",
     "Max context tokens": "最大上下文 Token 數",

@@ -3965,6 +3965,7 @@
     "Matched models": "Modèles associés",
     "Matched Tier": "Palier correspondant",
     "Matches models not claimed by earlier splits.": "Correspond aux modèles non pris par les branches précédentes.",
+    "Matches part of the User Agent, ignoring case.": "Recherche une partie du User Agent, sans distinction de casse.",
     "Matching Rules": "Règles de correspondance",
     "Matching rules apply to metadata. Pricing is configured for each concrete model.": "Les règles de correspondance concernent les métadonnées. Les tarifs se définissent par modèle.",
     "Max context tokens": "Tokens de contexte maximum",

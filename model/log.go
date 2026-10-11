@@ -81,6 +81,7 @@ type Log struct {
 	Ip                string `json:"ip" gorm:"index;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
+	UserAgent         string `json:"user_agent" gorm:"type:varchar(1024);default:''"`
 	Other             string `json:"other"`
 	ModelIcon         string `json:"model_icon,omitempty" gorm:"-"`
 	ProviderIcon      string `json:"provider_icon,omitempty" gorm:"-"`
@@ -134,7 +135,26 @@ func ensureLogRequestId(log *Log) {
 	}
 }
 
+// NormalizeLogUserAgent preserves at most 1024 Unicode characters and replaces
+// invalid UTF-8 before storing client-provided metadata.
+func NormalizeLogUserAgent(value string) string {
+	var result strings.Builder
+	count := 0
+	for _, char := range value {
+		if count == 1024 {
+			break
+		}
+		if char == 0 {
+			char = '\uFFFD'
+		}
+		result.WriteRune(char)
+		count++
+	}
+	return result.String()
+}
+
 func createLog(log *Log) error {
+	log.UserAgent = NormalizeLogUserAgent(log.UserAgent)
 	ensureLogRequestId(log)
 	return LOG_DB.Create(log).Error
 }
@@ -377,6 +397,9 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
+	if c.Request != nil {
+		log.UserAgent = c.Request.UserAgent()
+	}
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
@@ -443,6 +466,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
+	if c.Request != nil {
+		log.UserAgent = c.Request.UserAgent()
+	}
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
@@ -473,6 +499,7 @@ type RecordTaskBillingLogParams struct {
 	TokenId   int
 	Group     string
 	Other     *LogOther
+	Execution *TaskExecutionSnapshot
 	NodeName  string // 任务发起节点；为空时回退当前节点
 }
 
@@ -503,6 +530,9 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		Group:     params.Group,
 		Other:     other.JSONString(),
 	}
+	if params.Execution != nil {
+		log.UserAgent = params.Execution.UserAgent
+	}
 	err := createLog(log)
 	if err != nil {
 		common.SysLog(common.LogText("failed to record task billing log: %s", err.Error()))
@@ -526,7 +556,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func buildLogsQuery(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string) (*gorm.DB, error) {
+func buildLogsQuery(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string, userAgent string) (*gorm.DB, error) {
 	tx := LOG_DB.Model(&Log{})
 	if userId > 0 {
 		tx = tx.Where("logs.user_id = ?", userId)
@@ -550,6 +580,14 @@ func buildLogsQuery(userId int, logType int, startTimestamp int64, endTimestamp 
 	if upstreamRequestId != "" {
 		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
 	}
+	if userAgent != "" {
+		if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+			tx = tx.Where("positionCaseInsensitiveUTF8(logs.user_agent, ?) > 0", userAgent)
+		} else {
+			pattern := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(strings.ToLower(userAgent))
+			tx = tx.Where("LOWER(logs.user_agent) LIKE ? ESCAPE '!'", "%"+pattern+"%")
+		}
+	}
 	if startTimestamp != 0 {
 		tx = tx.Where("logs.created_at >= ?", startTimestamp)
 	}
@@ -568,18 +606,18 @@ func buildLogsQuery(userId int, logType int, startTimestamp int64, endTimestamp 
 var logCSVHeader = []string{
 	"id", "created_at", "type", "user_id", "username", "token_name", "model_name",
 	"quota", "prompt_tokens", "completion_tokens", "use_time", "is_stream", "channel_id",
-	"group", "ip", "request_id", "upstream_request_id", "content", "other",
+	"group", "ip", "request_id", "upstream_request_id", "content", "other", "user_agent",
 }
 
 var userLogCSVHeader = []string{
 	"id", "created_at", "type", "user_id", "username", "token_name", "model_name",
 	"quota", "prompt_tokens", "completion_tokens", "use_time", "is_stream", "group",
-	"ip", "request_id", "content", "other",
+	"ip", "request_id", "content", "other", "user_agent",
 }
 
 // WriteLogsCSV streams matching usage logs without materializing the complete
 // result set or requiring client-side pagination.
-func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string, viewerRole int, selfView bool) error {
+func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string, viewerRole int, selfView bool, userAgent string) error {
 	if selfView {
 		// Self exports are intentionally independent of administrator-only
 		// channel and upstream-request filters as well as their hidden columns.
@@ -587,7 +625,7 @@ func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int6
 		channel = 0
 		upstreamRequestId = ""
 	}
-	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId, userAgent)
 	if err != nil {
 		return err
 	}
@@ -646,7 +684,12 @@ func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int6
 		if !selfView {
 			record = append(record, entry.UpstreamRequestId)
 		}
-		record = append(record, entry.Content, entry.Other)
+		userAgent := entry.UserAgent
+		// Client-supplied metadata must remain text when opened in a spreadsheet.
+		if strings.ContainsAny(userAgent[:min(1, len(userAgent))], "=+-@\t\r\n") {
+			userAgent = "'" + userAgent
+		}
+		record = append(record, entry.Content, entry.Other, userAgent)
 		if err := csvWriter.Write(record); err != nil {
 			return err
 		}
@@ -658,8 +701,8 @@ func WriteLogsCSV(writer io.Writer, userId int, logType int, startTimestamp int6
 	return csvWriter.Error()
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	tx, err := buildLogsQuery(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, userAgent string) (logs []*Log, total int64, err error) {
+	tx, err := buildLogsQuery(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId, userAgent)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -726,8 +769,8 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, requestId, upstreamRequestId)
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, userAgent string) (logs []*Log, total int64, err error) {
+	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, requestId, upstreamRequestId, userAgent)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -912,8 +955,8 @@ func sumLogTokens(tx *gorm.DB) (int64, error) {
 	return total, rows.Err()
 }
 
-func SumUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string) (stat Stat, err error) {
-	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+func SumUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, upstreamRequestId string, userAgent string) (stat Stat, err error) {
+	tx, err := buildLogsQuery(userId, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, upstreamRequestId, userAgent)
 	if err != nil {
 		return stat, err
 	}
@@ -929,7 +972,7 @@ func SumUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp in
 	}
 
 	// Rates continue to describe the last minute, independently of the chosen date range.
-	rpmTpmQuery, err := buildLogsQuery(userId, LogTypeConsume, time.Now().Add(-60*time.Second).Unix(), 0, modelName, username, tokenName, channel, group, requestId, upstreamRequestId)
+	rpmTpmQuery, err := buildLogsQuery(userId, LogTypeConsume, time.Now().Add(-60*time.Second).Unix(), 0, modelName, username, tokenName, channel, group, requestId, upstreamRequestId, userAgent)
 	if err != nil {
 		return stat, err
 	}

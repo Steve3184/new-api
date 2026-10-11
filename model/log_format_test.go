@@ -367,18 +367,18 @@ func TestUserCSVExportsOmitProviderIdentifiers(t *testing.T) {
 	}
 
 	logHeader := readCSV(func(buffer *bytes.Buffer) error {
-		return WriteLogsCSV(buffer, userID, 0, 0, 0, "", "", "", 0, "", "", "", 0, true)
+		return WriteLogsCSV(buffer, userID, 0, 0, 0, "", "", "", 0, "", "", "", 0, true, "")
 	})
 	assert.NotContains(t, logHeader, "channel_id")
 	assert.NotContains(t, logHeader, "upstream_request_id")
 	var logCSV bytes.Buffer
-	require.NoError(t, WriteLogsCSV(&logCSV, userID, 0, 0, 0, "", "", "", 0, "", "", "", 0, true))
+	require.NoError(t, WriteLogsCSV(&logCSV, userID, 0, 0, 0, "", "", "", 0, "", "", "", 0, true, ""))
 	assert.NotContains(t, logCSV.String(), "upstream-request-secret")
 	assert.Contains(t, logCSV.String(), "status_code=503, rewritten")
 	assert.NotContains(t, logCSV.String(), "status_code=502, upstream failed")
 
 	var adminLogCSV bytes.Buffer
-	require.NoError(t, WriteLogsCSV(&adminLogCSV, 0, 0, 0, 0, "", "", "", 0, "", "", "", common.RoleAdminUser, false))
+	require.NoError(t, WriteLogsCSV(&adminLogCSV, 0, 0, 0, 0, "", "", "", 0, "", "", "", common.RoleAdminUser, false, ""))
 	assert.Contains(t, adminLogCSV.String(), "status_code=502, upstream failed")
 	assert.NotContains(t, adminLogCSV.String(), "status_code=503, rewritten")
 

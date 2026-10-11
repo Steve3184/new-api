@@ -3965,6 +3965,7 @@
     "Matched models": "Модели для сопоставления",
     "Matched Tier": "Подходящий уровень",
     "Matches models not claimed by earlier splits.": "Совпадает с моделями, не занятыми предыдущими ветками.",
+    "Matches part of the User Agent, ignoring case.": "Поиск по части User Agent без учёта регистра.",
     "Matching Rules": "Правила сопоставления",
     "Matching rules apply to metadata. Pricing is configured for each concrete model.": "Правила сопоставления применяются к метаданным. Цены задаются для конкретных моделей.",
     "Max context tokens": "Максимум токенов контекста",

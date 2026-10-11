@@ -3965,6 +3965,7 @@
     "Matched models": "Mô hình khớp",
     "Matched Tier": "Bậc khớp",
     "Matches models not claimed by earlier splits.": "Khớp các mô hình chưa được nhánh trước nhận.",
+    "Matches part of the User Agent, ignoring case.": "Tìm theo một phần User Agent, không phân biệt chữ hoa và chữ thường.",
     "Matching Rules": "Quy tắc khớp",
     "Matching rules apply to metadata. Pricing is configured for each concrete model.": "Quy tắc khớp chỉ áp dụng cho siêu dữ liệu. Giá được cấu hình cho từng mô hình cụ thể.",
     "Max context tokens": "Số token ngữ cảnh tối đa",

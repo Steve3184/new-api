@@ -95,6 +95,7 @@ function buildSearchSourceKey(values: {
   group?: unknown
   username?: unknown
   requestId?: unknown
+  userAgent?: unknown
   upstreamRequestId?: unknown
   type?: unknown
 }) {
@@ -107,6 +108,7 @@ function buildSearchSourceKey(values: {
     values.group,
     values.username,
     values.requestId,
+    values.userAgent,
     values.upstreamRequestId,
     Array.isArray(values.type) ? values.type.join(',') : values.type,
   ]
@@ -165,6 +167,7 @@ export function CommonLogsFilterBar<TData>(
       group: searchParams.group,
       username: searchParams.username,
       requestId: searchParams.requestId,
+      userAgent: searchParams.userAgent,
       upstreamRequestId: searchParams.upstreamRequestId,
       type: searchParams.type,
     }
@@ -179,6 +182,7 @@ export function CommonLogsFilterBar<TData>(
       group: searchParams.group || undefined,
       username: searchParams.username || undefined,
       requestId: searchParams.requestId || undefined,
+      userAgent: searchParams.userAgent || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
     }
     return {
@@ -195,6 +199,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.group,
     searchParams.username,
     searchParams.requestId,
+    searchParams.userAgent,
     searchParams.upstreamRequestId,
     searchParams.type,
   ])
@@ -294,6 +299,7 @@ export function CommonLogsFilterBar<TData>(
     !!filters.username ||
     !!filters.channel ||
     !!filters.requestId ||
+    !!filters.userAgent ||
     !!filters.upstreamRequestId
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
@@ -305,6 +311,7 @@ export function CommonLogsFilterBar<TData>(
     isAdmin ? filters.username : undefined,
     isAdmin ? filters.channel : undefined,
     filters.requestId,
+    filters.userAgent,
     filters.upstreamRequestId,
   ].filter(Boolean).length
   const sensitiveInputClass = sensitiveVisible
@@ -499,6 +506,17 @@ export function CommonLogsFilterBar<TData>(
   )
   const advancedFilters = (
     <>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('User Agent')}
+          aria-label={t('User Agent')}
+          title={t('Matches part of the User Agent, ignoring case.')}
+          maxLength={1024}
+          value={filters.userAgent || ''}
+          onChange={(e) => handleChange('userAgent', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
       <LogsFilterField>
         <LogsFilterInput
           placeholder={t('Token Name')}

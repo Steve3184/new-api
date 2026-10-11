@@ -107,20 +107,20 @@ func TestLogTokenTotalsDatabaseMatrix(t *testing.T) {
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
-					stat, err := SumUsedQuota(tc.user, tc.kind, tc.start, tc.end, tc.model, tc.userName, tc.token, tc.channel, tc.group, tc.request, tc.upstream)
+					stat, err := SumUsedQuota(tc.user, tc.kind, tc.start, tc.end, tc.model, tc.userName, tc.token, tc.channel, tc.group, tc.request, tc.upstream, "")
 					require.NoError(t, err)
 					assert.Equal(t, tc.total, stat.TotalTokens)
 					assert.Equal(t, tc.quota, stat.Quota)
 				})
 			}
 			// Recent rates remain independent of the historical time range.
-			stat, err := SumUsedQuota(0, 0, now-1000, now-800, "", "", "", 0, "", "", "")
+			stat, err := SumUsedQuota(0, 0, now-1000, now-800, "", "", "", 0, "", "", "", "")
 			require.NoError(t, err)
 			assert.Equal(t, 1, stat.Rpm)
 			assert.Equal(t, 7, stat.Tpm)
 			large := Log{Type: LogTypeConsume, RequestId: "large", PromptTokens: math.MaxInt32, CompletionTokens: 1, Other: `{"cache_tokens":2,"cache_creation_tokens_1h":3}`}
 			require.NoError(t, createLog(&large))
-			stat, err = SumUsedQuota(0, 0, 0, 0, "", "", "", 0, "", "large", "")
+			stat, err = SumUsedQuota(0, 0, 0, 0, "", "", "", 0, "", "large", "", "")
 			require.NoError(t, err)
 			assert.Equal(t, int64(math.MaxInt32)+6, stat.TotalTokens)
 		})

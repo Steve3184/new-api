@@ -27,7 +27,7 @@ func GetAllLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId)
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, c.Query("user_agent"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -54,7 +54,7 @@ func GetUserLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId, c.Query("user_agent"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -79,7 +79,7 @@ func ExportLogsCSV(c *gin.Context) {
 		channel = 0
 	}
 	writeCSVDownload(c, "usage-logs", func(writer io.Writer) error {
-		return model.WriteLogsCSV(writer, userId, logType, startTimestamp, endTimestamp, c.Query("model_name"), username, c.Query("token_name"), channel, c.Query("group"), c.Query("request_id"), c.Query("upstream_request_id"), c.GetInt("role"), selfView)
+		return model.WriteLogsCSV(writer, userId, logType, startTimestamp, endTimestamp, c.Query("model_name"), username, c.Query("token_name"), channel, c.Query("group"), c.Query("request_id"), c.Query("upstream_request_id"), c.GetInt("role"), selfView, c.Query("user_agent"))
 	})
 }
 
@@ -153,7 +153,7 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, c.Query("request_id"), c.Query("upstream_request_id"))
+	stat, err := model.SumUsedQuota(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, c.Query("request_id"), c.Query("upstream_request_id"), c.Query("user_agent"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -180,7 +180,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, c.Query("request_id"), c.Query("upstream_request_id"))
+	quotaNum, err := model.SumUsedQuota(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, 0, group, c.Query("request_id"), c.Query("upstream_request_id"), c.Query("user_agent"))
 	if err != nil {
 		common.ApiError(c, err)
 		return

@@ -87,7 +87,7 @@ func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing
 	require.True(t, ok)
 	assert.Equal(t, []any{"101"}, adminInfo["use_channel"])
 
-	logs, total, err := model.GetUserLogs(7, model.LogTypeError, 0, 0, "", "", 0, 10, "", "", "")
+	logs, total, err := model.GetUserLogs(7, model.LogTypeError, 0, 0, "", "", 0, 10, "", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, int64(1), total)
 	require.Len(t, logs, 1)
@@ -174,7 +174,7 @@ func TestProcessChannelErrorRewritesUserLogButPreservesAdminOriginal(t *testing.
 	require.NoError(t, database.First(&stored).Error)
 	assert.Equal(t, "status_code=503, rewritten upstream error", stored.Content)
 
-	userLogs, total, err := model.GetUserLogs(8, model.LogTypeError, 0, 0, "", "", 0, 10, "", "", "")
+	userLogs, total, err := model.GetUserLogs(8, model.LogTypeError, 0, 0, "", "", 0, 10, "", "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, int64(1), total)
 	require.Len(t, userLogs, 1)
