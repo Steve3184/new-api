@@ -439,11 +439,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 	switch pref {
 	case "subscription_only":
-		hasAny, hasEligible, apiErr := checkSubscriptionAvailability()
+		_, hasEligible, apiErr := checkSubscriptionAvailability()
 		if apiErr != nil {
 			return nil, apiErr
 		}
-		if hasAny && !hasEligible {
+		// Without an eligible active subscription, the saved preference does not
+		// block wallet billing. Exhausted active subscriptions still stay exclusive.
+		if !hasEligible {
 			return tryWallet()
 		}
 		return trySubscription()

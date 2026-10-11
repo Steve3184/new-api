@@ -416,15 +416,10 @@ export function SubscriptionPlansCard({
 
           {disablePref && isSubPref && (
             <p className='text-muted-foreground mt-2 text-xs'>
-              {billingPreference === 'subscription_only'
-                ? t(
-                    'Preference saved as {{pref}}, but no active subscription. Requests will be rejected.',
-                    { pref: t('Subscription Only') }
-                  )
-                : t(
-                    'Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.',
-                    { pref: t('Subscription First') }
-                  )}
+              {t(
+                'Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.',
+                { pref: getBillingPreferenceLabel(billingPreference, t) }
+              )}
             </p>
           )}
 

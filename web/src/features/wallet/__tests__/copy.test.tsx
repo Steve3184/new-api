@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen } from '@testing-library/react'
 import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
@@ -27,6 +28,7 @@ import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { RechargeFormCard } from '../components/recharge-form-card'
+import { SubscriptionPlansCard } from '../components/subscription-plans-card'
 
 const i18n = createInstance()
 
@@ -39,6 +41,59 @@ beforeEach(async () => {
     interpolation: { escapeValue: false },
   })
 })
+
+it.each(['subscription_only', 'subscription_first'])(
+  'explains wallet fallback for saved %s without active subscriptions',
+  async (preference) => {
+    vi.spyOn(api, 'get').mockImplementation(async (url) => ({
+      data: {
+        success: true,
+        data:
+          url === '/api/subscription/plans'
+            ? []
+            : {
+                billing_preference: preference,
+                subscriptions: [],
+                all_subscriptions: [
+                  {
+                    subscription: {
+                      id: 1,
+                      status: 'expired',
+                      amount_total: 100,
+                      amount_used: 0,
+                      end_time: 1,
+                    },
+                  },
+                ],
+              },
+      },
+    }))
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={new QueryClient()}>
+          <SubscriptionPlansCard topupInfo={null} />
+        </QueryClientProvider>
+      </I18nextProvider>
+    )
+    const label = preference === 'subscription_only' ? '仅用订阅' : '优先订阅'
+    expect(
+      await screen.findByText(
+        `已保存偏好为${label}，当前无生效订阅，将自动使用钱包`
+      )
+    ).toBeVisible()
+    expect(screen.getByRole('combobox')).toHaveTextContent(label)
+    await act(() => i18n.changeLanguage('en'))
+    const englishLabel =
+      preference === 'subscription_only'
+        ? 'Subscription Only'
+        : 'Subscription First'
+    expect(
+      screen.getByText(
+        `Preference saved as ${englishLabel}, but no active subscription. Wallet will be used automatically.`
+      )
+    ).toBeVisible()
+  }
+)
 
 it('translates billing history statuses and updates them when the language changes', async () => {
   vi.spyOn(api, 'get').mockResolvedValue({
