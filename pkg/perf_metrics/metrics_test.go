@@ -110,7 +110,7 @@ func TestHourlySuccessSeriesWeightsSmallerBuckets(t *testing.T) {
 }
 
 func TestRecentHistoryRejectsOversizedModelLists(t *testing.T) {
-	_, err := QuerySummaryAll(24, nil, make([]string, 51)...)
+	_, err := QuerySummaryAll(24, nil, make([]string, MaxRecentModels+1)...)
 	require.EqualError(t, err, "Invalid parameters")
 }
 

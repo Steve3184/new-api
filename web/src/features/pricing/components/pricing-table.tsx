@@ -80,6 +80,7 @@ export function PricingTable(props: PricingTableProps) {
     queryFn: async () => requireServerSuccess(await getPerfMetricsSummary(24)),
     staleTime: 60 * 1000,
     retry: false,
+    meta: { errorToast: false },
   })
 
   const perfMap = new Map<string, ModelPerfBadgeData>()

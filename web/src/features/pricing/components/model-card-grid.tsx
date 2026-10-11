@@ -63,6 +63,7 @@ export const ModelCardGrid = memo(function ModelCardGrid(
     enabled: recentModels.length > 0,
     staleTime: 60 * 1000,
     retry: false,
+    meta: { errorToast: false },
   })
 
   const perfMap = useMemo(() => {

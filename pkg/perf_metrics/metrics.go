@@ -26,7 +26,9 @@ var hotBuckets sync.Map
 const seriesSchema = "dbcd0a3c01b55203"
 
 // MaxRecentModels bounds the historical lookups made by one summary request.
-const MaxRecentModels = 50
+// Keep this above the default pricing page sizes so the pricing UI can request
+// metrics for a full page without triggering a validation error.
+const MaxRecentModels = 200
 const recentSuccessSampleLimit = 24
 const recentSuccessHistoryHours = 7 * 24
 
