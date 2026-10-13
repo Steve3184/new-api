@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   DEFAULT_CONFIG,
@@ -28,7 +30,14 @@ import { saveConfig } from '../../storage/storage'
 import { buildChatCompletionPayload } from '../payload-builder'
 
 describe('reasoning effort configuration and requests', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    useAuthStore.getState().auth.setUser({ id: 1, username: 'alice', role: 1 })
+  })
+  afterEach(() => {
+    localStorage.clear()
+    useAuthStore.getState().auth.reset()
+  })
 
   test.each(['none', 'low', 'medium', 'high', 'xhigh', 'max'] as const)(
     'persists %s and sends it explicitly for streaming and non-streaming requests',
@@ -52,7 +61,7 @@ describe('reasoning effort configuration and requests', () => {
     'falls back for old or invalid saved effort %j without losing the model',
     (effort) => {
       localStorage.setItem(
-        STORAGE_KEYS.CONFIG,
+        `${STORAGE_KEYS.CONFIG}:1`,
         JSON.stringify({ model: 'saved-model', reasoning_effort: effort })
       )
       const config = getInitialPlaygroundConfig()

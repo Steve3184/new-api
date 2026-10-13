@@ -657,13 +657,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
       <div className='w-full max-w-full min-w-0 space-y-2.5 overflow-x-hidden py-1 sm:space-y-3'>
         {/* Overview section - key identifiers */}
         <div className='min-w-0 space-y-1'>
-          {props.log.user_agent && (
-            <DetailRow
-              label={t('User Agent')}
-              value={props.log.user_agent}
-              mono
-            />
-          )}
           {props.log.request_id && (
             <DetailRow
               label={t('Request ID')}
@@ -713,6 +706,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DetailRow
               label={t('Group')}
               value={props.log.group || other?.group || ''}
+              mono
+            />
+          )}
+
+          {props.log.user_agent && (
+            <DetailRow
+              label={t('User Agent')}
+              value={props.log.user_agent}
               mono
             />
           )}

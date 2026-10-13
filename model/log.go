@@ -799,6 +799,101 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	return logs, total, err
 }
 
+// LogFilter is the usage-log search shared by the log list and the log export.
+// Username and Channel are administrator filters.
+type LogFilter struct {
+	Type              int
+	StartTimestamp    int64
+	EndTimestamp      int64
+	ModelName         string
+	Username          string
+	TokenName         string
+	Channel           int
+	Group             string
+	RequestId         string
+	UpstreamRequestId string
+	UserAgent         string
+}
+
+func (f LogFilter) query(ctx context.Context, userID int) (*gorm.DB, error) {
+	tx, err := buildLogsQuery(userID, f.Type, f.StartTimestamp, f.EndTimestamp, f.ModelName, f.Username, f.TokenName, f.Channel, f.Group, f.RequestId, f.UpstreamRequestId, f.UserAgent)
+	if err != nil {
+		return nil, err
+	}
+	return tx.WithContext(ctx), nil
+}
+
+// StreamAllLogs calls fn with each log matching filter, newest first, as an
+// administrator with role sees it. Rows are read one at a time, so an export
+// never holds the whole result in memory.
+func StreamAllLogs(ctx context.Context, filter LogFilter, role int, fn func(*Log) error) error {
+	tx, err := filter.query(ctx, 0)
+	if err != nil {
+		return err
+	}
+	visibility := logOtherVisibilityAdmin
+	if role >= common.RoleRootUser {
+		visibility = logOtherVisibilityRoot
+	}
+	channelNames := make(map[int]string)
+	return streamLogs(tx, "logs.created_at desc, logs.id desc", func(log *Log) error {
+		restoreOriginalErrorContent(log)
+		if log.ChannelId != 0 {
+			name, ok := channelNames[log.ChannelId]
+			if !ok {
+				if channel, err := CacheGetChannel(log.ChannelId); err == nil {
+					name = channel.Name
+				}
+				channelNames[log.ChannelId] = name
+			}
+			log.ChannelName = name
+		}
+		log.Other = formatLogOtherJSON(log.Other, visibility)
+		return fn(log)
+	})
+}
+
+// StreamUserLogs is StreamAllLogs for one user's own logs, shaped like the
+// user log list.
+func StreamUserLogs(ctx context.Context, userId int, filter LogFilter, fn func(*Log) error) error {
+	filter.Username, filter.Channel, filter.UpstreamRequestId = "", 0, ""
+	tx, err := filter.query(ctx, userId)
+	if err != nil {
+		return err
+	}
+	count := 0
+	return streamLogs(tx, "logs.id desc", func(log *Log) error {
+		count++
+		log.Id = count
+		log.ChannelName = ""
+		log.ChannelId = 0
+		log.UpstreamRequestId = ""
+		log.Other = formatLogOtherJSON(log.Other, logOtherVisibilityUser)
+		return fn(log)
+	})
+}
+
+func streamLogs(tx *gorm.DB, order string, fn func(*Log) error) error {
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("logs.")
+	}
+	rows, err := tx.Model(&Log{}).Order(order).Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var log Log
+		if err := LOG_DB.ScanRows(rows, &log); err != nil {
+			return err
+		}
+		if err := fn(&log); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 type Stat struct {
 	Quota       int   `json:"quota"`
 	Rpm         int   `json:"rpm"`

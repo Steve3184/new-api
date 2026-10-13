@@ -152,6 +152,8 @@ func GetStatus(c *gin.Context) {
 		"checkin_daily_user_limit":    operation_setting.GetCheckinSetting().DailyUserLimit,
 		"checkin_daily_quota_limit":   operation_setting.GetCheckinSetting().DailyQuotaLimit,
 		"checkin_deductible_groups":   operation_setting.GetCheckinSetting().DeductibleGroups,
+		"log_export_enabled":          operation_setting.GetLogSetting().UserExportEnabled,
+		"log_max_range_days":          operation_setting.GetLogSetting().MaxRangeDays,
 	}
 
 	// 根据启用状态注入可选内容

@@ -287,3 +287,62 @@ it.each([
     })
   }
 )
+
+it('places the end action between Search and View on desktop', () => {
+  function DesktopFixture() {
+    const table = useReactTable({
+      data: [],
+      columns: [],
+      getCoreRowModel: getCoreRowModel(),
+    })
+    return (
+      <LogsFilterToolbar
+        table={table}
+        primaryFilters={null}
+        actionEnd={<button type='button'>Export</button>}
+        hasActiveFilters={false}
+        onReset={() => {}}
+        onSearch={() => {}}
+      />
+    )
+  }
+  render(<DesktopFixture />)
+  const names = screen
+    .getAllByRole('button')
+    .map((button) => button.textContent)
+  expect(names.slice(-4)).toEqual(['Reset', 'Search', 'Export', 'View'])
+})
+
+
+it('keeps the seconds of the current range when it is confirmed again', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn()
+  render(
+    <CompactDateTimeRangePicker
+      start={new Date(2026, 8, 7, 9, 30, 15)}
+      end={new Date(2026, 8, 8, 17, 45, 59)}
+      onChange={onChange}
+    />
+  )
+  await user.click(screen.getByRole('button', { name: /^2026/ }))
+  await user.click(screen.getByRole('button', { name: 'Confirm' }))
+  expect(onChange).toHaveBeenCalledWith({
+    start: new Date(2026, 8, 7, 9, 30, 15),
+    end: new Date(2026, 8, 8, 17, 45, 59),
+  })
+})
+
+it('shows the seconds of the selected range on the trigger', () => {
+  render(
+    <CompactDateTimeRangePicker
+      start={new Date(2026, 8, 7, 9, 30, 15)}
+      end={new Date(2026, 8, 8, 17, 45, 59)}
+      onChange={() => undefined}
+    />
+  )
+  expect(
+    screen.getByRole('button', {
+      name: '2026-09-07 09:30:15 ~ 2026-09-08 17:45:59',
+    })
+  ).toBeVisible()
+})

@@ -229,6 +229,8 @@ export interface SystemStatus {
   status_check_announcement?: string
   playground?: PlaygroundPublicSettings
   custom_tabs?: string
+  log_export_enabled?: boolean
+  log_max_range_days?: number
   [key: string]: unknown
 }
 
