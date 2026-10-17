@@ -48,6 +48,14 @@
         var theme = cookieMatch ? cookieMatch[1] : ''
 
         try {
+          var savedTheme = window.localStorage.getItem('newapi:theme:v1:mode')
+          if (
+            savedTheme === 'dark' ||
+            savedTheme === 'light' ||
+            savedTheme === 'system'
+          ) {
+            theme = savedTheme
+          }
           var cachedStatus = window.localStorage.getItem('status')
           var status = cachedStatus ? JSON.parse(cachedStatus) : null
           var appearance = status && status.site_appearance

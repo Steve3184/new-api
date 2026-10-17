@@ -16,6 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
+export const CHANNEL_PRIORITY_GUIDE_KEYS = {
+  card: 'channels:priority-drag-guide:card:v1',
+  table: 'channels:priority-drag-guide:v1',
+} as const
 // ============================================================================
 // Channel Types (from constant/channel.go)
 // All label/name values are i18n keys; use t(value) when displaying.
@@ -203,9 +208,60 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
 >
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
-  1, 14, 33, 24, 43, 3, 41, 48, 62, 58, 42, 34, 20, 4, 40, 27, 25, 17, 26, 15,
-  46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 59, 22, 21, 44, 2,
-  5, 36, 50, 51, 52, 53, 54, 55, 56, 60, 61, 63, 64, CHANNEL_TYPE_VLLM,
+  1,
+  14,
+  33,
+  24,
+  43,
+  3,
+  41,
+  48,
+  62,
+  58,
+  42,
+  34,
+  20,
+  4,
+  40,
+  27,
+  25,
+  17,
+  26,
+  15,
+  46,
+  23,
+  18,
+  45,
+  31,
+  35,
+  49,
+  19,
+  47,
+  37,
+  38,
+  39,
+  11,
+  8,
+  57,
+  59,
+  22,
+  21,
+  44,
+  2,
+  5,
+  36,
+  50,
+  51,
+  52,
+  53,
+  54,
+  55,
+  56,
+  60,
+  61,
+  63,
+  64,
+  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_TYPESAFE,
   CHANNEL_TYPE_SGLANG,
 ]
@@ -591,7 +647,8 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   60: 'Enter API key for this channel',
   62: 'Enter API key for this channel',
   [CHANNEL_TYPE_VLLM]: 'vLLM API key, or EMPTY if authentication is disabled',
-  [CHANNEL_TYPE_SGLANG]: 'SGLang API key, or EMPTY if authentication is disabled',
+  [CHANNEL_TYPE_SGLANG]:
+    'SGLang API key, or EMPTY if authentication is disabled',
   [CHANNEL_TYPE_TYPESAFE]: 'OpenCode Zen API key',
 }
 

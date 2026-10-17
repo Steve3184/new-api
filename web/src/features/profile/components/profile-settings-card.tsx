@@ -36,6 +36,8 @@ interface ProfileSettingsCardProps {
   loading: boolean
   onProfileUpdate: () => void
   preferencesContainer?: HTMLElement | null
+  quotaRemindEnabled: boolean
+  quotaRemindThreshold: number
 }
 
 export function ProfileSettingsCard({
@@ -43,6 +45,8 @@ export function ProfileSettingsCard({
   loading,
   onProfileUpdate,
   preferencesContainer,
+  quotaRemindEnabled,
+  quotaRemindThreshold,
 }: ProfileSettingsCardProps) {
   const { t } = useTranslation()
 
@@ -77,6 +81,8 @@ export function ProfileSettingsCard({
         profile={profile}
         onUpdate={onProfileUpdate}
         preferencesContainer={preferencesContainer}
+        quotaRemindEnabled={quotaRemindEnabled}
+        quotaRemindThreshold={quotaRemindThreshold}
       />
     </TitledCard>
   )

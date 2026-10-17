@@ -576,6 +576,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ChannelAutoStatusEmailEnabled = boolValue
 		case "SupportEnabled":
 			common.SupportEnabled = boolValue
+		case "QuotaRemindEnabled":
+			common.QuotaRemindEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":

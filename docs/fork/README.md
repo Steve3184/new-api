@@ -4,6 +4,25 @@ This directory documents the additive customizations maintained on top of
 QuantumNous/new-api. The classic frontend is intentionally unchanged; all UI
 work is under `web/default`.
 
+## 2026-10-18 upstream synchronization
+
+Merged upstream through `6cf0d90b5` while retaining automatic routing,
+SystemOne, custom error rewriting/redaction, legacy billing, token automatic
+routes/groups, user notification controls, and leaderboard exclusions.
+The token quota-query flag is additive, including its Redis cache field.
+Channel watcher notifications retain the fork's automatic-status email gate.
+
+Group descriptions in `web/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+now start at one text line, grow with newlines or wrapped content, and shrink
+when text is removed. The existing shared Textarea supplies content sizing;
+the group field removes its fixed minimum height. Regression coverage is in
+`web/src/features/system-settings/models/__tests__/group-settings.test.tsx`.
+The classic frontend is unchanged.
+
+Token schema checks cover SQLite 3.50.4, MySQL 5.7.44, and PostgreSQL 16.14:
+fresh databases, upgrades from the previous fork and release v1.0.0-rc.45,
+repeated migration, key uniqueness, and preservation of quotas and auto routes.
+
 ## Repository layout and upstream workflow
 
 Use `origin` for this fork and keep the official repository as `upstream`:

@@ -293,3 +293,121 @@ func TestMigrateTokenKeyUniquenessPostgreSQL(t *testing.T) {
 		})
 	}
 }
+
+type tokenBeforeQuotaQuery struct {
+	Id                 int            `json:"id"`
+	UserId             int            `json:"user_id" gorm:"index"`
+	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
+	Status             int            `json:"status" gorm:"default:1"`
+	Name               string         `json:"name" gorm:"index" `
+	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
+	AccessedTime       int64          `json:"accessed_time" gorm:"bigint"`
+	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
+	RemainQuota        int            `json:"remain_quota" gorm:"default:0"`
+	UnlimitedQuota     bool           `json:"unlimited_quota"`
+	ModelLimitsEnabled bool           `json:"model_limits_enabled"`
+	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
+	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
+	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
+	Group              string         `json:"group" gorm:"default:''"`
+	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	AutoGroups         string         `json:"-" gorm:"type:text"`
+	AutoRoutes         string         `json:"-" gorm:"type:text"`
+	DeletedAt          gorm.DeletedAt `gorm:"index"`
+}
+
+type tokenReleaseRC45 struct {
+	Id                 int            `json:"id"`
+	UserId             int            `json:"user_id" gorm:"index"`
+	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
+	Status             int            `json:"status" gorm:"default:1"`
+	Name               string         `json:"name" gorm:"index" `
+	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
+	AccessedTime       int64          `json:"accessed_time" gorm:"bigint"`
+	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
+	RemainQuota        int            `json:"remain_quota" gorm:"default:0"`
+	UnlimitedQuota     bool           `json:"unlimited_quota"`
+	ModelLimitsEnabled bool           `json:"model_limits_enabled"`
+	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
+	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
+	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
+	Group              string         `json:"group" gorm:"default:''"`
+	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	AutoGroups         string         `json:"-" gorm:"type:text"`
+	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	// 允许用此令牌查询所属用户的额度；新建令牌默认开启，已有令牌升级后保持关闭
+	AllowUserQuotaQuery bool `json:"allow_user_quota_query"`
+}
+
+func TestTokenQuotaQueryMigrationDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			var driver gorm.Dialector
+			switch dialect {
+			case "sqlite":
+				driver = sqlite.Open(":memory:")
+			case "mysql":
+				dsn := os.Getenv("TEST_MYSQL_DSN")
+				if dsn == "" {
+					t.Skip("TEST_MYSQL_DSN is not configured")
+				}
+				driver = mysql.Open(dsn)
+			case "postgres":
+				dsn := os.Getenv("TEST_POSTGRES_DSN")
+				if dsn == "" {
+					t.Skip("TEST_POSTGRES_DSN is not configured")
+				}
+				driver = postgres.Open(dsn)
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+			for _, source := range []string{"fresh", "fork_before_sync", "release_rc45"} {
+				t.Run(source, func(t *testing.T) {
+					table := "token_quota_upgrade_" + source
+					t.Cleanup(func() { require.NoError(t, db.Migrator().DropTable(table)) })
+					tableDB := db.Table(table).Session(&gorm.Session{})
+					switch source {
+					case "fork_before_sync":
+						require.NoError(t, tableDB.AutoMigrate(&tokenBeforeQuotaQuery{}))
+						require.NoError(t, tableDB.Create(&tokenBeforeQuotaQuery{Id: 41, UserId: 7, Key: "preserved-fork-key", Name: "preserved", Group: "auto", AutoGroups: "[\"vip\"]", AutoRoutes: "{\"chat\":[\"model-a\"]}", RemainQuota: 123, UsedQuota: 45}).Error)
+					case "release_rc45":
+						require.NoError(t, tableDB.AutoMigrate(&tokenReleaseRC45{}))
+						require.NoError(t, tableDB.Create(&tokenReleaseRC45{Id: 41, UserId: 7, Key: "preserved-release-key", Name: "preserved", Group: "auto", AutoGroups: "[\"vip\"]", RemainQuota: 123, UsedQuota: 45, AllowUserQuotaQuery: true}).Error)
+					}
+					require.NoError(t, tableDB.AutoMigrate(&Token{}))
+					recorder := &migrationSQLRecorder{}
+					for range 2 {
+						recorder.reset()
+						require.NoError(t, tableDB.Session(&gorm.Session{Logger: recorder}).AutoMigrate(&Token{}))
+						assert.Empty(t, recorder.schemaMutations(), "restart must not mutate the migrated schema")
+					}
+					if source != "fresh" {
+						var saved Token
+						require.NoError(t, tableDB.First(&saved, 41).Error)
+						assert.Equal(t, 7, saved.UserId)
+						assert.Equal(t, "preserved", saved.Name)
+						assert.Equal(t, 123, saved.RemainQuota)
+						assert.Equal(t, 45, saved.UsedQuota)
+						assert.JSONEq(t, "[\"vip\"]", saved.AutoGroups)
+						assert.Equal(t, source == "release_rc45", saved.AllowUserQuotaQuery)
+						if source == "fork_before_sync" {
+							assert.JSONEq(t, "{\"chat\":[\"model-a\"]}", saved.AutoRoutes)
+						}
+						require.Error(t, tableDB.Create(&Token{Key: saved.Key}).Error, "migration must retain unique API keys")
+					}
+					token := &Token{Key: "new-quota-token", UserId: 7, AllowUserQuotaQuery: true}
+					require.NoError(t, tableDB.Create(token).Error)
+					require.NoError(t, tableDB.Where("id = ?", token.Id).Update("allow_user_quota_query", false).Error)
+					var saved Token
+					require.NoError(t, tableDB.First(&saved, token.Id).Error)
+					assert.False(t, saved.AllowUserQuotaQuery)
+					assert.True(t, db.Migrator().HasIndex(table, db.NamingStrategy.IndexName(table, "key")))
+				})
+			}
+		})
+	}
+}

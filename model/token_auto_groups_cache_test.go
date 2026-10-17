@@ -28,6 +28,22 @@ func TestTokenAutoGroupsRoundTripThroughRedisHashCache(t *testing.T) {
 	assert.Equal(t, []string{"vip", "default"}, groups)
 }
 
+func TestTokenAllowUserQuotaQueryRoundTripsThroughRedisHashCache(t *testing.T) {
+	server := useUserCacheMiniRedis(t)
+	token := Token{Id: 43, UserId: 7, Key: "token-user-quota-cache-key", Name: "user-quota-cache", AllowUserQuotaQuery: true, AutoRoutes: `{"chat":["model-a","model-b"]}`, RemainQuota: 123, UsedQuota: 45}
+
+	initialized, err := cacheInitToken(token)
+	require.NoError(t, err)
+	require.Equal(t, 1, initialized)
+	cached, err := cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.True(t, cached.AllowUserQuotaQuery)
+	assert.JSONEq(t, token.AutoRoutes, cached.AutoRoutes)
+	assert.Equal(t, token.RemainQuota, cached.RemainQuota)
+	assert.Equal(t, token.UsedQuota, cached.UsedQuota)
+	assert.Positive(t, server.TTL(getTokenCacheKey(token.Key)))
+}
+
 func TestTokenUpdateSynchronouslyNarrowsPreheatedAutoGroupsCache(t *testing.T) {
 	truncateTables(t)
 	useUserCacheMiniRedis(t)

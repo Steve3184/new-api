@@ -71,9 +71,10 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	if err == nil {
 		return
 	}
-	logger.LogError(c, common.LogText("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
+	upstreamURLs := common.UpstreamAddresses(c)
+	logger.LogError(c, common.LogText("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode(upstreamURLs...))))
 	if ShouldDisableChannel(err) && channelError.AutoBan {
-		reason := err.MaskSensitiveErrorWithStatusCode()
+		reason := err.MaskSensitiveErrorWithStatusCode(upstreamURLs...)
 		gopool.Go(func() {
 			DisableChannel(channelError, reason)
 		})
@@ -91,7 +92,7 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		}
 		other.SetPublic("error_type", err.GetErrorType())
 		other.SetPublic("error_code", err.GetErrorCode())
-		logContent := err.MaskSensitiveErrorWithStatusCode()
+		logContent := err.MaskSensitiveErrorWithStatusCode(upstreamURLs...)
 		logStatusCode := err.StatusCode
 		if rewriteSetting := operation_setting.GetErrorRewriteSetting(); rewriteSetting.AffectUsageLogs {
 			if rewrite, ok := operation_setting.GetErrorRewriteResult(err, modelName); ok {

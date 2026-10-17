@@ -592,7 +592,6 @@ function GroupPricingTable({
       name = `group_${index}`
     }
     emitRows([
-      ...rows,
       {
         _id: createGroupPricingId(),
         name,
@@ -603,6 +602,7 @@ function GroupPricingTable({
         modelSquareVisible: false,
         description: '',
       },
+      ...rows,
     ])
   }, [emitRows, rows])
 
@@ -657,6 +657,7 @@ function GroupPricingTable({
                 className: 'min-w-40',
                 cell: (row) => (
                   <Input
+                    aria-label={t('Group name')}
                     value={row.name}
                     onChange={(event) =>
                       updateRow(row._id, 'name', event.target.value)
@@ -758,8 +759,8 @@ function GroupPricingTable({
                 className: 'min-w-56',
                 cell: (row) => (
                   <Textarea
-                    rows={2}
-                    className='min-h-16 resize-y'
+                    rows={Math.max(1, row.description.split('\n').length)}
+                    className='max-h-none min-h-0 resize-y py-1.5'
                     value={row.description}
                     placeholder={t('Group description')}
                     onChange={(event) =>

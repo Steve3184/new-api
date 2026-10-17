@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -169,5 +169,54 @@ describe('group settings workspace', () => {
         'Each rule reads as a sentence: users of one group pay a special ratio when billed as another group. Without a rule, the billing group base ratio applies.'
       )
     ).toBeVisible()
+  })
+
+  it('prepends consecutive new groups and saves them without changing existing settings', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async (_values: typeof defaults) => {})
+    render(<Fixture onSave={onSave} />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Add group' })[0])
+    await user.click(screen.getAllByRole('button', { name: 'Add group' })[0])
+    expect(
+      screen
+        .getAllByRole<HTMLInputElement>('textbox', { name: 'Group name' })
+        .map((input) => input.value)
+    ).toEqual(['group_2', 'group_1', 'default', 'vip'])
+
+    await user.click(screen.getByRole('button', { name: 'Save group ratios' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    const saved = onSave.mock.calls[0][0]
+    expect(JSON.parse(saved.GroupRatio)).toEqual({
+      group_2: 1,
+      group_1: 1,
+      default: 1,
+      vip: 0.8,
+    })
+    expect(JSON.parse(saved.UserUsableGroups)).toEqual({
+      group_2: '',
+      group_1: '',
+      default: 'Standard access',
+      vip: 'Premium access',
+    })
+    expect(JSON.parse(saved.TopupGroupRatio)).toEqual({ vip: 1.2 })
+    expect(saved.AutoGroups).toBe(defaults.AutoGroups)
+  })
+
+  it('fits group descriptions to one line and grows or shrinks with edited lines', () => {
+    render(<Fixture />)
+    const description = screen.getByDisplayValue('Standard access')
+    expect(description).toHaveAttribute('rows', '1')
+    expect(description).toHaveClass('min-h-0', 'field-sizing-content')
+    expect(description).not.toHaveClass('min-h-16')
+
+    fireEvent.change(description, {
+      target: { value: 'Standard access\nImages supported\nVideo supported' },
+    })
+    expect(description).toHaveAttribute('rows', '3')
+    fireEvent.change(description, { target: { value: 'Standard access' } })
+    expect(description).toHaveAttribute('rows', '1')
+    fireEvent.change(description, { target: { value: '' } })
+    expect(description).toHaveAttribute('rows', '1')
   })
 })

@@ -31,6 +31,8 @@ vi.mock('../../api', () => ({
 }))
 
 const defaultValues = {
+  QuotaRemindEnabled: true,
+  QuotaRemindThreshold: '1000',
   SMTPServer: 'smtp.example.com',
   SMTPPort: '587',
   SMTPAccount: 'sender@example.com',

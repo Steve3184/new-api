@@ -348,6 +348,7 @@ func Register(c *gin.Context) {
 			UnlimitedQuota:     true,
 			ModelLimitsEnabled: false,
 		}
+		token.AllowUserQuotaQuery = true
 		if setting.DefaultUseAutoGroup {
 			token.Group = "auto"
 		}
@@ -920,7 +921,7 @@ func UpdateSelf(c *gin.Context) {
 			return
 		}
 		succeeded = true
-		notificationFailed = service.NotifyAccountSecurityChange(current.Email, "Password updated") != nil
+		notificationFailed = service.NotifyAccountSecurityChange(service.AccountMailLanguage(c, current.Id), current.Email, i18n.MsgSecurityEventPasswordUpdated) != nil
 		if err := model.PublishUserAuthCache(cleanUser.Id); err != nil {
 			writeSecurityOperationError(c, err)
 			return
@@ -1441,6 +1442,7 @@ func TopUp(c *gin.Context) {
 type UpdateUserSettingRequest struct {
 	QuotaWarningType                 string  `json:"notify_type"`
 	QuotaWarningThreshold            float64 `json:"quota_warning_threshold"`
+	QuotaWarningEnabled              *bool   `json:"quota_warning_enabled,omitempty"`
 	WebhookUrl                       string  `json:"webhook_url,omitempty"`
 	WebhookSecret                    string  `json:"webhook_secret,omitempty"`
 	NotificationEmail                string  `json:"notification_email,omitempty"`
@@ -1449,6 +1451,7 @@ type UpdateUserSettingRequest struct {
 	GotifyToken                      string  `json:"gotify_token,omitempty"`
 	GotifyPriority                   int     `json:"gotify_priority,omitempty"`
 	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
+	ChannelNotifyEnabled             *bool   `json:"channel_notify_enabled,omitempty"`
 	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                      bool    `json:"record_ip_log"`
 	ExcludeFromLeaderboard           *bool   `json:"exclude_from_leaderboard,omitempty"`
@@ -1467,9 +1470,9 @@ func UpdateUserSetting(c *gin.Context) {
 		return
 	}
 
-	// 验证预警阈值
-	if req.QuotaWarningThreshold <= 0 {
-		common.ApiErrorT(c, "Warning threshold must be greater than 0")
+	// 验证预警阈值，0 表示使用系统默认阈值
+	if req.QuotaWarningThreshold < 0 {
+		common.ApiErrorT(c, "Reminder threshold cannot be negative")
 		return
 	}
 
@@ -1541,50 +1544,43 @@ func UpdateUserSetting(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	existingSettings := user.GetSetting()
-	upstreamModelUpdateNotifyEnabled := existingSettings.UpstreamModelUpdateNotifyEnabled
-	if user.Role >= common.RoleAdminUser && req.UpstreamModelUpdateNotifyEnabled != nil {
-		upstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
+	// 从已保存的设置出发，语言、侧边栏、扣费策略等不由此表单管理的字段保持不变；
+	// 请求未携带的开关也保持原值
+	settings := user.GetSetting()
+	settings.NotifyType = req.QuotaWarningType
+	settings.QuotaWarningThreshold = req.QuotaWarningThreshold
+	settings.AcceptUnsetRatioModel = req.AcceptUnsetModelRatioModel
+	settings.RecordIpLog = req.RecordIpLog
+	if req.QuotaWarningEnabled != nil {
+		settings.QuotaWarningEnabled = req.QuotaWarningEnabled
 	}
-	excludeFromLeaderboard := existingSettings.ExcludeFromLeaderboard
+	previousExcludeFromLeaderboard := settings.ExcludeFromLeaderboard
 	if req.ExcludeFromLeaderboard != nil {
-		excludeFromLeaderboard = *req.ExcludeFromLeaderboard
+		settings.ExcludeFromLeaderboard = *req.ExcludeFromLeaderboard
 	}
-
-	// 构建设置
-	settings := dto.UserSetting{
-		NotifyType:                       req.QuotaWarningType,
-		QuotaWarningThreshold:            req.QuotaWarningThreshold,
-		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
-		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
-		RecordIpLog:                      req.RecordIpLog,
-		ExcludeFromLeaderboard:           excludeFromLeaderboard,
-		SidebarModules:                   existingSettings.SidebarModules,
-		BillingPreference:                existingSettings.BillingPreference,
-		Language:                         existingSettings.Language,
-		LoginTwoFactorEnabled:            existingSettings.LoginTwoFactorEnabled,
-	}
-
-	// 如果是webhook类型,添加webhook相关设置
-	if req.QuotaWarningType == dto.NotifyTypeWebhook {
-		settings.WebhookUrl = req.WebhookUrl
-		if req.WebhookSecret != "" {
-			settings.WebhookSecret = req.WebhookSecret
+	if user.Role >= common.RoleAdminUser {
+		if req.UpstreamModelUpdateNotifyEnabled != nil {
+			settings.UpstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
+		}
+		if req.ChannelNotifyEnabled != nil {
+			settings.ChannelNotifyEnabled = req.ChannelNotifyEnabled
 		}
 	}
 
-	// 如果提供了通知邮箱，添加到设置中
-	if req.QuotaWarningType == dto.NotifyTypeEmail && req.NotificationEmail != "" {
+	// 只保留所选通知方式的配置，其他方式的配置清空
+	settings.WebhookUrl, settings.WebhookSecret = "", ""
+	settings.NotificationEmail = ""
+	settings.BarkUrl = ""
+	settings.GotifyUrl, settings.GotifyToken, settings.GotifyPriority = "", "", 0
+	switch req.QuotaWarningType {
+	case dto.NotifyTypeWebhook:
+		settings.WebhookUrl = req.WebhookUrl
+		settings.WebhookSecret = req.WebhookSecret
+	case dto.NotifyTypeEmail:
 		settings.NotificationEmail = req.NotificationEmail
-	}
-
-	// 如果是Bark类型，添加Bark URL到设置中
-	if req.QuotaWarningType == dto.NotifyTypeBark {
+	case dto.NotifyTypeBark:
 		settings.BarkUrl = req.BarkUrl
-	}
-
-	// 如果是Gotify类型，添加Gotify配置到设置中
-	if req.QuotaWarningType == dto.NotifyTypeGotify {
+	case dto.NotifyTypeGotify:
 		settings.GotifyUrl = req.GotifyUrl
 		settings.GotifyToken = req.GotifyToken
 		// Gotify优先级范围0-10，超出范围则使用默认值5
@@ -1600,7 +1596,7 @@ func UpdateUserSetting(c *gin.Context) {
 		common.ApiErrorT(c, "Update failed")
 		return
 	}
-	if excludeFromLeaderboard != existingSettings.ExcludeFromLeaderboard {
+	if settings.ExcludeFromLeaderboard != previousExcludeFromLeaderboard {
 		service.InvalidateUserRankingsCache()
 	}
 
