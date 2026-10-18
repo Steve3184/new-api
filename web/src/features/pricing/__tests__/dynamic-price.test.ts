@@ -55,6 +55,24 @@ const summaryOptions = {
 }
 
 describe('expression price summaries', () => {
+  test('resolves group conditions on either side of a combined context rule', () => {
+    for (const condition of [
+      'group == "special" && len > 500',
+      'len > 500 && group == "special"',
+    ]) {
+      const model = pricingModel({
+        billing_mode: 'tiered_expr',
+        billing_expr: `${condition} ? tier("special", p * 4 + cr * 1) : tier("base", p * 2)`,
+      })
+      expect(getDynamicPricingTiers(model, 'default')).toMatchObject([
+        { label: 'base', inputPrice: 2 },
+      ])
+      expect(getDynamicPricingTiers(model, 'special')).toMatchObject([
+        { label: 'special', inputPrice: 4 },
+        { label: 'base', inputPrice: 2 },
+      ])
+    }
+  })
   test('resolves per-group base prices and tiers before applying the group ratio', () => {
     const model = pricingModel({
       enable_groups: ['default', 'special'],

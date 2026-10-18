@@ -71,12 +71,11 @@ export function resolveGroupBillingExpression(
         dependencies.variables.has('group') &&
         dependencies.functions.size === 0
       ) {
-        const matches = evaluateBillingCondition(
-          ready,
-          node.condition,
-          undefined,
-          group
-        )
+        const condition = compileBillingExpression(render(node.condition))
+        const matches =
+          condition.status === 'ready'
+            ? evaluateBillingCondition(condition, condition.ast)
+            : null
         if (matches !== null) return `(${render(matches ? node.yes : node.no)})`
       }
     }
