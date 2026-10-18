@@ -107,6 +107,9 @@ func hasEnabledMultiKey(channel *model.Channel) bool {
 }
 
 func disableMultiKeyChannelIfUnavailable(channel *model.Channel) bool {
+	if channel != nil {
+		channel.ReconcileMultiKeyInventory(channel.GetKeys())
+	}
 	if channel == nil || !channel.ChannelInfo.IsMultiKey || hasEnabledMultiKey(channel) {
 		return false
 	}
@@ -122,6 +125,7 @@ func disableMultiKeyChannelIfUnavailable(channel *model.Channel) bool {
 }
 
 func restoreMultiKeyChannelIfAvailable(channel *model.Channel) {
+	channel.ReconcileMultiKeyInventory(channel.GetKeys())
 	if channel.Status != common.ChannelStatusManuallyDisabled || !hasEnabledMultiKey(channel) {
 		return
 	}
@@ -529,6 +533,9 @@ const maxTaskExtendPluginKeys = 32
 func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel == nil {
 		return fmt.Errorf("channel cannot be empty")
+	}
+	if channel.ChannelInfo.MultiKeyInventoryTarget < 0 || (channel.ChannelInfo.MultiKeyInventoryEnabled && channel.ChannelInfo.MultiKeyInventoryTarget < 1) {
+		return common.NewMessage("Active key target must be a positive integer")
 	}
 
 	// 校验 channel settings
@@ -1106,6 +1113,9 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
+	pollingLock := model.GetChannelPollingLock(channel.Id)
+	pollingLock.Lock()
+	defer pollingLock.Unlock()
 	originChannel, err := model.GetChannelById(channel.Id, true)
 	if err != nil {
 		common.ApiError(c, err)
@@ -1139,6 +1149,18 @@ func UpdateChannel(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyAutoRetry = requestedChannelInfo.MultiKeyAutoRetry
 		channel.ChannelInfo.MultiKeyAutoRecovery = requestedChannelInfo.MultiKeyAutoRecovery
 		channel.ChannelInfo.MultiKeyRecoveryIntervalMinutes = requestedChannelInfo.MultiKeyRecoveryIntervalMinutes
+		if info, ok := requestData["channel_info"].(map[string]any); ok {
+			if _, provided := info["multi_key_inventory_enabled"]; provided {
+				channel.ChannelInfo.MultiKeyInventoryEnabled = requestedChannelInfo.MultiKeyInventoryEnabled
+			}
+			if _, provided := info["multi_key_inventory_target"]; provided {
+				channel.ChannelInfo.MultiKeyInventoryTarget = requestedChannelInfo.MultiKeyInventoryTarget
+			}
+		}
+	}
+	if channel.ChannelInfo.MultiKeyInventoryEnabled && channel.ChannelInfo.MultiKeyInventoryTarget < 1 {
+		common.ApiErrorT(c, "Active key target must be a positive integer")
+		return
 	}
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
@@ -1227,6 +1249,53 @@ func UpdateChannel(c *gin.Context) {
 			}
 		case "replace":
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
+		}
+	}
+	if channel.ChannelInfo.IsMultiKey && channel.Key != "" && channel.Key != originChannel.Key {
+		oldIndices := make(map[string]int)
+		for index, key := range originChannel.GetKeys() {
+			oldIndices[key] = index
+		}
+		channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
+		channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+		channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
+		for index, key := range channel.GetKeys() {
+			oldIndex, exists := oldIndices[key]
+			if !exists {
+				if channel.ChannelInfo.MultiKeyInventoryEnabled {
+					channel.ChannelInfo.MultiKeyStatusList[index] = model.MultiKeyStatusStandby
+				}
+				continue
+			}
+			if value, exists := originChannel.ChannelInfo.MultiKeyStatusList[oldIndex]; exists {
+				channel.ChannelInfo.MultiKeyStatusList[index] = value
+			}
+			if value, exists := originChannel.ChannelInfo.MultiKeyDisabledReason[oldIndex]; exists {
+				channel.ChannelInfo.MultiKeyDisabledReason[index] = value
+			}
+			if value, exists := originChannel.ChannelInfo.MultiKeyDisabledTime[oldIndex]; exists {
+				channel.ChannelInfo.MultiKeyDisabledTime[index] = value
+			}
+		}
+	}
+	if channel.ChannelInfo.IsMultiKey {
+		inventoryKeys := originChannel.GetKeys()
+		if channel.Key != "" {
+			inventoryKeys = channel.GetKeys()
+		}
+		channel.ReconcileMultiKeyInventory(inventoryKeys)
+		if originChannel.GetOtherInfo()["status_reason"] == model.ChannelStatusReasonAllKeysDisabled {
+			for index := range inventoryKeys {
+				status, exists := channel.ChannelInfo.MultiKeyStatusList[index]
+				if !exists || status == common.ChannelStatusEnabled {
+					channel.Status = common.ChannelStatusEnabled
+					info := originChannel.GetOtherInfo()
+					info["status_reason"] = ""
+					info["status_time"] = common.GetTimestamp()
+					channel.SetOtherInfo(info)
+					break
+				}
+			}
 		}
 	}
 	err = channel.Update()
@@ -1635,6 +1704,7 @@ type MultiKeyStatusResponse struct {
 	EnabledCount        int                         `json:"enabled_count"`
 	ManualDisabledCount int                         `json:"manual_disabled_count"`
 	AutoDisabledCount   int                         `json:"auto_disabled_count"`
+	StandbyCount        int                         `json:"standby_count"`
 	DisableRules        []model.MultiKeyDisableRule `json:"disable_rules,omitempty"`
 	AutoRetry           bool                        `json:"auto_retry"`
 }
@@ -1656,6 +1726,9 @@ func ManageMultiKeys(c *gin.Context) {
 		return
 	}
 
+	lock := model.GetChannelPollingLock(request.ChannelId)
+	lock.Lock()
+	defer lock.Unlock()
 	channel, err := model.GetChannelById(request.ChannelId, true)
 	if err != nil {
 		common.ApiErrorT(c, "Channel does not exist")
@@ -1682,10 +1755,6 @@ func ManageMultiKeys(c *gin.Context) {
 		})
 	}
 
-	lock := model.GetChannelPollingLock(channel.Id)
-	lock.Lock()
-	defer lock.Unlock()
-
 	switch request.Action {
 	case "get_key_status":
 		keys := channel.GetKeys()
@@ -1701,7 +1770,7 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		// Statistics for all keys (unchanged by filtering)
-		var enabledCount, manualDisabledCount, autoDisabledCount int
+		var enabledCount, manualDisabledCount, autoDisabledCount, standbyCount int
 
 		// Build all key status data first
 		var allKeyStatusList []KeyStatus
@@ -1724,6 +1793,8 @@ func ManageMultiKeys(c *gin.Context) {
 				manualDisabledCount++
 			case 3:
 				autoDisabledCount++
+			case model.MultiKeyStatusStandby:
+				standbyCount++
 			}
 
 			if status != 1 {
@@ -1794,6 +1865,7 @@ func ManageMultiKeys(c *gin.Context) {
 				EnabledCount:        enabledCount,        // Overall statistics
 				ManualDisabledCount: manualDisabledCount, // Overall statistics
 				AutoDisabledCount:   autoDisabledCount,   // Overall statistics
+				StandbyCount:        standbyCount,
 				DisableRules:        channel.ChannelInfo.MultiKeyDisableRules,
 				AutoRetry:           channel.ChannelInfo.MultiKeyAutoRetry,
 			},
@@ -1886,6 +1958,9 @@ func ManageMultiKeys(c *gin.Context) {
 		// 从状态列表中删除该密钥的记录，使其回到默认启用状态
 		if channel.ChannelInfo.MultiKeyStatusList != nil {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			if channel.ChannelInfo.MultiKeyInventoryEnabled {
+				channel.ChannelInfo.MultiKeyStatusList[keyIndex] = model.MultiKeyStatusStandby
+			}
 		}
 		if channel.ChannelInfo.MultiKeyDisabledTime != nil {
 			delete(channel.ChannelInfo.MultiKeyDisabledTime, keyIndex)
@@ -1947,7 +2022,7 @@ func ManageMultiKeys(c *gin.Context) {
 			}
 
 			// 只禁用当前启用的密钥
-			if status == 1 {
+			if status == 1 || status == model.MultiKeyStatusStandby {
 				channel.ChannelInfo.MultiKeyStatusList[i] = 2 // disabled
 				disabledCount++
 			}

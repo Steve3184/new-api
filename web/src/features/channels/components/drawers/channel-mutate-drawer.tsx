@@ -307,6 +307,8 @@ const SENSITIVE_FORM_FIELDS = [
   'multi_key_disable_rules',
   'multi_key_auto_retry',
   'multi_key_auto_recovery',
+  'multi_key_inventory_enabled',
+  'multi_key_inventory_target',
   'multi_key_recovery_interval_minutes',
   'proxy',
   'http_protocol',
@@ -4905,6 +4907,10 @@ export function ChannelMutateDrawer({
                   rules={formValues.multi_key_disable_rules || '[]'}
                   autoRetry={formValues.multi_key_auto_retry === true}
                   autoRecovery={formValues.multi_key_auto_recovery === true}
+                  inventoryEnabled={
+                    formValues.multi_key_inventory_enabled === true
+                  }
+                  inventoryTarget={formValues.multi_key_inventory_target ?? 1}
                   recoveryIntervalMinutes={
                     formValues.multi_key_recovery_interval_minutes || 10
                   }
@@ -4923,6 +4929,18 @@ export function ChannelMutateDrawer({
                   }
                   onAutoRecoveryChange={(value) =>
                     form.setValue('multi_key_auto_recovery', value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  onInventoryEnabledChange={(value) =>
+                    form.setValue('multi_key_inventory_enabled', value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  onInventoryTargetChange={(value) =>
+                    form.setValue('multi_key_inventory_target', value, {
                       shouldDirty: true,
                       shouldValidate: true,
                     })

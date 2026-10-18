@@ -40,6 +40,8 @@ export const channelInfoSchema = z.object({
     .optional(),
   multi_key_auto_retry: z.boolean().optional(),
   multi_key_auto_recovery: z.boolean().optional(),
+  multi_key_inventory_enabled: z.boolean().optional(),
+  multi_key_inventory_target: z.number().optional(),
   multi_key_recovery_interval_minutes: z.number().optional(),
 })
 
@@ -283,6 +285,7 @@ export interface MultiKeyStatusResponse {
     enabled_count: number
     manual_disabled_count: number
     auto_disabled_count: number
+    standby_count?: number
     disable_rules?: MultiKeyDisableRule[]
     auto_retry?: boolean
   }

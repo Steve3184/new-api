@@ -81,6 +81,8 @@ type ChannelInfo struct {
 	MultiKeyDisableRules            []MultiKeyDisableRule `json:"multi_key_disable_rules,omitempty"`
 	MultiKeyAutoRetry               bool                  `json:"multi_key_auto_retry,omitempty"`
 	MultiKeyAutoRecovery            bool                  `json:"multi_key_auto_recovery,omitempty"`
+	MultiKeyInventoryEnabled        bool                  `json:"multi_key_inventory_enabled,omitempty"`
+	MultiKeyInventoryTarget         int                   `json:"multi_key_inventory_target,omitempty"`
 	MultiKeyRecoveryIntervalMinutes int                   `json:"multi_key_recovery_interval_minutes,omitempty"`
 	MultiKeyLastRecoveryTime        int64                 `json:"multi_key_last_recovery_time,omitempty"`
 }
@@ -88,6 +90,48 @@ type ChannelInfo struct {
 type MultiKeyDisableRule struct {
 	StatusCode int    `json:"status_code,omitempty"`
 	Message    string `json:"message,omitempty"`
+}
+
+const MultiKeyStatusStandby = 4
+
+func (channel *Channel) ReconcileMultiKeyInventory(keys []string) {
+	if !channel.ChannelInfo.IsMultiKey {
+		return
+	}
+	info := &channel.ChannelInfo
+	if !info.MultiKeyInventoryEnabled {
+		for index, status := range info.MultiKeyStatusList {
+			if status == MultiKeyStatusStandby {
+				delete(info.MultiKeyStatusList, index)
+			}
+		}
+		return
+	}
+	if info.MultiKeyStatusList == nil {
+		info.MultiKeyStatusList = make(map[int]int)
+	}
+	target := max(1, info.MultiKeyInventoryTarget)
+	enabled := 0
+	for index := range keys {
+		status, exists := info.MultiKeyStatusList[index]
+		if exists && status != common.ChannelStatusEnabled {
+			continue
+		}
+		if enabled < target {
+			enabled++
+		} else {
+			info.MultiKeyStatusList[index] = MultiKeyStatusStandby
+		}
+	}
+	for index := range keys {
+		if enabled >= target {
+			break
+		}
+		if info.MultiKeyStatusList[index] == MultiKeyStatusStandby {
+			delete(info.MultiKeyStatusList, index)
+			enabled++
+		}
+	}
 }
 
 type ChannelSortOptions struct {
@@ -244,6 +288,17 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	lock.Lock()
 	defer lock.Unlock()
 
+	if !common.MemoryCacheEnabled && channel.Id != 0 {
+		latest, err := CacheGetChannel(channel.Id)
+		if err != nil {
+			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		channel.ChannelInfo = latest.ChannelInfo
+		channel.Key = latest.Key
+		channel.Keys = nil
+		keys = channel.GetKeys()
+	}
+	channel.ReconcileMultiKeyInventory(keys)
 	statusList := channel.ChannelInfo.MultiKeyStatusList
 	// helper to get key status, default to enabled when missing
 	getStatus := func(idx int) int {
@@ -340,6 +395,16 @@ func (channel *Channel) MatchesMultiKeyDisableRule(statusCode int, message strin
 func (channel *Channel) HasEnabledMultiKey() bool {
 	if channel == nil || !channel.ChannelInfo.IsMultiKey {
 		return false
+	}
+	lock := GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
+	if channel.Id != 0 {
+		latest, err := CacheGetChannel(channel.Id)
+		if err != nil {
+			return false
+		}
+		channel = latest
 	}
 	keys := channel.GetKeys()
 	for index := range keys {
@@ -527,6 +592,9 @@ func BatchInsertChannels(channels []Channel) error {
 	if len(channels) == 0 {
 		return nil
 	}
+	for index := range channels {
+		channels[index].ReconcileMultiKeyInventory(channels[index].GetKeys())
+	}
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -620,6 +688,7 @@ func (channel *Channel) GetStatusCodeMapping() string {
 }
 
 func (channel *Channel) Insert() error {
+	channel.ReconcileMultiKeyInventory(channel.GetKeys())
 	var err error
 	err = DB.Create(channel).Error
 	if err != nil {
@@ -659,6 +728,8 @@ func (channel *Channel) Update() error {
 			}
 		}
 		channel.ChannelInfo.MultiKeySize = len(keys)
+		channel.Keys = nil
+		channel.ReconcileMultiKeyInventory(keys)
 		// Clean up status data that exceeds the new key count to prevent index out of range
 		if channel.ChannelInfo.MultiKeyStatusList != nil {
 			for idx := range channel.ChannelInfo.MultiKeyStatusList {
@@ -773,6 +844,9 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		}
 		if status == common.ChannelStatusEnabled {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			if channel.ChannelInfo.MultiKeyInventoryEnabled {
+				channel.ChannelInfo.MultiKeyStatusList[keyIndex] = MultiKeyStatusStandby
+			}
 			if channel.ChannelInfo.MultiKeyDisabledReason != nil {
 				delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
 			}
@@ -790,7 +864,8 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 			channel.ChannelInfo.MultiKeyDisabledReason[keyIndex] = reason
 			channel.ChannelInfo.MultiKeyDisabledTime[keyIndex] = common.GetTimestamp()
 		}
-		if !hasEnabledMultiKey(keys, channel.ChannelInfo.MultiKeyStatusList) {
+		channel.ReconcileMultiKeyInventory(keys)
+		if !hasEnabledMultiKey(keys, channel.ChannelInfo.MultiKeyStatusList) && channel.Status != common.ChannelStatusManuallyDisabled {
 			channel.Status = common.ChannelStatusAutoDisabled
 			info := channel.GetOtherInfo()
 			info["status_reason"] = ChannelStatusReasonAllKeysDisabled
@@ -858,6 +933,9 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			if err != nil {
 				common.SysLog(common.LogText("failed to update ability status: channel_id=%d, error=%v", channelId, err))
 			}
+			if err == nil && status == common.ChannelStatusEnabled && common.MemoryCacheEnabled {
+				InitChannelCache()
+			}
 		}
 	}()
 	channel, err := GetChannelById(channelId, true)
@@ -881,6 +959,7 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			if beforeStatus != channel.Status {
 				shouldUpdateAbilities = true
 			}
+			status = channel.Status
 		} else {
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason

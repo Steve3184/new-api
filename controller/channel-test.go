@@ -1022,20 +1022,20 @@ func runMultiKeyRecoveryTask(ctx context.Context) (multiKeyRecoverySummary, erro
 			if result.localErr == nil && result.newAPIError == nil {
 				key := channel.GetKeys()[index]
 				if model.UpdateChannelStatus(channel.Id, key, common.ChannelStatusEnabled, "multi-key recovery succeeded") {
-					delete(channel.ChannelInfo.MultiKeyStatusList, index)
-					if channel.ChannelInfo.MultiKeyDisabledReason != nil {
-						delete(channel.ChannelInfo.MultiKeyDisabledReason, index)
-					}
-					if channel.ChannelInfo.MultiKeyDisabledTime != nil {
-						delete(channel.ChannelInfo.MultiKeyDisabledTime, index)
-					}
 					summary.KeysRecovered++
 				}
 			}
 		}
-		channel.ChannelInfo.MultiKeyLastRecoveryTime = now
-		if err := channel.SaveChannelInfo(); err != nil {
-			return summary, err
+		lock := model.GetChannelPollingLock(channel.Id)
+		lock.Lock()
+		latest, saveErr := model.GetChannelById(channel.Id, true)
+		if saveErr == nil {
+			latest.ChannelInfo.MultiKeyLastRecoveryTime = now
+			saveErr = latest.SaveChannelInfo()
+		}
+		lock.Unlock()
+		if saveErr != nil {
+			return summary, saveErr
 		}
 	}
 	return summary, nil

@@ -244,15 +244,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if multiKeyRuleMatched {
 			usingKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
 			model.UpdateChannelStatus(channel.Id, usingKey, common.ChannelStatusAutoDisabled, newAPIError.ErrorWithStatusCode())
-			if channel.ChannelInfo.MultiKeyStatusList == nil {
-				channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
-			}
-			for index, key := range channel.GetKeys() {
-				if key == usingKey {
-					channel.ChannelInfo.MultiKeyStatusList[index] = common.ChannelStatusAutoDisabled
-					break
-				}
-			}
 		}
 		retryTimes := getRetryTimesForCurrentGroup(c, relayInfo.TokenGroup)
 		decision := service.DecideRelayRetry(c, newAPIError, retryTimes-retryParam.GetRetry())

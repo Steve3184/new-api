@@ -90,11 +90,13 @@ export function MultiKeyManageDialog({
   const [keys, setKeys] = useState<KeyStatus[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [enabledCount, setEnabledCount] = useState(0)
   const [manualDisabledCount, setManualDisabledCount] = useState(0)
   const [autoDisabledCount, setAutoDisabledCount] = useState(0)
+  const [standbyCount, setStandbyCount] = useState(0)
+  const totalKeys =
+    enabledCount + standbyCount + manualDisabledCount + autoDisabledCount
 
   // UI state
   const [statusFilter, setStatusFilter] = useState<number | null>(null)
@@ -130,13 +132,13 @@ export function MultiKeyManageDialog({
 
       if (response.success && response.data) {
         setKeys(response.data.keys || [])
-        setTotal(response.data.total || 0)
         setCurrentPage(response.data.page || 1)
         setPageSize(response.data.page_size || 10)
         setTotalPages(response.data.total_pages || 0)
         setEnabledCount(response.data.enabled_count || 0)
         setManualDisabledCount(response.data.manual_disabled_count || 0)
         setAutoDisabledCount(response.data.auto_disabled_count || 0)
+        setStandbyCount(response.data.standby_count || 0)
       } else {
         toast.error(response.message || t('Failed to load key status'))
       }
@@ -272,21 +274,26 @@ export function MultiKeyManageDialog({
       >
         <div className='flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden'>
           {/* Statistics */}
-          <div className='grid shrink-0 grid-cols-3 gap-3'>
+          <div className='grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4'>
+            <StatisticsCard
+              label={t('Standby')}
+              count={standbyCount}
+              total={totalKeys}
+            />
             <StatisticsCard
               label={t('Enabled')}
               count={enabledCount}
-              total={total}
+              total={totalKeys}
             />
             <StatisticsCard
               label={t('Manual Disabled')}
               count={manualDisabledCount}
-              total={total}
+              total={totalKeys}
             />
             <StatisticsCard
               label={t('Auto Disabled')}
               count={autoDisabledCount}
-              total={total}
+              total={totalKeys}
             />
           </div>
 

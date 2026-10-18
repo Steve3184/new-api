@@ -36,7 +36,7 @@ export function MultiKeyTableRowActions({
   onAction,
 }: MultiKeyTableRowActionsProps) {
   const { t } = useTranslation()
-  const isEnabled = status === 1
+  const isEnabled = status === 1 || status === 4
 
   return (
     <div className='flex justify-end gap-2'>

@@ -288,6 +288,8 @@ export const channelFormSchema = z
       .refine(isOptionalMultiKeyDisableRules, ERROR_MESSAGES.INVALID_JSON),
     multi_key_auto_retry: z.boolean().optional(),
     multi_key_auto_recovery: z.boolean().optional(),
+    multi_key_inventory_enabled: z.boolean().optional(),
+    multi_key_inventory_target: z.number().int().min(1).optional(),
     multi_key_recovery_interval_minutes: z
       .number()
       .int()
@@ -507,6 +509,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   multi_key_disable_rules: '[]',
   multi_key_auto_retry: false,
   multi_key_auto_recovery: false,
+  multi_key_inventory_enabled: false,
+  multi_key_inventory_target: 1,
   multi_key_recovery_interval_minutes: 10,
   batch_add_set_key_prefix_2_name: false,
   key_mode: 'append',
@@ -715,6 +719,10 @@ export function transformChannelToFormDefaults(
     multi_key_auto_retry: channel.channel_info.multi_key_auto_retry === true,
     multi_key_auto_recovery:
       channel.channel_info.multi_key_auto_recovery === true,
+    multi_key_inventory_enabled:
+      channel.channel_info.multi_key_inventory_enabled === true,
+    multi_key_inventory_target:
+      channel.channel_info.multi_key_inventory_target || 1,
     multi_key_recovery_interval_minutes: Math.max(
       1,
       Math.min(
@@ -1021,6 +1029,9 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
         formData.multi_key_disable_rules || '[]'
       ),
       multi_key_auto_retry: formData.multi_key_auto_retry === true,
+      multi_key_inventory_enabled:
+        formData.multi_key_inventory_enabled === true,
+      multi_key_inventory_target: formData.multi_key_inventory_target ?? 1,
       multi_key_auto_recovery: formData.multi_key_auto_recovery === true,
       multi_key_recovery_interval_minutes: Math.max(
         1,
@@ -1079,6 +1090,9 @@ export function transformFormDataToUpdatePayload(
         formData.multi_key_disable_rules || '[]'
       ),
       multi_key_auto_retry: formData.multi_key_auto_retry === true,
+      multi_key_inventory_enabled:
+        formData.multi_key_inventory_enabled === true,
+      multi_key_inventory_target: formData.multi_key_inventory_target ?? 1,
       multi_key_auto_recovery: formData.multi_key_auto_recovery === true,
       multi_key_recovery_interval_minutes: Math.max(
         1,

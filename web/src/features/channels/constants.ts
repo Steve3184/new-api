@@ -347,15 +347,21 @@ export const MULTI_KEY_STATUS = {
   ENABLED: 1,
   MANUAL_DISABLED: 2,
   AUTO_DISABLED: 3,
+  STANDBY: 4,
 } as const
 
 export const MULTI_KEY_STATUS_LABELS = {
   [MULTI_KEY_STATUS.ENABLED]: 'Enabled',
   [MULTI_KEY_STATUS.MANUAL_DISABLED]: 'Manual Disabled',
   [MULTI_KEY_STATUS.AUTO_DISABLED]: 'Auto Disabled',
+  [MULTI_KEY_STATUS.STANDBY]: 'Standby',
 } as const
 
 export const MULTI_KEY_STATUS_CONFIG = {
+  [MULTI_KEY_STATUS.STANDBY]: {
+    variant: 'neutral' as const,
+    label: 'Standby',
+  },
   [MULTI_KEY_STATUS.ENABLED]: {
     variant: 'success' as const,
     label: 'Enabled',
@@ -393,6 +399,7 @@ export const ADD_MODE_OPTIONS = [
 // ============================================================================
 
 export const MULTI_KEY_FILTER_OPTIONS = [
+  { value: '4', label: 'Standby' },
   { value: 'all', label: 'All Status' },
   { value: '1', label: 'Enabled' },
   { value: '2', label: 'Manual Disabled' },

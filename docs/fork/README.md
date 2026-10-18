@@ -23,6 +23,46 @@ Token schema checks cover SQLite 3.50.4, MySQL 5.7.44, and PostgreSQL 16.14:
 fresh databases, upgrades from the previous fork and release v1.0.0-rc.45,
 repeated migration, key uniqueness, and preservation of quotas and auto routes.
 
+## Multi-key inventory and rule input stability
+
+The channel editor supports opt-in key inventory with a positive active-key
+target. Keys beyond that target use status `4` (standby), while enabled/manual/
+automatic-disabled statuses retain their existing values `1`/`2`/`3`.
+Existing configurations remain unchanged until inventory is enabled. Configuration
+is stored additively in `channel_info.multi_key_inventory_enabled` and
+`channel_info.multi_key_inventory_target`; no database columns are added.
+
+Disabling an active key immediately promotes standby keys in key-list order,
+without reviving manually or automatically disabled keys. A shortage keeps the
+remaining active keys online; complete exhaustion disables the channel. Recovery
+returns a key to standby when the target is already met. Turning inventory off
+re-enables standby keys only. Bulk disable disables standby keys too, so it cannot
+be undone by automatic replenishment. Bulk enable still respects the target.
+Inventory status means eligible for use, not a preflight guarantee that the
+upstream credential will succeed; existing disable rules and retry settings
+continue to determine failure handling.
+
+The multi-key manager exposes standby counts and filtering. Rule editor rows
+have stable identities independent of editable content, preserving focus while
+typing and supporting duplicate rules. Reuse the existing reliability editor,
+Input/Switch components, statistics cards and status badges when syncing upstream.
+
+Preserve the inventory reconciler in `model/channel.go`, management mappings in
+`controller/channel.go`, recovery's fresh locked state save in
+`controller/channel-test.go`, relay retry's fresh availability check in
+`controller/relay.go`, and the channel editor/form/status UI together.
+Security scope follows OWASP Authentication, Session Management and Secrets
+Management Cheat Sheets: existing authentication/authorization is retained;
+inventory introduces no credential-disclosure route and audit payloads contain
+no key material. This is not an application-wide ASVS compliance claim.
+
+Verification: `go test ./controller -run TestMultiKey -count=1 -v` with
+`TEST_CHANNEL_SQL_DSN` covers SQLite 3.50.4, MySQL 5.7.44 and PostgreSQL 16.14,
+including cache on/off, random/polling selection, exhaustion, replenishment,
+recovery, bulk actions, legacy saves and key append/reordering. Frontend
+interaction tests exercise uninterrupted typing, duplicate/deleted rows,
+inventory controls and create/reload/update payloads.
+
 ## Repository layout and upstream workflow
 
 Use `origin` for this fork and keep the official repository as `upstream`:
