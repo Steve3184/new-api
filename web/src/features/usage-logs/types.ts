@@ -225,6 +225,7 @@ export interface LogOtherData {
   fixed_price?: number
   image_count?: number
   expr_b64?: string
+  billing_group?: string
   matched_tier?: string
   request_rules?: RequestRuleTrace[]
   usage_facts?: Record<string, string | number>

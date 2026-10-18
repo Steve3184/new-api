@@ -28,7 +28,7 @@ import {
 type Origin = { id: string; origin?: ExpressionNode }
 export type VisualComparison = Origin & {
   kind: 'comparison'
-  probe: 'p' | 'c' | 'len' | TimeFunction
+  probe: 'p' | 'c' | 'len' | 'group' | TimeFunction
   timezone: string
   operator: '<' | '<=' | '>' | '>=' | '==' | '!='
   value: string
@@ -106,7 +106,8 @@ function readVisualCondition(node: ExpressionNode): VisualCondition | null {
     node.kind !== 'binary' ||
     !COMPARISONS.has(node.operator) ||
     node.right.kind !== 'literal' ||
-    typeof node.right.value !== 'number'
+    (typeof node.right.value !== 'number' &&
+      typeof node.right.value !== 'string')
   ) {
     return null
   }
@@ -114,9 +115,17 @@ function readVisualCondition(node: ExpressionNode): VisualCondition | null {
   let timezone = ''
   if (
     node.left.kind === 'variable' &&
-    ['p', 'c', 'len'].includes(node.left.name)
+    ['p', 'c', 'len', 'group'].includes(node.left.name)
   ) {
-    probe = node.left.name as 'p' | 'c' | 'len'
+    probe = node.left.name as 'p' | 'c' | 'len' | 'group'
+    if (probe === 'group') {
+      if (
+        typeof node.right.value !== 'string' ||
+        !['==', '!='].includes(node.operator)
+      ) {
+        return null
+      }
+    } else if (typeof node.right.value !== 'number') return null
   } else if (
     node.left.kind === 'call' &&
     (TIME_FUNCTIONS as readonly string[]).includes(node.left.name) &&
@@ -177,6 +186,7 @@ function readVisualPricing(node: ExpressionNode): VisualPricingNode | null {
       term.left.kind !== 'variable' ||
       term.left.name === 'len' ||
       term.left.name === 'image_count' ||
+      term.left.name === 'group' ||
       term.right.kind !== 'literal' ||
       typeof term.right.value !== 'number' ||
       term.right.value < 0
@@ -281,8 +291,14 @@ function writeVisualCondition(
     }
     return `(${children.map((child) => `(${child})`).join(` ${operator} `)})`
   }
-  const value = parseNonNegativeNumber(node.value)
-  let valid = value !== null
+  const value =
+    node.probe === 'group' ? node.value : parseNonNegativeNumber(node.value)
+  let valid =
+    node.probe === 'group'
+      ? node.value.length > 0 && ['==', '!='].includes(node.operator)
+      : value !== null
+  const literal =
+    node.probe === 'group' ? JSON.stringify(node.value) : node.value
   if ((TIME_FUNCTIONS as readonly string[]).includes(node.probe)) {
     const [min, max] = TIME_DOMAINS[node.probe as TimeFunction]
     valid =
@@ -334,13 +350,13 @@ function writeVisualCondition(
     const valueText =
       origin.right.kind === 'literal' && value === origin.right.value
         ? source.slice(origin.right.start, origin.right.end)
-        : node.value
+        : literal
     return patchSource(source, origin, [
       { node: origin.left, text: probeText },
       { node: origin.right, text: valueText },
     ])
   }
-  return `(${probe} ${node.operator} ${node.value})`
+  return `(${probe} ${node.operator} ${literal})`
 }
 
 export function visualConditionExpression(

@@ -188,6 +188,7 @@ func BuildRequestPolicy(options map[string]string) (*RequestPolicySnapshot, erro
 			return nil, fmt.Errorf("invalid session mode for rule %q", rule.Name)
 		}
 		patterns := append(append([]string{}, rule.ModelRegex...), rule.PathRegex...)
+		patterns = append(patterns, rule.UserAgentRegex...)
 		if rule.ValueRegex != "" {
 			patterns = append(patterns, rule.ValueRegex)
 		}

@@ -8,6 +8,8 @@ import (
 )
 
 type RequestInput struct {
+	// Group is selected by the gateway, never read from client headers or JSON.
+	Group   string
 	Headers map[string]string
 	Body    []byte
 	Usage   map[string]any
@@ -62,6 +64,7 @@ type TraceResult struct {
 // auto-group retry and settlement. It is fully serializable and contains no
 // compiled program pointers.
 type BillingSnapshot struct {
+	UsingGroup                string         `json:"using_group,omitempty"`
 	EstimatedImageCount       *int           `json:"estimated_image_count,omitempty"`
 	BillingMode               string         `json:"billing_mode"`
 	ModelName                 string         `json:"model_name"`

@@ -101,7 +101,7 @@ func usesRequestProbe(node ast.Node) bool {
 			return false
 		}
 		switch identifier.Value {
-		case "param", "header", "image_resolution", "hour", "minute", "weekday", "month", "day":
+		case "group", "param", "header", "image_resolution", "hour", "minute", "weekday", "month", "day":
 			return true
 		default:
 			return false
@@ -125,6 +125,7 @@ var (
 
 // compileEnvPrototypeV1 is the v1 type-checking prototype used at compile time.
 var compileEnvPrototypeV1 = map[string]any{
+	"group":            "",
 	"image_count":      float64(1),
 	"p":                float64(0),
 	"c":                float64(0),
@@ -186,7 +187,10 @@ func compileFromCacheByHash(exprStr, hash string) (*vm.Program, error) {
 	return entry.prog, nil
 }
 
-func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
+func compileEntryFromCacheByHash(exprStr, hash string, group ...string) (*cachedEntry, error) {
+	if len(group) > 0 {
+		hash += ":group:" + ExprHashString(group[0])
+	}
 	cacheMu.RLock()
 	if entry, ok := cache[hash]; ok {
 		cacheMu.RUnlock()
@@ -211,7 +215,11 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		}
 	}
 	patcher := &requestRulePatcher{}
-	prog, err := expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(patcher), expr.AsFloat64())
+	options := []expr.Option{expr.Env(getCompileEnv(version)), expr.Patch(patcher), expr.AsFloat64()}
+	if len(group) > 0 {
+		options = append(options, expr.Patch(groupPatcher{group[0]}))
+	}
+	prog, err := expr.Compile(body, options...)
 	if patcher.restrictedIdentifier != "" {
 		return nil, fmt.Errorf("expr compile error: identifier %q is reserved for internal use", patcher.restrictedIdentifier)
 	}
@@ -235,6 +243,105 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 	cacheMu.Unlock()
 
 	return entry, nil
+}
+
+// Specializing the trusted routing group before optimization excludes other
+// groups' cache/audio categories from this group's token normalization.
+type groupPatcher struct{ group string }
+
+func (p groupPatcher) Visit(node *ast.Node) {
+	if identifier, ok := (*node).(*ast.IdentifierNode); ok && identifier.Value == "group" {
+		ast.Patch(node, &ast.StringNode{Value: p.group})
+	}
+	if binary, ok := (*node).(*ast.BinaryNode); ok && (binary.Operator == "&&" || binary.Operator == "||" || binary.Operator == "and" || binary.Operator == "or") {
+		for _, pair := range [][2]ast.Node{{binary.Left, binary.Right}, {binary.Right, binary.Left}} {
+			if literal, ok := pair[0].(*ast.BoolNode); ok {
+				and := binary.Operator == "&&" || binary.Operator == "and"
+				if literal.Value == and {
+					ast.Patch(node, pair[1])
+				} else {
+					ast.Patch(node, literal)
+				}
+				break
+			}
+		}
+	}
+	if conditional, ok := (*node).(*ast.ConditionalNode); ok {
+		if condition, ok := conditional.Cond.(*ast.BoolNode); ok {
+			branch := conditional.Exp2
+			if condition.Value {
+				branch = conditional.Exp1
+			}
+			ast.Patch(node, branch)
+		}
+		return
+	}
+	if ast.Find(*node, func(part ast.Node) bool {
+		_, identifier := part.(*ast.IdentifierNode)
+		return identifier
+	}) != nil {
+		return
+	}
+	program, err := expr.Compile((*node).String(), expr.AsBool())
+	if err != nil {
+		return
+	}
+	value, err := expr.Run(program, nil)
+	if err != nil {
+		return
+	}
+	if matches, ok := value.(bool); ok {
+		ast.Patch(node, &ast.BoolNode{Value: matches})
+	}
+}
+
+func compileEntryForGroup(expression, hash, group string) (*cachedEntry, error) {
+	entry, err := compileEntryFromCacheByHash(expression, hash)
+	if err != nil || !entry.usedVars["group"] {
+		return entry, err
+	}
+	return compileEntryFromCacheByHash(expression, hash, group)
+}
+
+// UsedVarsForGroup reports billable categories after resolving group branches.
+func UsedVarsForGroup(expression, hash, group string) map[string]bool {
+	entry, err := compileEntryForGroup(expression, hash, group)
+	if err != nil {
+		return nil
+	}
+	return entry.usedVars
+}
+
+// ReferencedGroups supplies literal group boundaries for save-time validation.
+func ReferencedGroups(expression string) []string {
+	_, body := ParseExprVersion(expression)
+	tree, err := parser.Parse(body)
+	if err != nil {
+		return nil
+	}
+	groups := []string{""}
+	seen := map[string]bool{"": true}
+	ast.Find(tree.Node, func(node ast.Node) bool {
+		comparison, ok := node.(*ast.BinaryNode)
+		if !ok {
+			return false
+		}
+		for _, pair := range [][2]ast.Node{{comparison.Left, comparison.Right}, {comparison.Right, comparison.Left}} {
+			id, ok := pair[0].(*ast.IdentifierNode)
+			literal, literalOK := pair[1].(*ast.StringNode)
+			if ok && id.Value == "group" && literalOK && !seen[literal.Value] {
+				groups = append(groups, literal.Value)
+				seen[literal.Value] = true
+			}
+		}
+		return false
+	})
+	fallback := "__billing_fallback__"
+	for seen[fallback] {
+		fallback += "_"
+	}
+	groups = append(groups, fallback)
+	return groups
 }
 
 // ExprVersion returns the version of a cached expression. Returns DefaultExprVersion

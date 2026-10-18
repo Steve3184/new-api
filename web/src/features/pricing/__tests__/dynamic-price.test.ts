@@ -55,6 +55,31 @@ const summaryOptions = {
 }
 
 describe('expression price summaries', () => {
+  test('resolves per-group base prices and tiers before applying the group ratio', () => {
+    const model = pricingModel({
+      enable_groups: ['default', 'special'],
+      group_ratio: { default: 1, special: 0.75 },
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'group == "special" ? (len <= 2000 ? tier("short", p * 4 + c * 8) : tier("long", p * 8 + c * 16)) : tier("base", p * 2 + c * 4)',
+    })
+    expect(
+      getDynamicPricingTiers(model, 'default').map((tier) => tier.label)
+    ).toEqual(['base'])
+    expect(
+      getDynamicPricingTiers(model, 'special').map((tier) => tier.label)
+    ).toEqual(['short', 'long'])
+    expect(
+      getDynamicPricingSummary(model, {
+        tokenUnit: 'M',
+        group: 'special',
+        groupRatioMultiplier: 0.75,
+      })?.entries[0]
+    ).toMatchObject({ value: 4, formatted: '$3' })
+    expect(
+      getDynamicPricingSummary(model, { tokenUnit: 'M' })?.tier?.label
+    ).toBe('base')
+  })
   test('keeps request prices unchanged by token units and separates mixed billing units', () => {
     const model = pricingModel({
       billing_mode: 'tiered_expr',

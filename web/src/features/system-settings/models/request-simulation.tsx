@@ -78,6 +78,8 @@ export function RequestSimulation(props: RequestSimulationProps) {
   const timeId = useId()
   const imageCountId = useId()
   const [imageCount, setImageCount] = useState('1')
+  const [group, setGroup] = useState('default')
+  const groupId = useId()
   const compiled = useMemo(
     () => compileBillingExpression(props.expression),
     [props.expression]
@@ -171,6 +173,7 @@ export function RequestSimulation(props: RequestSimulationProps) {
     }
     return evaluateBillingExpression(props.expression, {
       imageCount: Number(imageCount),
+      group,
       tokens: props.tokens,
       usage,
       now,
@@ -182,6 +185,7 @@ export function RequestSimulation(props: RequestSimulationProps) {
   }, [
     open,
     imageCount,
+    group,
     body,
     headers,
     timeMode,
@@ -221,6 +225,21 @@ export function RequestSimulation(props: RequestSimulationProps) {
         {t('Request simulation')}
       </CollapsibleTrigger>
       <CollapsibleContent className='mt-3 space-y-4'>
+        {compiled.status === 'ready' && compiled.variables.has('group') && (
+          <Field>
+            <FieldLabel htmlFor={groupId}>{t('Group')}</FieldLabel>
+            <Input
+              id={groupId}
+              value={group}
+              onChange={(event) => setGroup(event.target.value)}
+            />
+            <FieldDescription>
+              {t(
+                'The final routing group selects the base price. Group multipliers still apply.'
+              )}
+            </FieldDescription>
+          </Field>
+        )}
         {usesImageCount && (
           <Field>
             <FieldLabel htmlFor={imageCountId}>

@@ -24,6 +24,7 @@ import {
   splitBillingExprAndRequestRules,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
+import { resolveGroupBillingExpression } from '@/features/pricing/lib/billing-expression/display'
 import { translateServerText } from '@/lib/server-error-message'
 
 import type { UsageLog } from '../data/schema'
@@ -345,7 +346,11 @@ export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {
   if (!other || other.billing_mode !== 'tiered_expr') return null
-  const exprStr = decodeBillingExprB64(other.expr_b64)
+  const decoded = decodeBillingExprB64(other.expr_b64)
+  const exprStr =
+    other.billing_group === undefined
+      ? decoded
+      : resolveGroupBillingExpression(decoded || '', other.billing_group)
   if (!exprStr) return null
   const tiers = parseTiersFromExpr(
     splitBillingExprAndRequestRules(exprStr).billingExpr

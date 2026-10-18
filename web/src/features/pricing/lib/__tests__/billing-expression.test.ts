@@ -28,7 +28,10 @@ import {
   splitBillingExprAndRequestRules,
 } from '../billing-expr'
 import { formatBillingCondition } from '../billing-expression/condition-display'
-import { readTokenTierChain } from '../billing-expression/display'
+import {
+  readTokenTierChain,
+  resolveGroupBillingExpression,
+} from '../billing-expression/display'
 import { compileBillingExpression } from '../billing-expression/parser'
 import {
   evaluateBillingExpression,
@@ -57,6 +60,61 @@ const extras: ExtraTokenValues = {
   audioInputTokens: 0,
   audioOutputTokens: 0,
 }
+
+test('group branches round-trip visually and require explicit simulation context', () => {
+  const expression =
+    'group == "special" ? (len <= 2000 ? tier("short", p * 4 + c * 8) : tier("long", p * 8 + c * 16)) : tier("base", p * 2 + c * 4)'
+  const document = parseVisualBillingDocument(expression)
+  expect(
+    getTieredBillingSummary({
+      billing_mode: 'tiered_expr',
+      expr_b64: btoa(expression),
+      billing_group: 'default',
+      matched_tier: 'base',
+    })?.tier?.label
+  ).toBe('base')
+  assert(document)
+  expect(serializeVisualBillingDocument(document)).toEqual({
+    ok: true,
+    source: expression,
+  })
+  expect(
+    evaluateBillingExpression(expression, {
+      tokens: { p: 1000, c: 100, len: 1000 },
+    }).status
+  ).toBe('missing_context')
+  for (const [group, len, cost, matchedTier] of [
+    ['default', 1000, 2400, 'base'],
+    ['special', 1000, 4800, 'short'],
+    ['special', 3000, 9600, 'long'],
+  ] as const) {
+    expect(
+      evaluateBillingExpression(expression, {
+        group,
+        tokens: { p: 1000, c: 100, len },
+      })
+    ).toMatchObject({ status: 'success', cost, matchedTier })
+    expect(
+      evaluateBillingExpression(
+        resolveGroupBillingExpression(expression, group),
+        { tokens: { p: 1000, c: 100, len } }
+      )
+    ).toMatchObject({ status: 'success', cost, matchedTier })
+  }
+  assert(
+    document.root.kind === 'branch' &&
+      document.root.condition.kind === 'comparison'
+  )
+  document.root.condition.value = 'quoted "group" / 分组'
+  const updated = serializeVisualBillingDocument(document)
+  assert(updated.ok)
+  expect(
+    evaluateBillingExpression(updated.source, {
+      group: 'quoted "group" / 分组',
+      tokens: { p: 1000, c: 100, len: 1000 },
+    })
+  ).toMatchObject({ status: 'success', matchedTier: 'short' })
+})
 
 test('evaluates and round-trips separate image cache prices including an explicit zero', () => {
   const source =

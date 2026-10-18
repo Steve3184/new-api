@@ -14,6 +14,7 @@ import (
 func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (billingexpr.RequestInput, error) {
 	if info != nil && info.BillingRequestInput != nil {
 		input := cloneRequestInput(*info.BillingRequestInput)
+		input.Group = info.UsingGroup
 		merged := cloneStringMap(info.RequestHeaders)
 		maps.Copy(merged, input.Headers)
 		input.Headers = merged
@@ -22,6 +23,7 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 
 	input := billingexpr.RequestInput{}
 	if info != nil {
+		input.Group = info.UsingGroup
 		input.Headers = cloneStringMap(info.RequestHeaders)
 	}
 
@@ -87,6 +89,7 @@ func readIncomingBillingExprBody(c *gin.Context) ([]byte, error) {
 
 func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
 	input := billingexpr.RequestInput{
+		Group:   src.Group,
 		Headers: cloneStringMap(src.Headers),
 	}
 	if src.ImageCount != nil {

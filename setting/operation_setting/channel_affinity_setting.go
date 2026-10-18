@@ -13,6 +13,7 @@ type ChannelAffinityRule struct {
 	ModelRegex       []string                   `json:"model_regex"`
 	PathRegex        []string                   `json:"path_regex"`
 	UserAgentInclude []string                   `json:"user_agent_include,omitempty"`
+	UserAgentRegex   []string                   `json:"user_agent_regex,omitempty"`
 	KeySources       []ChannelAffinityKeySource `json:"key_sources"`
 
 	ValueRegex string `json:"value_regex"`
@@ -120,7 +121,7 @@ var channelAffinitySetting = ChannelAffinitySetting{
 	KeepOnChannelDisabled: false,
 	MaxEntries:            100_000,
 	DefaultTTLSeconds:     3600,
-	Rules: []ChannelAffinityRule{
+	Rules: append([]ChannelAffinityRule{
 		{
 			Name:       "codex cli trace",
 			ModelRegex: []string{"^gpt-.*$"},
@@ -151,7 +152,27 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			IncludeRuleName:       true,
 			UserAgentInclude:      nil,
 		},
-	},
+	}, BuiltinAgentAffinityRules()...),
+}
+
+// Product-specific user agents observed in gateway logs. Token identity avoids
+// sharing affinity between unrelated users running the same client version.
+func BuiltinAgentAffinityRules() []ChannelAffinityRule {
+	rules := make([]ChannelAffinityRule, 0, 3)
+	for _, agent := range []struct{ name, ua string }{
+		{"deepseek harness", "deepseek-harness/"},
+		{"omp", "omp/"},
+		{"zcode", "ZCode/"},
+	} {
+		rules = append(rules, ChannelAffinityRule{
+			Name: agent.name, ModelRegex: []string{".*"},
+			PathRegex:      []string{"^/v1/(chat/completions|messages|responses)(/compact)?$"},
+			UserAgentRegex: []string{"^" + agent.ua + "[0-9]+[.][0-9]+[.][0-9]+([-.+][0-9A-Za-z.-]+)?( |$)"},
+			KeySources:     []ChannelAffinityKeySource{{Type: "context_int", Key: "token_id"}},
+			SessionMode:    "prefer", IncludeUsingGroup: true, IncludeModelName: true, IncludeRuleName: true,
+		})
+	}
+	return rules
 }
 
 func init() {

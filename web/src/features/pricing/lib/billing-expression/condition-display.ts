@@ -166,6 +166,20 @@ function describeBillingCondition(
       timezone: '',
     }
   }
+  if (
+    node.kind === 'binary' &&
+    ['==', '!='].includes(node.operator) &&
+    node.left.kind === 'variable' &&
+    node.left.name === 'group' &&
+    node.right.kind === 'literal' &&
+    typeof node.right.value === 'string'
+  ) {
+    return {
+      text: `${t('Group')} ${node.operator} ${node.right.value}`,
+      kind: 'combined',
+      timezone: '',
+    }
+  }
   const single = timeComparison(node)
   if (single) return describeTimeRange([single], t, locale)
   if (node.kind !== 'binary' || !['&&', '||'].includes(node.operator)) {

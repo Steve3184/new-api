@@ -164,7 +164,32 @@ tier("base", p * 2 + c * 8 + img * 2.5)
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
 ```
 
-### Request Rules
+### Group-specific Base Prices
+
+`group` is the final routing group selected by the gateway, not the user's
+membership group or a client-supplied header/body field. A single expression
+can override base prices and context tiers for one group while keeping a flat
+fallback for all others:
+
+```
+group == "special"
+  ? (len <= 200000 ? tier("standard", p * 2 + c * 8) : tier("long", p * 4 + c * 12))
+  : tier("base", p * 2 + c * 8)
+```
+
+The configured group multiplier still applies after expression evaluation.
+Group-only branches are specialized before detecting separately billed token
+categories, so cache prices in another group do not reduce the fallback's `p`.
+Automatic group retries re-evaluate the frozen expression and reserve any
+higher estimate before sending. Settlement, including asynchronous tasks,
+uses the captured routing group. Saves smoke-test literal group comparisons
+as well as the fallback; runtime safety checks remain authoritative.
+
+The existing visual pricing editor supports Group equality/inequality
+conditions, nested pricing branches, and an explicit group in simulations.
+Existing prices are unchanged until an administrator saves an expression.
+
+### Request Multipliers
 
 Request-conditional multipliers are multiplied with the base expression:
 

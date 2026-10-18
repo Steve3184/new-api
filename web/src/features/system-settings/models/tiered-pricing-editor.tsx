@@ -811,6 +811,8 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
   const [lengthOverride, setLengthOverride] = useState('')
   const billingTime = useBillingTime(effectiveExpr)
   const [promptTokens, setPromptTokens] = useState(0)
+  const [group, setGroup] = useState('default')
+  const groupId = useId()
   const [completionTokens, setCompletionTokens] = useState(0)
   const [extras, setExtras] = useState<ExtraTokenValues>({
     cacheReadTokens: 0,
@@ -837,10 +839,19 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
   const result = useMemo(
     () =>
       evalExprLocally(effectiveExpr, promptTokens, completionTokens, extras, {
+        group,
         tokens,
         now: billingTime === undefined ? undefined : new Date(billingTime),
       }),
-    [effectiveExpr, promptTokens, completionTokens, extras, tokens, billingTime]
+    [
+      effectiveExpr,
+      promptTokens,
+      completionTokens,
+      extras,
+      tokens,
+      billingTime,
+      group,
+    ]
   )
 
   if (result.error === 'task usage') {
@@ -857,6 +868,19 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
 
   return (
     <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
+      <div className='space-y-1'>
+        <Label htmlFor={groupId}>{t('Group')}</Label>
+        <Input
+          id={groupId}
+          value={group}
+          onChange={(event) => setGroup(event.target.value)}
+        />
+        <p className='text-muted-foreground text-xs'>
+          {t(
+            'The final routing group selects the base price. Group multipliers still apply.'
+          )}
+        </p>
+      </div>
       <div className='space-y-1'>
         <h4 className='text-sm font-medium'>{t('Token estimator')}</h4>
         <p className='text-muted-foreground text-xs'>

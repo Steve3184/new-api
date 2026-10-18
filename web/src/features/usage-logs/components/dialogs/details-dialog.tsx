@@ -1217,6 +1217,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
             <DynamicPricingBreakdown
               compact
+              group={other.billing_group ?? props.log.group}
               billingExpr={decodeBillingExprB64(other.expr_b64)}
               matchedTierLabel={other.matched_tier}
               matchedBillingUnit={other.billing_unit}

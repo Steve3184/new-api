@@ -1120,12 +1120,13 @@ function ProviderGroupPricingSection(
   )
 
   if (isDynamicPricingModel(props.model)) {
-    const dynamicTiers = props.model.billing_usage_schema
-      ? getTaskPricingDisplayTiers(
-          props.model.billing_expr,
-          props.model.billing_usage_schema
-        )
-      : getDynamicPricingTiers(props.model)
+    const tiersByGroup = new Map(
+      availableGroups.map((group) => [
+        group,
+        getDynamicPricingTiers(props.model, group),
+      ])
+    )
+    const dynamicTiers = [...tiersByGroup.values()].flat()
     const hasRequestPrice = dynamicTiers.some(
       (tier) => !('unitPrices' in tier) && tier.billingUnit === 'request'
     )
@@ -1180,7 +1181,7 @@ function ProviderGroupPricingSection(
         const ratio = getConfiguredGroupRatio(props.groupRatio, group)
         return [
           group,
-          getDynamicFormattedPricesByTier(dynamicTiers, {
+          getDynamicFormattedPricesByTier(tiersByGroup.get(group) ?? [], {
             tokenUnit: props.tokenUnit,
             showRechargePrice,
             priceRate: props.priceRate,
@@ -1193,8 +1194,6 @@ function ProviderGroupPricingSection(
     )
 
     if (hasSimpleTaskPricing(props.model)) {
-      const tier = dynamicTiers[0]
-
       return (
         <section>
           {!props.hideTitle && (
@@ -1256,7 +1255,7 @@ function ProviderGroupPricingSection(
                   cell: (group: string) =>
                     formattedPricesByGroup
                       .get(group)
-                      ?.get(tier)
+                      ?.get(tiersByGroup.get(group)?.[0] as DynamicPricingTier)
                       ?.get(fieldEntry.field) ?? '-',
                 }
               }),
@@ -1346,7 +1345,7 @@ function ProviderGroupPricingSection(
                   className='rounded-none border-0'
                   tableClassName='text-sm'
                   headerRowClassName='hover:bg-transparent'
-                  data={dynamicTiers}
+                  data={tiersByGroup.get(group) ?? []}
                   getRowKey={(tier, tierIndex) =>
                     `${group}-${tier.label}-${tierIndex}`
                   }

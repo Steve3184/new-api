@@ -370,8 +370,9 @@ function checkExpressionTypes(ast: ExpressionNode): void {
       else if (typeof node.value === 'number') result = 'number'
       else if (typeof node.value === 'string') result = 'string'
       else result = 'boolean'
-    } else if (node.kind === 'variable') result = 'number'
-    else if (node.kind === 'unary') {
+    } else if (node.kind === 'variable') {
+      result = node.name === 'group' ? 'string' : 'number'
+    } else if (node.kind === 'unary') {
       result = node.operator === '!' ? 'boolean' : 'number'
       requireType(node.operand, result)
     } else if (node.kind === 'conditional') {
@@ -503,8 +504,10 @@ export function compileBillingExpression(source: string): CompilationResult {
       ) {
         return
       }
-      const calls = expressionDependencies(node.condition).functions
+      const conditionDependencies = expressionDependencies(node.condition)
+      const calls = conditionDependencies.functions
       if (
+        !conditionDependencies.variables.has('group') &&
         ![...calls].some((name) =>
           ['param', 'header', ...TIME_FUNCTIONS].includes(name)
         )

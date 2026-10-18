@@ -571,6 +571,9 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 		if len(rule.UserAgentInclude) > 0 && !matchAnyIncludeFold(rule.UserAgentInclude, userAgent) {
 			continue
 		}
+		if len(rule.UserAgentRegex) > 0 && !matchAnyRegexCached(rule.UserAgentRegex, userAgent) {
+			continue
+		}
 		var affinityValue string
 		var usedSource operation_setting.ChannelAffinityKeySource
 		for _, src := range rule.KeySources {

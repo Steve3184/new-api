@@ -35,8 +35,9 @@ import {
   type ParsedTaskTier,
   type ParsedTier,
 } from './billing-expr'
+import { resolveGroupBillingExpression } from './billing-expression/display'
 import { compileBillingExpression } from './billing-expression/parser'
-import { getDisplayGroupRatio } from './model-helpers'
+import { getDisplayGroupRatio, getConfiguredGroupRatio } from './model-helpers'
 import { withPluginPricing } from './plugin-pricing'
 import { FREE_REQUEST_PRICE_THRESHOLD_USD } from './price'
 import {
@@ -47,6 +48,7 @@ import {
 import { getTaskPricingDisplayTiers } from './task-matrix-display'
 
 export type DynamicPriceOptions = {
+  group?: string
   tokenUnit: TokenUnit
   showCurrencySymbol?: boolean
   showRechargePrice?: boolean
@@ -86,6 +88,7 @@ export type CardExamplePrice = {
 export type DynamicPricingTier = ParsedTier | ParsedTaskTier
 
 export type DynamicPricingSummary = {
+  resolvedGroupRatio?: number
   tiers: DynamicPricingTier[]
   tier: DynamicPricingTier | null
   tierCount: number
@@ -108,6 +111,7 @@ export function isDynamicPricingFree(
   summary: DynamicPricingSummary,
   groupRatio = 1
 ): boolean {
+  groupRatio = summary.resolvedGroupRatio ?? groupRatio
   return summary.entries.some((entry) => {
     const isModelLevelPrice =
       entry.field === 'inputPrice' ||
@@ -271,16 +275,34 @@ export function formatTaskUsageUnitPrice(
 }
 
 export function getDynamicPricingTiers(
-  model: PricingModel
+  model: PricingModel,
+  group?: string
 ): DynamicPricingTier[] {
+  const compiled = compileBillingExpression(model.billing_expr || '')
+  if (
+    group === undefined &&
+    compiled.status === 'ready' &&
+    compiled.variables.has('group')
+  ) {
+    return (
+      model.enable_groups?.filter((name) => name !== 'all') ?? []
+    ).flatMap((name) =>
+      getDynamicPricingTiers(model, name).map((tier) => ({
+        ...tier,
+        label: `${name}: ${tier.label}`,
+      }))
+    )
+  }
   if (model.billing_plugin_variants?.length) {
     return model.billing_plugin_variants.flatMap((variant) =>
-      getDynamicPricingTiers(withPluginPricing(model, variant))
+      getDynamicPricingTiers(withPluginPricing(model, variant), group)
     )
   }
   if (!isDynamicPricingModel(model)) return []
   const { billingExpr } = splitBillingExprAndRequestRules(
-    model.billing_expr || ''
+    group === undefined
+      ? model.billing_expr || ''
+      : resolveGroupBillingExpression(model.billing_expr || '', group)
   )
   if (isTaskUsagePricingModel(model)) {
     return getTaskPricingDisplayTiers(billingExpr, model.billing_usage_schema)
@@ -400,6 +422,41 @@ export function getDynamicPricingSummary(
   model: PricingModel,
   options: DynamicPriceOptions
 ): DynamicPricingSummary | null {
+  const compiled = compileBillingExpression(model.billing_expr || '')
+  if (compiled.status === 'ready' && compiled.variables.has('group')) {
+    if (options.group && options.group !== 'all') {
+      return getDynamicPricingSummary(
+        {
+          ...model,
+          billing_expr: resolveGroupBillingExpression(
+            model.billing_expr || '',
+            options.group
+          ),
+        },
+        options
+      )
+    }
+    const groups = (model.enable_groups ?? []).filter(
+      (group) => group !== 'all'
+    )
+    const candidates = (groups.length ? groups : ['default']).flatMap(
+      (group) => {
+        const ratio = getConfiguredGroupRatio(model.group_ratio || {}, group)
+        const summary = getDynamicPricingSummary(model, {
+          ...options,
+          group,
+          groupRatioMultiplier: ratio,
+        })
+        return summary ? [{ ...summary, resolvedGroupRatio: ratio }] : []
+      }
+    )
+    candidates.sort(
+      (a, b) =>
+        (a.primaryEntries[0]?.value ?? Infinity) * a.resolvedGroupRatio -
+        (b.primaryEntries[0]?.value ?? Infinity) * b.resolvedGroupRatio
+    )
+    return candidates[0] ?? null
+  }
   const variants = model.billing_plugin_variants
   if (variants?.length) {
     const summaries = variants.flatMap((variant) => {
@@ -508,7 +565,7 @@ export function getDynamicPricingSummary(
   }
   if (!isDynamicPricingModel(model)) return null
 
-  const tiers = getDynamicPricingTiers(model)
+  const tiers = getDynamicPricingTiers(model, options.group)
   const isTaskUsage = isTaskUsagePricingModel(model)
   const baseExpression = splitBillingExprAndRequestRules(
     model.billing_expr || ''

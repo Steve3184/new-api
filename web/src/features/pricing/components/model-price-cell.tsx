@@ -60,6 +60,7 @@ export function ModelPriceCell(props: {
   const dynamic = useMemo(
     () =>
       getDynamicPricingSummary(props.model, {
+        group: options.selectedGroup,
         priceRate: options.priceRate,
         usdExchangeRate: options.usdExchangeRate,
         showRechargePrice: options.showRechargePrice,

@@ -86,6 +86,31 @@ function buildCodexPassHeadersTemplate() {
 export type RuleTemplate = Omit<AffinityRule, 'id'>
 
 export const RULE_TEMPLATES: Record<string, RuleTemplate> = {
+  ...Object.fromEntries(
+    [
+      ['deepseekHarness', 'deepseek harness', 'deepseek-harness/'],
+      ['omp', 'omp', 'omp/'],
+      ['zcode', 'zcode', 'ZCode/'],
+    ].map(([key, name, ua]) => [
+      key,
+      {
+        name,
+        model_regex: ['.*'],
+        path_regex: ['^/v1/(chat/completions|messages|responses)(/compact)?$'],
+        user_agent_regex: [
+          `^${ua}[0-9]+[.][0-9]+[.][0-9]+([-.+][0-9A-Za-z.-]+)?( |$)`,
+        ],
+        key_sources: [{ type: 'context_int', key: 'token_id' }],
+        value_regex: '',
+        ttl_seconds: 0,
+        skip_retry_on_failure: false,
+        session_mode: 'prefer',
+        include_using_group: true,
+        include_model_name: true,
+        include_rule_name: true,
+      } satisfies RuleTemplate,
+    ])
+  ),
   codexCli: {
     name: 'codex cli trace',
     model_regex: ['^gpt-.*$'],

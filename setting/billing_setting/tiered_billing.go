@@ -215,7 +215,7 @@ func smokeTestExpr(exprStr string) error {
 	}
 
 	for _, v := range vectors {
-		for _, request := range billingExprSmokeRequests() {
+		for _, request := range billingExprSmokeRequests(exprStr) {
 			result, _, err := billingexpr.RunExprWithRequest(exprStr, v, request)
 			if err != nil {
 				return fmt.Errorf("vector {p=%g, c=%g}: run failed: %w", v.P, v.C, err)
@@ -245,7 +245,7 @@ func SmokeTestTaskExpr(exprStr string, schema map[string]jsplugin.UsageFieldSche
 	}
 
 	for _, usage := range taskUsageSmokeVectors(schema) {
-		for _, request := range billingExprSmokeRequests() {
+		for _, request := range billingExprSmokeRequests(exprStr) {
 			request.Usage = usage
 			result, _, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, request)
 			if err != nil {
@@ -354,8 +354,8 @@ func usageSmokeCombinationCount(dimensions []usageSmokeDimension, stopAfter int)
 	return count
 }
 
-func billingExprSmokeRequests() []billingexpr.RequestInput {
-	return []billingexpr.RequestInput{
+func billingExprSmokeRequests(exprStr string) []billingexpr.RequestInput {
+	base := []billingexpr.RequestInput{
 		{},
 		{
 			Headers: map[string]string{
@@ -364,4 +364,12 @@ func billingExprSmokeRequests() []billingexpr.RequestInput {
 			Body: []byte(`{"service_tier":"fast","size":"4096x4096","stream_options":{"include_usage":true},"messages":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]}`),
 		},
 	}
+	requests := make([]billingexpr.RequestInput, 0)
+	for _, group := range billingexpr.ReferencedGroups(exprStr) {
+		for _, request := range base {
+			request.Group = group
+			requests = append(requests, request)
+		}
+	}
+	return requests
 }

@@ -27,6 +27,55 @@ func buildChannelAffinityTemplateContextForTest(meta channelAffinityMeta) *gin.C
 	return ctx
 }
 
+func TestBuiltinAgentAffinityRecognizesProductsAndIsolatesTokens(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	t.Cleanup(func() { *setting = previous })
+	setting.Enabled = true
+	setting.Rules = operation_setting.BuiltinAgentAffinityRules()
+	for _, tc := range []struct{ ua, rule string }{
+		{"deepseek-harness/0.2.0-rc.2 (+https://github.com/deepseek-ai/deepseek-harness)", "deepseek harness"},
+		{"omp/18.12.1", "omp"},
+		{"ZCode/3.15.3 ai-sdk/provider-utils/4.0.27 runtime/node.js/24", "zcode"},
+		{"OpenAI/Python 2.26.0", ""}, {"other-omp/18.12.1", ""}, {"deepseek-harness/not-a-version", ""},
+	} {
+		t.Run(tc.ua, func(t *testing.T) {
+			var key string
+			for _, testCase := range []struct {
+				token              int
+				model, group, path string
+			}{
+				{101, "deepseek-v4", "default", "/v1/chat/completions"},
+				{102, "deepseek-v4", "default", "/v1/responses"},
+				{101, "deepseek-other", "default", "/v1/messages"},
+				{101, "deepseek-v4", "special", "/v1/responses/compact"},
+				{0, "deepseek-v4", "default", "/v1/responses"},
+				{101, "deepseek-v4", "default", "/api/status"},
+			} {
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest(http.MethodPost, testCase.path, nil)
+				ctx.Request.Header.Set("User-Agent", tc.ua)
+				ctx.Set("token_id", testCase.token)
+				GetPreferredChannelByAffinity(ctx, testCase.model, testCase.group)
+				meta, matched := getChannelAffinityMeta(ctx)
+				want := tc.rule != "" && testCase.token > 0 && testCase.path != "/api/status"
+				require.Equal(t, want, matched)
+				if !want {
+					continue
+				}
+				assert.Equal(t, tc.rule, meta.RuleName)
+				assert.Equal(t, "prefer", RequestPolicy(ctx).SessionMode)
+				assert.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+				if key == "" {
+					key = meta.CacheKey
+				} else {
+					assert.NotEqual(t, key, meta.CacheKey)
+				}
+			}
+		})
+	}
+}
+
 func TestApplyChannelAffinityOverrideTemplate_NoTemplate(t *testing.T) {
 	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 		RuleName: "rule-no-template",

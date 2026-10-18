@@ -257,6 +257,22 @@ export function ChannelAffinitySection(props: Props) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end'>
                   <DropdownMenuGroup>
+                    {[
+                      ['deepseekHarness', 'DeepSeek Harness'],
+                      ['omp', 'OMP'],
+                      ['zcode', 'ZCode'],
+                    ].map(([key, label]) => (
+                      <DropdownMenuItem
+                        key={key}
+                        onClick={() => {
+                          setEditingRule(null)
+                          setRuleTemplateKey(key)
+                          setRuleEditorOpen(true)
+                        }}
+                      >
+                        {label}
+                      </DropdownMenuItem>
+                    ))}
                     <DropdownMenuItem
                       onClick={() => {
                         setEditingRule(null)

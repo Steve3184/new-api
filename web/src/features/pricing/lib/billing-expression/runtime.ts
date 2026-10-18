@@ -248,6 +248,16 @@ class BillingRuntime {
       return { value: node.value, integer: node.integer }
     }
     if (node.kind === 'variable') {
+      if (node.name === 'group') {
+        if (this.context.group === undefined) {
+          throw new BillingExpressionError({
+            code: 'missing_context',
+            detail: 'group',
+            position: node.start,
+          })
+        }
+        return { value: this.context.group }
+      }
       if (node.name === 'image_count') {
         const value = this.context.imageCount ?? 1
         if (!Number.isInteger(value) || value < 1 || value > 128) {
@@ -521,10 +531,13 @@ class BillingRuntime {
 export function evaluateBillingCondition(
   compiled: CompiledBillingExpression,
   node: ExpressionNode,
-  now: Date
+  now?: Date,
+  group?: string
 ): boolean | null {
   try {
-    const result = new BillingRuntime(compiled, { now }).evaluate(node).value
+    const result = new BillingRuntime(compiled, { now, group }).evaluate(
+      node
+    ).value
     return typeof result === 'boolean' ? result : null
   } catch {
     return null

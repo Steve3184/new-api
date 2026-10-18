@@ -33,7 +33,7 @@ func RunExpr(exprStr string, params TokenParams) (float64, TraceResult, error) {
 }
 
 func RunExprWithRequest(exprStr string, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	entry, err := compileEntryFromCacheByHash(exprStr, ExprHashString(exprStr))
+	entry, err := compileEntryForGroup(exprStr, ExprHashString(exprStr), request.Group)
 	if err != nil {
 		return 0, TraceResult{}, err
 	}
@@ -48,7 +48,7 @@ func RunExprByHash(exprStr, hash string, params TokenParams) (float64, TraceResu
 }
 
 func RunExprByHashWithRequest(exprStr, hash string, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	entry, err := compileEntryFromCacheByHash(exprStr, hash)
+	entry, err := compileEntryForGroup(exprStr, hash, request.Group)
 	if err != nil {
 		return 0, TraceResult{}, err
 	}
@@ -73,6 +73,7 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 	}
 
 	env := map[string]any{
+		"group":       request.Group,
 		"image_count": float64(imageCount),
 		"p":           params.P,
 		"c":           params.C,

@@ -47,6 +47,7 @@ import {
   type TierCondition,
 } from '../lib/billing-expr'
 import { formatBillingCondition } from '../lib/billing-expression/condition-display'
+import { resolveGroupBillingExpression } from '../lib/billing-expression/display'
 import { compileBillingExpression } from '../lib/billing-expression/parser'
 import { isBreakdownTierMatched } from '../lib/breakdown-tier-match'
 import {
@@ -64,6 +65,7 @@ import {
 import type { BillingUsageSchema, BillingUsageUnit } from '../types'
 
 type DynamicPricingBreakdownProps = {
+  group?: string
   billingExpr: string | null | undefined
   /**
    * Label of the tier that fired for the current request. When provided,
@@ -284,6 +286,7 @@ function nextOccurrenceKey(
 }
 
 export function DynamicPricingBreakdown({
+  group,
   billingExpr,
   matchedTierLabel,
   matchedBillingUnit,
@@ -296,7 +299,10 @@ export function DynamicPricingBreakdown({
   usageFacts,
 }: DynamicPricingBreakdownProps) {
   const { t, i18n } = useTranslation()
-  const expr = billingExpr || ''
+  const expr =
+    group === undefined
+      ? billingExpr || ''
+      : resolveGroupBillingExpression(billingExpr || '', group)
   const currency = useSystemConfigStore((s) => s.config.currency)
 
   const { symbol, rate } = useMemo(() => {

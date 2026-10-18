@@ -68,6 +68,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 	if snap := info.TieredBillingSnapshot; snap != nil {
 		other.SetPublic("billing_mode", "tiered_expr")
 		other.SetPublic("expr_b64", base64.StdEncoding.EncodeToString([]byte(snap.ExprString)))
+		if snap.UsingGroup != "" {
+			other.SetPublic("billing_group", snap.UsingGroup)
+		}
 		other.SetPublic("matched_tier", snap.EstimatedTier)
 		if len(snap.UsageFacts) > 0 {
 			other.SetPublic("usage_facts", snap.UsageFacts)
@@ -166,6 +169,9 @@ func taskBillingOther(task *model.Task) *model.LogOther {
 		if snap := bc.TieredSnapshot; snap != nil {
 			other.SetPublic("billing_mode", "tiered_expr")
 			other.SetPublic("expr_b64", base64.StdEncoding.EncodeToString([]byte(snap.ExprString)))
+			if snap.UsingGroup != "" {
+				other.SetPublic("billing_group", snap.UsingGroup)
+			}
 			other.SetPublic("matched_tier", snap.EstimatedTier)
 			if len(snap.UsageFacts) > 0 {
 				other.SetPublic("usage_facts", snap.UsageFacts)

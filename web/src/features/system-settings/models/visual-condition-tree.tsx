@@ -103,12 +103,16 @@ function conditionRows(
 
 function ComparisonOperator(props: {
   value: VisualComparison['operator']
+  group?: boolean
   onChange: (value: VisualComparison['operator']) => void
 }) {
   const { t } = useTranslation()
   return (
     <Select
-      items={OPERATORS.map((value) => ({ value, label: value }))}
+      items={(props.group ? OPERATORS.slice(-2) : OPERATORS).map((value) => ({
+        value,
+        label: value,
+      }))}
       value={props.value}
       onValueChange={(value) => value && props.onChange(value)}
     >
@@ -120,7 +124,7 @@ function ComparisonOperator(props: {
         <SelectValue />
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false}>
-        {OPERATORS.map((operator) => (
+        {(props.group ? OPERATORS.slice(-2) : OPERATORS).map((operator) => (
           <SelectItem key={operator} value={operator}>
             {operator}
           </SelectItem>
@@ -252,6 +256,7 @@ function ConditionFields(props: ConditionProps) {
       <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
         <BillingTimeProbeFields
           includeTokens
+          includeGroup={node.kind === 'comparison'}
           probe={comparison.probe}
           timezone={comparison.timezone}
           invalidTimezone={errors.some(
@@ -259,7 +264,13 @@ function ConditionFields(props: ConditionProps) {
           )}
           onChange={(probe, timezone) => {
             if (node.kind === 'comparison') {
-              props.onChange({ ...node, probe, timezone })
+              props.onChange({
+                ...node,
+                probe,
+                timezone,
+                operator: probe === 'group' ? '==' : node.operator,
+                value: probe === node.probe ? node.value : '',
+              })
             } else if (range && (node.kind === 'all' || node.kind === 'any')) {
               props.onChange({
                 ...node,
@@ -271,6 +282,7 @@ function ConditionFields(props: ConditionProps) {
         {node.kind === 'comparison' && (
           <>
             <ComparisonOperator
+              group={node.probe === 'group'}
               value={node.operator}
               onChange={(operator) => props.onChange({ ...node, operator })}
             />

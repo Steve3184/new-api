@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -32,6 +33,56 @@ const cacheExpr = `tier("default", p * 2 + c * 10 + cr * 0.2 + cc * 2.5 + cc1h *
 const probeExpr = `param("service_tier") == "fast" ? tier("fast", p * 4 + c * 20) : tier("normal", p * 2 + c * 10)`
 
 const testQuotaPerUnit = 500_000.0
+
+func TestGroupBillingBranchesReserveNormalizeAndSettle(t *testing.T) {
+	expression := `group == "special" ? (len <= 2000 ? tier("short", p * 4 + cr * 1 + c * 8) : tier("long", p * 8 + cr * 2 + c * 16)) : tier("base", p * 2 + c * 4)`
+	require.NoError(t, billing_setting.SmokeTestExpr(expression))
+	require.Error(t, billing_setting.SmokeTestExpr(`group == "special" ? -1 : p * 2`))
+	require.Error(t, billing_setting.SmokeTestTaskExpr(`group == "special" ? -1 : 1`, nil))
+	info := makeRelayInfo(expression, 1, 1000, 0)
+	info.UsingGroup = "special"
+	info.PriceData.GroupRatioInfo.GroupRatio = 1
+	info.TieredBillingSnapshot.PreConsumeMultiplier = 2
+	snap, err := refreshTieredBillingGroup(info)
+	require.NoError(t, err)
+	assert.Equal(t, 4000, snap.EstimatedQuotaAfterGroup, "same multiplier still refreshes the base price")
+	assert.Equal(t, "short", snap.EstimatedTier)
+	assert.False(t, info.PriceData.BillingFree)
+	billing := &recordingBillingSettler{preConsumedQuota: 1000}
+	info.Billing = billing
+	require.Nil(t, PrepareTieredBillingForSelectedGroup(nil, info))
+	assert.Equal(t, []int{4000}, billing.reserveTargets)
+	compound := `group == "special" && len > 500 ? tier("special", p * 4 + cr) : tier("base", p * 2)`
+	assert.False(t, billingexpr.UsedVarsForGroup(compound, billingexpr.ExprHashString(compound), "default")["cr"])
+	usage := &dto.Usage{PromptTokens: 1000, CompletionTokens: 100}
+	usage.PromptTokensDetails.CachedTokens = 200
+	for _, tc := range []struct {
+		group  string
+		prompt float64
+		quota  int
+	}{{"special", 800, 2100}, {"default", 1000, 1200}} {
+		info.UsingGroup = tc.group
+		snap, err = refreshTieredBillingGroup(info)
+		require.NoError(t, err)
+		params := BuildTieredTokenParams(usage, false, billingexpr.UsedVarsForGroup(expression, snap.ExprHash, snap.UsingGroup))
+		assert.Equal(t, tc.prompt, params.P)
+		info.BillingRequestInput.Group = "spoofed"
+		ok, quota, result := TryTieredSettle(info, params)
+		require.True(t, ok)
+		require.NotNil(t, result)
+		assert.Equal(t, tc.quota, quota)
+	}
+	// Task snapshots round-trip through their existing JSON storage and freeze group.
+	task := makeSnapshot(`group == "special" ? 0.2 : 0.1`, 2, 0, 0)
+	task.UsingGroup, task.TaskUsageBilling = "special", true
+	data, err := common.Marshal(task)
+	require.NoError(t, err)
+	var restored billingexpr.BillingSnapshot
+	require.NoError(t, common.Unmarshal(data, &restored))
+	result, err := billingexpr.ComputeTieredQuotaWithRequest(&restored, billingexpr.TokenParams{}, billingexpr.RequestInput{Group: "default"})
+	require.NoError(t, err)
+	assert.Equal(t, 200000, result.ActualQuotaAfterGroup)
+}
 
 func makeSnapshot(expr string, groupRatio float64, estPrompt, estCompletion int) *billingexpr.BillingSnapshot {
 	return &billingexpr.BillingSnapshot{

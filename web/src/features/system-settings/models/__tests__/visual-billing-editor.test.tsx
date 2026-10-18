@@ -31,6 +31,32 @@ import { TieredPricingEditor } from '../tiered-pricing-editor'
 const expression =
   'weekday("Asia/Shanghai") >= 1 && weekday("Asia/Shanghai") <= 5 && ((hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12) || (hour("Asia/Shanghai") >= 14 && hour("Asia/Shanghai") < 18))\n  ? tier("peak", p * 3 + cr * 0.10 + c * 9)\n  : tier("off_peak", p * 1.5 + cr * 0.05 + c * 4.5)'
 
+test('edits a group branch as text and preserves fallback prices', () => {
+  const source =
+    'group == "special" ? tier("special", p * 4 + c * 8) : tier("base", p * 2 + c * 4)'
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={source}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const rule = within(
+    screen.getByRole('group', { name: 'Pricing tier special' })
+  )
+  expect(
+    rule.getByRole('combobox', { name: 'Condition input' })
+  ).toHaveTextContent('Group')
+  fireEvent.change(rule.getByRole('textbox', { name: 'Condition value' }), {
+    target: { value: '国模下游' },
+  })
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    source.replace('group == "special"', 'group == "国模下游"')
+  )
+})
+
 const chainedExpression =
   'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)'
 

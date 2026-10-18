@@ -424,7 +424,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		return hosttypes.PriceData{}, err
 	}
 
-	freePriceCandidates, err := tieredFreePriceCandidates(exprStr, exprHash, requestInput, promptTokens, trace)
+	freePriceCandidates, err := billingexpr.FreePriceCandidates(exprStr, exprHash, requestInput, promptTokens, trace)
 	if err != nil {
 		return hosttypes.PriceData{}, fmt.Errorf("model %s tiered free-price check failed: %w", billingModelName, err)
 	}
@@ -438,6 +438,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 	}
 
 	snapshot := &billingexpr.BillingSnapshot{
+		UsingGroup:                info.UsingGroup,
 		EstimatedImageCount:       trace.ImageCount,
 		BillingMode:               billing_setting.BillingModeTieredExpr,
 		ModelName:                 billingModelName,
@@ -470,43 +471,4 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 
 	info.PriceData = priceData
 	return priceData, nil
-}
-
-func tieredFreePriceCandidates(exprStr, exprHash string, request billingexpr.RequestInput, promptTokens int, trace billingexpr.TraceResult) ([]float64, error) {
-	if trace.BillingUnit == billingexpr.BillingUnitRequest && trace.FixedPrice != nil {
-		return []float64{*trace.FixedPrice}, nil
-	}
-
-	usedVars := billingexpr.UsedVarsByHash(exprStr, exprHash)
-	// image_count is a quantity multiplier. Free-model detection compares the
-	// configured unit price, so do not let the requested batch size turn a
-	// per-image price into a misleading total request price.
-	candidateRequest := request
-	if usedVars["image_count"] {
-		unitImageCount := 1
-		candidateRequest.ImageCount = &unitImageCount
-	}
-	baseParams := billingexpr.TokenParams{Len: float64(promptTokens)}
-	baseCost, _, err := billingexpr.RunExprByHashWithRequest(exprStr, exprHash, baseParams, candidateRequest)
-	if err != nil {
-		return nil, err
-	}
-	prices := make([]float64, 0, 3)
-	if usedVars["req"] {
-		prices = append(prices, baseCost/1_000_000)
-	}
-	for variable, params := range map[string]billingexpr.TokenParams{
-		"p": {P: 1, Len: float64(promptTokens)},
-		"c": {C: 1, Len: float64(promptTokens)},
-	} {
-		if !usedVars[variable] {
-			continue
-		}
-		cost, _, runErr := billingexpr.RunExprByHashWithRequest(exprStr, exprHash, params, candidateRequest)
-		if runErr != nil {
-			return nil, runErr
-		}
-		prices = append(prices, cost-baseCost)
-	}
-	return prices, nil
 }

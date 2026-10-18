@@ -80,6 +80,7 @@ interface RuleFormValues {
   model_regex_text: string
   path_regex_text: string
   user_agent_include_text: string
+  user_agent_regex_text: string
   value_regex: string
   ttl_seconds: number
   skip_retry_on_failure: boolean
@@ -131,6 +132,7 @@ export function RuleEditorDialog(props: Props) {
       model_regex_text: '',
       path_regex_text: '',
       user_agent_include_text: '',
+      user_agent_regex_text: '',
       value_regex: '',
       ttl_seconds: 0,
       skip_retry_on_failure: false,
@@ -152,6 +154,7 @@ export function RuleEditorDialog(props: Props) {
       model_regex_text: (r.model_regex || []).join('\n'),
       path_regex_text: (r.path_regex || []).join('\n'),
       user_agent_include_text: (r.user_agent_include || []).join('\n'),
+      user_agent_regex_text: (r.user_agent_regex || []).join('\n'),
       value_regex: r.value_regex || '',
       ttl_seconds: r.ttl_seconds || 0,
       skip_retry_on_failure: !!r.skip_retry_on_failure,
@@ -185,6 +188,7 @@ export function RuleEditorDialog(props: Props) {
         model_regex_text: '',
         path_regex_text: '',
         user_agent_include_text: '',
+        user_agent_regex_text: '',
         value_regex: '',
         ttl_seconds: 0,
         skip_retry_on_failure: false,
@@ -240,6 +244,7 @@ export function RuleEditorDialog(props: Props) {
       model_regex: modelRegex,
       path_regex: normalizeStringList(values.path_regex_text),
       user_agent_include: normalizeStringList(values.user_agent_include_text),
+      user_agent_regex: normalizeStringList(values.user_agent_regex_text),
       key_sources: validKeySources,
       value_regex: values.value_regex.trim(),
       ttl_seconds: Number(values.ttl_seconds || 0),
@@ -448,6 +453,16 @@ export function RuleEditorDialog(props: Props) {
             {advancedOpen ? '▼' : '▶'} {t('Advanced Settings')}
           </CollapsibleTrigger>
           <CollapsibleContent className='space-y-3 pt-2'>
+            <div className='grid gap-1.5'>
+              <Label htmlFor='affinity-user-agent-regex'>
+                {t('User-Agent regex (one per line)')}
+              </Label>
+              <Textarea
+                id='affinity-user-agent-regex'
+                rows={3}
+                {...form.register('user_agent_regex_text')}
+              />
+            </div>
             <div className='grid gap-1.5'>
               <Label>{t('User-Agent include (one per line)')}</Label>
               <Textarea

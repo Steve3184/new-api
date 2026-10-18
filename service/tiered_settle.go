@@ -148,8 +148,40 @@ func refreshTieredBillingGroup(relayInfo *relaycommon.RelayInfo) (*billingexpr.B
 	}
 
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
-	if snap.GroupRatio == groupRatio {
+	if snap.GroupRatio == groupRatio && snap.UsingGroup == relayInfo.UsingGroup {
 		return snap, nil
+	}
+	if snap.UsingGroup != relayInfo.UsingGroup {
+		request := billingexpr.RequestInput{}
+		if relayInfo.BillingRequestInput != nil {
+			request = *relayInfo.BillingRequestInput
+		}
+		request.Group = relayInfo.UsingGroup
+		if snap.EstimatedImageCount != nil {
+			request.ImageCount = snap.EstimatedImageCount
+		}
+		cost, trace, err := billingexpr.RunExprByHashWithRequest(snap.ExprString, snap.ExprHash, billingexpr.TokenParams{
+			P: float64(snap.EstimatedPromptTokens), C: float64(snap.EstimatedCompletionTokens), Len: float64(snap.EstimatedPromptTokens),
+		}, request)
+		if err != nil {
+			return nil, err
+		}
+		prices, err := billingexpr.FreePriceCandidates(snap.ExprString, snap.ExprHash, request, snap.EstimatedPromptTokens, trace)
+		if err != nil {
+			return nil, err
+		}
+		beforeGroup := cost / 1_000_000 * snap.QuotaPerUnit
+		if trace.BillingUnit != billingexpr.BillingUnitRequest && snap.PreConsumeMultiplier != 0 {
+			beforeGroup *= snap.PreConsumeMultiplier
+		}
+		snap.EstimatedQuotaBeforeGroup = beforeGroup
+		snap.EstimatedTier = trace.MatchedTier
+		snap.EstimatedBillingUnit = trace.BillingUnit
+		snap.EstimatedFixedPrice = trace.FixedPrice
+		snap.EstimatedImageCount = trace.ImageCount
+		snap.FreePriceCandidates = prices
+		snap.UsingGroup = request.Group
+		relayInfo.BillingRequestInput = &request
 	}
 
 	estimatedQuotaAfterGroup := snap.EstimatedQuotaBeforeGroup * groupRatio

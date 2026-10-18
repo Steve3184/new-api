@@ -32,6 +32,76 @@ export type TokenTierCondition = {
   op: '<' | '<=' | '>' | '>='
   value: number
 }
+
+/** Resolve only group-known branches; retain token/time/request conditions verbatim. */
+export function resolveGroupBillingExpression(
+  source: string,
+  group: string
+): string {
+  const compiled = compileBillingExpression(source)
+  if (compiled.status !== 'ready' || !compiled.variables.has('group')) {
+    return source
+  }
+  const ready = compiled
+  function render(node: ExpressionNode): string {
+    if (node.kind === 'binary' && ['&&', '||'].includes(node.operator)) {
+      for (const [part, other] of [
+        [node.left, node.right],
+        [node.right, node.left],
+      ]) {
+        const dependencies = expressionDependencies(part)
+        if (
+          dependencies.functions.size !== 0 ||
+          [...dependencies.variables].some((name) => name !== 'group')
+        ) {
+          continue
+        }
+        const matches = evaluateBillingCondition(ready, part, undefined, group)
+        if (matches === null) continue
+        if (matches === (node.operator === '&&')) return `(${render(other)})`
+        return String(matches)
+      }
+    }
+    if (node.kind === 'variable' && node.name === 'group') {
+      return JSON.stringify(group)
+    }
+    if (node.kind === 'conditional') {
+      const dependencies = expressionDependencies(node.condition)
+      if (
+        dependencies.variables.has('group') &&
+        dependencies.functions.size === 0
+      ) {
+        const matches = evaluateBillingCondition(
+          ready,
+          node.condition,
+          undefined,
+          group
+        )
+        if (matches !== null) return `(${render(matches ? node.yes : node.no)})`
+      }
+    }
+    let children: ExpressionNode[] = []
+    if (node.kind === 'conditional') {
+      children = [node.condition, node.yes, node.no]
+    }
+    if (node.kind === 'binary') children = [node.left, node.right]
+    if (node.kind === 'unary') children = [node.operand]
+    if (node.kind === 'call') children = node.args
+    let text = source.slice(node.start, node.end)
+    for (const child of [...children].sort((a, b) => b.start - a.start)) {
+      text =
+        text.slice(0, child.start - node.start) +
+        render(child) +
+        text.slice(child.end - node.start)
+    }
+    return text
+  }
+  return (
+    source.slice(0, compiled.ast.start) +
+    render(compiled.ast) +
+    source.slice(compiled.ast.end)
+  )
+}
 export type TokenTier = {
   conditionText?: string
   imageCount?: boolean
@@ -142,6 +212,7 @@ function tokenTier(
     if (
       input.kind === 'variable' &&
       input.name !== 'len' &&
+      input.name !== 'group' &&
       input.name !== 'image_count'
     ) {
       variable = input.name
@@ -261,7 +332,11 @@ function timeTierBranches(
   node: ExpressionNode,
   path: TimeTokenTier['timeConditions']
 ): TimeTokenTier[] | null {
-  if (node.kind === 'conditional' && isTimeCondition(node.condition)) {
+  if (
+    node.kind === 'conditional' &&
+    (isTimeCondition(node.condition) ||
+      expressionDependencies(node.condition).variables.has('group'))
+  ) {
     const yes = timeTierBranches(compiled, node.yes, [
       ...path,
       { condition: node.condition, matches: true },

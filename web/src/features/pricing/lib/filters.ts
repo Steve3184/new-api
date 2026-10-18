@@ -133,13 +133,14 @@ const PRICE_SORTS: Partial<
  */
 function getSortPrice(
   model: PricingModel,
-  kind: SortPriceKind
+  kind: SortPriceKind,
+  group?: string
 ): number | undefined {
   if (kind === 'request') {
     const example = getCardExamplePrice(model, { tokenUnit: 'M' })
     if (example) return example.total
   }
-  const summary = getDynamicPricingSummary(model, { tokenUnit: 'M' })
+  const summary = getDynamicPricingSummary(model, { tokenUnit: 'M', group })
   if (kind === 'request') {
     if (summary) {
       return summary.entries.find(
@@ -165,7 +166,8 @@ function getSortPrice(
  */
 export function sortModels(
   models: PricingModel[],
-  sortBy: string
+  sortBy: string,
+  group?: string
 ): PricingModel[] {
   const sorted = [...models]
 
@@ -173,7 +175,7 @@ export function sortModels(
   if (priceSort) {
     // Extracting the price parses the billing expression, so compute once
     const price = new Map(
-      sorted.map((m) => [m, getSortPrice(m, priceSort.kind)])
+      sorted.map((m) => [m, getSortPrice(m, priceSort.kind, group)])
     )
     // Models without this kind of price stay last in both directions
     sorted.sort((a, b) => {
@@ -219,7 +221,7 @@ export function filterAndSortModels(
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByTag(result, filters.tag)
-  result = sortModels(result, filters.sortBy)
+  result = sortModels(result, filters.sortBy, filters.group)
 
   return result
 }

@@ -30,7 +30,11 @@ export const TOKEN_VARIABLES = [
   'ao',
 ] as const
 export type TokenVariable = (typeof TOKEN_VARIABLES)[number]
-export const BILLING_VARIABLES = [...TOKEN_VARIABLES, 'image_count'] as const
+export const BILLING_VARIABLES = [
+  ...TOKEN_VARIABLES,
+  'image_count',
+  'group',
+] as const
 export type BillingVariable = (typeof BILLING_VARIABLES)[number]
 export const TIME_FUNCTIONS = [
   'hour',
@@ -125,6 +129,7 @@ export type ExpressionFailure = {
 }
 export type CompilationResult = CompiledBillingExpression | ExpressionFailure
 export type BillingSimulationContext = {
+  group?: string
   imageCount?: number
   /** Already normalized billable counts; no implicit cache subtraction. */
   tokens?: Partial<Record<TokenVariable, number>>

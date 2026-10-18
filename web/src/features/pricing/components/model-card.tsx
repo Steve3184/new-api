@@ -75,6 +75,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const currency = useSystemConfigStore((state) => state.config.currency)
   const dynamicPriceOptions = useMemo(
     () => ({
+      group: props.selectedGroup,
       now: billingTime === undefined ? undefined : new Date(billingTime),
       tokenUnit,
       showRechargePrice,

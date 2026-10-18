@@ -38,6 +38,7 @@ import { toIntlLocale } from '@/i18n/languages'
 import { DraftNumberInput } from './draft-number-input'
 
 const PROBE_LABELS = {
+  group: 'Group',
   hour: 'Hour of day',
   minute: 'Minute',
   weekday: 'Weekday',
@@ -52,12 +53,14 @@ export function BillingTimeProbeFields(props: {
   probe: VisualComparison['probe']
   timezone: string
   includeTokens?: boolean
+  includeGroup?: boolean
   invalidTimezone?: boolean
   onChange: (probe: VisualComparison['probe'], timezone: string) => void
 }) {
   const { t } = useTranslation()
   const probes: VisualComparison['probe'][] = [...TIME_FUNCS]
   if (props.includeTokens) probes.push('len', 'p', 'c')
+  if (props.includeGroup) probes.push('group')
   const isTime = (TIME_FUNCS as readonly string[]).includes(props.probe)
   const zones = COMMON_TIMEZONES.map((zone) => ({
     value: zone.value,
@@ -172,12 +175,12 @@ export function BillingConditionValueInput(props: {
   return (
     <Input
       type='text'
-      inputMode='numeric'
+      inputMode={props.probe === 'group' ? 'text' : 'numeric'}
       aria-label={props.label ?? t('Condition value')}
       aria-invalid={props.invalid || undefined}
       value={props.value}
       onChange={(event) => props.onChange(event.target.value)}
-      className='w-24'
+      className={props.probe === 'group' ? 'w-48' : 'w-24'}
     />
   )
 }

@@ -15,9 +15,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -120,6 +122,34 @@ export function parseTaskResult() { return {}; }
 				t.Skip("set " + dialect.env + " to run this database")
 			}
 			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+
+			t.Run("group_expression_and_task_snapshot_round_trip", func(t *testing.T) {
+				expression := `group == "国模下游" ? tier("special", p * 4 + c * 8) : tier("base", p * 2 + c * 4)`
+				before, err := model.GetModelPricingSnapshot([]string{"matrix-group"})
+				require.NoError(t, err)
+				require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{{ModelName: "matrix-group", ExpectedVersion: before.Entries[0].Version, Pricing: model.PricingValues{"billing_setting.billing_mode": "tiered_expr", "billing_setting.billing_expr": expression}}}))
+				loaded, err := model.GetModelPricingSnapshot([]string{"matrix-group"})
+				require.NoError(t, err)
+				assert.Equal(t, expression, loaded.Entries[0].Configured["billing_setting.billing_expr"])
+				require.NoError(t, db.AutoMigrate(&model.Task{}))
+				task := model.Task{TaskID: "group-billing-roundtrip", PrivateData: model.TaskPrivateData{BillingContext: &model.TaskBillingContext{TieredSnapshot: &billingexpr.BillingSnapshot{UsingGroup: "国模下游", BillingMode: "tiered_expr", ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 2, QuotaPerUnit: 500000}}}}
+				require.NoError(t, db.Create(&task).Error)
+				var restored model.Task
+				require.NoError(t, db.First(&restored, task.ID).Error)
+				require.NotNil(t, restored.PrivateData.BillingContext)
+				result, err := billingexpr.ComputeTieredQuota(restored.PrivateData.BillingContext.TieredSnapshot, billingexpr.TokenParams{P: 1000, C: 100})
+				require.NoError(t, err)
+				assert.Equal(t, 4800, result.ActualQuotaAfterGroup)
+				rules, err := common.Marshal(operation_setting.BuiltinAgentAffinityRules())
+				require.NoError(t, err)
+				option := model.Option{Key: "channel_affinity_setting.rules", Value: string(rules)}
+				require.NoError(t, db.Create(&option).Error)
+				var restoredOption model.Option
+				require.NoError(t, db.Where(&model.Option{Key: option.Key}).First(&restoredOption).Error)
+				policy, err := model.BuildRequestPolicy(map[string]string{option.Key: restoredOption.Value})
+				require.NoError(t, err)
+				assert.Equal(t, operation_setting.BuiltinAgentAffinityRules(), policy.Affinity.Rules)
+			})
 
 			t.Run("square_states_follow_catalog_policy", func(t *testing.T) {
 				records := []model.Model{
