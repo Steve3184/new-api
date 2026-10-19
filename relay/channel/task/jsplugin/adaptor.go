@@ -967,10 +967,32 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	renderContext := map[string]any{"protocol": "openai_video", "operation": "retrieve"}
+	if slices.Contains(a.plugin.Meta.RequiredCapabilities, pluginruntime.CapabilityVideoArtifacts) {
+		renderArtifacts := make(map[string]any)
+		if task.Status == model.TaskStatusSuccess {
+			artifacts, artifactErr := a.ListArtifacts(task)
+			if artifactErr != nil {
+				return nil, fmt.Errorf("project video artifacts: %w", artifactErr)
+			}
+			for _, artifact := range artifacts {
+				contentURL, buildErr := service.BuildTaskArtifactContentURL(task.TaskID, artifact.Key)
+				if buildErr != nil {
+					return nil, fmt.Errorf("build video artifact content URL: %w", buildErr)
+				}
+				item := map[string]any{"key": artifact.Key, "type": artifact.Type, "url": contentURL}
+				if artifact.MimeType != "" {
+					item["mimeType"] = artifact.MimeType
+				}
+				renderArtifacts[artifact.Key] = item
+			}
+		}
+		renderContext["artifacts"] = renderArtifacts
+	}
 	// Decoding into any leaves only encoding failures to CallPathInto, so they
 	// keep the codec's message.
 	var value any
-	err = a.plugin.Engine.CallPathInto(context.Background(), &value, "protocols", []string{"openai_video", "render"}, map[string]any{"protocol": "openai_video", "operation": "retrieve"}, pluginruntime.RawJSON(encodedView))
+	err = a.plugin.Engine.CallPathInto(context.Background(), &value, "protocols", []string{"openai_video", "render"}, renderContext, pluginruntime.RawJSON(encodedView))
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -866,6 +867,157 @@ func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
 				"code": "provider_error", "message": "provider rejected request",
 				"detail": map[string]any{"retryable": false},
 			}, fields["error"])
+		})
+	}
+}
+
+func TestTaskAdaptorProvidesSignedVideoArtifactsToRenderer(t *testing.T) {
+	previousSecret := common.CryptoSecret
+	previousPublicAddress := system_setting.TaskPublicAddress
+	common.CryptoSecret = "video-artifact-test-secret"
+	system_setting.TaskPublicAddress = "https://media.example/gateway"
+	t.Cleanup(func() {
+		common.CryptoSecret = previousSecret
+		system_setting.TaskPublicAddress = previousPublicAddress
+	})
+	source := strings.Replace(mockPlugin, `protocols: ["openai_video"],`, `protocols: ["openai_video"], requiredCapabilities: ["video-artifacts@1"],`, 1)
+	source = strings.Replace(source, `return {id: task.task_id, status: "completed"};`, `
+  if (ctx.protocol !== "openai_video" || ctx.operation !== "retrieve") throw new Error("incorrect render context");
+  if (ctx.apiKey || ctx.authHeader || ctx.baseUrl) throw new Error("renderer received channel credentials");
+  if (task.status !== "SUCCESS") return {artifact_count: Object.keys(ctx.artifacts).length};
+  const selected = ctx.artifacts["video-selected"];
+  return {url: selected.url, content_url: selected.url, selected: selected, artifacts: ctx.artifacts, seconds: 5};
+ `, 1)
+	source = strings.Replace(source, `export function listArtifacts() { return []; }`, `export function listArtifacts(task) {
+  if (task.status !== "SUCCESS") throw new Error("must not project unfinished artifacts");
+  return [{key:"poster",type:"image"},{key:"video-first",type:"video",mimeType:"video/mp4"},{key:"video-selected",type:"video",mimeType:"video/mp4"}];
+ }`, 1)
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "private-channel-key", ChannelBaseUrl: "https://upstream.invalid"}})
+	for _, status := range []model.TaskStatus{model.TaskStatusSuccess, model.TaskStatusInProgress, model.TaskStatusFailure} {
+		t.Run(string(status), func(t *testing.T) {
+			rendered, err := adaptor.ConvertToOpenAIVideo(&model.Task{TaskID: "task_public", Status: status, FinishTime: 200})
+			require.NoError(t, err)
+			var fields map[string]any
+			require.NoError(t, common.Unmarshal(rendered, &fields))
+			assert.NotContains(t, string(rendered), "private-channel-key")
+			assert.NotContains(t, string(rendered), "upstream.invalid")
+			if status != model.TaskStatusSuccess {
+				assert.Equal(t, float64(0), fields["artifact_count"])
+				assert.NotContains(t, fields, "url")
+				return
+			}
+			signedURL, ok := fields["url"].(string)
+			require.True(t, ok)
+			assert.Equal(t, signedURL, fields["content_url"])
+			parsed, err := url.Parse(signedURL)
+			require.NoError(t, err)
+			assert.Equal(t, "media.example", parsed.Host)
+			assert.Equal(t, "/gateway/v1/tasks/task_public/artifacts/video-selected/content", parsed.Path)
+			access := parsed.Query().Get(service.TaskArtifactAccessQueryParameter)
+			assert.True(t, service.VerifyTaskArtifactAccess(access, "task_public", "video-selected"))
+			assert.False(t, service.VerifyTaskArtifactAccess(access, "task_other", "video-selected"))
+			assert.False(t, service.VerifyTaskArtifactAccess(access, "task_public", "video-first"))
+			assert.False(t, service.VerifyTaskArtifactAccess(access+"x", "task_public", "video-selected"))
+			assert.Equal(t, map[string]any{"key": "video-selected", "type": "video", "mimeType": "video/mp4", "url": signedURL}, fields["selected"])
+			artifacts, ok := fields["artifacts"].(map[string]any)
+			require.True(t, ok)
+			require.Len(t, artifacts, 3)
+			poster, ok := artifacts["poster"].(map[string]any)
+			require.True(t, ok)
+			assert.NotContains(t, poster, "mimeType")
+			assert.Equal(t, float64(5), fields["seconds"])
+			assert.Equal(t, "completed", fields["status"])
+		})
+	}
+}
+
+func TestTaskAdaptorVideoArtifactProjectionFailsClosed(t *testing.T) {
+	previousSecret := common.CryptoSecret
+	previousPublicAddress := system_setting.TaskPublicAddress
+	t.Cleanup(func() {
+		common.CryptoSecret = previousSecret
+		system_setting.TaskPublicAddress = previousPublicAddress
+	})
+	for _, tc := range []struct {
+		name, artifacts, secret, address, wantError string
+	}{
+		{name: "listing failure", artifacts: `throw new Error("private upstream detail");`, secret: "test-secret", address: "https://media.example", wantError: "project video artifacts"},
+		{name: "invalid key", artifacts: `return [{key:"../video",type:"video"}];`, secret: "test-secret", address: "https://media.example", wantError: "project video artifacts"},
+		{name: "duplicate key", artifacts: `return [{key:"video",type:"video"},{key:"video",type:"image"}];`, secret: "test-secret", address: "https://media.example", wantError: "project video artifacts"},
+		{name: "missing signing secret", artifacts: `return [{key:"video",type:"video"}];`, address: "https://media.example", wantError: "build video artifact content URL"},
+		{name: "invalid public address", artifacts: `return [{key:"video",type:"video"}];`, secret: "test-secret", address: "/relative", wantError: "build video artifact content URL"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			common.CryptoSecret = tc.secret
+			system_setting.TaskPublicAddress = tc.address
+			source := strings.Replace(mockPlugin, `protocols: ["openai_video"],`, `protocols: ["openai_video"], requiredCapabilities: ["video-artifacts@1"],`, 1)
+			source = strings.Replace(source, `return {id: task.task_id, status: "completed"};`, `throw new Error("renderer must not run after projection failure");`, 1)
+			source = strings.Replace(source, `export function listArtifacts() { return []; }`, `export function listArtifacts() { `+tc.artifacts+` }`, 1)
+			plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+			require.NoError(t, err)
+			rendered, err := New(plugin).ConvertToOpenAIVideo(&model.Task{TaskID: "task_public", Status: model.TaskStatusSuccess})
+			require.ErrorContains(t, err, tc.wantError)
+			assert.Empty(t, rendered)
+			assert.NotContains(t, err.Error(), "private upstream detail")
+			assert.NotContains(t, err.Error(), "renderer must not run")
+		})
+	}
+}
+
+func TestTaskAdaptorPreservesVideoURLsWithoutArtifactCapability(t *testing.T) {
+	for _, contentURL := range []string{
+		"/v1/videos/task_public/content",
+		"https://gateway.example/prefix/v1/videos/task_public/content?download=1",
+		"/v1/videos/task_other/content",
+		"https://media.example/v1/tasks/task_public/artifacts/video/content?access=existing",
+		"https://cdn.example/video.mp4",
+	} {
+		t.Run(contentURL, func(t *testing.T) {
+			encodedURL, err := common.Marshal(contentURL)
+			require.NoError(t, err)
+			source := strings.Replace(mockPlugin, `return {id: task.task_id, status: "completed"};`, `if (ctx.artifacts !== undefined) throw new Error("unexpected artifacts"); return {url:`+string(encodedURL)+`,content_url:`+string(encodedURL)+`};`, 1)
+			source = strings.Replace(source, `export function listArtifacts() { return []; }`, `export function listArtifacts() { throw new Error("must not project legacy plugins"); }`, 1)
+			plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+			require.NoError(t, err)
+			rendered, err := New(plugin).ConvertToOpenAIVideo(&model.Task{TaskID: "task_public", Status: model.TaskStatusSuccess})
+			require.NoError(t, err)
+			var fields map[string]any
+			require.NoError(t, common.Unmarshal(rendered, &fields))
+			assert.Equal(t, contentURL, fields["url"])
+			assert.Equal(t, contentURL, fields["content_url"])
+		})
+	}
+}
+
+func TestTaskAdaptorVideoRendererOwnsMissingArtifactHandling(t *testing.T) {
+	previousSecret := common.CryptoSecret
+	common.CryptoSecret = ""
+	t.Cleanup(func() { common.CryptoSecret = previousSecret })
+	for _, tc := range []struct {
+		name, renderer, wantError string
+	}{
+		{name: "empty artifacts", renderer: `return {artifact_count: Object.keys(ctx.artifacts).length};`},
+		{name: "required artifact", renderer: `if (!ctx.artifacts.video) throw new Error("video artifact is unavailable"); return {};`, wantError: "video artifact is unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := strings.Replace(mockPlugin, `protocols: ["openai_video"],`, `protocols: ["openai_video"], requiredCapabilities: ["video-artifacts@1"],`, 1)
+			source = strings.Replace(source, `return {id: task.task_id, status: "completed"};`, tc.renderer, 1)
+			plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+			require.NoError(t, err)
+			rendered, err := New(plugin).ConvertToOpenAIVideo(&model.Task{TaskID: "task_public", Status: model.TaskStatusSuccess})
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				assert.Empty(t, rendered)
+				return
+			}
+			require.NoError(t, err)
+			var fields map[string]any
+			require.NoError(t, common.Unmarshal(rendered, &fields))
+			assert.Equal(t, float64(0), fields["artifact_count"])
+			assert.NotContains(t, fields, "url")
 		})
 	}
 }

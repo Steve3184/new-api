@@ -1,6 +1,6 @@
 export type JSONValue = null | boolean | number | string | readonly JSONValue[] | {readonly [key: string]: JSONValue};
 /** json-clone@1 and submit-sse-delta@1 are accepted for earlier hosts; new plugins need neither. */
-export type HostCapability = "json-clone@1" | "submit-sse-delta@1" | "json-order@1" | "duration-auto@1";
+export type HostCapability = "json-clone@1" | "submit-sse-delta@1" | "json-order@1" | "duration-auto@1" | "video-artifacts@1";
 /** Kinds of upstream a driver can address: the vendor API itself, or another New API gateway with the same plugin installed. */
 export type UpstreamKind = "vendor" | "new_api";
 /** Host-injected on every driver hook context. With "new_api" the driver uses its own native-route prefix and the host already set Bearer credentials. */
@@ -69,11 +69,19 @@ export interface RequestDescriptor {responseType?: "json" | "sse"; url: string; 
 export interface UpstreamResponse {statusCode: number; headers: Readonly<Record<string, readonly string[]>>; body: unknown}
 export interface NormalizedTaskResult {taskId?: string; status: "NOT_START" | "SUBMITTED" | "QUEUED" | "IN_PROGRESS" | "SUCCESS" | "FAILURE" | "UNKNOWN"; progress?: string; reason?: string; url?: string; remoteUrl?: string; completionTokens?: number; totalTokens?: number}
 export interface TaskArtifact {key: string; type: "video" | "audio" | "image" | "file"; mimeType?: string}
+/** Host-signed content URL; contains neither upstream URLs nor channel credentials. */
+export interface RenderArtifact extends TaskArtifact {url: string}
+export interface VideoRenderContext {
+  protocol: "openai_video";
+  operation: "retrieve";
+  /** Present only with video-artifacts@1; empty until SUCCESS, keyed by listArtifacts keys. */
+  artifacts?: Readonly<Record<string, Readonly<RenderArtifact>>>;
+}
 export declare const meta: Meta;
 export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeDecodeContext, task: TaskView | readonly TaskView[]) => unknown)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean}) => unknown};
 export declare const protocols: {
   openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal?(ctx: unknown, task: TaskView): unknown};
-  openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};
+  openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: VideoRenderContext, task: TaskView): unknown};
   /** render returns the OpenAI ImageResponse; the host adds `created` when absent and resolves response_format b64_json. */
   openai_image?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): {created?: number; data: readonly ImageResponseEntry[]} & Record<string, unknown>};
   /** The host polls the submitted task and streams its first audio artifact as the speech response. */
