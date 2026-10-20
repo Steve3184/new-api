@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -151,6 +152,72 @@ func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {
 
 	_, hasAcceptEncoding := headers["accept-encoding"]
 	require.False(t, hasAcceptEncoding)
+}
+
+func TestProcessHeaderOverride_PassthroughSkipsClientNetworkHeaders(t *testing.T) {
+	t.Parallel()
+
+	for _, rule := range []string{"*", "re:.*", "regex:.*"} {
+		t.Run(rule, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			for _, name := range []string{
+				"X-Real-IP", "CF-Connecting-IP", "CF-Connecting-IPv6",
+				"CF-Pseudo-IPv4", "CF-IPCountry", "True-Client-IP",
+				"X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto",
+				"X-Forwarded-Port", "X-Forwarded-Server", "X-Forwarded-Prefix",
+				"Forwarded", "Via", "Client-IP", "X-Client-IP",
+				"X-Cluster-Client-IP", "X-Original-Forwarded-For",
+				"X-Envoy-External-Address", "Fastly-Client-IP",
+			} {
+				// Cover both net/http canonical names and names inserted directly.
+				ctx.Request.Header.Set(name, "203.0.113.7")
+				ctx.Request.Header[strings.ToLower(name)] = []string{"198.51.100.8"}
+				ctx.Request.Header[strings.ToUpper(name)] = []string{"2001:db8::9"}
+			}
+			ctx.Request.Header.Set("User-Agent", "client/1.0")
+			ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+			ctx.Request.Header.Set("X-Custom-Option", "enabled")
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					HeadersOverride: map[string]any{rule: true},
+				},
+			}
+
+			headers, err := processHeaderOverride(info, ctx)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]string{
+				"user-agent":      "client/1.0",
+				"x-trace-id":      "trace-123",
+				"x-custom-option": "enabled",
+			}, headers)
+		})
+	}
+}
+
+func TestProcessHeaderOverride_ExplicitNetworkHeaderOverridesTakePriority(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	ctx.Request.Header.Set("X-Real-IP", "203.0.113.7")
+	ctx.Request.Header.Set("CF-Connecting-IP", "2001:db8::9")
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"*":                true,
+				"X-Real-IP":        "198.51.100.8",
+				"CF-Connecting-IP": "{client_header:CF-Connecting-IP}",
+			},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"x-real-ip":        "198.51.100.8",
+		"cf-connecting-ip": "2001:db8::9",
+	}, headers)
 }
 
 func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.T) {

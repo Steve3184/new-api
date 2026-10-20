@@ -54,7 +54,7 @@ export function PassthroughWarningDialog(props: PassthroughWarningDialogProps) {
         'After enabling, the original request body is forwarded to the upstream without gateway rewriting:'
       )
     : t(
-        'After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies and transport headers:'
+        'After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies, transport headers and common client IP/proxy headers:'
       )
   const effects = isBody
     ? [
@@ -66,7 +66,7 @@ export function PassthroughWarningDialog(props: PassthroughWarningDialogProps) {
       ]
     : [
         t(
-          'Client information such as User-Agent and IP is exposed to the upstream'
+          'Client information such as User-Agent, client version and session headers is exposed to the upstream'
         ),
         t(
           'Client headers override the gateway defaults and may cause upstream errors'

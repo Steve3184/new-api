@@ -2729,6 +2729,12 @@ test('header passthrough quick option confirms before writing the wildcard rule 
   expect(dialog).toHaveTextContent(
     'Entries configured in Request Header Override still take priority'
   )
+  expect(dialog).toHaveTextContent(
+    'After enabling, client request headers are forwarded to the upstream, excluding standard authentication headers, cookies, transport headers and common client IP/proxy headers:'
+  )
+  expect(dialog).toHaveTextContent(
+    'Client information such as User-Agent, client version and session headers is exposed to the upstream'
+  )
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   await waitFor(() =>
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
