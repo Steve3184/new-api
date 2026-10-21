@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -23,7 +24,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayFormat != types.RelayFormatSystemOne || info.RelayMode != relayconstant.RelayModeSystemOne {
 		return "", fmt.Errorf("TypeSafe supports only System One requests")
 	}
-	return info.ChannelBaseUrl + "/zen/v1/systemone", nil
+	baseURL := strings.TrimRight(info.ChannelBaseUrl, "/")
+	if baseURL == "https://opencode.ai" {
+		baseURL += "/zen"
+	}
+	if strings.HasSuffix(baseURL, "/v1") {
+		return baseURL + "/systemone", nil
+	}
+	return baseURL + "/v1/systemone", nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {

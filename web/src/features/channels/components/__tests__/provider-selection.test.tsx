@@ -160,6 +160,37 @@ test('Zhipu GLM uses the renamed Chinese label and remains searchable after chan
   expect(screen.getByRole('option', { name: '智谱GLM 内置 #26' })).toBeVisible()
 })
 
+test('TypeSafe describes decision models independently of the upstream in English and Chinese', async () => {
+  const language = createInstance()
+  await language.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: { en: { translation: {} }, zh },
+  })
+  const user = userEvent.setup()
+  render(
+    <I18nextProvider i18n={language}>
+      <ChannelProviderPicker
+        plugins={[]}
+        canBindPlugin
+        loading={false}
+        failed={false}
+        disabled={false}
+        onRetry={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    </I18nextProvider>
+  )
+  await user.type(screen.getByRole('combobox'), 'TypeSafe')
+  expect(
+    screen.getByText('Connect to TypeSafe decision models', { exact: true })
+  ).toBeVisible()
+  await act(() => language.changeLanguage('zh'))
+  expect(
+    screen.getByText('连接 TypeSafe 决策模型', { exact: true })
+  ).toBeVisible()
+})
+
 test('plugin extensions keep built-in and independent plugin choices distinct in every category', async () => {
   const select = vi.fn()
   const user = userEvent.setup()

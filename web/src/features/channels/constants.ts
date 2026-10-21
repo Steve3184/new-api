@@ -200,7 +200,7 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
     descriptionKey: 'Connect to self-hosted models served by SGLang',
   },
   [CHANNEL_TYPE_TYPESAFE]: {
-    descriptionKey: 'Connect to TypeSafe decision models through OpenCode Zen',
+    descriptionKey: 'Connect to TypeSafe decision models',
   },
 } satisfies Record<
   Exclude<keyof typeof CHANNEL_TYPES, 0 | typeof CHANNEL_TYPE_TASK_PLUGIN>,

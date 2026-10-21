@@ -1606,7 +1606,7 @@
     "Connect to Tencent Hunyuan model services": "接入腾讯混元模型服务",
     "Connect to the Anthropic API or compatible services": "接入 Anthropic API 或兼容其接口的服务",
     "Connect to the OpenAI API or compatible services": "接入 OpenAI API 或兼容其接口的服务",
-    "Connect to TypeSafe decision models through OpenCode Zen": "通过 OpenCode Zen 连接 TypeSafe 决策模型",
+    "Connect to TypeSafe decision models": "连接 TypeSafe 决策模型",
     "Connect to UnrealSpeech text-to-speech services": "连接 UnrealSpeech 文本转语音服务",
     "Connect to Vidu video generation services": "接入 Vidu 视频生成服务",
     "Connect to Volcengine Ark model services": "接入火山方舟模型服务",
