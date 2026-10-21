@@ -1387,6 +1387,57 @@ export const native = {error: function(ctx, error) {
 	assert.NotContains(t, recorder.Body.String(), "password")
 }
 
+func TestTaskPluginProtocolSubmissionErrorIsSanitized(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusTooManyRequests, http.StatusBadGateway} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+			c.Set(common.RequestIdKey, "protocol-error-req")
+			c.Set(jsplugin.ContextKeyPinnedEndpoint, jsplugin.PinnedEndpoint{
+				Plugin:   &jsplugin.LoadedPlugin{Meta: jsplugin.Meta{Key: "video-test"}},
+				Protocol: "openai_video",
+			})
+			handled := RespondTaskPluginError(c, &dto.TaskError{
+				Code: "fail_to_fetch_task", StatusCode: status, UpstreamStatusCode: status,
+				Message:              "provider-name https://user:password@upstream.invalid?token=secret",
+				Data:                 map[string]any{"key": "secret"},
+				UpstreamResponseBody: "provider-name secret",
+			})
+			require.True(t, handled)
+			assert.Equal(t, status, recorder.Code)
+			expected := sanitizedTaskPluginError(status, "")
+			var body dto.TaskError
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
+			assert.Equal(t, expected.Code, body.Code)
+			assert.Equal(t, "service temporary unavailable", body.Message)
+			assert.Nil(t, body.Data)
+			for _, private := range []string{"provider-name", "password", "secret", "upstream.invalid", "provider_internal_error"} {
+				assert.NotContains(t, recorder.Body.String(), private)
+			}
+		})
+	}
+	for _, code := range []string{"do_request_failed", "read_response_body_failed", "plugin_submit_response_failed", "plugin_submit_response_invalid", "origin_task_not_found", "plugin_request_invalid", "model_price_error"} {
+		t.Run(code, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+			c.Set(jsplugin.ContextKeyPinnedEndpoint, jsplugin.PinnedEndpoint{
+				Plugin: &jsplugin.LoadedPlugin{Meta: jsplugin.Meta{Key: "video-test"}}, Protocol: "openai_video",
+			})
+			handled := RespondTaskPluginError(c, &dto.TaskError{Code: code, StatusCode: http.StatusBadGateway, Message: "private detail"})
+			if strings.HasSuffix(code, "not_found") || code == "plugin_request_invalid" || code == "model_price_error" {
+				assert.False(t, handled)
+				assert.Empty(t, recorder.Body.String())
+			} else {
+				assert.True(t, handled)
+				assert.Contains(t, recorder.Body.String(), "service temporary unavailable")
+				assert.NotContains(t, recorder.Body.String(), "private detail")
+			}
+		})
+	}
+}
+
 func TestTaskPluginErrorFallbackIsSanitized(t *testing.T) {
 	for _, testCase := range []struct {
 		name       string

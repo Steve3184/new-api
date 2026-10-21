@@ -1240,8 +1240,8 @@ func renderTaskPluginQuery(
 	c.JSON(http.StatusOK, result)
 }
 
-// RespondTaskPluginError gives a pinned plugin a sanitized error DTO and writes
-// its native error body. The host-provided status remains authoritative.
+// RespondTaskPluginError sanitizes submission errors for pinned task plugins.
+// Native routes may render the sanitized DTO; host protocols keep the host envelope.
 func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	if taskErr == nil {
 		return false
@@ -1249,7 +1249,27 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedRoute)
 	pinned, ok := pinnedValue.(pluginruntime.PinnedRoute)
 	if !exists || !ok || pinned.Plugin == nil {
-		return false
+		endpointValue, endpointExists := c.Get(pluginruntime.ContextKeyPinnedEndpoint)
+		endpoint, endpointOK := endpointValue.(pluginruntime.PinnedEndpoint)
+		if !endpointExists || !endpointOK || endpoint.Plugin == nil {
+			return false
+		}
+		if taskErr.UpstreamStatusCode == 0 {
+			switch taskErr.Code {
+			case "do_request_failed", "fail_to_fetch_task", "read_response_body_failed", "plugin_submit_response_failed", "plugin_submit_response_invalid":
+			default:
+				return false
+			}
+		}
+		// A failed upstream submission bypasses parseSubmitResponse. Neither
+		// its body nor a local transport error is safe to project to clients.
+		sanitized := sanitizedTaskPluginError(taskErr.StatusCode, "")
+		c.JSON(sanitized.HTTPStatus, &dto.TaskError{
+			Code:       sanitized.Code,
+			Message:    "service temporary unavailable",
+			StatusCode: sanitized.HTTPStatus,
+		})
+		return true
 	}
 	sanitized := sanitizedTaskPluginError(taskErr.StatusCode, taskErr.Message)
 	requestID := c.GetString(common.RequestIdKey)
