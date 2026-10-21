@@ -1388,7 +1388,7 @@ export const native = {error: function(ctx, error) {
 }
 
 func TestTaskPluginProtocolSubmissionErrorIsSanitized(t *testing.T) {
-	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusTooManyRequests, http.StatusBadGateway} {
+	for _, status := range []int{0, http.StatusBadRequest, http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
@@ -1405,8 +1405,12 @@ func TestTaskPluginProtocolSubmissionErrorIsSanitized(t *testing.T) {
 				UpstreamResponseBody: "provider-name secret",
 			})
 			require.True(t, handled)
-			assert.Equal(t, status, recorder.Code)
 			expected := sanitizedTaskPluginError(status, "")
+			expectedStatus := status
+			if expectedStatus < 400 || expectedStatus >= 500 {
+				expectedStatus = http.StatusServiceUnavailable
+			}
+			assert.Equal(t, expectedStatus, recorder.Code)
 			var body dto.TaskError
 			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
 			assert.Equal(t, expected.Code, body.Code)
@@ -1431,6 +1435,7 @@ func TestTaskPluginProtocolSubmissionErrorIsSanitized(t *testing.T) {
 				assert.Empty(t, recorder.Body.String())
 			} else {
 				assert.True(t, handled)
+				assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 				assert.Contains(t, recorder.Body.String(), "service temporary unavailable")
 				assert.NotContains(t, recorder.Body.String(), "private detail")
 			}

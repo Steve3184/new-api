@@ -1264,6 +1264,11 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 		// A failed upstream submission bypasses parseSubmitResponse. Neither
 		// its body nor a local transport error is safe to project to clients.
 		sanitized := sanitizedTaskPluginError(taskErr.StatusCode, "")
+		// Upstream and transport server failures mean temporary unavailability.
+		// A consistent service status also preserves the JSON through proxies.
+		if sanitized.HTTPStatus >= http.StatusInternalServerError {
+			sanitized.HTTPStatus = http.StatusServiceUnavailable
+		}
 		c.JSON(sanitized.HTTPStatus, &dto.TaskError{
 			Code:       sanitized.Code,
 			Message:    "service temporary unavailable",
