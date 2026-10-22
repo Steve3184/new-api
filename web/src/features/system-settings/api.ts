@@ -24,6 +24,7 @@ import type {
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
   SMTPTestEmailResponse,
+  SMTPTestEmailRequest,
   SystemOptionsResponse,
   SystemTaskListResponse,
   SystemTaskFilters,
@@ -51,10 +52,8 @@ export async function clearSupportData() {
   return res.data
 }
 
-export async function sendSMTPTestEmail(email: string) {
-  const res = await api.post<SMTPTestEmailResponse>('/api/option/smtp/test', {
-    email,
-  })
+export async function sendSMTPTestEmail(request: SMTPTestEmailRequest) {
+  const res = await api.post<SMTPTestEmailResponse>('/api/option/smtp/test', request)
   return res.data
 }
 

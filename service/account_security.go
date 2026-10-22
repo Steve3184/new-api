@@ -1,9 +1,6 @@
 package service
 
 import (
-	"fmt"
-	"html"
-
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
@@ -40,6 +37,18 @@ func AccountMailLanguage(c *gin.Context, userId int) string {
 	return i18n.StatedLang(c)
 }
 
+func NotifyUserSecurityChange(c *gin.Context, userID int, eventKey string) error {
+	user, err := model.GetUserById(userID, false)
+	if err != nil {
+		return err
+	}
+	lang := user.GetSetting().Language
+	if lang == "" {
+		lang = i18n.StatedLang(c)
+	}
+	return NotifyAccountSecurityChange(lang, user.Email, eventKey)
+}
+
 // NotifyAccountSecurityChange never includes credentials or tokens. The caller
 // records delivery failure independently from the already-committed change.
 // eventKey names the change; the notice is written in lang (see
@@ -48,10 +57,15 @@ func NotifyAccountSecurityChange(lang, email, eventKey string, eventArgs ...map[
 	if email == "" {
 		return nil
 	}
-	event := html.EscapeString(i18n.Translate(lang, eventKey, eventArgs...))
+	event := i18n.Translate(lang, eventKey, eventArgs...)
 	subject := i18n.Translate(lang, i18n.MsgEmailSecurityNoticeSubject, map[string]any{"SystemName": common.SystemName})
-	content := fmt.Sprintf("<p>%s</p><p>%s</p>",
-		i18n.Translate(lang, i18n.MsgEmailSecurityNoticeChanged, map[string]any{"Event": event}),
-		i18n.Translate(lang, i18n.MsgEmailSecurityNoticeAdvice))
+	content, err := common.RenderEmailTemplate("EmailSecurityNotificationTemplate", map[string]any{
+		"SystemName": common.SystemName, "Event": event,
+		"Intro":  i18n.Translate(lang, i18n.MsgEmailSecurityNoticeChanged, map[string]any{"Event": event}),
+		"Advice": i18n.Translate(lang, i18n.MsgEmailSecurityNoticeAdvice),
+	})
+	if err != nil {
+		return err
+	}
 	return common.SendEmail(subject, email, content)
 }

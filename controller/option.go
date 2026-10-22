@@ -340,8 +340,8 @@ func UpdateOption(c *gin.Context) {
 		option.Value = string(encoded)
 	}
 	switch option.Key {
-	case "EmailVerificationTemplate":
-		err = common.ValidateEmailVerificationTemplate(option.Value.(string))
+	case "EmailVerificationTemplate", "EmailPasswordResetTemplate", "EmailBindingTemplate", "EmailSecurityNotificationTemplate", "EmailNotificationTemplate":
+		err = common.ValidateEmailTemplate(option.Key, option.Value.(string))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

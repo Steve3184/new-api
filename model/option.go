@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -109,6 +110,10 @@ func InitOptionMap() {
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["EmailVerificationTemplate"] = common.EmailVerificationTemplate
+	common.OptionMap["EmailPasswordResetTemplate"] = ""
+	common.OptionMap["EmailBindingTemplate"] = ""
+	common.OptionMap["EmailSecurityNotificationTemplate"] = ""
+	common.OptionMap["EmailNotificationTemplate"] = ""
 	common.OptionMap["UserBannedMessage"] = common.UserBannedMessage
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
@@ -377,8 +382,8 @@ func validateOptionValue(key string, value string) error {
 			return errors.New("SupportMessageLimit must be between 1 and 1000")
 		}
 	}
-	if key == "EmailVerificationTemplate" {
-		return common.ValidateEmailVerificationTemplate(value)
+	if slices.Contains([]string{"EmailVerificationTemplate", "EmailPasswordResetTemplate", "EmailBindingTemplate", "EmailSecurityNotificationTemplate", "EmailNotificationTemplate"}, key) {
+		return common.ValidateEmailTemplate(key, value)
 	}
 	return nil
 }

@@ -20,7 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
-import { beforeAll, describe, expect, test, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { sendSMTPTestEmail } from '../../api'
 import { EmailSettingsSection } from '../email-settings-section'
@@ -43,9 +43,14 @@ const defaultValues = {
   SMTPInsecureSkipVerify: false,
   SMTPForceAuthLogin: false,
   EmailVerificationTemplate: '<p>{{.Code}}</p>',
+  EmailPasswordResetTemplate: '',
+  EmailBindingTemplate: '',
+  EmailSecurityNotificationTemplate: '',
+  EmailNotificationTemplate: '',
 }
 
 describe('SMTP email settings', () => {
+  beforeEach(() => vi.clearAllMocks())
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', {
       'SMTP Host': 'SMTP Host',
@@ -86,15 +91,55 @@ describe('SMTP email settings', () => {
     await waitFor(() => {
       expect(sendSMTPTestEmail).toHaveBeenCalledTimes(1)
     })
-    expect(vi.mocked(sendSMTPTestEmail).mock.calls[0]?.[0]).toBe(
-      'admin@example.com'
-    )
+    expect(vi.mocked(sendSMTPTestEmail).mock.calls[0]?.[0]).toEqual({
+      email: 'admin@example.com',
+      type: 'smtp',
+    })
 
     fireEvent.change(screen.getByLabelText('SMTP Host'), {
       target: { value: 'smtp.changed.example.com' },
     })
     expect(sendButton).toBeDisabled()
 
+    queryClient.clear()
+  })
+
+  test('selects a security event and sends a sample without changing the settings form', async () => {
+    const user = userEvent.setup()
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    })
+    vi.mocked(sendSMTPTestEmail).mockResolvedValue({
+      success: true,
+      message: '',
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <EmailSettingsSection defaultValues={defaultValues} />
+      </QueryClientProvider>
+    )
+    await user.type(
+      screen.getByLabelText('Test recipient email'),
+      'admin@example.com'
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Email type' }))
+    await user.click(
+      screen.getByRole('option', { name: 'Account security notification' })
+    )
+    const event = screen.getByRole('combobox', { name: 'Security event' })
+    await user.click(event)
+    await user.click(screen.getByRole('option', { name: 'Passkey registered' }))
+    await user.click(screen.getByRole('button', { name: 'Send test email' }))
+    await waitFor(() =>
+      expect(sendSMTPTestEmail).toHaveBeenCalledWith(
+        {
+          email: 'admin@example.com',
+          type: 'security',
+          security_event: 'passkey_registered',
+        },
+        expect.anything()
+      )
+    )
     queryClient.clear()
   })
 })

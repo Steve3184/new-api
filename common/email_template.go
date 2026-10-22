@@ -39,6 +39,71 @@ type emailVerificationTemplateData struct {
 	ValidMinutes int
 }
 
+// Blank custom templates use these localized layouts. Text and URLs are
+// escaped by html/template; callers pass translated text as ordinary strings.
+const (
+	DefaultEmailPasswordResetTemplate        = `<p>{{.Greeting}}</p><p><a href="{{.Link}}">{{.ActionText}}</a></p><p>{{.Link}}</p><p>{{.Validity}}</p>`
+	DefaultEmailBindingTemplate              = `<p>{{.Intro}}</p><p><strong>{{.Code}}</strong></p><p>{{.Validity}}</p>`
+	DefaultEmailSecurityNotificationTemplate = `<p>{{.Intro}}</p><p>{{.Advice}}</p>`
+	DefaultEmailNotificationTemplate         = `<h2>{{.Title}}</h2><div style="white-space:pre-wrap">{{.Content}}</div>`
+)
+
+// RenderEmailTemplate reads the saved option under the same lock used by
+// option updates so concurrent mail delivery sees a complete template.
+func RenderEmailTemplate(key string, data map[string]any) (string, error) {
+	OptionMapRWMutex.RLock()
+	value := OptionMap[key]
+	OptionMapRWMutex.RUnlock()
+	return renderEmailTemplate(key, value, data)
+}
+
+func ValidateEmailTemplate(key, value string) error {
+	data := map[string]any{"SystemName": "Example API"}
+	switch key {
+	case "EmailVerificationTemplate":
+		return ValidateEmailVerificationTemplate(value)
+	case "EmailPasswordResetTemplate":
+		data["Greeting"], data["ActionText"], data["Validity"] = "Reset your password", "Reset password", "Expires in 10 minutes"
+		data["Link"], data["ValidMinutes"] = "https://example.invalid/user/reset", 10
+	case "EmailBindingTemplate":
+		data["Intro"], data["Validity"], data["Code"], data["ValidMinutes"], data["IsOldEmail"] = "Confirm your email address", "Expires in 10 minutes", "123456", 10, false
+	case "EmailSecurityNotificationTemplate":
+		data["Event"], data["Intro"], data["Advice"] = "Password updated", "Your account security settings have changed", "Contact your administrator if this was not you"
+	case "EmailNotificationTemplate":
+		data["Title"], data["Content"] = "Notification", "Example notification"
+	default:
+		return fmt.Errorf("unknown email template: %s", key)
+	}
+	_, err := renderEmailTemplate(key, value, data)
+	return err
+}
+
+func renderEmailTemplate(key, value string, data map[string]any) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		switch key {
+		case "EmailPasswordResetTemplate":
+			value = DefaultEmailPasswordResetTemplate
+		case "EmailBindingTemplate":
+			value = DefaultEmailBindingTemplate
+		case "EmailSecurityNotificationTemplate":
+			value = DefaultEmailSecurityNotificationTemplate
+		case "EmailNotificationTemplate":
+			value = DefaultEmailNotificationTemplate
+		default:
+			return "", fmt.Errorf("unknown email template: %s", key)
+		}
+	}
+	tmpl, err := template.New(key).Option("missingkey=error").Parse(value)
+	if err != nil {
+		return "", fmt.Errorf("invalid email template %s: %w", key, err)
+	}
+	var content strings.Builder
+	if err := tmpl.Execute(&content, data); err != nil {
+		return "", fmt.Errorf("invalid email template %s: %w", key, err)
+	}
+	return content.String(), nil
+}
+
 func RenderEmailVerificationTemplate(code string) (string, error) {
 	return renderEmailVerificationTemplate(EmailVerificationTemplate, code)
 }

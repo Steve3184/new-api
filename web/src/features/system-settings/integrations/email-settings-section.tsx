@@ -17,15 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
-import { Loader2, Send } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import * as z from 'zod'
 
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -39,11 +35,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 
-import { sendSMTPTestEmail } from '../api'
 import {
   SettingsControlChildren,
   SettingsControlGroup,
@@ -55,6 +49,8 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { EmailTemplateEditor, emailTemplateKeys } from './email-template-editor'
+import { EmailTestSettings } from './email-test-settings'
 
 const createEmailSchema = (t: (key: string) => string) =>
   z.object({
@@ -81,6 +77,10 @@ const createEmailSchema = (t: (key: string) => string) =>
         (value) => value.trim() !== '',
         t('Verification email template cannot be empty')
       ),
+    EmailPasswordResetTemplate: z.string(),
+    EmailBindingTemplate: z.string(),
+    EmailSecurityNotificationTemplate: z.string(),
+    EmailNotificationTemplate: z.string(),
     QuotaRemindEnabled: z.boolean(),
     // Entered as a display amount; stored in quota units.
     QuotaRemindThreshold: z.string().refine((value) => {
@@ -114,24 +114,6 @@ export function EmailSettingsSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const emailSchema = createEmailSchema(t)
-  const [testRecipient, setTestRecipient] = useState('')
-  const testRecipientIsValid = z
-    .string()
-    .email()
-    .safeParse(testRecipient.trim()).success
-  const testEmailMutation = useMutation({
-    mutationFn: sendSMTPTestEmail,
-    onSuccess: (data) => {
-      if (data.success) {
-        toast.success(t('Test email sent successfully'))
-      } else {
-        toast.error(data.message || t('Request failed'))
-      }
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : t('Request failed'))
-    },
-  })
 
   // The form edits the threshold as a display amount. Comparing amounts on
   // save leaves a threshold nobody edited untouched.
@@ -167,7 +149,6 @@ export function EmailSettingsSection({
       SMTPStartTLSEnabled: securityMode === 'starttls',
       SMTPInsecureSkipVerify: values.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: values.SMTPForceAuthLogin,
-      EmailVerificationTemplate: values.EmailVerificationTemplate,
     }
 
     const initial = {
@@ -180,7 +161,6 @@ export function EmailSettingsSection({
       SMTPStartTLSEnabled: defaultValues.SMTPStartTLSEnabled,
       SMTPInsecureSkipVerify: defaultValues.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
-      EmailVerificationTemplate: defaultValues.EmailVerificationTemplate,
     }
 
     const updates: Array<{ key: string; value: string | boolean }> = []
@@ -233,13 +213,10 @@ export function EmailSettingsSection({
       })
     }
 
-    if (
-      sanitized.EmailVerificationTemplate !== initial.EmailVerificationTemplate
-    ) {
-      updates.push({
-        key: 'EmailVerificationTemplate',
-        value: sanitized.EmailVerificationTemplate,
-      })
+    for (const key of emailTemplateKeys) {
+      if (values[key] !== defaultValues[key]) {
+        updates.push({ key, value: values[key] })
+      }
     }
 
     if (values.QuotaRemindEnabled !== defaultValues.QuotaRemindEnabled) {
@@ -260,15 +237,6 @@ export function EmailSettingsSection({
     for (const update of updates) {
       await updateOption.mutateAsync(update)
     }
-  }
-
-  const handleSendTestEmail = () => {
-    const email = testRecipient.trim()
-    if (!testRecipientIsValid) {
-      toast.error(t('Enter a valid test recipient email'))
-      return
-    }
-    testEmailMutation.mutate(email)
   }
 
   return (
@@ -498,73 +466,11 @@ export function EmailSettingsSection({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name='EmailVerificationTemplate'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Verification email template')}</FormLabel>
-                <FormControl>
-                  <Textarea
-                    rows={18}
-                    className='font-mono text-xs'
-                    spellCheck={false}
-                    {...field}
-                    onChange={(event) => field.onChange(event.target.value)}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {t(
-                    'HTML template for verification emails. Available placeholders:'
-                  )}{' '}
-                  <code>{'{{.SystemName}}'}</code>, <code>{'{{.Code}}'}</code>,
-                  and <code>{'{{.ValidMinutes}}'}</code>.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <EmailTemplateEditor />
 
-          <div>
-            <div className='grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end'>
-              <FormItem>
-                <Label htmlFor='smtp-test-recipient'>
-                  {t('Test recipient email')}
-                </Label>
-                <Input
-                  id='smtp-test-recipient'
-                  autoComplete='off'
-                  type='email'
-                  value={testRecipient}
-                  onChange={(event) => setTestRecipient(event.target.value)}
-                />
-              </FormItem>
-              <Button
-                type='button'
-                variant='secondary'
-                className='shrink-0'
-                onClick={handleSendTestEmail}
-                disabled={
-                  testEmailMutation.isPending ||
-                  updateOption.isPending ||
-                  form.formState.isDirty ||
-                  !testRecipientIsValid
-                }
-              >
-                {testEmailMutation.isPending ? (
-                  <Loader2 className='animate-spin' />
-                ) : (
-                  <Send />
-                )}
-                {testEmailMutation.isPending
-                  ? t('Sending...')
-                  : t('Send test email')}
-              </Button>
-            </div>
-            <FormDescription className='mt-2'>
-              {t('Save SMTP settings before sending a test email')}
-            </FormDescription>
-          </div>
+          <EmailTestSettings
+            disabled={updateOption.isPending || form.formState.isDirty}
+          />
           <SettingsControlGroup>
             <FormField
               control={form.control}

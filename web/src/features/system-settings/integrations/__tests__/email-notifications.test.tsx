@@ -36,6 +36,10 @@ function Fixture() {
         <EmailSettingsSection
           defaultValues={{
             EmailVerificationTemplate: '<p>{{.Code}}</p>',
+            EmailPasswordResetTemplate: '',
+            EmailBindingTemplate: '',
+            EmailSecurityNotificationTemplate: '',
+            EmailNotificationTemplate: '',
             SMTPServer: 'smtp.example.com',
             SMTPPort: '587',
             SMTPAccount: 'noreply@example.com',

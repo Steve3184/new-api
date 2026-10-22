@@ -53,6 +53,27 @@ export type SMTPTestEmailResponse = {
   message: string
 }
 
+export type SMTPTestEmailType =
+  | 'smtp'
+  | 'verification'
+  | 'password_reset'
+  | 'email_binding'
+  | 'email_change'
+  | 'security'
+  | 'notification'
+  | 'low_balance'
+  | 'subscription_low_balance'
+  | 'channel_disabled'
+  | 'channel_enabled'
+  | 'channel_test'
+  | 'upstream_update'
+
+export type SMTPTestEmailRequest = {
+  email: string
+  type: SMTPTestEmailType
+  security_event?: string
+}
+
 export interface PasskeyDomainChange {
   rp_id: string
   legacy_rp_ids: string
@@ -498,6 +519,10 @@ export type OperationsSettings = {
   SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
   EmailVerificationTemplate: string
+  EmailPasswordResetTemplate: string
+  EmailBindingTemplate: string
+  EmailSecurityNotificationTemplate: string
+  EmailNotificationTemplate: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

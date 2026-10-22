@@ -111,6 +111,11 @@ const OPERATIONS_SECTIONS = [
           SMTPInsecureSkipVerify: settings.SMTPInsecureSkipVerify,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
           EmailVerificationTemplate: settings.EmailVerificationTemplate,
+          EmailPasswordResetTemplate: settings.EmailPasswordResetTemplate,
+          EmailBindingTemplate: settings.EmailBindingTemplate,
+          EmailSecurityNotificationTemplate:
+            settings.EmailSecurityNotificationTemplate,
+          EmailNotificationTemplate: settings.EmailNotificationTemplate,
         }}
       />
     ),

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -53,13 +54,18 @@ func Enable2FA(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
+	notificationFailed := service.NotifyUserSecurityChange(c, identity.UserID, i18n.MsgSecurityEventTwoFAEnabled) != nil
+	recordUserSecurityAudit(c, identity.UserID, "user.2fa_enable", map[string]any{"notification_failed": notificationFailed})
 	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "twofa_enabled")
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	recordUserSecurityAudit(c, identity.UserID, "user.2fa_enable", nil)
-	common.ApiSuccess(c, authRotationData(bundle))
+	data := authRotationData(bundle)
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
+	common.ApiSuccess(c, data)
 }
 
 // Disable2FA 禁用2FA
@@ -73,16 +79,19 @@ func Disable2FA(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
+	notificationFailed := service.NotifyUserSecurityChange(c, userId, i18n.MsgSecurityEventTwoFADisabled) != nil
+	recordUserSecurityAudit(c, userId, "user.2fa_disable_self", map[string]any{"notification_failed": notificationFailed})
 	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "twofa_disabled")
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 
-	// 记录操作日志
-	recordUserSecurityAudit(c, userId, "user.2fa_disable_self", nil)
-
-	common.ApiSuccessT(c, "Two-factor authentication disabled", authRotationData(bundle))
+	data := authRotationData(bundle)
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
+	common.ApiSuccessT(c, "Two-factor authentication disabled", data)
 }
 
 // Get2FAStatus 获取用户2FA状态
@@ -142,6 +151,15 @@ func UpdateLoginTwoFA(c *gin.Context) {
 
 	data := gin.H{"enabled": *req.Enabled}
 	action := "user.login_2fa_enable"
+	event := i18n.MsgSecurityEventLoginTwoFAEnabled
+	if !*req.Enabled {
+		action, event = "user.login_2fa_disable", i18n.MsgSecurityEventLoginTwoFADisabled
+	}
+	notificationFailed := service.NotifyUserSecurityChange(c, identity.UserID, event) != nil
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
+	recordUserSecurityAudit(c, identity.UserID, action, map[string]any{"notification_failed": notificationFailed})
 	if !*req.Enabled {
 		bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "login_twofa_disabled")
 		if err != nil {
@@ -151,9 +169,7 @@ func UpdateLoginTwoFA(c *gin.Context) {
 		for key, value := range authRotationData(bundle) {
 			data[key] = value
 		}
-		action = "user.login_2fa_disable"
 	}
-	recordUserSecurityAudit(c, identity.UserID, action, nil)
 	setAuthNoStore(c)
 	common.ApiSuccess(c, data)
 }
@@ -179,16 +195,18 @@ func RegenerateBackupCodes(c *gin.Context) {
 		common.SysLog(common.LogText("failed to save backup codes: %s", err.Error()))
 		return
 	}
+	notificationFailed := service.NotifyUserSecurityChange(c, userId, i18n.MsgSecurityEventBackupCodesRegenerated) != nil
+	recordUserSecurityAudit(c, userId, "user.2fa_backup_codes", map[string]any{"notification_failed": notificationFailed})
 	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "twofa_backup_codes_regenerated")
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 
-	// 记录操作日志
-	recordUserSecurityAudit(c, userId, "user.2fa_backup_codes", nil)
-
 	data := authRotationData(bundle)
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
 	data["backup_codes"] = backupCodes
 	common.ApiSuccessT(c, "Backup codes regenerated successfully", data)
 }
@@ -252,15 +270,19 @@ func AdminDisable2FA(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
+	notificationFailed := service.NotifyAccountSecurityChange(service.AccountMailLanguage(c, userId), targetUser.Email, i18n.MsgSecurityEventTwoFAReset) != nil
+	recordManageAuditFor(c, userId, "user.2fa_disable", map[string]any{
+		"username": targetUser.Username, "verification_method": authorization.Method,
+		"notification_failed": notificationFailed,
+	})
 	if _, err := model.RevokeAllUserSessions(userId, "admin_twofa_disabled"); err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 
-	recordManageAuditFor(c, userId, "user.2fa_disable", map[string]any{
-		"username":            targetUser.Username,
-		"verification_method": authorization.Method,
-	})
-
-	common.ApiSuccessT(c, "Two-factor authentication reset", nil)
+	data := gin.H{}
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
+	common.ApiSuccessT(c, "Two-factor authentication reset", data)
 }

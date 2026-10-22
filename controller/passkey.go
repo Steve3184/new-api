@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -193,14 +194,19 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
+	notificationFailed := service.NotifyAccountSecurityChange(service.AccountMailLanguage(c, user.Id), user.Email, i18n.MsgSecurityEventPasskeyRegistered) != nil
+	recordUserSecurityAudit(c, user.Id, "user.passkey_register", map[string]any{"notification_failed": notificationFailed})
 	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "passkey_registered")
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 
-	recordUserSecurityAudit(c, user.Id, "user.passkey_register", nil)
-	common.ApiSuccessT(c, "Passkey registered successfully", authRotationData(bundle))
+	data := authRotationData(bundle)
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
+	common.ApiSuccessT(c, "Passkey registered successfully", data)
 }
 
 func PasskeyDelete(c *gin.Context) {
@@ -223,14 +229,19 @@ func PasskeyDelete(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
+	notificationFailed := service.NotifyAccountSecurityChange(service.AccountMailLanguage(c, user.Id), user.Email, i18n.MsgSecurityEventPasskeyRemoved) != nil
+	recordUserSecurityAudit(c, user.Id, "user.passkey_delete", map[string]any{"notification_failed": notificationFailed})
 	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "passkey_deleted")
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 
-	recordUserSecurityAudit(c, user.Id, "user.passkey_delete", nil)
-	common.ApiSuccessT(c, "Passkey removed successfully", authRotationData(bundle))
+	data := authRotationData(bundle)
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
+	common.ApiSuccessT(c, "Passkey removed successfully", data)
 }
 
 func PasskeyStatus(c *gin.Context) {
@@ -455,17 +466,21 @@ func AdminResetPasskey(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
+	notificationFailed := service.NotifyAccountSecurityChange(service.AccountMailLanguage(c, user.Id), user.Email, i18n.MsgSecurityEventPasskeyReset) != nil
+	recordManageAuditFor(c, user.Id, "user.reset_passkey", map[string]any{
+		"username": user.Username, "id": user.Id, "verification_method": authorization.Method,
+		"notification_failed": notificationFailed,
+	})
 	if _, err := model.RevokeAllUserSessions(user.Id, "admin_passkey_reset"); err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 
-	recordManageAuditFor(c, user.Id, "user.reset_passkey", map[string]any{
-		"username":            user.Username,
-		"id":                  user.Id,
-		"verification_method": authorization.Method,
-	})
-	common.ApiSuccessT(c, "Passkey reset successfully", nil)
+	data := gin.H{}
+	if notificationFailed {
+		data["notification_warning"] = true
+	}
+	common.ApiSuccessT(c, "Passkey reset successfully", data)
 }
 
 func PasskeyVerifyBegin(c *gin.Context) {

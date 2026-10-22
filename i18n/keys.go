@@ -59,6 +59,7 @@ const (
 	MsgEmailVerificationValidity = "email.verification.validity"
 
 	MsgEmailPasswordResetSubject      = "email.password_reset.subject"
+	MsgEmailPasswordResetAction       = "email.password_reset.action"
 	MsgEmailPasswordResetGreeting     = "email.password_reset.greeting"
 	MsgEmailPasswordResetLink         = "email.password_reset.link"
 	MsgEmailPasswordResetLinkFallback = "email.password_reset.link_fallback"
@@ -75,13 +76,23 @@ const (
 	MsgEmailSecurityNoticeChanged = "email.security_notice.changed"
 	MsgEmailSecurityNoticeAdvice  = "email.security_notice.advice"
 
-	MsgSecurityEventPasswordUpdated      = "email.security_event.password_updated"
-	MsgSecurityEventEmailChangeRequested = "email.security_event.email_change_requested"
-	MsgSecurityEventEmailChanged         = "email.security_event.email_changed"
-	MsgSecurityEventEmailConfirmed       = "email.security_event.email_confirmed"
-	MsgSecurityEventLoginLinked          = "email.security_event.login_linked"
-	MsgSecurityEventLoginUnlinked        = "email.security_event.login_unlinked"
-	MsgSecurityEventWeChatLinked         = "email.security_event.wechat_linked"
+	MsgSecurityEventPasswordUpdated        = "email.security_event.password_updated"
+	MsgSecurityEventEmailChangeRequested   = "email.security_event.email_change_requested"
+	MsgSecurityEventEmailChanged           = "email.security_event.email_changed"
+	MsgSecurityEventEmailConfirmed         = "email.security_event.email_confirmed"
+	MsgSecurityEventLoginLinked            = "email.security_event.login_linked"
+	MsgSecurityEventLoginUnlinked          = "email.security_event.login_unlinked"
+	MsgSecurityEventWeChatLinked           = "email.security_event.wechat_linked"
+	MsgSecurityEventPasswordReset          = "email.security_event.password_reset"
+	MsgSecurityEventTwoFAEnabled           = "email.security_event.twofa_enabled"
+	MsgSecurityEventTwoFADisabled          = "email.security_event.twofa_disabled"
+	MsgSecurityEventTwoFAReset             = "email.security_event.twofa_reset"
+	MsgSecurityEventLoginTwoFAEnabled      = "email.security_event.login_twofa_enabled"
+	MsgSecurityEventLoginTwoFADisabled     = "email.security_event.login_twofa_disabled"
+	MsgSecurityEventBackupCodesRegenerated = "email.security_event.backup_codes_regenerated"
+	MsgSecurityEventPasskeyRegistered      = "email.security_event.passkey_registered"
+	MsgSecurityEventPasskeyRemoved         = "email.security_event.passkey_removed"
+	MsgSecurityEventPasskeyReset           = "email.security_event.passkey_reset"
 )
 
 // Low-quota notices, in the recipient's saved language
