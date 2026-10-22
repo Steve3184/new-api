@@ -32,6 +32,7 @@ const defaultContentSettings: ContentSettings = {
   StatusCheckAnnouncement: '',
   StatusCheckFlexibleMode:
     '{"enabled":false,"idle_minutes":15,"max_consecutive_probes":40}',
+  StatusCheckDegradationMode: '{"groups":{}}',
   GroupRatio: '{}',
   ModelRatio: '{}',
   'console_setting.api_info': '[]',

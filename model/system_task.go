@@ -22,6 +22,7 @@ const (
 	SystemTaskTypeMidjourneyPoll       = "midjourney_poll"
 	SystemTaskTypeAsyncTaskPoll        = "async_task_poll"
 	SystemTaskTypeStatusCheckProbe     = "status_check_probe"
+	SystemTaskTypeStatusCheckDegrade   = "status_check_degradation"
 	SystemTaskTypeMultiKeyRecovery     = "multi_key_recovery"
 	SystemTaskTypeMoneroPaymentMonitor = "monero_payment_monitor"
 	SystemTaskTypeMoneroAddressAudit   = "monero_address_audit"

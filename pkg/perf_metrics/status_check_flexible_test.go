@@ -55,3 +55,26 @@ func TestRecordStatusCheckProbeDoesNotAddCacheMetrics(t *testing.T) {
 	assert.Zero(t, snapshot.cachedTokens)
 	assert.Zero(t, snapshot.inputTokens)
 }
+
+func TestParseStatusCheckDegradationConfigValidatesEntries(t *testing.T) {
+	config, err := ParseStatusCheckDegradationConfig(`{"groups":{"default":{"enabled":true,"models":[{"model":" gpt-5 ","effort":"high"},{"model":"gpt-5","effort":"high"},{"model":"gpt-5","effort":""}]}}}`)
+	require.NoError(t, err)
+	groupConfig, enabled := config.EnabledGroup("default")
+	require.True(t, enabled)
+	assert.Equal(t, 60, groupConfig.IntervalMinutes)
+	assert.Equal(t, []StatusCheckDegradationModel{{Model: "gpt-5", Effort: "high"}, {Model: "gpt-5", Effort: ""}}, groupConfig.Models)
+
+	config, err = ParseStatusCheckDegradationConfig(`{"groups":{"default":{"enabled":true,"interval_minutes":30,"models":[]}}}`)
+	require.NoError(t, err)
+	_, enabled = config.EnabledGroup("default")
+	assert.False(t, enabled)
+
+	_, err = ParseStatusCheckDegradationConfig(`{"groups":{"default":{"enabled":true,"interval_minutes":4,"models":[{"model":"gpt-5"}]}}}`)
+	require.ErrorContains(t, err, "interval_minutes")
+
+	_, err = ParseStatusCheckDegradationConfig(`{"groups":{"default":{"enabled":true,"models":[{"model":"gpt-5","effort":"extreme"}]}}}`)
+	require.ErrorContains(t, err, "effort")
+
+	_, err = ParseStatusCheckDegradationConfig(`{"groups":{"auto":{"enabled":true,"models":[{"model":"gpt-5"}]}}}`)
+	require.ErrorContains(t, err, "automatic group")
+}

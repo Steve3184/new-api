@@ -73,6 +73,7 @@ func InitOptionMap() {
 	common.OptionMap["StatusCheckCacheExcludedModels"] = common.StatusCheckCacheExcludedModels
 	common.OptionMap["StatusCheckAnnouncement"] = common.StatusCheckAnnouncement
 	common.OptionMap["StatusCheckFlexibleMode"] = common.StatusCheckFlexibleMode
+	common.OptionMap["StatusCheckDegradationMode"] = common.StatusCheckDegradationMode
 	common.OptionMap["PlaygroundSettings"] = playground_setting.ToJSONString()
 	common.OptionMap["NoticePopupEnabled"] = strconv.FormatBool(common.NoticePopupEnabled)
 	common.OptionMap["NoticePopupMode"] = common.NoticePopupMode
@@ -896,6 +897,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.StatusCheckAnnouncement = value
 	case "StatusCheckFlexibleMode":
 		common.StatusCheckFlexibleMode = value
+	case "StatusCheckDegradationMode":
+		common.StatusCheckDegradationMode = value
 	case "PlaygroundSettings":
 		err = playground_setting.UpdateByJSONString(value)
 	case "QuotaForNewUser":

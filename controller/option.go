@@ -535,6 +535,14 @@ func UpdateOption(c *gin.Context) {
 				return
 			}
 		}
+	case "StatusCheckDegradationMode":
+		if _, err = perfmetrics.ParseStatusCheckDegradationConfig(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "StatusCheckFlexibleMode":
 		if _, err = perfmetrics.ParseStatusCheckFlexibleConfig(option.Value.(string)); err != nil {
 			c.JSON(http.StatusOK, gin.H{

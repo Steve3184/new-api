@@ -60,6 +60,7 @@ const CONTENT_SECTIONS = [
         cacheExcludedModels={settings.StatusCheckCacheExcludedModels}
         announcement={settings.StatusCheckAnnouncement}
         flexibleMode={settings.StatusCheckFlexibleMode}
+        degradationMode={settings.StatusCheckDegradationMode}
         groupRatio={settings.GroupRatio}
         modelRatio={settings.ModelRatio}
       />

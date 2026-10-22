@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -21,6 +22,7 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(multiKeyRecoveryHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(statusCheckProbeHandler{})
+	service.RegisterSystemTaskHandler(statusCheckDegradationHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
 }
@@ -90,6 +92,36 @@ func (statusCheckProbeHandler) NewPayload() any { return nil }
 
 func (statusCheckProbeHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	summary, err := runStatusCheckProbeTask(ctx)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
+}
+
+// statusCheckDegradationHandler asks configured status-group models a fixed
+// reasoning question. It wakes once per minute and applies each group's own
+// interval, so token spend scales with the configured intervals only.
+type statusCheckDegradationHandler struct{}
+
+func (statusCheckDegradationHandler) Type() string { return model.SystemTaskTypeStatusCheckDegrade }
+
+func (statusCheckDegradationHandler) Enabled() bool {
+	config := perfmetrics.GetStatusCheckDegradationConfig()
+	for _, group := range statusCheckExplicitProbeGroups() {
+		if _, enabled := config.EnabledGroup(group); enabled {
+			return true
+		}
+	}
+	return false
+}
+
+func (statusCheckDegradationHandler) Interval() time.Duration { return time.Minute }
+
+func (statusCheckDegradationHandler) NewPayload() any { return nil }
+
+func (statusCheckDegradationHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := runStatusCheckDegradationTask(ctx)
 	if err != nil {
 		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
 		return

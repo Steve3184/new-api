@@ -20,15 +20,10 @@ import { Activity, RotateCw } from 'lucide-react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { HeartbeatBar, type HeartbeatBeat } from '@/components/heartbeat-bar'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { getUptimeStatus } from '@/features/dashboard/api'
 import type {
   UptimeGroupResult,
@@ -51,78 +46,43 @@ const STATUS_LABEL_MAP: Record<number, string> = {
   2: 'Degraded',
   3: 'Maintenance',
 }
-const EMPTY_HISTORY_LENGTH = 30
-const EMPTY_HISTORY_KEYS = Array.from(
-  { length: EMPTY_HISTORY_LENGTH },
-  (_, index) => `empty-status-${index}`
-)
-
 const StatusDot = memo(function StatusDot(props: { status: number }) {
   const color = STATUS_COLOR_MAP[props.status] ?? DEFAULT_STATUS_COLOR
   return <span className={cn('inline-block size-2 rounded-full', color)} />
 })
 
-const UptimeHistoryDots = memo(function UptimeHistoryDots(props: {
-  monitor: UptimeMonitor
-}) {
+function UptimeHistoryDots(props: { monitor: UptimeMonitor }) {
   const { t } = useTranslation()
   const heartbeats = props.monitor.heartbeats?.slice(-60) ?? []
-
-  if (!heartbeats.length) {
-    return (
-      <div
-        role='img'
-        aria-label={t('No recent status data for {{name}}', {
-          name: props.monitor.name,
-        })}
-        className='flex h-3 w-full gap-0.5 overflow-hidden'
-      >
-        {EMPTY_HISTORY_KEYS.map((key) => (
-          <span
-            key={key}
-            aria-hidden='true'
-            className='bg-muted-foreground/15 min-w-0 flex-1 rounded-[1px]'
-          />
-        ))}
-      </div>
-    )
-  }
+  const beats: HeartbeatBeat[] = heartbeats.map((heartbeat) => {
+    const statusLabel = t(STATUS_LABEL_MAP[heartbeat.status] ?? 'Unknown')
+    return {
+      key: `${heartbeat.time}-${heartbeat.status}`,
+      colorClassName:
+        STATUS_COLOR_MAP[heartbeat.status] ?? DEFAULT_STATUS_COLOR,
+      label: `${statusLabel}: ${heartbeat.time}`,
+      detail: (
+        <>
+          <span className='font-medium'>{statusLabel}</span>
+          <span className='opacity-70'>{heartbeat.time}</span>
+        </>
+      ),
+    }
+  })
 
   return (
-    <TooltipProvider delay={100}>
-      <div
-        role='img'
-        aria-label={t('Recent status for {{name}}', {
-          name: props.monitor.name,
-        })}
-        className='flex h-3 w-full gap-0.5 overflow-hidden'
-      >
-        {heartbeats.map((heartbeat) => {
-          const statusLabel = t(STATUS_LABEL_MAP[heartbeat.status] ?? 'Unknown')
-          return (
-            <Tooltip key={`${heartbeat.time}-${heartbeat.status}`}>
-              <TooltipTrigger
-                render={
-                  <span
-                    aria-label={`${statusLabel}: ${heartbeat.time}`}
-                    className={cn(
-                      'min-w-0 flex-1 rounded-[1px]',
-                      STATUS_COLOR_MAP[heartbeat.status] ?? DEFAULT_STATUS_COLOR
-                    )}
-                  />
-                }
-              />
-              <TooltipContent>
-                <span className='font-medium'>{statusLabel}</span>
-                <span className='opacity-70'>{heartbeat.time}</span>
-              </TooltipContent>
-            </Tooltip>
-          )
-        })}
-      </div>
-    </TooltipProvider>
+    <HeartbeatBar
+      beats={beats}
+      label={
+        beats.length > 0
+          ? t('Recent status for {{name}}', { name: props.monitor.name })
+          : t('No recent status data for {{name}}', {
+              name: props.monitor.name,
+            })
+      }
+    />
   )
-})
+}
 
 export function UptimePanel() {
   const { t } = useTranslation()

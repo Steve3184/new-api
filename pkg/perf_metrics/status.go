@@ -2,7 +2,7 @@ package perfmetrics
 
 import (
 	"math"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
@@ -10,6 +10,8 @@ import (
 
 // QueryStatus aggregates configured-group relay metrics and, when enabled,
 // low-frequency flexible active probes. Probe samples have no cache fields.
+// Degradation check samples only fill hours without any other request, so
+// they never dilute real traffic. History always covers the last 24 hours.
 func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (StatusResult, error) {
 	if hours <= 0 {
 		hours = 24
@@ -18,8 +20,15 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		hours = 24 * 30
 	}
 	endTs := time.Now().Unix()
-	startTs := endTs - int64(hours)*3600
-	rows, err := model.GetPerfGroupSummaryBucketsAll(startTs, endTs, groups)
+	summaryStartTs := endTs - int64(hours)*3600
+	// The beat strip reaches further back than the summary window so wide
+	// screens can show more hours; summaries only use summaryStartTs onward.
+	startTs := min(summaryStartTs, endTs-int64(StatusBeatHours)*3600)
+	rows, err := model.GetPerfGroupSummaryBucketsAll(startTs, endTs, groups, "")
+	if err != nil {
+		return StatusResult{}, err
+	}
+	degradationRows, err := model.GetPerfGroupSummaryBucketsAll(startTs, endTs, groups, StatusCheckDegradationProbeModel)
 	if err != nil {
 		return StatusResult{}, err
 	}
@@ -75,6 +84,20 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		buckets[row.Group][row.BucketTs] = value
 	}
 
+	degradationBuckets := make(map[string]map[int64]counters)
+	for _, row := range degradationRows {
+		if _, ok := degradationBuckets[row.Group]; !ok {
+			degradationBuckets[row.Group] = make(map[int64]counters)
+		}
+		degradationBuckets[row.Group][row.BucketTs] = counters{
+			requestCount:   row.RequestCount,
+			successCount:   row.SuccessCount,
+			totalLatencyMs: row.TotalLatencyMs,
+			ttftSumMs:      row.TtftSumMs,
+			ttftCount:      row.TtftCount,
+		}
+	}
+
 	hotBuckets.Range(func(key, value any) bool {
 		bucket := key.(bucketKey)
 		if bucket.bucketTs < startTs || bucket.bucketTs > endTs {
@@ -98,40 +121,93 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		}
 		mergeStatusCounters(&current, hot)
 		buckets[bucket.group][bucket.bucketTs] = current
+		if bucket.model == StatusCheckDegradationProbeModel {
+			if _, ok := degradationBuckets[bucket.group]; !ok {
+				degradationBuckets[bucket.group] = make(map[int64]counters)
+			}
+			degradation := degradationBuckets[bucket.group][bucket.bucketTs]
+			mergeStatusCounters(&degradation, hot)
+			degradationBuckets[bucket.group][bucket.bucketTs] = degradation
+		}
 		return true
 	})
 
+	currentHour := endTs - endTs%3600
 	result := make([]StatusGroup, 0, len(groups))
 	for _, group := range groups {
-		groupBuckets := buckets[group]
-		timestamps := make([]int64, 0, len(groupBuckets))
+		realHourly := make(map[int64]counters)
+		degradationHourly := make(map[int64]counters)
+		for ts, value := range buckets[group] {
+			hourTs := ts - ts%3600
+			hour := realHourly[hourTs]
+			mergeStatusCounters(&hour, subtractStatusCounters(value, degradationBuckets[group][ts]))
+			realHourly[hourTs] = hour
+		}
+		for ts, value := range degradationBuckets[group] {
+			hourTs := ts - ts%3600
+			hour := degradationHourly[hourTs]
+			mergeStatusCounters(&hour, value)
+			degradationHourly[hourTs] = hour
+		}
+
+		effectiveHourly := make(map[int64]counters, len(realHourly))
+		filledHours := make(map[int64]bool)
+		for hourTs, value := range realHourly {
+			if value.requestCount > 0 {
+				effectiveHourly[hourTs] = value
+			}
+		}
+		for hourTs, value := range degradationHourly {
+			if _, hasRealRequests := effectiveHourly[hourTs]; !hasRealRequests && value.requestCount > 0 {
+				effectiveHourly[hourTs] = value
+				filledHours[hourTs] = true
+			}
+		}
+
+		summaryStartHour := summaryStartTs - summaryStartTs%3600
+		timestamps := make([]int64, 0, len(effectiveHourly))
 		total := counters{}
-		for ts, value := range groupBuckets {
-			timestamps = append(timestamps, ts)
+		for hourTs, value := range effectiveHourly {
+			if hourTs < summaryStartHour {
+				continue
+			}
+			timestamps = append(timestamps, hourTs)
 			mergeStatusCounters(&total, value)
 		}
-		sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
+		slices.Sort(timestamps)
 		rates := make([]float64, 0, len(timestamps))
-		history := make([]StatusHistoryPoint, 0, len(timestamps))
-		for _, ts := range timestamps {
-			value := groupBuckets[ts]
-			rates = append(rates, math.Round(successRate(value)*100)/100)
-			cacheRate := cacheTokenRate(value)
-			history = append(history, StatusHistoryPoint{
-				Ts:               ts,
-				AvgLatencyMs:     avg(value.totalLatencyMs, value.requestCount),
-				AvgTtftMs:        avg(value.ttftSumMs, value.ttftCount),
-				TtftSampleCount:  value.ttftCount,
-				CacheHitRate:     math.Round(cacheRate*100) / 100,
-				CacheSampleCount: value.cacheSampleCount,
-				CacheInputTokens: value.inputTokens,
-			})
+		for _, hourTs := range timestamps {
+			rates = append(rates, math.Round(successRate(effectiveHourly[hourTs])*100)/100)
 		}
 		if len(rates) > 24 {
 			rates = rates[len(rates)-24:]
 		}
-		if len(history) > 24 {
-			history = history[len(history)-24:]
+		beats := make([]StatusBeat, 0, StatusBeatHours)
+		for hourTs := currentHour - int64(StatusBeatHours-1)*3600; hourTs <= currentHour; hourTs += 3600 {
+			value := effectiveHourly[hourTs]
+			beats = append(beats, StatusBeat{
+				Ts:           hourTs,
+				RequestCount: value.requestCount,
+				Availability: math.Round(successRate(value)*100) / 100,
+				AvgTtftMs:    avg(value.ttftSumMs, value.ttftCount),
+				ProbeFilled:  filledHours[hourTs],
+			})
+		}
+		history := make([]StatusHistoryPoint, 0, 24)
+		for hourTs := currentHour - 23*3600; hourTs <= currentHour; hourTs += 3600 {
+			value := effectiveHourly[hourTs]
+			history = append(history, StatusHistoryPoint{
+				Ts:               hourTs,
+				RequestCount:     value.requestCount,
+				Availability:     math.Round(successRate(value)*100) / 100,
+				ProbeFilled:      filledHours[hourTs],
+				AvgLatencyMs:     avg(value.totalLatencyMs, value.requestCount),
+				AvgTtftMs:        avg(value.ttftSumMs, value.ttftCount),
+				TtftSampleCount:  value.ttftCount,
+				CacheHitRate:     math.Round(cacheTokenRate(value)*100) / 100,
+				CacheSampleCount: value.cacheSampleCount,
+				CacheInputTokens: value.inputTokens,
+			})
 		}
 		cacheRate := cacheTokenRate(total)
 		result = append(result, StatusGroup{
@@ -145,9 +221,21 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 			RequestCount:     total.requestCount,
 			Availability24:   rates,
 			History24:        history,
+			Beats:            beats,
 		})
 	}
 	return StatusResult{Groups: result}, nil
+}
+
+// subtractStatusCounters removes the request-level counters of part from
+// value. Degradation samples carry no cache fields, so those stay untouched.
+func subtractStatusCounters(value counters, part counters) counters {
+	value.requestCount -= part.requestCount
+	value.successCount -= part.successCount
+	value.totalLatencyMs -= part.totalLatencyMs
+	value.ttftSumMs -= part.ttftSumMs
+	value.ttftCount -= part.ttftCount
+	return value
 }
 
 func mergeStatusCounters(target *counters, value counters) {

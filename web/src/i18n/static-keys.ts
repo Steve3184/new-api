@@ -834,4 +834,9 @@ export const STATIC_I18N_KEYS = [
   'Channel priorities changed. Refresh and try again.',
   'Invalid channel priority move',
   'Channel priority is outside the sortable range',
+  'Not degraded',
+  'Model degraded',
+  'Check failed',
+  'Hours without real requests use model degradation checks when enabled.',
+  'Average time to the first streamed token.',
 ] as const

@@ -667,14 +667,17 @@ export async function getAllModels(): Promise<{
 }
 
 /**
- * Get all enabled models
+ * Get all enabled models, or only those enabled in one group
  */
-export async function getEnabledModels(): Promise<{
+export async function getEnabledModels(group?: string): Promise<{
   success: boolean
   message?: string
   data?: string[]
 }> {
-  const res = await api.get('/api/channel/models_enabled')
+  const res = await api.get(
+    '/api/channel/models_enabled',
+    group ? { params: { group } } : undefined
+  )
   return res.data
 }
 

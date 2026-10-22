@@ -294,7 +294,7 @@ func QuerySummaryAll(hours int, groups []string, recentModels ...string) (Summar
 
 	modelBuckets := map[string]map[int64]counters{}
 	for _, row := range rows {
-		if row.ModelName == StatusCheckProbeModel {
+		if isStatusCheckProbeModel(row.ModelName) {
 			continue
 		}
 		value := counters{
@@ -309,7 +309,7 @@ func QuerySummaryAll(hours int, groups []string, recentModels ...string) (Summar
 
 	hotBuckets.Range(func(key, value any) bool {
 		k := key.(bucketKey)
-		if k.model == StatusCheckProbeModel {
+		if isStatusCheckProbeModel(k.model) {
 			return true
 		}
 		if k.bucketTs > endTs {

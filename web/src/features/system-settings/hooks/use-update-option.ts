@@ -106,6 +106,7 @@ const STATUS_CHECK_RELATED_KEYS = new Set([
   'StatusCheckGroups',
   'StatusCheckCacheExcludedModels',
   'StatusCheckFlexibleMode',
+  'StatusCheckDegradationMode',
 ])
 
 export function useUpdateOption() {

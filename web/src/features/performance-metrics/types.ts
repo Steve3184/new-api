@@ -87,10 +87,47 @@ export type StatusGroup = {
   request_count: number
   availability_24h: number[]
   history_24h: StatusHistoryPoint[]
+  /** Hourly beats, oldest first; longer than 24 hours so wide rows fill up. */
+  beats: StatusBeat[]
+  degradation?: StatusDegradationModel[]
 }
 
+/** One hour of the status strip; `request_count` is 0 for hours without data. */
+export type StatusBeat = {
+  ts: number
+  request_count: number
+  availability: number
+  avg_ttft_ms: number
+  /** The hour had no real requests and uses degradation check samples. */
+  probe_filled: boolean
+}
+
+export type StatusDegradationCheckStatus = 'passed' | 'degraded' | 'error'
+
+export type StatusDegradationCheck = {
+  ts: number
+  status: StatusDegradationCheckStatus
+  answer: string
+  latency_ms: number
+}
+
+/** Configured model/effort row of a status group's degradation checks. */
+export type StatusDegradationModel = {
+  model: string
+  effort: string
+  /** Share of passed checks among judged checks; errors are excluded. */
+  pass_rate: number
+  judged_count: number
+  checks: StatusDegradationCheck[]
+}
+
+/** One hour of a status group; `request_count` is 0 for hours without data. */
 export type StatusHistoryPoint = {
   ts: number
+  request_count: number
+  availability: number
+  /** The hour had no real requests and uses degradation check samples. */
+  probe_filled: boolean
   avg_latency_ms: number
   avg_ttft_ms: number
   ttft_sample_count: number

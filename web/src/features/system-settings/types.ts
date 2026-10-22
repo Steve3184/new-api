@@ -306,6 +306,7 @@ export type ContentSettings = {
   StatusCheckCacheExcludedModels: string
   StatusCheckAnnouncement: string
   StatusCheckFlexibleMode: string
+  StatusCheckDegradationMode: string
   GroupRatio: string
   ModelRatio: string
   'console_setting.api_info': string

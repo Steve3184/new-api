@@ -40,6 +40,12 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+	// responseBody is the client-format body, kept only for tests that send a
+	// caller-supplied request and need to inspect the answer.
+	responseBody []byte
+	// ttftMs is the time to the first streamed response, or zero when the
+	// test did not stream.
+	ttftMs int64
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
@@ -77,12 +83,14 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
-	return testChannelWithKey(ctx, channel, testUserID, testModel, endpointType, isStream, -1)
+	return testChannelWithKey(ctx, channel, testUserID, testModel, endpointType, isStream, -1, nil)
 }
 
 // testChannelWithKey is used by scheduled key recovery to probe one disabled
 // key while retaining the normal channel test path and billing/response checks.
-func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, forcedKeyIndex int) testResult {
+// A non-nil customRequest replaces the built-in "hi" request; its model name
+// must match testModel and its type must match the endpoint's relay format.
+func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, forcedKeyIndex int, customRequest dto.Request) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -250,7 +258,10 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := customRequest
+	if request == nil {
+		request = buildTestRequest(testModel, endpointType, channel, isStream)
+	}
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -520,7 +531,7 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 		}
 	}
 	result := w.Result()
-	respBody, err := readTestResponseBody(result.Body, isStream)
+	respBody, err := readTestResponseBody(result.Body, isStream, customRequest != nil)
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -556,10 +567,16 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 		Other:            other,
 	})
 	common.SysLog(common.LogText("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	ttftMs := int64(0)
+	if info.IsStream && info.HasSendResponse() {
+		ttftMs = info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
+	}
 	return testResult{
-		context:     c,
-		localErr:    nil,
-		newAPIError: nil,
+		context:      c,
+		localErr:     nil,
+		newAPIError:  nil,
+		responseBody: respBody,
+		ttftMs:       ttftMs,
 	}
 }
 
@@ -635,9 +652,14 @@ func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dt
 	}
 }
 
-func readTestResponseBody(body io.ReadCloser, isStream bool) ([]byte, error) {
+func readTestResponseBody(body io.ReadCloser, isStream bool, keepAnswer bool) ([]byte, error) {
 	defer func() { _ = body.Close() }()
 	const maxStreamLogBytes = 8 << 10
+	// Reasoning streams can emit many events before the answer text.
+	const maxStreamAnswerBytes = 1 << 20
+	if isStream && keepAnswer {
+		return io.ReadAll(io.LimitReader(body, maxStreamAnswerBytes))
+	}
 	if isStream {
 		return io.ReadAll(io.LimitReader(body, maxStreamLogBytes))
 	}
@@ -1018,7 +1040,7 @@ func runMultiKeyRecoveryTask(ctx context.Context) (multiKeyRecoverySummary, erro
 				continue
 			}
 			summary.KeysTested++
-			result := testChannelWithKey(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), index)
+			result := testChannelWithKey(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), index, nil)
 			if result.localErr == nil && result.newAPIError == nil {
 				key := channel.GetKeys()[index]
 				if model.UpdateChannelStatus(channel.Id, key, common.ChannelStatusEnabled, "multi-key recovery succeeded") {

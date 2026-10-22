@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -90,6 +91,9 @@ func GetPerfMetricsStatus(c *gin.Context) {
 	var cacheExcludedModels []string
 	_ = common.UnmarshalJsonStr(common.StatusCheckCacheExcludedModels, &cacheExcludedModels)
 	result, err := perfmetrics.QueryStatus(hours, activeGroups, cacheExcludedModels)
+	if err == nil {
+		err = perfmetrics.AttachStatusCheckDegradation(&result, hours)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -136,35 +140,46 @@ type statusCheckFlexibleProbeGroup struct {
 // statusCheckFlexibleProbeGroups deliberately requires both an explicit status
 // group list and an enabled per-group configuration. An empty visible-group
 // list means "show all" but must never turn every group into a billable active
-// probe target.
+// probe target. Groups with degradation checks are skipped: those checks
+// already fill idle hours.
 func statusCheckFlexibleProbeGroups() []statusCheckFlexibleProbeGroup {
+	flexibleConfig := perfmetrics.GetStatusCheckFlexibleConfig()
+	degradationConfig := perfmetrics.GetStatusCheckDegradationConfig()
+	groups := make([]statusCheckFlexibleProbeGroup, 0)
+	for _, group := range statusCheckExplicitProbeGroups() {
+		groupConfig, enabled := flexibleConfig.EnabledGroup(group)
+		if !enabled {
+			continue
+		}
+		if _, degradationEnabled := degradationConfig.EnabledGroup(group); degradationEnabled {
+			continue
+		}
+		groups = append(groups, statusCheckFlexibleProbeGroup{
+			Group:  group,
+			Config: groupConfig,
+		})
+	}
+	return groups
+}
+
+// statusCheckExplicitProbeGroups returns the explicitly configured, active,
+// non-auto status groups: the only groups that may receive billable active
+// requests from the status page.
+func statusCheckExplicitProbeGroups() []string {
 	var configuredGroups []string
 	if err := common.UnmarshalJsonStr(common.StatusCheckGroups, &configuredGroups); err != nil || len(configuredGroups) == 0 {
 		return nil
 	}
-	flexibleConfig := perfmetrics.GetStatusCheckFlexibleConfig()
 	activeRatios := ratio_setting.GetGroupRatioCopy()
-	seen := make(map[string]struct{}, len(configuredGroups))
-	groups := make([]statusCheckFlexibleProbeGroup, 0, len(configuredGroups))
+	groups := make([]string, 0, len(configuredGroups))
 	for _, group := range configuredGroups {
-		if group == "auto" {
-			continue
-		}
-		if _, exists := seen[group]; exists {
+		if group == "auto" || slices.Contains(groups, group) {
 			continue
 		}
 		if _, active := activeRatios[group]; !active {
 			continue
 		}
-		groupConfig, enabled := flexibleConfig.EnabledGroup(group)
-		if !enabled {
-			continue
-		}
-		seen[group] = struct{}{}
-		groups = append(groups, statusCheckFlexibleProbeGroup{
-			Group:  group,
-			Config: groupConfig,
-		})
+		groups = append(groups, group)
 	}
 	return groups
 }

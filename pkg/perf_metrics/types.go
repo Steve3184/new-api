@@ -56,20 +56,58 @@ type GroupResult struct {
 }
 
 type StatusGroup struct {
-	Group            string               `json:"group"`
-	Availability     float64              `json:"availability"`
-	AvgLatencyMs     int64                `json:"avg_latency_ms"`
-	AvgTtftMs        int64                `json:"avg_ttft_ms"`
-	CacheHitRate     float64              `json:"cache_hit_rate"`
-	CacheSampleCount int64                `json:"cache_sample_count"`
-	CacheInputTokens int64                `json:"cache_input_tokens"`
-	RequestCount     int64                `json:"request_count"`
-	Availability24   []float64            `json:"availability_24h"`
-	History24        []StatusHistoryPoint `json:"history_24h"`
+	Group            string                   `json:"group"`
+	Availability     float64                  `json:"availability"`
+	AvgLatencyMs     int64                    `json:"avg_latency_ms"`
+	AvgTtftMs        int64                    `json:"avg_ttft_ms"`
+	CacheHitRate     float64                  `json:"cache_hit_rate"`
+	CacheSampleCount int64                    `json:"cache_sample_count"`
+	CacheInputTokens int64                    `json:"cache_input_tokens"`
+	RequestCount     int64                    `json:"request_count"`
+	Availability24   []float64                `json:"availability_24h"`
+	History24        []StatusHistoryPoint     `json:"history_24h"`
+	Beats            []StatusBeat             `json:"beats"`
+	Degradation      []StatusDegradationModel `json:"degradation,omitempty"`
 }
 
+// StatusBeatHours is how many hourly beats a status group returns. The page
+// shows as many of the newest beats as fit its width.
+const StatusBeatHours = 240
+
+// StatusBeat is one hour of the status strip; RequestCount is zero for hours
+// without data.
+type StatusBeat struct {
+	Ts           int64   `json:"ts"`
+	RequestCount int64   `json:"request_count"`
+	Availability float64 `json:"availability"`
+	AvgTtftMs    int64   `json:"avg_ttft_ms"`
+	ProbeFilled  bool    `json:"probe_filled"`
+}
+
+// StatusDegradationModel is one configured model/effort row of a status
+// group. PassRate covers judged checks only; request errors are excluded.
+type StatusDegradationModel struct {
+	Model       string                   `json:"model"`
+	Effort      string                   `json:"effort"`
+	PassRate    float64                  `json:"pass_rate"`
+	JudgedCount int                      `json:"judged_count"`
+	Checks      []StatusDegradationCheck `json:"checks"`
+}
+
+type StatusDegradationCheck struct {
+	Ts        int64  `json:"ts"`
+	Status    string `json:"status"`
+	Answer    string `json:"answer"`
+	LatencyMs int64  `json:"latency_ms"`
+}
+
+// StatusHistoryPoint is one hour of a status group. RequestCount is zero for
+// hours without data; ProbeFilled marks hours built from degradation checks.
 type StatusHistoryPoint struct {
 	Ts               int64   `json:"ts"`
+	RequestCount     int64   `json:"request_count"`
+	Availability     float64 `json:"availability"`
+	ProbeFilled      bool    `json:"probe_filled"`
 	AvgLatencyMs     int64   `json:"avg_latency_ms"`
 	AvgTtftMs        int64   `json:"avg_ttft_ms"`
 	TtftSampleCount  int64   `json:"ttft_sample_count"`

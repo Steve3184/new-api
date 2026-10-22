@@ -34,6 +34,16 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { StatusCheckDegradationConfig } from './status-check-degradation-config'
+import {
+  DEGRADATION_EFFORTS,
+  DEGRADATION_INTERVAL_MAX,
+  DEGRADATION_INTERVAL_MIN,
+  DEGRADATION_MAX_MODELS,
+  type DegradationGroupConfig,
+  type DegradationModelConfig,
+  defaultDegradationGroup,
+} from './status-check-degradation-options'
 
 const statusCheckSchema = z.object({
   groups: z.array(z.string()),
@@ -45,6 +55,29 @@ const statusCheckSchema = z.object({
       enabled: z.boolean(),
       idle_minutes: z.number().int().min(1).max(1440),
       max_consecutive_probes: z.number().int().min(1).max(1000),
+    })
+  ),
+  degradationGroups: z.array(
+    z.object({
+      group: z.string().min(1).max(64),
+      enabled: z.boolean(),
+      interval_minutes: z
+        .number()
+        .int()
+        .min(DEGRADATION_INTERVAL_MIN)
+        .max(DEGRADATION_INTERVAL_MAX),
+      models: z
+        .array(
+          z.object({
+            model: z.string().min(1).max(255),
+            effort: z
+              .string()
+              .refine((effort) =>
+                (DEGRADATION_EFFORTS as readonly string[]).includes(effort)
+              ),
+          })
+        )
+        .max(DEGRADATION_MAX_MODELS),
     })
   ),
 })
@@ -71,6 +104,10 @@ const defaultFlexibleGroup: FlexibleGroupConfig = {
 }
 
 const defaultFlexibleMode: FlexibleModeConfig = { groups: {} }
+
+type DegradationModeConfig = {
+  groups: Record<string, DegradationGroupConfig>
+}
 
 function parseGroupNames(value: string): string[] {
   try {
@@ -148,11 +185,56 @@ function parseFlexibleMode(value: string): FlexibleModeConfig {
   }
 }
 
+function parseDegradationMode(value: string): DegradationModeConfig {
+  try {
+    const parsed = JSON.parse(value) as { groups?: unknown }
+    if (
+      !parsed.groups ||
+      typeof parsed.groups !== 'object' ||
+      Array.isArray(parsed.groups)
+    ) {
+      return { groups: {} }
+    }
+    const groups: Record<string, DegradationGroupConfig> = {}
+    for (const [group, config] of Object.entries(parsed.groups)) {
+      if (!config || typeof config !== 'object' || Array.isArray(config)) {
+        continue
+      }
+      const candidate = config as Partial<DegradationGroupConfig>
+      const models = Array.isArray(candidate.models)
+        ? candidate.models.filter(
+            (entry): entry is DegradationModelConfig =>
+              typeof entry?.model === 'string' &&
+              (DEGRADATION_EFFORTS as readonly string[]).includes(
+                entry.effort ?? ''
+              )
+          )
+        : []
+      groups[group] = {
+        enabled: candidate.enabled === true,
+        interval_minutes:
+          typeof candidate.interval_minutes === 'number' &&
+          Number.isInteger(candidate.interval_minutes)
+            ? candidate.interval_minutes
+            : defaultDegradationGroup.interval_minutes,
+        models: models.map((entry) => ({
+          model: entry.model,
+          effort: entry.effort ?? '',
+        })),
+      }
+    }
+    return { groups }
+  } catch {
+    return { groups: {} }
+  }
+}
+
 export function StatusCheckSection(props: {
   defaultValue: string
   cacheExcludedModels: string
   announcement: string
   flexibleMode: string
+  degradationMode: string
   groupRatio: string
   modelRatio: string
 }) {
@@ -186,6 +268,17 @@ export function StatusCheckSection(props: {
       })),
     [defaultFlexibleConfig]
   )
+  const defaultDegradationConfig = useMemo(
+    () => parseDegradationMode(props.degradationMode),
+    [props.degradationMode]
+  )
+  const defaultDegradationGroups = useMemo(
+    () =>
+      Object.entries(defaultDegradationConfig.groups).map(
+        ([group, config]) => ({ group, ...config })
+      ),
+    [defaultDegradationConfig]
+  )
   const modelOptions = useMemo(
     () =>
       parseAvailableModels(props.modelRatio).map((model) => ({
@@ -201,10 +294,12 @@ export function StatusCheckSection(props: {
       cacheExcludedModels: defaultCacheExcludedModels,
       announcement: props.announcement,
       flexibleGroups: defaultFlexibleGroups,
+      degradationGroups: defaultDegradationGroups,
     },
   })
   const selectedGroups = form.watch('groups')
   const flexibleGroups = form.watch('flexibleGroups')
+  const degradationGroups = form.watch('degradationGroups')
   const selectableGroupNames = useMemo(
     () => new Set(options.map((option) => option.value)),
     [options]
@@ -219,9 +314,11 @@ export function StatusCheckSection(props: {
       cacheExcludedModels: defaultCacheExcludedModels,
       announcement: props.announcement,
       flexibleGroups: defaultFlexibleGroups,
+      degradationGroups: defaultDegradationGroups,
     })
   }, [
     defaultCacheExcludedModels,
+    defaultDegradationGroups,
     defaultFlexibleGroups,
     defaultGroups,
     form,
@@ -256,6 +353,32 @@ export function StatusCheckSection(props: {
     })
   }
 
+  const getDegradationGroupConfig = (group: string): DegradationGroupConfig =>
+    degradationGroups.find((candidate) => candidate.group === group) ??
+    defaultDegradationGroup
+
+  const updateDegradationGroupConfig = (
+    group: string,
+    update: Partial<DegradationGroupConfig>
+  ) => {
+    const nextConfig = {
+      ...getDegradationGroupConfig(group),
+      ...update,
+      group,
+    }
+    const nextGroups = degradationGroups.some(
+      (candidate) => candidate.group === group
+    )
+      ? degradationGroups.map((candidate) =>
+          candidate.group === group ? nextConfig : candidate
+        )
+      : [...degradationGroups, nextConfig]
+    form.setValue('degradationGroups', nextGroups, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }
+
   const onSubmit = async (values: StatusCheckValues) => {
     const flexibleGroupSettings = values.groups.reduce<
       Record<string, FlexibleGroupConfig>
@@ -275,6 +398,21 @@ export function StatusCheckSection(props: {
         : defaultFlexibleGroup
       return settings
     }, {})
+    const degradationGroupSettings: Record<string, DegradationGroupConfig> = {}
+    for (const config of values.degradationGroups) {
+      if (
+        config.group === 'auto' ||
+        !selectableGroupNames.has(config.group) ||
+        !values.groups.includes(config.group)
+      ) {
+        continue
+      }
+      degradationGroupSettings[config.group] = {
+        enabled: config.enabled,
+        interval_minutes: config.interval_minutes,
+        models: config.models,
+      }
+    }
     const updates = [
       {
         key: 'StatusCheckGroups',
@@ -295,6 +433,11 @@ export function StatusCheckSection(props: {
         key: 'StatusCheckFlexibleMode',
         value: JSON.stringify({ groups: flexibleGroupSettings }),
         initial: JSON.stringify(defaultFlexibleConfig),
+      },
+      {
+        key: 'StatusCheckDegradationMode',
+        value: JSON.stringify({ groups: degradationGroupSettings }),
+        initial: JSON.stringify(defaultDegradationConfig),
       },
     ].filter((item) => item.value !== item.initial)
 
@@ -369,6 +512,11 @@ export function StatusCheckSection(props: {
             ) : (
               visibleProbeGroups.map((group) => {
                 const config = getFlexibleGroupConfig(group)
+                // Degradation checks already fill idle hours, so the backend
+                // skips flexible probes for groups that run them.
+                const degradationEnabled =
+                  getDegradationGroupConfig(group).enabled
+                const probeActive = config.enabled && !degradationEnabled
                 return (
                   <div
                     key={group}
@@ -378,14 +526,19 @@ export function StatusCheckSection(props: {
                       <SettingsSwitchContent>
                         <FormLabel>{group}</FormLabel>
                         <FormDescription>
-                          {t(
-                            'Probe this group only when it has no real relay requests.'
-                          )}
+                          {degradationEnabled
+                            ? t(
+                                'Not needed while model degradation detection is on: its checks fill hours without requests.'
+                              )
+                            : t(
+                                'Probe this group only when it has no real relay requests.'
+                              )}
                         </FormDescription>
                       </SettingsSwitchContent>
                       <FormControl>
                         <Switch
-                          checked={config.enabled}
+                          checked={probeActive}
+                          disabled={degradationEnabled}
                           onCheckedChange={(enabled) =>
                             updateFlexibleGroupConfig(group, { enabled })
                           }
@@ -402,7 +555,7 @@ export function StatusCheckSection(props: {
                             min={1}
                             max={1440}
                             step={1}
-                            disabled={!config.enabled}
+                            disabled={!probeActive}
                             value={config.idle_minutes}
                             onChange={(event) => {
                               if (Number.isFinite(event.target.valueAsNumber)) {
@@ -427,7 +580,7 @@ export function StatusCheckSection(props: {
                             min={1}
                             max={1000}
                             step={1}
-                            disabled={!config.enabled}
+                            disabled={!probeActive}
                             value={config.max_consecutive_probes}
                             onChange={(event) => {
                               if (Number.isFinite(event.target.valueAsNumber)) {
@@ -446,6 +599,13 @@ export function StatusCheckSection(props: {
                         </FormDescription>
                       </FormItem>
                     </div>
+                    <StatusCheckDegradationConfig
+                      group={group}
+                      value={getDegradationGroupConfig(group)}
+                      onChange={(update) =>
+                        updateDegradationGroupConfig(group, update)
+                      }
+                    />
                   </div>
                 )
               })

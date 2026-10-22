@@ -183,6 +183,10 @@ var StatusCheckAnnouncement = ""
 // enabled entry in this map.
 var StatusCheckFlexibleMode = `{"groups":{}}`
 
+// StatusCheckDegradationMode configures per-group model degradation checks
+// that ask a fixed reasoning question and compare the answer.
+var StatusCheckDegradationMode = `{"groups":{}}`
+
 // NoticePopupEnabled shows the system notice in the configured placement.
 var NoticePopupEnabled = false
 

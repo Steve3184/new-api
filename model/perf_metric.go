@@ -107,11 +107,16 @@ type PerfGroupCacheTokenSummaryBucket struct {
 	InputTokens  int64  `json:"input_tokens"`
 }
 
-func GetPerfGroupSummaryBucketsAll(startTs int64, endTs int64, groups []string) ([]PerfGroupSummaryBucket, error) {
+// GetPerfGroupSummaryBucketsAll sums every model per group and bucket. A
+// non-empty modelName restricts the sums to that model.
+func GetPerfGroupSummaryBucketsAll(startTs int64, endTs int64, groups []string, modelName string) ([]PerfGroupSummaryBucket, error) {
 	var summaries []PerfGroupSummaryBucket
 	query := DB.Model(&PerfMetric{}).
 		Select(commonGroupCol+", bucket_ts, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(ttft_sum_ms) as ttft_sum_ms, SUM(ttft_count) as ttft_count, SUM(cache_hit_count) as cache_hit_count, SUM(cache_sample_count) as cache_sample_count, SUM(cached_tokens) as cached_tokens, SUM(input_tokens) as input_tokens").
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
+	if modelName != "" {
+		query = query.Where("model_name = ?", modelName)
+	}
 	if groups != nil {
 		if len(groups) == 0 {
 			return summaries, nil
