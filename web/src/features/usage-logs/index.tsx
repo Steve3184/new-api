@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
@@ -70,6 +71,8 @@ function UsageLogsContent() {
     affinityTarget,
     affinityDialogOpen,
     setAffinityDialogOpen,
+    hideRetryFailures,
+    setHideRetryFailures,
   } = useUsageLogsContext()
   const { canManageScope, viewScope, setViewScope } = useLogsViewScope()
   const tabNavGroups = useMemo<NavGroup[]>(
@@ -129,6 +132,17 @@ function UsageLogsContent() {
           {t(pageMeta.titleKey)}
         </SectionPageLayout.Title>
         <SectionPageLayout.Actions>
+          {activeCategory === 'common' && (
+            <label className='text-muted-foreground flex items-center gap-2 text-xs'>
+              <span>{t('Hide retry failures')}</span>
+              <Switch
+                size='sm'
+                checked={hideRetryFailures}
+                onCheckedChange={setHideRetryFailures}
+                aria-label={t('Hide retry failures')}
+              />
+            </label>
+          )}
           {canManageScope && (
             <Tabs value={viewScope} onValueChange={handleViewScopeChange}>
               <TabsList>

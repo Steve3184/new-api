@@ -22,6 +22,10 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
+import {
+  readHideRetryFailuresPreference,
+  saveHideRetryFailuresPreference,
+} from '../lib/retry-chain'
 import type { ChannelAffinityInfo } from '../types'
 
 export type LogsViewScope = 'all' | 'self'
@@ -50,6 +54,8 @@ interface UsageLogsContextValue {
   setViewScope: (scope: LogsViewScope) => void
   autoRefreshEnabled: boolean
   setAutoRefreshEnabled: (enabled: boolean) => void
+  hideRetryFailures: boolean
+  setHideRetryFailures: (enabled: boolean) => void
 }
 
 const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
@@ -65,6 +71,13 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
   const [sensitiveVisible, setSensitiveVisible] = useState(true)
   const [viewScope, setViewScope] = useState<LogsViewScope>('all')
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false)
+  const [hideRetryFailures, setHideRetryFailuresState] = useState(
+    readHideRetryFailuresPreference
+  )
+  const setHideRetryFailures = (enabled: boolean) => {
+    setHideRetryFailuresState(enabled)
+    saveHideRetryFailuresPreference(enabled)
+  }
 
   return (
     <UsageLogsContext.Provider
@@ -83,6 +96,8 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
         setViewScope,
         autoRefreshEnabled,
         setAutoRefreshEnabled,
+        hideRetryFailures,
+        setHideRetryFailures,
       }}
     >
       {children}

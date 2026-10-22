@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -42,10 +42,12 @@ import {
   LOG_TYPE_ALL_VALUE,
   LOG_TYPE_ENUM,
 } from '../constants'
+import type { UsageLog } from '../data/schema'
 import { getUsageLogsAutoRefreshOptions } from '../lib/auto-refresh'
 import { shouldShowBillingSource } from '../lib/billing-source'
 import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
+import { collapseRetryChainLogs } from '../lib/retry-chain'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
@@ -100,7 +102,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     isRootView: isRoot,
     viewAccess,
   } = useLogsViewScope()
-  const { autoRefreshEnabled, setAutoRefreshEnabled } = useUsageLogsContext()
+  const { autoRefreshEnabled, setAutoRefreshEnabled, hideRetryFailures } =
+    useUsageLogsContext()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
   const userId = useAuthStore((state) => state.auth.user?.id)
@@ -225,7 +228,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ...autoRefreshOptions,
   })
 
-  const logs = data?.items || []
+  const logs = useMemo(() => {
+    const items = data?.items || []
+    if (logCategory !== 'common' || !hideRetryFailures) return items
+    return collapseRetryChainLogs(items as UsageLog[])
+  }, [data?.items, logCategory, hideRetryFailures])
   const columns = useColumnsByCategory(
     logCategory,
     isAdmin,
