@@ -5,6 +5,8 @@ import (
 )
 
 type TaskError struct {
+	// ClientError is an opt-in plugin projection, separate from retry/log details.
+	ClientError *TaskClientError `json:"-"`
 	// NoRetry prevents duplicate upstream work after a response has been accepted.
 	NoRetry              bool   `json:"-"`
 	Code                 string `json:"code"`
@@ -15,6 +17,11 @@ type TaskError struct {
 	UpstreamResponseBody string `json:"-"`
 	LocalError           bool   `json:"-"`
 	Error                error  `json:"-"`
+}
+
+type TaskClientError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 type TaskData interface {

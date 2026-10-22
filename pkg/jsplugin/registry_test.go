@@ -1244,6 +1244,8 @@ func TestSubmitResponseTypesContract(t *testing.T) {
 		{"legacy JSON", "", "", true},
 		{"SSE declared", `submitResponseTypes:["json","sse"],`, `export function parseSubmitEvent(){return {state:null,done:true};}`, true},
 		{"host JSON utility", `requiredCapabilities:["json-clone@1"],`, "", true},
+		{"submit error handler", `requiredCapabilities:["submit-error-handler@1"],`, `export function parseSubmitError(){return {code:"service_unavailable",message:"service temporary unavailable"};}`, true},
+		{"submit error handler missing hook", `requiredCapabilities:["submit-error-handler@1"],`, "", false},
 		{"SSE delta", `submitResponseTypes:["sse"],requiredCapabilities:["submit-sse-delta@1"],`, `export function parseSubmitEventDelta(){return {changes:[],state:null,done:true};}`, true},
 		{"SSE delta missing hook", `submitResponseTypes:["sse"],requiredCapabilities:["submit-sse-delta@1"],`, `export function parseSubmitEvent(){return {state:null,done:true};}`, false},
 		{"SSE delta hook without declaration", `submitResponseTypes:["sse"],`, `export function parseSubmitEventDelta(){return {changes:[],state:null,done:true};}`, true},

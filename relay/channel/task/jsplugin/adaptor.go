@@ -83,6 +83,7 @@ type submitResponse struct {
 	Immediate *taskResult `json:"immediate"`
 	State     any         `json:"state"`
 }
+
 type taskResult struct {
 	Code             int     `json:"code"`
 	TaskID           string  `json:"taskId"`
@@ -518,6 +519,14 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 		if acceptedStream && taskErr != nil {
 			taskErr.NoRetry = true
 		}
+		if taskErr != nil && slices.Contains(a.plugin.Meta.RequiredCapabilities, pluginruntime.CapabilitySubmitErrorHandler) {
+			taskErr.UpstreamStatusCode = resp.StatusCode
+			if text, ok := responseBody.(string); ok {
+				taskErr.UpstreamResponseBody = text
+			} else if body, err := common.Marshal(responseBody); responseBody != nil && err == nil {
+				taskErr.UpstreamResponseBody = string(body)
+			}
+		}
 	}()
 	if !streaming && acceptedStream {
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("unexpected SSE response for a JSON submission"), "plugin_submit_response_invalid", http.StatusBadGateway)
@@ -630,6 +639,48 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 		logger.LogWarn(c, common.LogText("task plugin %s completion usage rejected; retaining reserved quota: %v", a.plugin.Meta.Key, err))
 	}
 	return response, nil
+}
+
+func (a *TaskAdaptor) HandleSubmitError(c *gin.Context, taskErr *dto.TaskError, resp *http.Response, info *relaycommon.RelayInfo) {
+	if !slices.Contains(a.plugin.Meta.RequiredCapabilities, pluginruntime.CapabilitySubmitErrorHandler) {
+		return
+	}
+	// Keep upstream status/body/error and NoRetry for logging and retry policy.
+	// Establish the safe fallback before executing any plugin code.
+	taskErr.ClientError = &dto.TaskClientError{Code: "service_unavailable", Message: "service temporary unavailable"}
+	if info == nil {
+		return
+	}
+	responseBody := []byte(taskErr.UpstreamResponseBody)
+	responseBody = responseBody[:min(len(responseBody), maxTaskPluginPersistedJSONBytes)]
+	statusCode := 0
+	headers := make(map[string][]string)
+	if resp != nil {
+		statusCode = resp.StatusCode
+		maps.Copy(headers, resp.Header)
+	}
+	var body any = string(responseBody)
+	var decoded any
+	if common.Unmarshal(responseBody, &decoded) == nil {
+		body = decoded
+	}
+	value, err := a.plugin.Engine.Call(c.Request.Context(), "parseSubmitError", a.submitContext(c, info), map[string]any{
+		"statusCode": statusCode,
+		"headers":    headers,
+		"body":       body,
+		"errorCode":  taskErr.Code,
+	})
+	if err != nil {
+		logger.LogDebug(c, "task_plugin subsystem=adaptor event=parse_submit_error_failed plugin=%q status=%d reason=hook_failed", a.plugin.Meta.Key, statusCode)
+		return
+	}
+	var parsed dto.TaskClientError
+	if convert(value, &parsed) != nil || !pluginruntime.ValidPluginKey(parsed.Code) || strings.TrimSpace(parsed.Message) == "" || len(parsed.Message) > 512 {
+		logger.LogDebug(c, "task_plugin subsystem=adaptor event=parse_submit_error_failed plugin=%q status=%d reason=invalid_result", a.plugin.Meta.Key, statusCode)
+		return
+	}
+	parsed.Message = strings.TrimSpace(parsed.Message)
+	taskErr.ClientError = &parsed
 }
 
 func (a *TaskAdaptor) GetModelList() []string { return append([]string(nil), a.plugin.Meta.Models...) }

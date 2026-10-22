@@ -375,6 +375,9 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 	} else {
 		requiredHooks = append(requiredHooks, "buildQueryRequest")
 	}
+	if slices.Contains(meta.RequiredCapabilities, CapabilitySubmitErrorHandler) {
+		requiredHooks = append(requiredHooks, "parseSubmitError")
+	}
 	for _, hook := range requiredHooks {
 		has, hasErr := engine.HasCallablePath(context.Background(), hook)
 		if hasErr != nil {

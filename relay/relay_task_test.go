@@ -507,3 +507,104 @@ export function parseTaskResult() { return {status:"SUCCESS"}; }
 		})
 	}
 }
+
+func TestRelayTaskSubmitErrorHandler(t *testing.T) {
+	service.InitHttpClient()
+	const source = `
+export const meta = {apiVersion:1,key:"submit-error-test",name:"Submit Error Test",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task",requiredCapabilities:["submit-error-handler@1"]};
+export function buildSubmitRequest(ctx) { return {url:ctx.baseUrl+"/submit",method:"POST",body:{model:ctx.model}}; }
+export function parseSubmitResponse(ctx, response) {
+  if (response.body.error) throw new Error(response.body.error.message);
+  return {taskId:response.body.id};
+}
+export function parseSubmitError(ctx, response) {
+  if (response.statusCode !== EXPECTED_STATUS || response.errorCode !== "EXPECTED_CODE") throw new Error("unexpected response");
+  HOOK_BODY
+}
+export function buildQueryRequest(ctx) { return {url:ctx.baseUrl+"/query"}; }
+export function parseTaskResult() { return {status:"SUCCESS"}; }
+`
+	const safeHook = `return {code:"video_unavailable",message:"try again later"};`
+	for _, tc := range []struct {
+		name, body, hook, wantCode string
+		status                     int
+		disabled, transport, local bool
+		wantFallback               bool
+	}{
+		{name: "balance error", status: 402, body: `{"error":{"message":"private balance detail"}}`, hook: safeHook, wantCode: "fail_to_fetch_task"},
+		{name: "non JSON", status: 502, body: "private upstream HTML", hook: safeHook, wantCode: "fail_to_fetch_task"},
+		{name: "redirect", status: 302, body: "private upstream redirect", hook: safeHook, wantCode: "fail_to_fetch_task"},
+		{name: "business error", status: 200, body: `{"error":{"message":"private balance detail"}}`, hook: safeHook, wantCode: "plugin_submit_response_failed"},
+		{name: "missing task id", status: 200, body: `{}`, hook: safeHook, wantCode: "plugin_submit_response_invalid"},
+		{name: "transport", transport: true, hook: safeHook, wantCode: "do_request_failed"},
+		{name: "hook throws", status: 402, body: "private", hook: `throw new Error("private hook detail");`, wantCode: "fail_to_fetch_task", wantFallback: true},
+		{name: "hook invalid code", status: 402, body: "private", hook: `return {code:"invalid code",message:"private"};`, wantCode: "fail_to_fetch_task", wantFallback: true},
+		{name: "hook blank message", status: 402, body: "private", hook: `return {code:"ok",message:"  "};`, wantCode: "fail_to_fetch_task", wantFallback: true},
+		{name: "hook oversized message", status: 402, body: "private", hook: `return {code:"ok",message:"x".repeat(513)};`, wantCode: "fail_to_fetch_task", wantFallback: true},
+		{name: "hook null", status: 402, body: "private", hook: `return null;`, wantCode: "fail_to_fetch_task", wantFallback: true},
+		{name: "not opted in", status: 402, body: "private", hook: safeHook, wantCode: "fail_to_fetch_task", disabled: true},
+		{name: "local validation", local: true, hook: safeHook, wantCode: "plugin_request_invalid"},
+		{name: "successful receipt", status: 202, body: `{"id":"job-42"}`, hook: `throw new Error("must not be called");`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			saveBillingConfig(t)
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+				"billing_setting.billing_mode": `{"declared-model":"tiered_expr"}`,
+				"billing_setting.billing_expr": `{"declared-model":"tier(\"flat\", 3)"}`,
+			}))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+			if tc.transport {
+				server.Close()
+			}
+			pluginSource := strings.NewReplacer("EXPECTED_STATUS", strconv.Itoa(tc.status), "EXPECTED_CODE", tc.wantCode, "HOOK_BODY", tc.hook).Replace(source)
+			if tc.disabled {
+				pluginSource = strings.Replace(pluginSource, `requiredCapabilities:["submit-error-handler@1"]`, `requiredCapabilities:[]`, 1)
+			}
+			if tc.local {
+				pluginSource = strings.Replace(pluginSource, `return {url:ctx.baseUrl+"/submit",method:"POST",body:{model:ctx.model}};`, `throw new Error("invalid request");`, 1)
+			}
+			c, info := newTaskSubmitContext(t, "declared-model", "")
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+			c.Set("group", "default")
+			info.UserGroup, info.UsingGroup = "default", "default"
+			info.OriginModelName = "declared-model"
+			info.Billing = &imageReservation{limit: 1 << 30}
+			pinMappingOrderPlugin(t, c, pluginSource)
+
+			result, taskErr := RelayTaskSubmit(c, info)
+			if tc.wantCode == "" {
+				require.Nil(t, taskErr)
+				require.NotNil(t, result)
+				assert.Equal(t, "job-42", result.UpstreamTaskID)
+				return
+			}
+			require.Nil(t, result)
+			require.NotNil(t, taskErr)
+			assert.Equal(t, tc.wantCode, taskErr.Code)
+			if tc.disabled || tc.local {
+				assert.Nil(t, taskErr.ClientError)
+				return
+			}
+			require.NotNil(t, taskErr.ClientError)
+			if tc.wantFallback {
+				assert.Equal(t, "service_unavailable", taskErr.ClientError.Code)
+				assert.Equal(t, "service temporary unavailable", taskErr.ClientError.Message)
+			} else {
+				assert.Equal(t, "video_unavailable", taskErr.ClientError.Code)
+				assert.Equal(t, "try again later", taskErr.ClientError.Message)
+			}
+			if !tc.transport {
+				assert.Equal(t, tc.status, taskErr.UpstreamStatusCode)
+				assert.Contains(t, taskErr.UpstreamResponseBody, tc.body)
+				if tc.status/100 != 2 {
+					assert.Equal(t, tc.status, taskErr.StatusCode)
+				}
+			}
+		})
+	}
+}

@@ -1387,8 +1387,8 @@ export const native = {error: function(ctx, error) {
 	assert.NotContains(t, recorder.Body.String(), "password")
 }
 
-func TestTaskPluginProtocolSubmissionErrorIsSanitized(t *testing.T) {
-	for _, status := range []int{0, http.StatusBadRequest, http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
+func TestTaskPluginProtocolErrorsAreNotGloballyRewritten(t *testing.T) {
+	for _, status := range []int{http.StatusPaymentRequired, http.StatusBadGateway} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
@@ -1404,41 +1404,35 @@ func TestTaskPluginProtocolSubmissionErrorIsSanitized(t *testing.T) {
 				Data:                 map[string]any{"key": "secret"},
 				UpstreamResponseBody: "provider-name secret",
 			})
-			require.True(t, handled)
-			expected := sanitizedTaskPluginError(status, "")
-			expectedStatus := status
-			if expectedStatus < 400 || expectedStatus >= 500 {
-				expectedStatus = http.StatusServiceUnavailable
-			}
-			assert.Equal(t, expectedStatus, recorder.Code)
-			var body dto.TaskError
-			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
-			assert.Equal(t, expected.Code, body.Code)
-			assert.Equal(t, "service temporary unavailable", body.Message)
-			assert.Nil(t, body.Data)
-			for _, private := range []string{"provider-name", "password", "secret", "upstream.invalid", "provider_internal_error"} {
-				assert.NotContains(t, recorder.Body.String(), private)
-			}
+			assert.False(t, handled)
+			assert.Empty(t, recorder.Body.String())
 		})
 	}
-	for _, code := range []string{"do_request_failed", "read_response_body_failed", "plugin_submit_response_failed", "plugin_submit_response_invalid", "origin_task_not_found", "plugin_request_invalid", "model_price_error"} {
-		t.Run(code, func(t *testing.T) {
+}
+
+func TestTaskPluginSubmitErrorProjection(t *testing.T) {
+	for _, project := range []bool{false, true} {
+		t.Run(fmt.Sprint(project), func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
-			c.Set(jsplugin.ContextKeyPinnedEndpoint, jsplugin.PinnedEndpoint{
-				Plugin: &jsplugin.LoadedPlugin{Meta: jsplugin.Meta{Key: "video-test"}}, Protocol: "openai_video",
-			})
-			handled := RespondTaskPluginError(c, &dto.TaskError{Code: code, StatusCode: http.StatusBadGateway, Message: "private detail"})
-			if strings.HasSuffix(code, "not_found") || code == "plugin_request_invalid" || code == "model_price_error" {
-				assert.False(t, handled)
-				assert.Empty(t, recorder.Body.String())
-			} else {
-				assert.True(t, handled)
-				assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-				assert.Contains(t, recorder.Body.String(), "service temporary unavailable")
-				assert.NotContains(t, recorder.Body.String(), "private detail")
+			taskErr := &dto.TaskError{
+				Code: "fail_to_fetch_task", Message: "private upstream detail",
+				StatusCode: http.StatusPaymentRequired, UpstreamStatusCode: http.StatusPaymentRequired,
+				UpstreamResponseBody: "private upstream body", Data: map[string]any{"secret": "private"},
 			}
+			if project {
+				taskErr.ClientError = &dto.TaskClientError{Code: "service_unavailable", Message: "service temporary unavailable"}
+			}
+			assert.Equal(t, project, RespondTaskPluginError(c, taskErr))
+			if project {
+				assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+				assert.JSONEq(t, `{"code":"service_unavailable","message":"service temporary unavailable","data":null}`, recorder.Body.String())
+			} else {
+				assert.Empty(t, recorder.Body.String())
+			}
+			assert.Equal(t, http.StatusPaymentRequired, taskErr.StatusCode)
+			assert.Equal(t, "private upstream body", taskErr.UpstreamResponseBody)
 		})
 	}
 }

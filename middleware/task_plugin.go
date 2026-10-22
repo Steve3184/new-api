@@ -1246,35 +1246,16 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	if taskErr == nil {
 		return false
 	}
+	if taskErr.ClientError != nil {
+		c.JSON(http.StatusServiceUnavailable, &dto.TaskError{
+			Code: taskErr.ClientError.Code, Message: taskErr.ClientError.Message,
+		})
+		return true
+	}
 	pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedRoute)
 	pinned, ok := pinnedValue.(pluginruntime.PinnedRoute)
 	if !exists || !ok || pinned.Plugin == nil {
-		endpointValue, endpointExists := c.Get(pluginruntime.ContextKeyPinnedEndpoint)
-		endpoint, endpointOK := endpointValue.(pluginruntime.PinnedEndpoint)
-		if !endpointExists || !endpointOK || endpoint.Plugin == nil {
-			return false
-		}
-		if taskErr.UpstreamStatusCode == 0 {
-			switch taskErr.Code {
-			case "do_request_failed", "fail_to_fetch_task", "read_response_body_failed", "plugin_submit_response_failed", "plugin_submit_response_invalid":
-			default:
-				return false
-			}
-		}
-		// A failed upstream submission bypasses parseSubmitResponse. Neither
-		// its body nor a local transport error is safe to project to clients.
-		sanitized := sanitizedTaskPluginError(taskErr.StatusCode, "")
-		// Upstream and transport server failures mean temporary unavailability.
-		// A consistent service status also preserves the JSON through proxies.
-		if sanitized.HTTPStatus >= http.StatusInternalServerError {
-			sanitized.HTTPStatus = http.StatusServiceUnavailable
-		}
-		c.JSON(sanitized.HTTPStatus, &dto.TaskError{
-			Code:       sanitized.Code,
-			Message:    "service temporary unavailable",
-			StatusCode: sanitized.HTTPStatus,
-		})
-		return true
+		return false
 	}
 	sanitized := sanitizedTaskPluginError(taskErr.StatusCode, taskErr.Message)
 	requestID := c.GetString(common.RequestIdKey)

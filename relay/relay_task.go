@@ -240,7 +240,7 @@ func ApplyOriginTaskAffinity(c *gin.Context, info *relaycommon.RelayInfo) *dto.T
 // 估算计费(EstimateBilling) → 计算价格 → 预扣费（仅首次）→
 // 构建/发送/解析上游请求 → 提交后计费调整(AdjustBillingOnSubmit)。
 // 共享控制器编排负责未落库退款、最终额度预留、落库和结算。
-func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
+func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (_ *TaskSubmitResult, taskErr *dto.TaskError) {
 	if c == nil || c.Request == nil {
 		return nil, service.TaskErrorWrapperLocal(errors.New("task context is missing"), "invalid_task_context", http.StatusInternalServerError)
 	}
@@ -403,7 +403,21 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 9. 发送请求
-	resp, err := adaptor.DoRequest(c, info, requestBody)
+	var resp *http.Response
+	submissionPending := true
+	defer func() {
+		// Only upstream submission failures reach this opt-in callback. Local
+		// validation, billing and errors after parsing keep their existing path.
+		if !submissionPending || taskErr == nil {
+			return
+		}
+		if handler, ok := adaptor.(interface {
+			HandleSubmitError(*gin.Context, *dto.TaskError, *http.Response, *relaycommon.RelayInfo)
+		}); ok {
+			handler.HandleSubmitError(c, taskErr, resp, info)
+		}
+	}()
+	resp, err = adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError, common.UpstreamAddresses(c)...)
 	}
@@ -424,7 +438,6 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// 10. Parse only. The controller presents the response after the durable
 	// task barrier and billing settlement.
 	var parsed *channel.TaskSubmitResponse
-	var taskErr *dto.TaskError
 	if parser, ok := adaptor.(interface {
 		ParseResponse(*gin.Context, *http.Response, *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *dto.TaskError)
 	}); ok {
@@ -445,6 +458,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if parsed == nil {
 		return nil, service.TaskErrorWrapperLocal(errors.New("task adaptor returned an empty response"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
+	submissionPending = false
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
 	finalQuota := info.PriceData.Quota
