@@ -131,7 +131,7 @@ export function CommonLogsStats() {
             : '••••'
         }
         description={t(
-          'Total tokens in filtered logs: input + output + cache read + cache write.'
+          'Total tokens in filtered logs: input + output, with cache tokens counted once.'
         )}
         accent='bg-violet-500/70'
       />

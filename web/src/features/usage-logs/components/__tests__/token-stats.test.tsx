@@ -95,7 +95,7 @@ it.each([1, 10])(
     }))
     const router = await renderStats(role)
     const total = await screen.findByTitle(
-      'Total tokens in filtered logs: input + output + cache read + cache write.'
+      'Total tokens in filtered logs: input + output, with cache tokens counted once.'
     )
     expect(within(total).getByText('1.23M')).toBeVisible()
     await act(() => i18next.changeLanguage('fr'))
@@ -129,7 +129,7 @@ it.each([null, { quota: 0, rpm: 0, tpm: 0 }])(
     vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data } })
     await renderStats(1)
     const total = await screen.findByTitle(
-      'Total tokens in filtered logs: input + output + cache read + cache write.'
+      'Total tokens in filtered logs: input + output, with cache tokens counted once.'
     )
     expect(within(total).getByText('0')).toBeVisible()
   }

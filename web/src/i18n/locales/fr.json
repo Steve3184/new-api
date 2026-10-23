@@ -7429,7 +7429,7 @@
     "Total time": "Durée totale",
     "Total tokens": "Jetons totaux",
     "Total Tokens": "Jetons totaux",
-    "Total tokens in filtered logs: input + output + cache read + cache write.": "Total des tokens des journaux filtrés : entrée + sortie + lecture du cache + écriture du cache.",
+    "Total tokens in filtered logs: input + output, with cache tokens counted once.": "Total des tokens des journaux filtrés : entrée + sortie, les tokens en cache comptés une seule fois.",
     "Total Usage": "Utilisation totale",
     "Total Used": "Total consommé",
     "Total:": "Total :",

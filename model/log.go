@@ -1009,6 +1009,10 @@ func GetUserTokenRPM(userID int, tokenIDs []int) (map[int]int, error) {
 
 // sumLogTokens streams only token counts and metadata; decoding in Go keeps
 // historical empty/malformed metadata safe across all supported log databases.
+// prompt_tokens means something different per upstream protocol: OpenAI and
+// Gemini report cache reads inside the prompt total, while Claude Messages logs
+// input_tokens without them. Each row is normalized to one input total so a
+// cached token is never counted twice.
 func sumLogTokens(tx *gorm.DB) (int64, error) {
 	rows, err := tx.Select("COALESCE(prompt_tokens, 0), COALESCE(completion_tokens, 0), COALESCE(other, '')").Rows()
 	if err != nil {
@@ -1017,25 +1021,36 @@ func sumLogTokens(tx *gorm.DB) (int64, error) {
 	defer rows.Close()
 	var total int64
 	for rows.Next() {
-		var input, output int64
+		var prompt, output int64
 		var other string
-		if err := rows.Scan(&input, &output, &other); err != nil {
+		if err := rows.Scan(&prompt, &output, &other); err != nil {
 			return 0, err
 		}
-		var cache struct {
-			Read    int64 `json:"cache_tokens"`
-			Write   int64 `json:"cache_creation_tokens"`
-			Write5m int64 `json:"cache_creation_tokens_5m"`
-			Write1h int64 `json:"cache_creation_tokens_1h"`
+		var usage struct {
+			CacheRead        int64 `json:"cache_tokens"`
+			CacheWrite       int64 `json:"cache_creation_tokens"`
+			CacheWrite5m     int64 `json:"cache_creation_tokens_5m"`
+			CacheWrite1h     int64 `json:"cache_creation_tokens_1h"`
+			InputTokensTotal int64 `json:"input_tokens_total"`
+			Claude           bool  `json:"claude"`
 		}
-		values := []int64{input, output}
-		if common.UnmarshalJsonStr(other, &cache) == nil {
-			values = append(values, cache.Read)
-			if cache.Write5m > 0 || cache.Write1h > 0 {
-				values = append(values, cache.Write5m, cache.Write1h)
+		decoded := common.UnmarshalJsonStr(other, &usage) == nil
+		var values []int64
+		switch {
+		case decoded && usage.InputTokensTotal > 0:
+			// The settlement path already normalized the total input, cache
+			// reads and writes included, so prompt_tokens must not be used.
+			values = []int64{usage.InputTokensTotal, output}
+		case decoded && usage.Claude:
+			// Claude Messages logs input_tokens only; both caches are extra.
+			values = []int64{prompt, output, usage.CacheRead}
+			if usage.CacheWrite5m > 0 || usage.CacheWrite1h > 0 {
+				values = append(values, usage.CacheWrite5m, usage.CacheWrite1h)
 			} else {
-				values = append(values, cache.Write)
+				values = append(values, usage.CacheWrite)
 			}
+		default:
+			values = []int64{prompt, output}
 		}
 		for _, value := range values {
 			if value <= 0 {

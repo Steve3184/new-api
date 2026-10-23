@@ -77,6 +77,10 @@ func TestLogTokenTotalsDatabaseMatrix(t *testing.T) {
 				{UserId: 22, Username: "bob", Type: LogTypeConsume, CreatedAt: now - 800, ModelName: "model-b", TokenName: "key-b", ChannelId: 3, Group: "default", Quota: 1, PromptTokens: 2, CompletionTokens: 3, Other: `malformed historical data`},
 				{UserId: 11, Username: "alice", Type: LogTypeError, CreatedAt: now - 800, PromptTokens: 999, CompletionTokens: 999, Other: `{"cache_tokens":999}`},
 				{UserId: 11, Username: "alice", Type: LogTypeConsume, CreatedAt: now - 10, Quota: 2, PromptTokens: 3, CompletionTokens: 4, Other: `null`},
+				// One row per upstream token semantic: a cached token is counted once.
+				{UserId: 33, Username: "carol", Type: LogTypeConsume, CreatedAt: now - 5000, ModelName: "cache-openai", TokenName: "key-c", ChannelId: 4, Group: "agent", RequestId: "req-openai", PromptTokens: 1000, CompletionTokens: 100, Other: `{"cache_tokens":800}`},
+				{UserId: 33, Username: "carol", Type: LogTypeConsume, CreatedAt: now - 5000, ModelName: "cache-claude", TokenName: "key-c", ChannelId: 4, Group: "agent", RequestId: "req-claude", PromptTokens: 200, CompletionTokens: 100, Other: `{"claude":true,"cache_tokens":800,"cache_creation_tokens":100}`},
+				{UserId: 33, Username: "carol", Type: LogTypeConsume, CreatedAt: now - 5000, ModelName: "cache-normalized", TokenName: "key-c", ChannelId: 4, Group: "agent", RequestId: "req-normalized", PromptTokens: 200, CompletionTokens: 50, Other: `{"cache_tokens":800,"cache_creation_tokens":100,"input_tokens_total":1100}`},
 			}
 			// Use the production log insert path, including ClickHouse's schema.
 			for i := range entries {
@@ -92,16 +96,19 @@ func TestLogTokenTotalsDatabaseMatrix(t *testing.T) {
 				total                    int64
 				quota                    int
 			}{
-				{name: "entire selected range", start: now - 1000, end: now - 800, total: 275, quota: 16},
-				{name: "self includes old username only for owner", user: 11, start: now - 1000, end: now - 800, total: 270, quota: 15},
-				{name: "all filters", start: now - 1000, end: now - 800, model: "model-a", userName: "alice", token: "key-a", channel: 2, group: "vip", request: "req-a", upstream: "up-a", total: 190, quota: 7},
+				{name: "entire selected range", start: now - 1000, end: now - 800, total: 185, quota: 16},
+				{name: "self includes old username only for owner", user: 11, start: now - 1000, end: now - 800, total: 180, quota: 15},
+				{name: "all filters", start: now - 1000, end: now - 800, model: "model-a", userName: "alice", token: "key-a", channel: 2, group: "vip", request: "req-a", upstream: "up-a", total: 120, quota: 7},
 				{name: "exact model", model: "model-b", total: 5, quota: 1},
-				{name: "wildcard model", model: "model-%", total: 275, quota: 16},
+				{name: "wildcard model", model: "model-%", total: 185, quota: 16},
 				{name: "token filter", token: "key-b", total: 5, quota: 1},
 				{name: "channel filter", channel: 3, total: 5, quota: 1},
-				{name: "group filter", group: "vip", total: 270, quota: 15},
-				{name: "request filter", request: "req-b", total: 80, quota: 8},
-				{name: "upstream request filter", upstream: "up-a", total: 190, quota: 7},
+				{name: "group filter", group: "vip", total: 180, quota: 15},
+				{name: "request filter", request: "req-b", total: 60, quota: 8},
+				{name: "upstream request filter", upstream: "up-a", total: 120, quota: 7},
+				{name: "openai prompt already contains cache reads", request: "req-openai", total: 1100},
+				{name: "claude input adds cache reads and writes", request: "req-claude", total: 1200},
+				{name: "normalized input total replaces prompt", request: "req-normalized", total: 1150},
 				{name: "non consumption filter", kind: LogTypeError, total: 0, quota: 0},
 				{name: "empty range", start: now + 100, total: 0, quota: 0},
 			}
@@ -122,7 +129,7 @@ func TestLogTokenTotalsDatabaseMatrix(t *testing.T) {
 			require.NoError(t, createLog(&large))
 			stat, err = SumUsedQuota(0, 0, 0, 0, "", "", "", 0, "", "large", "", "")
 			require.NoError(t, err)
-			assert.Equal(t, int64(math.MaxInt32)+6, stat.TotalTokens)
+			assert.Equal(t, int64(math.MaxInt32)+1, stat.TotalTokens)
 		})
 	}
 }

@@ -7429,7 +7429,7 @@
     "Total time": "Total time",
     "Total tokens": "Total tokens",
     "Total Tokens": "Total Tokens",
-    "Total tokens in filtered logs: input + output + cache read + cache write.": "Total tokens in filtered logs: input + output + cache read + cache write.",
+    "Total tokens in filtered logs: input + output, with cache tokens counted once.": "Total tokens in filtered logs: input + output, with cache tokens counted once.",
     "Total Usage": "Total Usage",
     "Total Used": "Total Used",
     "Total:": "Total:",
