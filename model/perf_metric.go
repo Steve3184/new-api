@@ -101,10 +101,12 @@ type PerfGroupSummaryBucket struct {
 }
 
 type PerfGroupCacheTokenSummaryBucket struct {
-	Group        string `json:"group"`
-	BucketTs     int64  `json:"bucket_ts"`
-	CachedTokens int64  `json:"cached_tokens"`
-	InputTokens  int64  `json:"input_tokens"`
+	Group            string `json:"group"`
+	BucketTs         int64  `json:"bucket_ts"`
+	CacheHitCount    int64  `json:"cache_hit_count"`
+	CacheSampleCount int64  `json:"cache_sample_count"`
+	CachedTokens     int64  `json:"cached_tokens"`
+	InputTokens      int64  `json:"input_tokens"`
 }
 
 // GetPerfGroupSummaryBucketsAll sums every model per group and bucket. A
@@ -134,7 +136,7 @@ func GetPerfGroupSummaryBucketsAll(startTs int64, endTs int64, groups []string, 
 func GetPerfGroupCacheTokenSummaryBuckets(startTs int64, endTs int64, groups []string, excludedModels []string) ([]PerfGroupCacheTokenSummaryBucket, error) {
 	var summaries []PerfGroupCacheTokenSummaryBucket
 	query := DB.Model(&PerfMetric{}).
-		Select(commonGroupCol+", bucket_ts, SUM(cached_tokens) as cached_tokens, SUM(input_tokens) as input_tokens").
+		Select(commonGroupCol+", bucket_ts, SUM(cache_hit_count) as cache_hit_count, SUM(cache_sample_count) as cache_sample_count, SUM(cached_tokens) as cached_tokens, SUM(input_tokens) as input_tokens").
 		Where("bucket_ts >= ? AND bucket_ts <= ?", startTs, endTs)
 	if groups != nil {
 		if len(groups) == 0 {
@@ -147,7 +149,7 @@ func GetPerfGroupCacheTokenSummaryBuckets(startTs int64, endTs int64, groups []s
 	}
 	err := query.
 		Group(commonGroupCol + ", bucket_ts").
-		Having("SUM(input_tokens) > 0").
+		Having("SUM(cache_sample_count) > 0 OR SUM(input_tokens) > 0").
 		Order("bucket_ts ASC").
 		Find(&summaries).Error
 	return summaries, err

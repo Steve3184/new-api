@@ -18,7 +18,8 @@ const (
 	minStatusCheckDegradationIntervalMinutes     = 5
 	maxStatusCheckDegradationIntervalMinutes     = 7 * 24 * 60
 	maxStatusCheckDegradationModels              = 20
-	statusCheckDegradationHistoryLimit           = StatusBeatHours
+	statusCheckDegradationHistoryLimit           = StatusBeatCount
+	statusCheckDegradationHistoryWindow          = 10 * 24 * time.Hour
 	StatusCheckDegradationRetention              = 11 * 24 * time.Hour
 )
 
@@ -146,10 +147,10 @@ func AttachStatusCheckDegradation(result *StatusResult, hours int) error {
 		hours = 24
 	}
 	hours = min(hours, 24*30)
-	// Checks reach back as far as the beat strip; the pass rate covers only the
-	// requested summary window.
+	// Checks reach back further than the summary window so wide rows fill up;
+	// the pass rate covers only the requested summary window.
 	summarySince := time.Now().Add(-time.Duration(hours) * time.Hour).Unix()
-	since := min(summarySince, time.Now().Add(-StatusBeatHours*time.Hour).Unix())
+	since := min(summarySince, time.Now().Add(-statusCheckDegradationHistoryWindow).Unix())
 	rows, err := model.GetStatusCheckDegradationResultsSince(groupNames, since)
 	if err != nil {
 		return err

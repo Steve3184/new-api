@@ -25,11 +25,13 @@ const (
 
 // StatusCheckFlexibleGroupConfig controls active checks for one explicitly
 // configured status-page group. The limits cap accidental spend from malformed
-// settings.
+// settings. An empty Model tests each channel's own test model; a configured
+// model is routed like a relay request for that model.
 type StatusCheckFlexibleGroupConfig struct {
-	Enabled              bool `json:"enabled"`
-	IdleMinutes          int  `json:"idle_minutes"`
-	MaxConsecutiveProbes int  `json:"max_consecutive_probes"`
+	Enabled              bool   `json:"enabled"`
+	IdleMinutes          int    `json:"idle_minutes"`
+	MaxConsecutiveProbes int    `json:"max_consecutive_probes"`
+	Model                string `json:"model,omitempty"`
 }
 
 // StatusCheckFlexibleConfig keeps independent probe settings for each status
@@ -85,6 +87,10 @@ func ParseStatusCheckFlexibleConfig(value string) (StatusCheckFlexibleConfig, er
 		}
 		if groupConfig.MaxConsecutiveProbes < 1 || groupConfig.MaxConsecutiveProbes > maxStatusCheckConsecutiveProbes {
 			return StatusCheckFlexibleConfig{}, fmt.Errorf("max_consecutive_probes for group %q must be between 1 and %d", group, maxStatusCheckConsecutiveProbes)
+		}
+		groupConfig.Model = strings.TrimSpace(groupConfig.Model)
+		if len(groupConfig.Model) > 255 {
+			return StatusCheckFlexibleConfig{}, fmt.Errorf("model for group %q must be at most 255 characters", group)
 		}
 		normalizedGroups[group] = groupConfig
 	}

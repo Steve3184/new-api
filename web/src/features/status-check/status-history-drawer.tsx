@@ -28,6 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import type { StatusGroup } from '@/features/performance-metrics/types'
 
+import { formatStatusBucketLength } from './lib/status-buckets'
 import type { StatusHistoryMetric } from './status-history-chart'
 
 const StatusHistoryLineChart = lazy(() =>
@@ -38,6 +39,8 @@ const StatusHistoryLineChart = lazy(() =>
 
 type StatusHistoryDrawerProps = {
   group: StatusGroup | null
+  /** Configured metrics bucket length that each history point covers. */
+  bucketSeconds: number
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -55,7 +58,7 @@ const HISTORY_SECTIONS: HistorySection[] = [
     metric: 'availability',
     titleKey: 'Availability',
     descriptionKey:
-      'Hours without real requests use model degradation checks when enabled.',
+      'Counts only the final attempt of each request. Periods without real requests use model degradation checks when the group runs them.',
     icon: <Activity aria-hidden='true' />,
     iconTone: 'chart-3',
   },
@@ -76,7 +79,8 @@ const HISTORY_SECTIONS: HistorySection[] = [
   {
     metric: 'cache',
     titleKey: 'Cache hit rate',
-    descriptionKey: 'Configured excluded models are omitted.',
+    descriptionKey:
+      'Counts only requests with cached tokens. Probes and configured excluded models are omitted.',
     icon: <Gauge aria-hidden='true' />,
     iconTone: 'chart-2',
   },
@@ -90,12 +94,17 @@ export function StatusHistoryDrawer(props: StatusHistoryDrawerProps) {
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <SheetContent
         side='left'
-        className={sideDrawerContentClassName('sm:max-w-xl')}
+        className={sideDrawerContentClassName('sm:max-w-2xl lg:max-w-4xl')}
       >
         <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>{props.group?.group ?? t('Status Check')}</SheetTitle>
           <SheetDescription>
-            {t('Hourly status data for the last 24 hours')}
+            {t(
+              'Status data for the last 24 hours, one point per {{interval}}',
+              {
+                interval: formatStatusBucketLength(props.bucketSeconds, t),
+              }
+            )}
           </SheetDescription>
         </SheetHeader>
         <div className={sideDrawerFormClassName()}>
@@ -112,6 +121,7 @@ export function StatusHistoryDrawer(props: StatusHistoryDrawerProps) {
               >
                 <StatusHistoryLineChart
                   points={history}
+                  bucketSeconds={props.bucketSeconds}
                   metric={section.metric}
                 />
               </Suspense>

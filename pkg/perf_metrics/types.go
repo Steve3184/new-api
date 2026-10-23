@@ -70,15 +70,17 @@ type StatusGroup struct {
 	Degradation      []StatusDegradationModel `json:"degradation,omitempty"`
 }
 
-// StatusBeatHours is how many hourly beats a status group returns. The page
-// shows as many of the newest beats as fit its width.
-const StatusBeatHours = 240
+// StatusBeatCount is how many beats a status group returns, one per
+// configured metrics bucket. The page shows as many of the newest beats as fit
+// its width.
+const StatusBeatCount = 240
 
-// StatusBeat is one hour of the status strip; RequestCount is zero for hours
-// without data.
+// StatusBeat is one metrics bucket of the status strip; RequestCount is zero
+// for buckets without data.
 type StatusBeat struct {
 	Ts           int64   `json:"ts"`
 	RequestCount int64   `json:"request_count"`
+	SuccessCount int64   `json:"success_count"`
 	Availability float64 `json:"availability"`
 	AvgTtftMs    int64   `json:"avg_ttft_ms"`
 	ProbeFilled  bool    `json:"probe_filled"`
@@ -101,8 +103,9 @@ type StatusDegradationCheck struct {
 	LatencyMs int64  `json:"latency_ms"`
 }
 
-// StatusHistoryPoint is one hour of a status group. RequestCount is zero for
-// hours without data; ProbeFilled marks hours built from degradation checks.
+// StatusHistoryPoint is one metrics bucket of a status group. RequestCount is
+// zero for buckets without data; ProbeFilled marks buckets built from
+// degradation checks.
 type StatusHistoryPoint struct {
 	Ts               int64   `json:"ts"`
 	RequestCount     int64   `json:"request_count"`
@@ -117,7 +120,10 @@ type StatusHistoryPoint struct {
 }
 
 type StatusResult struct {
-	Groups []StatusGroup `json:"groups"`
+	// BucketSeconds is the configured metrics bucket length that every beat
+	// and history point covers.
+	BucketSeconds int64         `json:"bucket_seconds"`
+	Groups        []StatusGroup `json:"groups"`
 }
 
 type QueryResult struct {
@@ -210,19 +216,15 @@ func (b *atomicBucket) add(sample Sample) {
 	if sample.CacheSample {
 		b.cacheSampleCount.Add(1)
 	}
-	if sample.InputTokens > 0 {
-		cachedTokens := sample.CachedTokens
-		if cachedTokens < 0 {
-			cachedTokens = 0
-		}
+	// Requests without any cached tokens stay out of the cache hit rate, so
+	// only cache-hit requests contribute input tokens.
+	if sample.InputTokens > 0 && sample.CachedTokens > 0 {
 		inputTokens := sample.InputTokens
-		if cachedTokens > inputTokens {
-			inputTokens = adjustedCacheInputTokens(inputTokens, cachedTokens)
+		if sample.CachedTokens > inputTokens {
+			inputTokens = adjustedCacheInputTokens(inputTokens, sample.CachedTokens)
 		}
 		b.inputTokens.Add(inputTokens)
-		if cachedTokens > 0 {
-			b.cachedTokens.Add(cachedTokens)
-		}
+		b.cachedTokens.Add(sample.CachedTokens)
 	}
 }
 

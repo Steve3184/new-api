@@ -90,7 +90,11 @@ export function getSuccessRateTextClass(rate: number): string {
 }
 
 export function getSuccessRateDotClass(rate: number): string {
-  return SUCCESS_RATE_DOT_CLASS[getSuccessRateLevel(rate)]
+  return getSuccessRateLevelDotClass(getSuccessRateLevel(rate))
+}
+
+export function getSuccessRateLevelDotClass(level: SuccessRateLevel): string {
+  return SUCCESS_RATE_DOT_CLASS[level]
 }
 
 export function getSuccessRateColor(rate: number): string {

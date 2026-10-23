@@ -653,11 +653,9 @@ func recordRedis(key bucketKey, sample Sample) {
 	if sample.CacheSample {
 		pipe.HIncrBy(ctx, redisKey, "cache_n", 1)
 	}
-	if sample.InputTokens > 0 {
+	if sample.InputTokens > 0 && sample.CachedTokens > 0 {
 		pipe.HIncrBy(ctx, redisKey, "input_tok", sample.InputTokens)
-		if sample.CachedTokens > 0 {
-			pipe.HIncrBy(ctx, redisKey, "cache_tok", sample.CachedTokens)
-		}
+		pipe.HIncrBy(ctx, redisKey, "cache_tok", sample.CachedTokens)
 	}
 	pipe.Expire(ctx, redisKey, time.Hour)
 	_, _ = pipe.Exec(ctx)

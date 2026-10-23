@@ -25,6 +25,7 @@ import { StatusHistoryDrawer } from './status-history-drawer'
 
 const STATUS_WINDOW_HOURS = 24
 const STATUS_REFRESH_INTERVAL_MS = 30 * 1000
+const DEFAULT_BUCKET_SECONDS = 3600
 
 export function StatusCheck() {
   const { t } = useTranslation()
@@ -41,6 +42,8 @@ export function StatusCheck() {
     retry: false,
   })
   const groups = query.data?.data.groups ?? []
+  const bucketSeconds =
+    query.data?.data.bucket_seconds || DEFAULT_BUCKET_SECONDS
   const selectedGroup =
     groups.find((group) => group.group === selectedGroupName) ?? null
   const announcement =
@@ -84,6 +87,7 @@ export function StatusCheck() {
             <StatusGroupsContent
               loading={query.isLoading}
               groups={groups}
+              bucketSeconds={bucketSeconds}
               onSelectGroup={(group) => setSelectedGroupName(group.group)}
             />
             {query.isError && (
@@ -94,6 +98,7 @@ export function StatusCheck() {
       </SectionPageLayout>
       <StatusHistoryDrawer
         group={selectedGroup}
+        bucketSeconds={bucketSeconds}
         open={selectedGroup !== null}
         onOpenChange={(open) => {
           if (!open) setSelectedGroupName(null)
@@ -106,14 +111,15 @@ export function StatusCheck() {
 function StatusGroupsContent(props: {
   loading: boolean
   groups: StatusGroup[]
+  bucketSeconds: number
   onSelectGroup: (group: StatusGroup) => void
 }) {
   const { t } = useTranslation()
   if (props.loading) {
     return (
-      <div className='bg-card divide-y rounded-lg border'>
-        {[0, 1, 2].map((item) => (
-          <div key={item} className='flex items-center gap-4 px-4 py-3'>
+      <div className='bg-border grid grid-cols-1 gap-px overflow-hidden rounded-lg border xl:grid-cols-2'>
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className='bg-card flex items-center gap-4 px-4 py-3'>
             <Skeleton className='h-6 w-16 rounded-full' />
             <Skeleton className='h-5 w-32' />
             <Skeleton className='h-5 flex-1' />
@@ -136,6 +142,7 @@ function StatusGroupsContent(props: {
     <div className='min-w-0 space-y-2'>
       <StatusGroupList
         groups={props.groups}
+        bucketSeconds={props.bucketSeconds}
         onSelectGroup={props.onSelectGroup}
       />
       {hasDegradation && <DegradationLegend />}

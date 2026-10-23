@@ -15,18 +15,26 @@ import type { StatusHistoryPoint } from '@/features/performance-metrics/types'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
 
+import { formatStatusBucketRange } from './lib/status-buckets'
+
 export type StatusHistoryMetric = 'availability' | 'ttft' | 'latency' | 'cache'
 
 type StatusHistoryLineChartProps = {
   points: StatusHistoryPoint[]
+  /** Metrics bucket length that each point covers. */
+  bucketSeconds: number
   metric: StatusHistoryMetric
 }
+
+// Above this many points (e.g. 5-minute buckets over 24 hours) markers would
+// crowd the curve, so they shrink to dots that keep isolated samples visible.
+const DENSE_POINT_COUNT = 48
 
 type MetricConfig = {
   labelKey: string
   color: string
   isPercent: boolean
-  /** Returns the hour's value, or null when the hour has no sample. */
+  /** Returns the bucket's value, or null when the bucket has no sample. */
   value: (point: StatusHistoryPoint) => number | null
 }
 
@@ -71,20 +79,23 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
       ? 'rgba(255, 255, 255, 0.12)'
       : 'rgba(15, 23, 42, 0.12)'
 
-  // Every hour stays on the axis; hours without samples break the line.
+  // Every bucket of the window stays on the axis; buckets without samples
+  // break the curve. Timestamps keep the categories unique.
   const data = useMemo(
     () =>
       props.points.map((point) => ({
-        time: dayjs.unix(point.ts).format('HH:mm'),
+        time: String(point.ts),
+        range: formatStatusBucketRange(point.ts, props.bucketSeconds),
         value: config.value(point),
       })),
-    [config, props.points]
+    [config, props.bucketSeconds, props.points]
   )
   const hasData = data.some((datum) => datum.value !== null)
 
   const spec = useMemo(() => {
     if (!hasData) return null
     const lineColor = config.color
+    const dense = data.length > DENSE_POINT_COUNT
     const formatValue = (value: number) =>
       config.isPercent ? `${value.toFixed(2)}%` : `${Math.round(value)} ms`
     return {
@@ -92,24 +103,29 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
       data: [{ id: `status-${props.metric}`, values: data }],
       xField: 'time',
       yField: 'value',
-      smooth: true,
       invalidType: 'break' as const,
       line: {
-        style: { stroke: lineColor, lineWidth: 2.5 },
+        style: {
+          stroke: lineColor,
+          lineWidth: dense ? 1.75 : 2.5,
+          curveType: 'monotone' as const,
+        },
       },
       point: {
         visible: true,
-        style: {
-          size: 5,
-          fill: lineColor,
-          stroke: resolvedTheme === 'dark' ? '#171717' : '#ffffff',
-          lineWidth: 1.5,
-        },
+        style: dense
+          ? { size: 2.5, fill: lineColor, lineWidth: 0 }
+          : {
+              size: 5,
+              fill: lineColor,
+              stroke: resolvedTheme === 'dark' ? '#171717' : '#ffffff',
+              lineWidth: 1.5,
+            },
       },
       legends: { visible: false },
       tooltip: {
         mark: {
-          title: { value: (datum: { time: string }) => datum.time },
+          title: { value: (datum: { range: string }) => datum.range },
           content: [
             {
               key: t(config.labelKey),
@@ -123,8 +139,11 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
         {
           orient: 'bottom',
           label: {
+            formatMethod: (value: number | string) =>
+              dayjs.unix(Number(value)).format('HH:mm'),
             style: { fill: textColor, fontSize: 10 },
             autoLimit: true,
+            autoHide: true,
           },
           tick: { visible: false },
         },
@@ -167,7 +186,7 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
   return (
     <div
       className='h-60 rounded-lg border p-2'
-      aria-label={t('Hourly history')}
+      aria-label={t('Status history')}
     >
       {themeReady && spec && (
         <VChart

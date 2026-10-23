@@ -6,12 +6,15 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 )
 
 // QueryStatus aggregates configured-group relay metrics and, when enabled,
-// low-frequency flexible active probes. Probe samples have no cache fields.
-// Degradation check samples only fill hours without any other request, so
-// they never dilute real traffic. History always covers the last 24 hours.
+// low-frequency flexible active probes. Beats and history use the configured
+// metrics bucket length. Degradation check samples only fill buckets without
+// any other request, so they never dilute real traffic. Cache counters come
+// from real model traffic only; probes and excluded models never contribute.
+// History always covers the last 24 hours.
 func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (StatusResult, error) {
 	if hours <= 0 {
 		hours = 24
@@ -19,11 +22,16 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 	if hours > 24*30 {
 		hours = 24 * 30
 	}
+	bucketSeconds := perf_metrics_setting.GetBucketSeconds()
 	endTs := time.Now().Unix()
+	currentBucket := endTs - endTs%bucketSeconds
 	summaryStartTs := endTs - int64(hours)*3600
-	// The beat strip reaches further back than the summary window so wide
-	// screens can show more hours; summaries only use summaryStartTs onward.
-	startTs := min(summaryStartTs, endTs-int64(StatusBeatHours)*3600)
+	summaryStartBucket := summaryStartTs - summaryStartTs%bucketSeconds
+	historyStartBucket := currentBucket - (24*3600/bucketSeconds-1)*bucketSeconds
+	beatStartBucket := currentBucket - int64(StatusBeatCount-1)*bucketSeconds
+	// The beat strip may reach further back than the summary window so wide
+	// screens can show more beats; summaries only use summaryStartTs onward.
+	startTs := min(summaryStartBucket, historyStartBucket, beatStartBucket)
 	rows, err := model.GetPerfGroupSummaryBucketsAll(startTs, endTs, groups, "")
 	if err != nil {
 		return StatusResult{}, err
@@ -32,19 +40,15 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 	if err != nil {
 		return StatusResult{}, err
 	}
-	var cacheRows []model.PerfGroupCacheTokenSummaryBucket
-	if len(cacheExcludedModels) > 0 {
-		cacheRows, err = model.GetPerfGroupCacheTokenSummaryBuckets(startTs, endTs, groups, cacheExcludedModels)
-		if err != nil {
-			return StatusResult{}, err
-		}
+	cacheExcluded := append(slices.Clone(cacheExcludedModels), StatusCheckProbeModel, StatusCheckDegradationProbeModel)
+	cacheRows, err := model.GetPerfGroupCacheTokenSummaryBuckets(startTs, endTs, groups, cacheExcluded)
+	if err != nil {
+		return StatusResult{}, err
 	}
 
 	allowed := allowedGroupSet(groups)
-	excludedModels := make(map[string]struct{}, len(cacheExcludedModels))
-	for _, modelName := range cacheExcludedModels {
-		excludedModels[modelName] = struct{}{}
-	}
+	// Stored rows may use an older bucket length; every timestamp is folded
+	// into the current bucket length.
 	buckets := make(map[string]map[int64]counters)
 	for _, row := range rows {
 		if allowed != nil {
@@ -55,33 +59,28 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		if _, ok := buckets[row.Group]; !ok {
 			buckets[row.Group] = make(map[int64]counters)
 		}
-		value := counters{
-			requestCount:     row.RequestCount,
-			successCount:     row.SuccessCount,
-			totalLatencyMs:   row.TotalLatencyMs,
-			ttftSumMs:        row.TtftSumMs,
-			ttftCount:        row.TtftCount,
-			cacheHitCount:    row.CacheHitCount,
-			cacheSampleCount: row.CacheSampleCount,
-			cachedTokens:     row.CachedTokens,
-			inputTokens:      row.InputTokens,
-		}
-		if len(excludedModels) > 0 {
-			value.cacheHitCount = 0
-			value.cacheSampleCount = 0
-			value.cachedTokens = 0
-			value.inputTokens = 0
-		}
-		buckets[row.Group][row.BucketTs] = value
+		ts := row.BucketTs - row.BucketTs%bucketSeconds
+		value := buckets[row.Group][ts]
+		mergeStatusCounters(&value, counters{
+			requestCount:   row.RequestCount,
+			successCount:   row.SuccessCount,
+			totalLatencyMs: row.TotalLatencyMs,
+			ttftSumMs:      row.TtftSumMs,
+			ttftCount:      row.TtftCount,
+		})
+		buckets[row.Group][ts] = value
 	}
 	for _, row := range cacheRows {
 		if _, ok := buckets[row.Group]; !ok {
 			buckets[row.Group] = make(map[int64]counters)
 		}
-		value := buckets[row.Group][row.BucketTs]
-		value.cachedTokens = row.CachedTokens
-		value.inputTokens = row.InputTokens
-		buckets[row.Group][row.BucketTs] = value
+		ts := row.BucketTs - row.BucketTs%bucketSeconds
+		value := buckets[row.Group][ts]
+		value.cacheHitCount += row.CacheHitCount
+		value.cacheSampleCount += row.CacheSampleCount
+		value.cachedTokens += row.CachedTokens
+		value.inputTokens += row.InputTokens
+		buckets[row.Group][ts] = value
 	}
 
 	degradationBuckets := make(map[string]map[int64]counters)
@@ -89,15 +88,22 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		if _, ok := degradationBuckets[row.Group]; !ok {
 			degradationBuckets[row.Group] = make(map[int64]counters)
 		}
-		degradationBuckets[row.Group][row.BucketTs] = counters{
+		ts := row.BucketTs - row.BucketTs%bucketSeconds
+		value := degradationBuckets[row.Group][ts]
+		mergeStatusCounters(&value, counters{
 			requestCount:   row.RequestCount,
 			successCount:   row.SuccessCount,
 			totalLatencyMs: row.TotalLatencyMs,
 			ttftSumMs:      row.TtftSumMs,
 			ttftCount:      row.TtftCount,
-		}
+		})
+		degradationBuckets[row.Group][ts] = value
 	}
 
+	excludedModels := make(map[string]struct{}, len(cacheExcluded))
+	for _, modelName := range cacheExcluded {
+		excludedModels[modelName] = struct{}{}
+	}
 	hotBuckets.Range(func(key, value any) bool {
 		bucket := key.(bucketKey)
 		if bucket.bucketTs < startTs || bucket.bucketTs > endTs {
@@ -111,7 +117,8 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 		if _, ok := buckets[bucket.group]; !ok {
 			buckets[bucket.group] = make(map[int64]counters)
 		}
-		current := buckets[bucket.group][bucket.bucketTs]
+		ts := bucket.bucketTs - bucket.bucketTs%bucketSeconds
+		current := buckets[bucket.group][ts]
 		hot := value.(*atomicBucket).snapshot()
 		if _, excluded := excludedModels[bucket.model]; excluded {
 			hot.cacheHitCount = 0
@@ -120,87 +127,79 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 			hot.inputTokens = 0
 		}
 		mergeStatusCounters(&current, hot)
-		buckets[bucket.group][bucket.bucketTs] = current
+		buckets[bucket.group][ts] = current
 		if bucket.model == StatusCheckDegradationProbeModel {
 			if _, ok := degradationBuckets[bucket.group]; !ok {
 				degradationBuckets[bucket.group] = make(map[int64]counters)
 			}
-			degradation := degradationBuckets[bucket.group][bucket.bucketTs]
+			degradation := degradationBuckets[bucket.group][ts]
 			mergeStatusCounters(&degradation, hot)
-			degradationBuckets[bucket.group][bucket.bucketTs] = degradation
+			degradationBuckets[bucket.group][ts] = degradation
 		}
 		return true
 	})
 
-	currentHour := endTs - endTs%3600
 	result := make([]StatusGroup, 0, len(groups))
 	for _, group := range groups {
-		realHourly := make(map[int64]counters)
-		degradationHourly := make(map[int64]counters)
+		effective := make(map[int64]counters, len(buckets[group]))
+		filled := make(map[int64]bool)
 		for ts, value := range buckets[group] {
-			hourTs := ts - ts%3600
-			hour := realHourly[hourTs]
-			mergeStatusCounters(&hour, subtractStatusCounters(value, degradationBuckets[group][ts]))
-			realHourly[hourTs] = hour
+			realValue := subtractStatusCounters(value, degradationBuckets[group][ts])
+			if realValue.requestCount > 0 {
+				effective[ts] = realValue
+			}
 		}
 		for ts, value := range degradationBuckets[group] {
-			hourTs := ts - ts%3600
-			hour := degradationHourly[hourTs]
-			mergeStatusCounters(&hour, value)
-			degradationHourly[hourTs] = hour
-		}
-
-		effectiveHourly := make(map[int64]counters, len(realHourly))
-		filledHours := make(map[int64]bool)
-		for hourTs, value := range realHourly {
-			if value.requestCount > 0 {
-				effectiveHourly[hourTs] = value
-			}
-		}
-		for hourTs, value := range degradationHourly {
-			if _, hasRealRequests := effectiveHourly[hourTs]; !hasRealRequests && value.requestCount > 0 {
-				effectiveHourly[hourTs] = value
-				filledHours[hourTs] = true
+			if _, hasRealRequests := effective[ts]; !hasRealRequests && value.requestCount > 0 {
+				effective[ts] = value
+				filled[ts] = true
 			}
 		}
 
-		summaryStartHour := summaryStartTs - summaryStartTs%3600
-		timestamps := make([]int64, 0, len(effectiveHourly))
 		total := counters{}
-		for hourTs, value := range effectiveHourly {
-			if hourTs < summaryStartHour {
+		hourly := make(map[int64]counters)
+		for ts, value := range effective {
+			if ts < summaryStartBucket {
 				continue
 			}
-			timestamps = append(timestamps, hourTs)
 			mergeStatusCounters(&total, value)
+			hour := hourly[ts-ts%3600]
+			mergeStatusCounters(&hour, value)
+			hourly[ts-ts%3600] = hour
 		}
-		slices.Sort(timestamps)
-		rates := make([]float64, 0, len(timestamps))
-		for _, hourTs := range timestamps {
-			rates = append(rates, math.Round(successRate(effectiveHourly[hourTs])*100)/100)
+		hourTimestamps := make([]int64, 0, len(hourly))
+		for hourTs := range hourly {
+			hourTimestamps = append(hourTimestamps, hourTs)
+		}
+		slices.Sort(hourTimestamps)
+		rates := make([]float64, 0, len(hourTimestamps))
+		for _, hourTs := range hourTimestamps {
+			rates = append(rates, math.Round(successRate(hourly[hourTs])*100)/100)
 		}
 		if len(rates) > 24 {
 			rates = rates[len(rates)-24:]
 		}
-		beats := make([]StatusBeat, 0, StatusBeatHours)
-		for hourTs := currentHour - int64(StatusBeatHours-1)*3600; hourTs <= currentHour; hourTs += 3600 {
-			value := effectiveHourly[hourTs]
+
+		beats := make([]StatusBeat, 0, StatusBeatCount)
+		for ts := beatStartBucket; ts <= currentBucket; ts += bucketSeconds {
+			value := effective[ts]
 			beats = append(beats, StatusBeat{
-				Ts:           hourTs,
+				Ts:           ts,
 				RequestCount: value.requestCount,
+				SuccessCount: value.successCount,
 				Availability: math.Round(successRate(value)*100) / 100,
 				AvgTtftMs:    avg(value.ttftSumMs, value.ttftCount),
-				ProbeFilled:  filledHours[hourTs],
+				ProbeFilled:  filled[ts],
 			})
 		}
-		history := make([]StatusHistoryPoint, 0, 24)
-		for hourTs := currentHour - 23*3600; hourTs <= currentHour; hourTs += 3600 {
-			value := effectiveHourly[hourTs]
+		history := make([]StatusHistoryPoint, 0, (currentBucket-historyStartBucket)/bucketSeconds+1)
+		for ts := historyStartBucket; ts <= currentBucket; ts += bucketSeconds {
+			value := effective[ts]
 			history = append(history, StatusHistoryPoint{
-				Ts:               hourTs,
+				Ts:               ts,
 				RequestCount:     value.requestCount,
 				Availability:     math.Round(successRate(value)*100) / 100,
-				ProbeFilled:      filledHours[hourTs],
+				ProbeFilled:      filled[ts],
 				AvgLatencyMs:     avg(value.totalLatencyMs, value.requestCount),
 				AvgTtftMs:        avg(value.ttftSumMs, value.ttftCount),
 				TtftSampleCount:  value.ttftCount,
@@ -224,7 +223,7 @@ func QueryStatus(hours int, groups []string, cacheExcludedModels []string) (Stat
 			Beats:            beats,
 		})
 	}
-	return StatusResult{Groups: result}, nil
+	return StatusResult{BucketSeconds: bucketSeconds, Groups: result}, nil
 }
 
 // subtractStatusCounters removes the request-level counters of part from

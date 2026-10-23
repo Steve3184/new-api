@@ -33,11 +33,13 @@ func TestAtomicBucketTracksCacheTokenTotals(t *testing.T) {
 
 	bucket.add(Sample{CacheSample: true, CacheHit: true, CachedTokens: 80, InputTokens: 100})
 	bucket.add(Sample{CacheSample: true, CachedTokens: 150, InputTokens: 100})
+	// Requests without cached tokens stay out of the cache hit rate.
+	bucket.add(Sample{CacheSample: true, InputTokens: 500})
 	bucket.add(Sample{})
 	snapshot := bucket.snapshot()
 
-	assert.Equal(t, int64(3), snapshot.requestCount)
-	assert.Equal(t, int64(2), snapshot.cacheSampleCount)
+	assert.Equal(t, int64(4), snapshot.requestCount)
+	assert.Equal(t, int64(3), snapshot.cacheSampleCount)
 	assert.Equal(t, int64(1), snapshot.cacheHitCount)
 	assert.Equal(t, int64(230), snapshot.cachedTokens)
 	assert.Equal(t, int64(350), snapshot.inputTokens)

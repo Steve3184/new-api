@@ -4,8 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 type statusCheckProbeTaskSummary struct {
@@ -79,23 +81,23 @@ func runStatusCheckProbeTask(ctx context.Context) (statusCheckProbeTaskSummary, 
 			continue
 		}
 
-		channel, err := model.GetEnabledChannelForStatusCheckProbe(group)
-		if err != nil {
-			return summary, err
-		}
-		if channel == nil {
-			summary.SkippedNoChannel++
-			continue
-		}
-
 		testUserID, err := resolveChannelTestUserID(nil)
 		if err != nil {
 			return summary, err
 		}
 		startedAt := time.Now()
-		result := runStatusCheckProbeChannelTest(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+		result, _, tested, err := runStatusCheckProbeChain(group, probeGroup.Config.Model, func(channel *model.Channel) testResult {
+			return runStatusCheckProbeChannelTest(ctx, channel, testUserID, probeGroup.Config.Model, "", shouldUseStreamForAutomaticChannelTest(channel))
+		})
+		if err != nil {
+			return summary, err
+		}
+		if !tested {
+			summary.SkippedNoChannel++
+			continue
+		}
 		latencyMs := time.Since(startedAt).Milliseconds()
-		success := result.newAPIError == nil
+		success := result.localErr == nil && result.newAPIError == nil
 		perfmetrics.RecordStatusCheckProbe(group, latencyMs, success)
 		if err := model.RecordStatusCheckProbeResult(group, time.Now().Unix()); err != nil {
 			return summary, err
@@ -108,4 +110,46 @@ func runStatusCheckProbeTask(ctx context.Context) (statusCheckProbeTaskSummary, 
 		}
 	}
 	return summary, nil
+}
+
+// runStatusCheckProbeChain tests channels the way a relay request retries
+// inside one group: one channel per priority tier, highest priority first, up
+// to the group's retry limit, stopping at the first success. Only the last
+// attempt decides the outcome, so failures a lower-priority channel recovers
+// from never count against availability. With a model, channels are picked
+// like relay routing for that model; without one, the first channel of each
+// tier runs its own test model. tested is false when no channel can serve the
+// probe. lastStartedAt is when the deciding attempt began.
+func runStatusCheckProbeChain(group string, modelName string, test func(*model.Channel) testResult) (result testResult, lastStartedAt time.Time, tested bool, err error) {
+	attempts := ratio_setting.GetGroupRetryTimes(group, common.RetryTimes) + 1
+	var tiers []*model.Channel
+	if modelName == "" {
+		tiers, err = model.GetEnabledChannelsForStatusCheckProbe(group)
+		if err != nil {
+			return testResult{}, time.Time{}, false, err
+		}
+	}
+	for retry := range max(attempts, 1) {
+		var channel *model.Channel
+		if modelName == "" {
+			if retry >= len(tiers) {
+				break
+			}
+			channel = tiers[retry]
+		} else {
+			channel, err = model.GetRandomSatisfiedChannel(group, modelName, retry, nil)
+			if err != nil || channel == nil {
+				// A missing channel after an attempt keeps that attempt's
+				// outcome; before any attempt the group cannot be probed.
+				return result, lastStartedAt, tested, nil
+			}
+		}
+		lastStartedAt = time.Now()
+		result = test(channel)
+		tested = true
+		if result.localErr == nil && result.newAPIError == nil {
+			break
+		}
+	}
+	return result, lastStartedAt, tested, nil
 }

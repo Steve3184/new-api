@@ -1,11 +1,13 @@
 package model
 
 import (
+	"cmp"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
 
@@ -504,21 +506,31 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 	return channels, err
 }
 
-// GetEnabledChannelForStatusCheckProbe returns one stable enabled channel for
-// an explicit group. Flexible status probes never revive or disable channels.
-func GetEnabledChannelForStatusCheckProbe(group string) (*Channel, error) {
-	var channel Channel
-	query := ApplyChannelGroupFilter(DB, group).
+// GetEnabledChannelsForStatusCheckProbe returns one stable enabled channel per
+// priority tier of an explicit group, highest priority first, so a probe can
+// fall back the way relay retries do. Ordering happens in Go because the
+// databases sort NULL priorities differently. Flexible status probes never
+// revive or disable channels.
+func GetEnabledChannelsForStatusCheckProbe(group string) ([]*Channel, error) {
+	var channels []*Channel
+	err := ApplyChannelGroupFilter(DB, group).
 		Where("status = ?", common.ChannelStatusEnabled).
-		Order("priority desc").
-		Order("id asc")
-	if err := query.First(&channel).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
+		Order("id asc").
+		Find(&channels).Error
+	if err != nil {
 		return nil, err
 	}
-	return &channel, nil
+	slices.SortStableFunc(channels, func(a, b *Channel) int {
+		return cmp.Compare(b.GetPriority(), a.GetPriority())
+	})
+	tiers := make([]*Channel, 0, len(channels))
+	for _, channel := range channels {
+		if len(tiers) > 0 && tiers[len(tiers)-1].GetPriority() == channel.GetPriority() {
+			continue
+		}
+		tiers = append(tiers, channel)
+	}
+	return tiers, nil
 }
 
 func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {

@@ -15,6 +15,12 @@ func TestParseStatusCheckFlexibleConfigValidatesBounds(t *testing.T) {
 	assert.True(t, enabled)
 	assert.Equal(t, 20, groupConfig.IdleMinutes)
 	assert.Equal(t, 40, groupConfig.MaxConsecutiveProbes)
+	assert.Empty(t, groupConfig.Model)
+
+	config, err = ParseStatusCheckFlexibleConfig(`{"groups":{"default":{"enabled":true,"idle_minutes":20,"max_consecutive_probes":40,"model":" gpt-5 "}}}`)
+	require.NoError(t, err)
+	groupConfig, _ = config.EnabledGroup("default")
+	assert.Equal(t, "gpt-5", groupConfig.Model)
 
 	_, err = ParseStatusCheckFlexibleConfig(`{"groups":{"default":{"enabled":true,"idle_minutes":0,"max_consecutive_probes":40}}}`)
 	require.ErrorContains(t, err, "idle_minutes")

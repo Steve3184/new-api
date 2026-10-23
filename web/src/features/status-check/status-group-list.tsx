@@ -23,6 +23,11 @@ import type {
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import {
+  formatStatusBucketRange,
+  getStatusBeatColorClass,
+} from './lib/status-buckets'
+
 const EMPTY_BEAT_CLASS = 'bg-muted-foreground/15'
 
 const DEGRADATION_STATUS: Record<
@@ -36,14 +41,20 @@ const DEGRADATION_STATUS: Record<
 
 export function StatusGroupList(props: {
   groups: StatusGroup[]
+  /** Configured metrics bucket length that each health beat covers. */
+  bucketSeconds: number
   onSelectGroup: (group: StatusGroup) => void
 }) {
+  // The 1px gaps over a border-colored background draw the dividers in both
+  // the single-column and the two-column layout; a lone last group spans
+  // both columns so no empty cell shows.
   return (
-    <ul className='bg-card divide-y overflow-hidden rounded-lg border'>
+    <ul className='bg-border grid grid-cols-1 gap-px overflow-hidden rounded-lg border xl:grid-cols-2'>
       {props.groups.map((group) => (
         <StatusGroupBlock
           key={group.group}
           group={group}
+          bucketSeconds={props.bucketSeconds}
           onClick={() => props.onSelectGroup(group)}
         />
       ))}
@@ -70,15 +81,19 @@ export function DegradationLegend() {
 }
 
 /**
- * One group: a summary line, its hourly health beats, then one line per
- * configured degradation check model.
+ * One group: a summary line, one health beat per metrics bucket, then one
+ * line per configured degradation check model.
  */
-function StatusGroupBlock(props: { group: StatusGroup; onClick: () => void }) {
+function StatusGroupBlock(props: {
+  group: StatusGroup
+  bucketSeconds: number
+  onClick: () => void
+}) {
   const { t } = useTranslation()
   const hasData = props.group.request_count > 0
   const degradation = props.group.degradation ?? []
   const beats: HeartbeatBeat[] = props.group.beats.map((point) => {
-    const time = formatTimestampToDate(point.ts)
+    const time = formatStatusBucketRange(point.ts, props.bucketSeconds)
     if (point.request_count === 0) {
       return {
         key: `${point.ts}`,
@@ -89,7 +104,7 @@ function StatusGroupBlock(props: { group: StatusGroup; onClick: () => void }) {
     const rate = `${point.availability.toFixed(2)}%`
     return {
       key: `${point.ts}`,
-      colorClassName: getSuccessRateDotClass(point.availability),
+      colorClassName: getStatusBeatColorClass(point),
       label: `${time}: ${rate}`,
       detail: (
         <>
@@ -111,7 +126,7 @@ function StatusGroupBlock(props: { group: StatusGroup; onClick: () => void }) {
   })
 
   return (
-    <li className='min-w-0 space-y-2.5 px-4 py-3'>
+    <li className='bg-card min-w-0 space-y-2.5 px-4 py-3 xl:last:odd:col-span-2'>
       <button
         type='button'
         className='focus-visible:outline-primary group/header flex w-full min-w-0 items-center justify-between gap-3 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2'

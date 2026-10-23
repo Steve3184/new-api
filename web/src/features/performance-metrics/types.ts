@@ -86,19 +86,24 @@ export type StatusGroup = {
   cache_input_tokens: number
   request_count: number
   availability_24h: number[]
+  /** Every metrics bucket of the last 24 hours, oldest first. */
   history_24h: StatusHistoryPoint[]
-  /** Hourly beats, oldest first; longer than 24 hours so wide rows fill up. */
+  /** One beat per metrics bucket, oldest first; more than fit most rows. */
   beats: StatusBeat[]
   degradation?: StatusDegradationModel[]
 }
 
-/** One hour of the status strip; `request_count` is 0 for hours without data. */
+/**
+ * One metrics bucket of the status strip; `request_count` is 0 for buckets
+ * without data.
+ */
 export type StatusBeat = {
   ts: number
   request_count: number
+  success_count: number
   availability: number
   avg_ttft_ms: number
-  /** The hour had no real requests and uses degradation check samples. */
+  /** The bucket had no real requests and uses degradation check samples. */
   probe_filled: boolean
 }
 
@@ -121,12 +126,15 @@ export type StatusDegradationModel = {
   checks: StatusDegradationCheck[]
 }
 
-/** One hour of a status group; `request_count` is 0 for hours without data. */
+/**
+ * One metrics bucket of a status group; `request_count` is 0 for buckets
+ * without data.
+ */
 export type StatusHistoryPoint = {
   ts: number
   request_count: number
   availability: number
-  /** The hour had no real requests and uses degradation check samples. */
+  /** The bucket had no real requests and uses degradation check samples. */
   probe_filled: boolean
   avg_latency_ms: number
   avg_ttft_ms: number
@@ -140,6 +148,8 @@ export type StatusCheckData = {
   success: boolean
   message?: string
   data: {
+    /** Configured metrics bucket length in seconds. */
+    bucket_seconds: number
     groups: StatusGroup[]
   }
 }

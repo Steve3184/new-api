@@ -79,8 +79,24 @@ func runStatusCheckDegradationTask(ctx context.Context) (statusCheckDegradationT
 				Effort: entry.Effort,
 				Status: model.StatusCheckDegradationError,
 			}
-			channel, err := model.GetRandomSatisfiedChannel(group, entry.Model, 0, nil)
-			if err != nil || channel == nil {
+			if testUserID == 0 {
+				testUserID, err = resolveChannelTestUserID(nil)
+				if err != nil {
+					return summary, err
+				}
+			}
+
+			// Streaming yields a real time-to-first-token, which fills the
+			// status page for buckets without real requests.
+			startedAt := time.Now()
+			result, lastStartedAt, tested, err := runStatusCheckProbeChain(group, entry.Model, func(channel *model.Channel) testResult {
+				endpointType, request := buildStatusCheckCandyRequest(channel, entry.Model, entry.Effort)
+				return runStatusCheckDegradationChannelTest(ctx, channel, testUserID, entry.Model, endpointType, true, -1, request)
+			})
+			if err != nil {
+				return summary, err
+			}
+			if !tested {
 				// Recording the miss keeps the interval in force instead of
 				// retrying every minute.
 				summary.SkippedNoChannel++
@@ -90,22 +106,16 @@ func runStatusCheckDegradationTask(ctx context.Context) (statusCheckDegradationT
 				}
 				continue
 			}
-			if testUserID == 0 {
-				testUserID, err = resolveChannelTestUserID(nil)
-				if err != nil {
-					return summary, err
-				}
-			}
-
-			// Streaming yields a real time-to-first-token, which fills the
-			// status page for hours without real requests.
-			endpointType, request := buildStatusCheckCandyRequest(channel, entry.Model, entry.Effort)
-			startedAt := time.Now()
-			result := runStatusCheckDegradationChannelTest(ctx, channel, testUserID, entry.Model, endpointType, true, -1, request)
 			record.LatencyMs = time.Since(startedAt).Milliseconds()
 			record.CheckedAt = time.Now().Unix()
 			requestSucceeded := result.localErr == nil && result.newAPIError == nil
-			perfmetrics.RecordStatusCheckDegradationProbe(group, record.LatencyMs, result.ttftMs, requestSucceeded)
+			// Like relay metrics, the first token is measured from the start of
+			// the whole check, including attempts on higher-priority channels.
+			ttftMs := int64(0)
+			if result.ttftMs > 0 {
+				ttftMs = lastStartedAt.Sub(startedAt).Milliseconds() + result.ttftMs
+			}
+			perfmetrics.RecordStatusCheckDegradationProbe(group, record.LatencyMs, ttftMs, requestSucceeded)
 			if requestSucceeded {
 				record.Status, record.Answer = judgeStatusCheckCandyAnswer(extractTestResponseText(result.responseBody))
 			}

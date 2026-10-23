@@ -8,6 +8,7 @@ the Free Software Foundation, either version 3 of the License, or
 */
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import dayjs from 'dayjs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -53,6 +54,7 @@ function buildBeats(
   return Array.from({ length: count }, (_, index) => ({
     ts: LAST_HOUR - (count - 1 - index) * HOUR,
     request_count: 0,
+    success_count: 0,
     availability: 0,
     avg_ttft_ms: 0,
     probe_filled: false,
@@ -93,7 +95,9 @@ function buildGroup(overrides: Partial<StatusGroup>): StatusGroup {
     request_count: 10,
     availability_24h: [99.5],
     history_24h: [],
-    beats: buildBeats(24, { 23: { request_count: 10, availability: 99.5 } }),
+    beats: buildBeats(24, {
+      23: { request_count: 10, success_count: 10, availability: 99.5 },
+    }),
     ...overrides,
   }
 }
@@ -137,6 +141,7 @@ describe('StatusGroupList', () => {
           }),
           buildGroup({ group: 'default' }),
         ]}
+        bucketSeconds={HOUR}
         onSelectGroup={vi.fn()}
       />
     )
@@ -175,6 +180,7 @@ describe('StatusGroupList', () => {
             }),
           }),
         ]}
+        bucketSeconds={HOUR}
         onSelectGroup={vi.fn()}
       />
     )
@@ -184,6 +190,53 @@ describe('StatusGroupList', () => {
     expect(within(beats).getAllByLabelText(/: No data$/)).toHaveLength(8)
     expect(within(beats).getByLabelText(/: 90\.00%$/)).toBeInTheDocument()
     expect(within(beats).getByLabelText(/: 100\.00%$/)).toBeInTheDocument()
+  })
+
+  it('labels each beat with the configured bucket range when buckets are 5 minutes', () => {
+    mockObservedWidth(70)
+    const bucket = 300
+    const lastBucket = 1_760_000_400 - (1_760_000_400 % bucket)
+    render(
+      <StatusGroupList
+        groups={[
+          buildGroup({
+            beats: [0, 1].map((index) => ({
+              ts: lastBucket - (1 - index) * bucket,
+              request_count: 4,
+              success_count: 4,
+              availability: 100,
+              avg_ttft_ms: 0,
+              probe_filled: false,
+            })),
+          }),
+        ]}
+        bucketSeconds={bucket}
+        onSelectGroup={vi.fn()}
+      />
+    )
+
+    const beats = screen.getByRole('img', { name: 'Availability' })
+    const labels = within(beats)
+      .getAllByLabelText(/: 100\.00%$/)
+      .map((beat) => beat.getAttribute('aria-label'))
+    const end = dayjs.unix(lastBucket + bucket).format('HH:mm')
+    const start = dayjs.unix(lastBucket).format('YYYY-MM-DD HH:mm')
+    expect(labels).toHaveLength(2)
+    expect(labels[1]).toBe(`${start}–${end}: 100.00%`)
+  })
+
+  it('lays groups out in two columns on wide screens', () => {
+    render(
+      <StatusGroupList
+        groups={[buildGroup({ group: 'a' }), buildGroup({ group: 'b' })]}
+        bucketSeconds={HOUR}
+        onSelectGroup={vi.fn()}
+      />
+    )
+
+    const list = screen.getAllByRole('list')[0]
+    expect(list).toHaveClass('grid-cols-1', 'xl:grid-cols-2')
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
   })
 
   it('pads model checks with empty lines when fewer checks than fit', () => {
@@ -210,6 +263,7 @@ describe('StatusGroupList', () => {
             ],
           }),
         ]}
+        bucketSeconds={HOUR}
         onSelectGroup={vi.fn()}
       />
     )
@@ -224,7 +278,13 @@ describe('StatusGroupList', () => {
   it('summarizes cache and first token in the group line and opens history on click', async () => {
     const onSelectGroup = vi.fn()
     const group = buildGroup({ group: 'default' })
-    render(<StatusGroupList groups={[group]} onSelectGroup={onSelectGroup} />)
+    render(
+      <StatusGroupList
+        groups={[group]}
+        bucketSeconds={HOUR}
+        onSelectGroup={onSelectGroup}
+      />
+    )
 
     const header = screen.getByRole('button', {
       name: 'View default status history',

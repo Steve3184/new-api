@@ -44,6 +44,7 @@ import {
   type DegradationModelConfig,
   defaultDegradationGroup,
 } from './status-check-degradation-options'
+import { StatusCheckProbeModelField } from './status-check-probe-model-field'
 
 const statusCheckSchema = z.object({
   groups: z.array(z.string()),
@@ -55,6 +56,7 @@ const statusCheckSchema = z.object({
       enabled: z.boolean(),
       idle_minutes: z.number().int().min(1).max(1440),
       max_consecutive_probes: z.number().int().min(1).max(1000),
+      model: z.string().max(255),
     })
   ),
   degradationGroups: z.array(
@@ -87,6 +89,8 @@ type FlexibleGroupConfig = {
   enabled: boolean
   idle_minutes: number
   max_consecutive_probes: number
+  /** Empty tests each channel with its own test model. */
+  model: string
 }
 
 type FlexibleGroupFormValue = FlexibleGroupConfig & {
@@ -101,6 +105,7 @@ const defaultFlexibleGroup: FlexibleGroupConfig = {
   enabled: false,
   idle_minutes: 15,
   max_consecutive_probes: 40,
+  model: '',
 }
 
 const defaultFlexibleMode: FlexibleModeConfig = { groups: {} }
@@ -177,6 +182,7 @@ function parseFlexibleMode(value: string): FlexibleModeConfig {
         enabled: candidate.enabled,
         idle_minutes: candidate.idle_minutes,
         max_consecutive_probes: candidate.max_consecutive_probes,
+        model: typeof candidate.model === 'string' ? candidate.model : '',
       }
     }
     return { groups }
@@ -394,6 +400,7 @@ export function StatusCheckSection(props: {
             enabled: config.enabled,
             idle_minutes: config.idle_minutes,
             max_consecutive_probes: config.max_consecutive_probes,
+            model: config.model.trim(),
           }
         : defaultFlexibleGroup
       return settings
@@ -501,7 +508,7 @@ export function StatusCheckSection(props: {
               <FormLabel>{t('Flexible active probes')}</FormLabel>
               <FormDescription>
                 {t(
-                  'Configure each visible group independently. A probe tests one enabled channel only after that group has been idle for its configured period.'
+                  'Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.'
                 )}
               </FormDescription>
             </div>
@@ -599,6 +606,14 @@ export function StatusCheckSection(props: {
                         </FormDescription>
                       </FormItem>
                     </div>
+                    <StatusCheckProbeModelField
+                      group={group}
+                      value={config.model}
+                      disabled={!probeActive}
+                      onChange={(model) =>
+                        updateFlexibleGroupConfig(group, { model })
+                      }
+                    />
                     <StatusCheckDegradationConfig
                       group={group}
                       value={getDegradationGroupConfig(group)}

@@ -837,6 +837,7 @@ export const STATIC_I18N_KEYS = [
   'Not degraded',
   'Model degraded',
   'Check failed',
-  'Hours without real requests use model degradation checks when enabled.',
+  'Counts only the final attempt of each request. Periods without real requests use model degradation checks when the group runs them.',
+  'Counts only requests with cached tokens. Probes and configured excluded models are omitted.',
   'Average time to the first streamed token.',
 ] as const
