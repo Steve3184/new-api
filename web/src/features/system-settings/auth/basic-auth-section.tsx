@@ -51,6 +51,7 @@ const basicAuthSchema = z.object({
   EmailVerificationEnabled: z.boolean(),
   RegisterEnabled: z.boolean(),
   EmailDomainRestrictionEnabled: z.boolean(),
+  EmailDomainRewardRestrictionEnabled: z.boolean(),
   EmailAliasRestrictionEnabled: z.boolean(),
   EmailDomainWhitelist: z.string(),
 })
@@ -101,6 +102,10 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
         updates.push({ key, value })
       }
     })
+
+    // The server rejects enabling one email domain restriction while the
+    // other is on, so switches being turned off are saved first.
+    updates.sort((a, b) => Number(a.value === true) - Number(b.value === true))
 
     for (const update of updates) {
       await updateOption.mutateAsync(update)
@@ -237,7 +242,46 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                 <FormControl>
                   <Switch
                     checked={field.value}
-                    onCheckedChange={field.onChange}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked)
+                      if (checked) {
+                        form.setValue(
+                          'EmailDomainRewardRestrictionEnabled',
+                          false,
+                          { shouldDirty: true }
+                        )
+                      }
+                    }}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='EmailDomainRewardRestrictionEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Email Domain Reward Restriction')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked)
+                      if (checked) {
+                        form.setValue('EmailDomainRestrictionEnabled', false, {
+                          shouldDirty: true,
+                        })
+                      }
+                    }}
                   />
                 </FormControl>
               </SettingsSwitchItem>
@@ -280,7 +324,7 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'One domain per line (only used when domain restriction is enabled)'
+                    'One domain per line (used by email domain restriction and email domain reward restriction)'
                   )}
                 </FormDescription>
                 <FormMessage />

@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -622,4 +623,88 @@ func TestValidateAuthSessionWithTxChecksAccessTokenIdentity(t *testing.T) {
 			assert.ErrorIs(t, plainErr, ErrUserSessionInactive)
 		})
 	}
+}
+
+func TestRegistrationRewardsFollowEmailDomainRewardRestriction(t *testing.T) {
+	setupUserUpdateTestState(t)
+	require.NoError(t, DB.Exec("DELETE FROM registration_emails").Error)
+
+	paymentSetting := operation_setting.GetPaymentSetting()
+	oldConfirmed, oldTermsVersion := paymentSetting.ComplianceConfirmed, paymentSetting.ComplianceTermsVersion
+	oldEnabled, oldWhitelist := common.EmailDomainRewardRestrictionEnabled, common.EmailDomainWhitelist
+	oldNewUser, oldInvitee, oldInviter := common.QuotaForNewUser, common.QuotaForInvitee, common.QuotaForInviter
+	t.Cleanup(func() {
+		paymentSetting.ComplianceConfirmed, paymentSetting.ComplianceTermsVersion = oldConfirmed, oldTermsVersion
+		common.EmailDomainRewardRestrictionEnabled, common.EmailDomainWhitelist = oldEnabled, oldWhitelist
+		common.QuotaForNewUser, common.QuotaForInvitee, common.QuotaForInviter = oldNewUser, oldInvitee, oldInviter
+	})
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	common.EmailDomainWhitelist = []string{"gmail.com"}
+	common.QuotaForNewUser, common.QuotaForInvitee, common.QuotaForInviter = 100, 20, 30
+
+	inviter := User{Username: "reward-inviter", Status: common.UserStatusEnabled, AffCode: "reward-inviter-aff"}
+	require.NoError(t, DB.Create(&inviter).Error)
+
+	// A whitelisted address registered once and then moved away from its
+	// account must not earn the rewards again.
+	common.EmailDomainRewardRestrictionEnabled = false
+	first := &User{Username: "reward-first", Email: "reused@gmail.com", InviterId: inviter.Id, Status: common.UserStatusEnabled}
+	require.NoError(t, first.Insert(inviter.Id))
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", first.Id).Update("email", "throwaway@disposable.test").Error)
+
+	cases := []struct {
+		name           string
+		restricted     bool
+		email          string
+		wantQuota      int
+		wantInviterAff int
+	}{
+		{name: "restriction off pays any domain", email: "someone@disposable.test", wantQuota: 120, wantInviterAff: 30},
+		{name: "non-whitelisted domain gets nothing", restricted: true, email: "other@disposable.test", wantQuota: 0, wantInviterAff: 0},
+		{name: "no email gets nothing", restricted: true, email: "", wantQuota: 0, wantInviterAff: 0},
+		{name: "new whitelisted address is paid", restricted: true, email: "Fresh@Gmail.com", wantQuota: 120, wantInviterAff: 30},
+		{name: "previously registered whitelisted address gets nothing", restricted: true, email: "reused@gmail.com", wantQuota: 0, wantInviterAff: 0},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			common.EmailDomainRewardRestrictionEnabled = tc.restricted
+			var before User
+			require.NoError(t, DB.First(&before, inviter.Id).Error)
+
+			user := &User{Username: "reward-user-" + strconv.Itoa(i), Email: tc.email, InviterId: inviter.Id, Status: common.UserStatusEnabled}
+			require.NoError(t, user.Insert(inviter.Id))
+
+			var stored, after User
+			require.NoError(t, DB.First(&stored, user.Id).Error)
+			require.NoError(t, DB.First(&after, inviter.Id).Error)
+			assert.Equal(t, tc.wantQuota, stored.Quota)
+			assert.Equal(t, inviter.Id, stored.InviterId, "referral link must be kept for top-up rebates")
+			assert.Equal(t, tc.wantInviterAff, after.AffQuota-before.AffQuota)
+		})
+	}
+}
+
+func TestBackfillRegistrationEmailsSeedsExistingAccountsOnce(t *testing.T) {
+	setupUserUpdateTestState(t)
+	require.NoError(t, DB.Exec("DELETE FROM registration_emails").Error)
+
+	active := User{Username: "backfill-active", Email: "Active@Gmail.com", AffCode: "backfill-active-aff"}
+	deleted := User{Username: "backfill-deleted", Email: "deleted@gmail.com", AffCode: "backfill-deleted-aff"}
+	noEmail := User{Username: "backfill-no-email", AffCode: "backfill-no-email-aff"}
+	require.NoError(t, DB.Create(&active).Error)
+	require.NoError(t, DB.Create(&deleted).Error)
+	require.NoError(t, DB.Create(&noEmail).Error)
+	require.NoError(t, DB.Delete(&deleted).Error)
+
+	require.NoError(t, backfillRegistrationEmails(DB))
+	require.NoError(t, backfillRegistrationEmails(DB))
+
+	var rows []RegistrationEmail
+	require.NoError(t, DB.Order("user_id").Find(&rows).Error)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "active@gmail.com", rows[0].Email)
+	assert.Equal(t, active.Id, rows[0].UserId)
+	assert.Equal(t, "deleted@gmail.com", rows[1].Email)
+	assert.Equal(t, deleted.Id, rows[1].UserId)
 }

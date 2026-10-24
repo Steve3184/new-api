@@ -4799,7 +4799,6 @@
     "One API": "One API",
     "One control plane": "Un plan de controle",
     "One domain per line": "Un domaine par ligne",
-    "One domain per line (only used when domain restriction is enabled)": "Un domaine par ligne (utilisé uniquement lorsque la restriction de domaine est activée)",
     "One endpoint, any model": "Un endpoint, tous les modeles",
     "One endpoint. Every model. Built for what comes next.": "Un endpoint. Tous les modèles. Pensé pour la suite.",
     "One IP or CIDR range per line": "Une IP ou plage CIDR par ligne",
@@ -8281,6 +8280,10 @@
     "Channel test model": "Modèle de test du canal",
     "Probe model": "Modèle de sonde",
     "Probe one model of this group, routed by channel priority like a real request. Leave as the channel test model to test channels directly.": "Sonde un modèle de ce groupe, routé selon la priorité des canaux comme une vraie requête. Laissez le modèle de test du canal pour tester les canaux directement.",
-    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Configurez chaque groupe visible séparément. Une sonde ne s’exécute qu’après la période d’inactivité configurée et bascule selon la priorité des canaux comme une vraie requête ; seule la dernière tentative compte."
+    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Configurez chaque groupe visible séparément. Une sonde ne s’exécute qu’après la période d’inactivité configurée et bascule selon la priorité des canaux comme une vraie requête ; seule la dernière tentative compte.",
+    "Email Domain Reward Restriction": "Restriction des récompenses par domaine e-mail",
+    "Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.": "Autoriser l'inscription avec n'importe quel domaine e-mail, mais n'accorder les bonus d'inscription et de parrainage qu'aux adresses des domaines autorisés jamais inscrites auparavant. Les remises de parrainage sur les recharges ne sont pas affectées. Ne peut pas être activé en même temps que la restriction de domaine e-mail.",
+    "One domain per line (used by email domain restriction and email domain reward restriction)": "Un domaine par ligne (utilisé par la restriction de domaine e-mail et la restriction des récompenses par domaine e-mail)",
+    "Email domain restriction and email domain reward restriction cannot be enabled at the same time.": "La restriction de domaine e-mail et la restriction des récompenses par domaine e-mail ne peuvent pas être activées en même temps."
   }
 }

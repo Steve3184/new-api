@@ -599,6 +599,19 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorT(c, "Cannot enable the email domain restriction. Enter the allowed email domains first.")
 			return
 		}
+		if option.Value == "true" && common.EmailDomainRewardRestrictionEnabled {
+			common.ApiErrorT(c, "Email domain restriction and email domain reward restriction cannot be enabled at the same time.")
+			return
+		}
+	case "EmailDomainRewardRestrictionEnabled":
+		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
+			common.ApiErrorT(c, "Cannot enable the email domain restriction. Enter the allowed email domains first.")
+			return
+		}
+		if option.Value == "true" && common.EmailDomainRestrictionEnabled {
+			common.ApiErrorT(c, "Email domain restriction and email domain reward restriction cannot be enabled at the same time.")
+			return
+		}
 	case "WeChatAuthEnabled":
 		if option.Value == "true" && common.WeChatServerAddress == "" {
 			common.ApiErrorT(c, "Cannot enable WeChat login. Enter the WeChat login settings first.")

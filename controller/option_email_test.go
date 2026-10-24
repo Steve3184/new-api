@@ -88,3 +88,35 @@ func TestSMTPTestEmailRejectsUnknownTypesAndEvents(t *testing.T) {
 		assert.False(t, payload.Success)
 	}
 }
+
+func TestUpdateOptionKeepsEmailDomainRestrictionsMutuallyExclusive(t *testing.T) {
+	oldRestriction, oldReward := common.EmailDomainRestrictionEnabled, common.EmailDomainRewardRestrictionEnabled
+	t.Cleanup(func() {
+		common.EmailDomainRestrictionEnabled, common.EmailDomainRewardRestrictionEnabled = oldRestriction, oldReward
+	})
+	for _, tc := range []struct {
+		enabledKey, requestedKey string
+	}{
+		{"EmailDomainRestrictionEnabled", "EmailDomainRewardRestrictionEnabled"},
+		{"EmailDomainRewardRestrictionEnabled", "EmailDomainRestrictionEnabled"},
+	} {
+		t.Run(tc.requestedKey, func(t *testing.T) {
+			common.EmailDomainRestrictionEnabled = tc.enabledKey == "EmailDomainRestrictionEnabled"
+			common.EmailDomainRewardRestrictionEnabled = tc.enabledKey == "EmailDomainRewardRestrictionEnabled"
+			response := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(response)
+			context.Request = httptest.NewRequest(http.MethodPut, "/api/option/", strings.NewReader(`{"key":"`+tc.requestedKey+`","value":true}`))
+
+			UpdateOption(context)
+
+			var payload struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+			assert.False(t, payload.Success)
+			assert.Contains(t, payload.Message, "cannot be enabled at the same time")
+			assert.NotEqual(t, common.EmailDomainRestrictionEnabled, common.EmailDomainRewardRestrictionEnabled)
+		})
+	}
+}

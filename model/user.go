@@ -119,6 +119,9 @@ type User struct {
 	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	// RegistrationRewardEligible is decided while inserting a new user and
+	// read after commit when the one-time registration rewards are paid.
+	RegistrationRewardEligible bool `json:"-" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -760,10 +763,17 @@ func (user *User) prepareForInsert(tx *gorm.DB) error {
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
 		return err
 	}
+	eligible, err := registrationRewardEligibleWithTx(tx, user.Email)
+	if err != nil {
+		return err
+	}
+	user.RegistrationRewardEligible = eligible
+	if eligible {
+		user.Quota = common.QuotaForNewUser
+	}
 	if user.Password == "" {
 		return nil
 	}
-	var err error
 	user.Password, err = common.HashAccountPassword(user.Password)
 	return err
 }
@@ -914,7 +924,6 @@ func (user *User) Insert(inviterId int) error {
 			if err := user.prepareForInsert(tx); err != nil {
 				return err
 			}
-			user.Quota = common.QuotaForNewUser
 
 			// 初始化用户设置，包括默认的边栏配置
 			if user.Setting == "" {
@@ -923,7 +932,10 @@ func (user *User) Insert(inviterId int) error {
 				user.SetSetting(defaultSetting)
 			}
 
-			return user.insertWithUniqueAffCode(tx)
+			if err := user.insertWithUniqueAffCode(tx); err != nil {
+				return err
+			}
+			return recordRegistrationEmailWithTx(tx, user.Email, user.Id)
 		})
 	}); err != nil {
 		return err
@@ -949,20 +961,7 @@ func (user *User) finishInsert(inviterId int) {
 		}
 	}
 
-	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, common.NewMessage("New user sign-up bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForNewUser)}))
-	}
-	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, common.NewMessage("Invitation code bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInvitee)}))
-		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, common.NewMessage("Bonus for inviting a user {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInviter)}))
-			_ = inviteUser(inviterId)
-		}
-	}
+	user.grantRegistrationRewards(inviterId)
 }
 
 func (user *User) FinishInsert(inviterId int) {
@@ -977,7 +976,6 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		if err := user.prepareForInsert(tx); err != nil {
 			return err
 		}
-		user.Quota = common.QuotaForNewUser
 
 		// 初始化用户设置
 		if user.Setting == "" {
@@ -985,7 +983,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 			user.SetSetting(defaultSetting)
 		}
 
-		return user.insertWithUniqueAffCode(tx)
+		if err := user.insertWithUniqueAffCode(tx); err != nil {
+			return err
+		}
+		return recordRegistrationEmailWithTx(tx, user.Email, user.Id)
 	})
 }
 
@@ -1005,6 +1006,15 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 		}
 	}
 
+	user.grantRegistrationRewards(inviterId)
+}
+
+// grantRegistrationRewards records the sign-up bonus applied at insert time
+// and pays the one-time invitation bonuses.
+func (user *User) grantRegistrationRewards(inviterId int) {
+	if !user.RegistrationRewardEligible {
+		return
+	}
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, common.NewMessage("New user sign-up bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForNewUser)}))
 	}

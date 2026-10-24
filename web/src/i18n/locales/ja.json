@@ -4799,7 +4799,6 @@
     "One API": "1つのAPI",
     "One control plane": "単一コントロールプレーン",
     "One domain per line": "1行に1つのドメイン",
-    "One domain per line (only used when domain restriction is enabled)": "1行に1つのドメイン (ドメイン制限が有効な場合のみ使用されます)",
     "One endpoint, any model": "1 つのエンドポイント、任意のモデル",
     "One endpoint. Every model. Built for what comes next.": "ひとつのエンドポイント。すべてのモデル。次の一歩のために。",
     "One IP or CIDR range per line": "1行に1つのIPまたはCIDR範囲",
@@ -8281,6 +8280,10 @@
     "Channel test model": "チャネルのテストモデル",
     "Probe model": "プローブモデル",
     "Probe one model of this group, routed by channel priority like a real request. Leave as the channel test model to test channels directly.": "このグループの 1 つのモデルをプローブし、実リクエストと同様にチャネル優先度でルーティングします。チャネルのテストモデルのままにするとチャネルを直接テストします。",
-    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "表示グループごとに個別に設定します。グループが設定時間アイドルになった後にのみプローブし、実リクエストと同様にチャネル優先度でフォールバックします。最終試行のみが集計されます。"
+    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "表示グループごとに個別に設定します。グループが設定時間アイドルになった後にのみプローブし、実リクエストと同様にチャネル優先度でフォールバックします。最終試行のみが集計されます。",
+    "Email Domain Reward Restriction": "メールドメイン報酬制限",
+    "Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.": "任意のメールドメインでの登録を許可しますが、登録特典と招待特典は、過去に登録されたことのないホワイトリスト内ドメインのメールアドレスにのみ付与します。チャージ時の紹介リベートには影響しません。メールドメイン制限と同時には有効にできません。",
+    "One domain per line (used by email domain restriction and email domain reward restriction)": "1行に1ドメイン（メールドメイン制限とメールドメイン報酬制限で使用）",
+    "Email domain restriction and email domain reward restriction cannot be enabled at the same time.": "メールドメイン制限とメールドメイン報酬制限は同時に有効にできません。"
   }
 }

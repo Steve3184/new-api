@@ -4799,7 +4799,6 @@
     "One API": "One API",
     "One control plane": "One control plane",
     "One domain per line": "One domain per line",
-    "One domain per line (only used when domain restriction is enabled)": "One domain per line (only used when domain restriction is enabled)",
     "One endpoint, any model": "One endpoint, any model",
     "One endpoint. Every model. Built for what comes next.": "One endpoint. Every model. Built for what comes next.",
     "One IP or CIDR range per line": "One IP or CIDR range per line",
@@ -8281,6 +8280,10 @@
     "Channel test model": "Channel test model",
     "Probe model": "Probe model",
     "Probe one model of this group, routed by channel priority like a real request. Leave as the channel test model to test channels directly.": "Probe one model of this group, routed by channel priority like a real request. Leave as the channel test model to test channels directly.",
-    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts."
+    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.",
+    "Email Domain Reward Restriction": "Email Domain Reward Restriction",
+    "Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.": "Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.",
+    "One domain per line (used by email domain restriction and email domain reward restriction)": "One domain per line (used by email domain restriction and email domain reward restriction)",
+    "Email domain restriction and email domain reward restriction cannot be enabled at the same time.": "Email domain restriction and email domain reward restriction cannot be enabled at the same time."
   }
 }

@@ -4799,7 +4799,6 @@
     "One API": "Một API",
     "One control plane": "Một mặt phẳng điều khiển",
     "One domain per line": "Một tên miền mỗi dòng",
-    "One domain per line (only used when domain restriction is enabled)": "Mỗi dòng một tên miền (chỉ được sử dụng khi hạn chế tên miền được bật)",
     "One endpoint, any model": "Một endpoint, mọi mô hình",
     "One endpoint. Every model. Built for what comes next.": "Một endpoint. Mọi mô hình. Sẵn sàng cho bước tiếp theo.",
     "One IP or CIDR range per line": "Một IP hoặc dải CIDR mỗi dòng",
@@ -8281,6 +8280,10 @@
     "Channel test model": "Mô hình kiểm tra của kênh",
     "Probe model": "Mô hình thăm dò",
     "Probe one model of this group, routed by channel priority like a real request. Leave as the channel test model to test channels directly.": "Thăm dò một mô hình của nhóm này, định tuyến theo mức ưu tiên kênh như yêu cầu thực. Giữ mô hình kiểm tra của kênh để kiểm tra trực tiếp các kênh.",
-    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Cấu hình riêng cho từng nhóm hiển thị. Chỉ thăm dò sau khi nhóm nhàn rỗi đủ thời gian đã đặt, chuyển dự phòng theo mức ưu tiên kênh như yêu cầu thực; chỉ lần thử cuối cùng được tính."
+    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Cấu hình riêng cho từng nhóm hiển thị. Chỉ thăm dò sau khi nhóm nhàn rỗi đủ thời gian đã đặt, chuyển dự phòng theo mức ưu tiên kênh như yêu cầu thực; chỉ lần thử cuối cùng được tính.",
+    "Email Domain Reward Restriction": "Giới hạn phần thưởng theo tên miền email",
+    "Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.": "Cho phép đăng ký bằng mọi tên miền email, nhưng chỉ tặng thưởng đăng ký và thưởng mời cho địa chỉ email thuộc danh sách trắng chưa từng đăng ký trước đây. Không ảnh hưởng đến hoa hồng giới thiệu khi nạp tiền. Không thể bật cùng lúc với giới hạn tên miền email.",
+    "One domain per line (used by email domain restriction and email domain reward restriction)": "Mỗi dòng một tên miền (dùng cho giới hạn tên miền email và giới hạn phần thưởng theo tên miền email)",
+    "Email domain restriction and email domain reward restriction cannot be enabled at the same time.": "Không thể bật đồng thời giới hạn tên miền email và giới hạn phần thưởng theo tên miền email."
   }
 }

@@ -4799,7 +4799,6 @@
     "One API": "One API",
     "One control plane": "單一控制平面",
     "One domain per line": "每行一個域名",
-    "One domain per line (only used when domain restriction is enabled)": "每行一個域名 (僅在啟用域名限制時使用)",
     "One endpoint, any model": "一個端點，任何模型",
     "One endpoint. Every model. Built for what comes next.": "一個端點，連接每個模型，為下一步而生。",
     "One IP or CIDR range per line": "每行一個 IP 或 CIDR 範圍",
@@ -8281,6 +8280,10 @@
     "Channel test model": "渠道測試模型",
     "Probe model": "探測模型",
     "Probe one model of this group, routed by channel priority like a real request. Leave as the channel test model to test channels directly.": "對該分組的一個模型發起探測，像真實請求一樣依渠道優先級路由。保持為渠道測試模型則直接測試渠道。",
-    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "為每個可見分組單獨設定。僅在分組閒置達到設定時長後探測，並像真實請求一樣依渠道優先級回退，只有最終一次請求計入結果。"
+    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "為每個可見分組單獨設定。僅在分組閒置達到設定時長後探測，並像真實請求一樣依渠道優先級回退，只有最終一次請求計入結果。",
+    "Email Domain Reward Restriction": "信箱網域獎勵限制",
+    "Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.": "允許任意信箱網域註冊，但僅向從未註冊過的白名單網域信箱發放註冊獎勵與邀請獎勵。不影響儲值返利。不能與信箱網域限制同時啟用。",
+    "One domain per line (used by email domain restriction and email domain reward restriction)": "每行一個網域（用於信箱網域限制與信箱網域獎勵限制）",
+    "Email domain restriction and email domain reward restriction cannot be enabled at the same time.": "信箱網域限制與信箱網域獎勵限制不能同時啟用。"
   }
 }

@@ -4799,7 +4799,6 @@
     "One API": "Один API",
     "One control plane": "Единая плоскость управления",
     "One domain per line": "Один домен на строку",
-    "One domain per line (only used when domain restriction is enabled)": "Один домен на строку (используется только при включении ограничения домена)",
     "One endpoint, any model": "Один endpoint, любая модель",
     "One endpoint. Every model. Built for what comes next.": "Один endpoint. Любая модель. Для следующего шага.",
     "One IP or CIDR range per line": "Один IP или диапазон CIDR на строку",
@@ -8281,6 +8280,10 @@
     "Channel test model": "Тестовая модель канала",
     "Probe model": "Модель пробы",
     "Probe one model of this group, routed by channel priority like a real request. Leave as the channel test model to test channels directly.": "Проверять одну модель группы с маршрутизацией по приоритету каналов, как у реального запроса. Оставьте тестовую модель канала, чтобы проверять каналы напрямую.",
-    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Настройте каждую видимую группу отдельно. Проба запускается только после заданного периода простоя группы и переключается по приоритету каналов, как реальный запрос; учитывается только последняя попытка."
+    "Configure each visible group independently. A probe runs only after that group has been idle for its configured period, falling back through channel priorities like a real request; only the final attempt counts.": "Настройте каждую видимую группу отдельно. Проба запускается только после заданного периода простоя группы и переключается по приоритету каналов, как реальный запрос; учитывается только последняя попытка.",
+    "Email Domain Reward Restriction": "Ограничение бонусов по домену почты",
+    "Allow any email domain to register, but only give sign-up and invitation bonuses to whitelisted email addresses that have never registered before. Top-up referral rebates are not affected. Cannot be enabled together with email domain restriction.": "Разрешить регистрацию с любым почтовым доменом, но начислять бонусы за регистрацию и приглашение только адресам из белого списка доменов, которые ещё ни разу не регистрировались. Реферальные бонусы с пополнений не затрагиваются. Нельзя включить одновременно с ограничением по домену почты.",
+    "One domain per line (used by email domain restriction and email domain reward restriction)": "Один домен на строку (используется ограничением по домену почты и ограничением бонусов по домену почты)",
+    "Email domain restriction and email domain reward restriction cannot be enabled at the same time.": "Ограничение по домену почты и ограничение бонусов по домену почты нельзя включить одновременно."
   }
 }

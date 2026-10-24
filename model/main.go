@@ -383,8 +383,12 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&UserAccessToken{},
+		&RegistrationEmail{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := backfillRegistrationEmails(DB); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
@@ -457,6 +461,7 @@ func migrateDBFast() error {
 		{&SystemTaskLock{}, "SystemTaskLock"},
 		{&SupportConversation{}, "SupportConversation"},
 		{&SupportMessage{}, "SupportMessage"},
+		{&RegistrationEmail{}, "RegistrationEmail"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -480,6 +485,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := backfillRegistrationEmails(DB); err != nil {
+		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
