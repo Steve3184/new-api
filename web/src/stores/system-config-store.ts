@@ -86,7 +86,7 @@ export interface SPAMetaConfig {
   ogDescription: string
 }
 
-export type HomepageStyle = 'default' | 'custom' | 'preset-1'
+export type HomepageStyle = 'default' | 'custom' | 'preset-1' | 'preset-2'
 
 export interface HomepageConfig {
   style: HomepageStyle

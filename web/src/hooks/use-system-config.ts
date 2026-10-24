@@ -246,7 +246,7 @@ export function mapStatusDataToConfig(
     homepage: {
       style: enumValue(
         data.homepage?.style,
-        ['default', 'custom', 'preset-1'],
+        ['default', 'custom', 'preset-1', 'preset-2'],
         DEFAULT_HOMEPAGE_CONFIG.style
       ) as HomepageStyle,
       presetTitleMode: enumValue(

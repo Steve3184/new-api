@@ -253,7 +253,7 @@ func ValidatePublicOption(key, value string) error {
 			return fmt.Errorf("model square table page size must be between 5 and 100")
 		}
 	case "homepage_style":
-		return validateEnum(value, "default", "custom", "preset-1")
+		return validateEnum(value, "default", "custom", "preset-1", "preset-2")
 	case "homepage_preset_title_mode":
 		return validateEnum(value, "i18n", "english")
 	case "homepage_preset_sla_text":

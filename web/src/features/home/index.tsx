@@ -28,6 +28,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { PresetOne } from './components/preset-one'
+import { PresetTwo } from './components/preset-two'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -71,6 +72,10 @@ export function Home() {
 
   if (style === 'preset-1') {
     return <PresetOne />
+  }
+
+  if (style === 'preset-2') {
+    return <PresetTwo />
   }
 
   if (content) {

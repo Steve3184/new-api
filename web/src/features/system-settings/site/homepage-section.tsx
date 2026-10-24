@@ -38,7 +38,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const homepageSchema = z.object({
   HomePageContent: z.string().optional(),
-  HomepageStyle: z.enum(['default', 'custom', 'preset-1']),
+  HomepageStyle: z.enum(['default', 'custom', 'preset-1', 'preset-2']),
   HomepagePresetTitleMode: z.enum(['i18n', 'english']),
   HomepagePresetSLAEnabled: z.boolean(),
   HomepagePresetSLAText: z.string().max(120).optional(),
@@ -54,6 +54,7 @@ const HOMEPAGE_STYLES = [
   { value: 'default', label: 'Default homepage' },
   { value: 'custom', label: 'Custom homepage' },
   { value: 'preset-1', label: 'Homepage preset 1' },
+  { value: 'preset-2', label: 'Homepage preset 2' },
 ] as const
 
 function normalizeValue(value: unknown): string {
@@ -180,7 +181,8 @@ export function HomepageSection(props: HomepageSectionProps) {
                 </SettingsFormGridItem>
               )}
 
-              {homepageStyle === 'preset-1' && (
+              {(homepageStyle === 'preset-1' ||
+                homepageStyle === 'preset-2') && (
                 <SettingsFormGridItem span='full'>
                   <FormField
                     control={form.control}
@@ -214,7 +216,7 @@ export function HomepageSection(props: HomepageSectionProps) {
                         </FormControl>
                         <FormDescription>
                           {t(
-                            'Choose whether the preset 1 second-line title follows the visitor language or stays in English.'
+                            'Choose whether the preset hero title follows the visitor language or stays in English.'
                           )}
                         </FormDescription>
                         <FormMessage />
@@ -230,7 +232,7 @@ export function HomepageSection(props: HomepageSectionProps) {
                           <FormLabel>{t('Show SLA badge')}</FormLabel>
                           <FormDescription>
                             {t(
-                              'Display the configurable SLA commitment on homepage preset 1.'
+                              'Display the configurable SLA commitment on the homepage preset.'
                             )}
                           </FormDescription>
                         </SettingsSwitchContent>

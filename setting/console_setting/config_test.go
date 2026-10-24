@@ -29,6 +29,8 @@ func TestValidatePublicOption(t *testing.T) {
 		{name: "reject incomplete card row", key: "console_setting.model_square_card_page_size", value: "20", wantErr: true},
 		{name: "table page range", key: "console_setting.model_square_table_page_size", value: "100"},
 		{name: "invalid og type", key: "console_setting.spa_meta_og_type", value: "website\" onload=\"x", wantErr: true},
+		{name: "homepage preset 2", key: "console_setting.homepage_style", value: "preset-2"},
+		{name: "reject unknown homepage style", key: "console_setting.homepage_style", value: "preset-9", wantErr: true},
 		{name: "ignore unrelated option", key: "SystemName", value: "anything"},
 	}
 
