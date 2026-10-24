@@ -98,6 +98,16 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
     const dense = data.length > DENSE_POINT_COUNT
     const formatValue = (value: number) =>
       config.isPercent ? `${value.toFixed(2)}%` : `${Math.round(value)} ms`
+    const tooltipPattern = {
+      title: { value: (datum: { range: string }) => datum.range },
+      content: [
+        {
+          key: t(config.labelKey),
+          value: (datum: { value: number | null }) =>
+            datum.value === null ? '—' : formatValue(datum.value),
+        },
+      ],
+    }
     return {
       type: 'line' as const,
       data: [{ id: `status-${props.metric}`, values: data }],
@@ -123,18 +133,9 @@ export function StatusHistoryLineChart(props: StatusHistoryLineChartProps) {
             },
       },
       legends: { visible: false },
-      tooltip: {
-        mark: {
-          title: { value: (datum: { range: string }) => datum.range },
-          content: [
-            {
-              key: t(config.labelKey),
-              value: (datum: { value: number | null }) =>
-                datum.value === null ? '—' : formatValue(datum.value),
-            },
-          ],
-        },
-      },
+      // The crosshair (dimension) tooltip otherwise falls back to the raw
+      // timestamp category and an unformatted value.
+      tooltip: { mark: tooltipPattern, dimension: tooltipPattern },
       axes: [
         {
           orient: 'bottom',
