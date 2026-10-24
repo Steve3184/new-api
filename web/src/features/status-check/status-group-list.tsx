@@ -46,8 +46,8 @@ export function StatusGroupList(props: {
   onSelectGroup: (group: StatusGroup) => void
 }) {
   // The 1px gaps over a border-colored background draw the dividers in both
-  // the single-column and the two-column layout; a lone last group spans
-  // both columns so no empty cell shows.
+  // the single-column and the two-column layout. A lone last group keeps half
+  // width; a card-colored filler covers the empty cell beside it.
   return (
     <ul className='bg-border grid grid-cols-1 gap-px overflow-hidden rounded-lg border xl:grid-cols-2'>
       {props.groups.map((group) => (
@@ -58,6 +58,9 @@ export function StatusGroupList(props: {
           onClick={() => props.onSelectGroup(group)}
         />
       ))}
+      {props.groups.length % 2 === 1 && (
+        <li aria-hidden='true' className='bg-card hidden xl:block' />
+      )}
     </ul>
   )
 }
@@ -126,7 +129,7 @@ function StatusGroupBlock(props: {
   })
 
   return (
-    <li className='bg-card min-w-0 space-y-2.5 px-4 py-3 xl:last:odd:col-span-2'>
+    <li className='bg-card min-w-0 space-y-2.5 px-4 py-3'>
       <button
         type='button'
         className='focus-visible:outline-primary group/header flex w-full min-w-0 items-center justify-between gap-3 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2'

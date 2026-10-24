@@ -239,6 +239,27 @@ describe('StatusGroupList', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(2)
   })
 
+  it('keeps a lone last group at half width when the group count is odd', () => {
+    render(
+      <StatusGroupList
+        groups={[
+          buildGroup({ group: 'a' }),
+          buildGroup({ group: 'b' }),
+          buildGroup({ group: 'c' }),
+        ]}
+        bucketSeconds={HOUR}
+        onSelectGroup={vi.fn()}
+      />
+    )
+
+    const list = screen.getAllByRole('list')[0]
+    const items = within(list).getAllByRole('listitem')
+    expect(items).toHaveLength(3)
+    expect(items[2].className).not.toMatch(/col-span-2/)
+    expect(list.children).toHaveLength(4)
+    expect(list.lastElementChild).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('pads model checks with empty lines when fewer checks than fit', () => {
     mockObservedWidth(70)
     render(
