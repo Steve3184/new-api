@@ -1543,6 +1543,11 @@ func (a *TaskAdaptor) buildSubmit(c *gin.Context, info *relaycommon.RelayInfo) (
 	if descriptor.RewriteModel != "" {
 		info.UpstreamModelName = descriptor.RewriteModel
 	}
+	if slices.Contains(a.plugin.Meta.RequiredCapabilities, pluginruntime.CapabilitySignedInputMedia) || slices.Contains(a.plugin.Meta.RequiredCapabilities, pluginruntime.CapabilitySignedInputMediaV2) {
+		if err := resolveSignedInputMedia(&descriptor, info.UserId); err != nil {
+			return nil, err
+		}
+	}
 	a.submit = &descriptor
 	method := strings.ToUpper(strings.TrimSpace(descriptor.Method))
 	if method == "" {

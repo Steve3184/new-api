@@ -16,6 +16,8 @@ const (
 	CapabilitySubmitSSEDelta     = "submit-sse-delta@1"
 	CapabilityJSONOrder          = "json-order@1"
 	CapabilityDurationAuto       = "duration-auto@1"
+	CapabilitySignedInputMedia   = "signed-input-media@1"
+	CapabilitySignedInputMediaV2 = "signed-input-media@2"
 	CapabilityVideoArtifacts     = "video-artifacts@1"
 	CapabilitySubmitErrorHandler = "submit-error-handler@1"
 	MaxJSONToolBytes             = 1 << 20
@@ -26,7 +28,7 @@ const (
 
 // HasCapability describes host APIs independently of a plugin's mutable globals.
 func HasCapability(name string) bool {
-	return name == CapabilityJSONClone || name == CapabilitySubmitSSEDelta || name == CapabilityJSONOrder || name == CapabilityDurationAuto || name == CapabilityVideoArtifacts || name == CapabilitySubmitErrorHandler
+	return name == CapabilitySignedInputMedia || name == CapabilitySignedInputMediaV2 || name == CapabilityJSONClone || name == CapabilitySubmitSSEDelta || name == CapabilityJSONOrder || name == CapabilityDurationAuto || name == CapabilityVideoArtifacts || name == CapabilitySubmitErrorHandler
 }
 
 // JSONState owns a request-local JSON result. Appended strings stay in Go and

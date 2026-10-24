@@ -34,4 +34,8 @@ func SetTaskRouter(router *gin.Engine) {
 		taskContentRouter.GET("/:key/artifacts/:artifact_key/content", controller.TaskArtifactContent)
 		taskContentRouter.HEAD("/:key/artifacts/:artifact_key/content", controller.TaskArtifactContent)
 	}
+	inputRouter := router.Group("/v1/task-inputs")
+	inputRouter.Use(middleware.RouteTag("relay"), middleware.TokenOrTaskArtifactAccessAuth("key", "artifact_key"))
+	inputRouter.GET("/:key/:artifact_key", controller.TaskInputMediaContent)
+	inputRouter.HEAD("/:key/:artifact_key", controller.TaskInputMediaContent)
 }
