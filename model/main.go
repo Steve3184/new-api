@@ -384,11 +384,15 @@ func migrateDB() error {
 		&AuthzRole{},
 		&UserAccessToken{},
 		&RegistrationEmail{},
+		&OAuthBindReward{},
 	)
 	if err != nil {
 		return err
 	}
 	if err := backfillRegistrationEmails(DB); err != nil {
+		return err
+	}
+	if err := backfillOAuthBindRewards(DB); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
@@ -462,6 +466,7 @@ func migrateDBFast() error {
 		{&SupportConversation{}, "SupportConversation"},
 		{&SupportMessage{}, "SupportMessage"},
 		{&RegistrationEmail{}, "RegistrationEmail"},
+		{&OAuthBindReward{}, "OAuthBindReward"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -487,6 +492,9 @@ func migrateDBFast() error {
 		}
 	}
 	if err := backfillRegistrationEmails(DB); err != nil {
+		return err
+	}
+	if err := backfillOAuthBindRewards(DB); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {

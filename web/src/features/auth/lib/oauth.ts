@@ -30,6 +30,24 @@ export {
 // ============================================================================
 
 /**
+ * Reward key of a custom OAuth provider; built-in providers use their type.
+ */
+export function getCustomOAuthBindRewardKey(providerId: number): string {
+  return `custom:${providerId}`
+}
+
+/**
+ * One-time quota paid for the first link of a provider, or 0
+ */
+export function getOAuthBindReward(
+  status: SystemStatus | null | undefined,
+  key: string
+): number {
+  const reward = status?.oauth_bind_rewards?.[key]
+  return typeof reward === 'number' && reward > 0 ? reward : 0
+}
+
+/**
  * Get available OAuth providers from system status
  */
 export function getAvailableOAuthProviders(

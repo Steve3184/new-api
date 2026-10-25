@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -370,33 +371,58 @@ func handleOAuthBind(c *gin.Context, providerName string, provider oauth.Provide
 		common.ApiErrorT(c, "This {{provider}} account has already been bound", providerParams(provider.GetName()))
 		return false, false
 	}
+	rewardKey := oauthBindRewardKey(provider)
+	rewardQuota := 0
 	_, err = model.ConsumeAuthFlowWithAction(state, match, func(tx *gorm.DB, _ *model.AuthFlow) error {
-		if providerName == "telegram" {
-			return model.BindTelegramForSessionWithTx(tx, identity, oauthUser.ProviderUserID)
+		var err error
+		switch custom, isCustom := provider.(*oauth.GenericOAuthProvider); {
+		case providerName == "telegram":
+			err = model.BindTelegramForSessionWithTx(tx, identity, oauthUser.ProviderUserID)
+		case isCustom:
+			err = model.UpdateUserOAuthBindingForSessionWithTx(tx, identity, custom.GetProviderId(), oauthUser.ProviderUserID)
+		default:
+			err = model.UpdateUserBindColumnForSessionWithTx(tx, identity, provider.ProviderUserIDColumn(), oauthUser.ProviderUserID)
+			if err == nil && provider.ProviderUserIDColumn() == "github_id" && oauthUser.RegisteredAt > 0 {
+				err = tx.Model(&model.User{}).Where("id = ?", identity.UserID).Update("github_created_at", oauthUser.RegisteredAt).Error
+			}
 		}
-		if custom, ok := provider.(*oauth.GenericOAuthProvider); ok {
-			return model.UpdateUserOAuthBindingForSessionWithTx(tx, identity, custom.GetProviderId(), oauthUser.ProviderUserID)
-		}
-		if err := model.UpdateUserBindColumnForSessionWithTx(tx, identity, provider.ProviderUserIDColumn(), oauthUser.ProviderUserID); err != nil {
+		if err != nil {
 			return err
 		}
-		if provider.ProviderUserIDColumn() == "github_id" && oauthUser.RegisteredAt > 0 {
-			return tx.Model(&model.User{}).Where("id = ?", identity.UserID).Update("github_created_at", oauthUser.RegisteredAt).Error
-		}
-		return nil
+		rewardQuota, err = model.ClaimOAuthBindRewardWithTx(tx, rewardKey, oauthUser.ProviderUserID, identity.UserID)
+		return err
 	})
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return false, false
 	}
+	model.FinishOAuthBindReward(identity.UserID, rewardQuota, provider.GetName())
 	user, err := model.GetUserById(identity.UserID, false)
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return true, true
 	}
 	notificationFailed := service.NotifyAccountSecurityChange(service.AccountMailLanguage(c, user.Id), user.Email, i18n.MsgSecurityEventLoginLinked, map[string]any{"Provider": provider.GetName()}) != nil
-	common.ApiSuccessT(c, "Binding successful", gin.H{"action": "bind", "notification_warning": notificationFailed})
+	common.ApiSuccessT(c, "Binding successful", gin.H{"action": "bind", "notification_warning": notificationFailed, "reward_quota": rewardQuota})
 	return true, notificationFailed
+}
+
+// oauthBindRewardKeys maps the user column of each built-in provider to the
+// key its binding reward is configured under.
+var oauthBindRewardKeys = map[string]string{
+	"github_id":   "github",
+	"discord_id":  "discord",
+	"oidc_id":     "oidc",
+	"linux_do_id": "linuxdo",
+	"telegram_id": "telegram",
+}
+
+// oauthBindRewardKey names the binding reward a provider's accounts claim.
+func oauthBindRewardKey(provider oauth.Provider) string {
+	if custom, ok := provider.(*oauth.GenericOAuthProvider); ok {
+		return operation_setting.OAuthBindRewardCustomKey(custom.GetProviderId())
+	}
+	return oauthBindRewardKeys[provider.ProviderUserIDColumn()]
 }
 
 // findOrCreateOAuthUser finds the existing user or creates a new one. For a
@@ -543,7 +569,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.InviterId = inviterId
 
-	// Use transaction to ensure user creation and OAuth binding are atomic
+	// Use transaction to ensure user creation, OAuth binding and the binding
+	// reward are atomic
+	rewardQuota := 0
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
 		// Custom provider: create user and binding in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -562,7 +590,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				return err
 			}
 
-			return nil
+			var err error
+			rewardQuota, err = model.ClaimOAuthBindRewardWithTx(tx, oauthBindRewardKey(provider), oauthUser.ProviderUserID, user.Id)
+			return err
 		})
 		if err != nil {
 			return nil, nil, err
@@ -570,6 +600,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 		// Perform post-transaction tasks (logs, sidebar config, inviter rewards)
 		user.FinalizeOAuthUserCreation(inviterId)
+		model.FinishOAuthBindReward(user.Id, rewardQuota, provider.GetName())
 	} else {
 		// Built-in provider: create user and update provider ID in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -595,7 +626,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				return err
 			}
 
-			return nil
+			var err error
+			rewardQuota, err = model.ClaimOAuthBindRewardWithTx(tx, oauthBindRewardKey(provider), oauthUser.ProviderUserID, user.Id)
+			return err
 		})
 		if err != nil {
 			return nil, nil, err
@@ -603,6 +636,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 		// Perform post-transaction tasks
 		user.FinalizeOAuthUserCreation(inviterId)
+		model.FinishOAuthBindReward(user.Id, rewardQuota, provider.GetName())
 	}
 
 	return user, nil, nil

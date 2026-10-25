@@ -32,6 +32,7 @@ const defaultAuthSettings: AuthSettings = {
   RegisterEnabled: true,
   EmailDomainRestrictionEnabled: false,
   EmailDomainRewardRestrictionEnabled: false,
+  'oauth_bind_reward.rewards': '{}',
   EmailAliasRestrictionEnabled: false,
   EmailDomainWhitelist: '',
   ServerAddress: '',

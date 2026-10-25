@@ -8325,6 +8325,12 @@
     "Per-model pricing": "モデル別料金",
     "Real-time balance": "リアルタイム残高",
     "Quota limits": "クォータ制限",
-    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "登録してキーを作成すれば、数分で最初のリクエストを送信。すべてのモデルが同じエンドポイントの先にあります。"
+    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "登録してキーを作成すれば、数分で最初のリクエストを送信。すべてのモデルが同じエンドポイントの先にあります。",
+    "+{{amount}} bonus": "特典 {{amount}}",
+    "Received {{amount}} for linking your account": "アカウント連携で {{amount}} を獲得しました",
+    "OAuth Binding Rewards": "OAuth 連携特典",
+    "One-time quota paid the first time an external account is linked, including sign-up with that provider. Each external account and each user can receive a provider reward only once. Leave empty or 0 to disable.": "外部アカウントを初めて連携したときに付与される一回限りのクォータです。そのプロバイダーでの新規登録も含みます。各外部アカウントと各ユーザーは、プロバイダーごとに一度だけ受け取れます。空欄または 0 で無効になります。",
+    "Binding reward ({{formattedQuota}})": "連携特典（{{formattedQuota}}）",
+    "OAuth binding bonus for {{provider}} {{quota}}": "{{provider}} 連携特典 {{quota}}"
   }
 }

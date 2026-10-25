@@ -27,7 +27,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axios from 'axios'
 import { createInstance, type i18n } from 'i18next'
-import { useState, type ComponentProps } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,6 +37,7 @@ import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { SettingsPageProvider } from '../../components/settings-page-context'
+import { OAuthBindRewardSection } from '../oauth-bind-reward-section'
 import { OAuthSection } from '../oauth-section'
 
 const defaults: ComponentProps<typeof OAuthSection>['defaultValues'] = {
@@ -336,5 +337,65 @@ describe('OAuth settings saves', () => {
         value: 'https://provider.example.com/discovery',
       })
     )
+  })
+})
+
+function RewardFixture(props: { defaultValue: string }) {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  const [titleStatus, setTitleStatus] = useState<HTMLSpanElement | null>(null)
+  // The settings page renders defaults first and the stored value once loaded.
+  const [defaultValue, setDefaultValue] = useState('{}')
+  useEffect(() => setDefaultValue(props.defaultValue), [props.defaultValue])
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+  )
+
+  return (
+    <I18nextProvider i18n={testI18n}>
+      <QueryClientProvider client={client}>
+        <div ref={setContainer} />
+        <span ref={setTitleStatus} />
+        <SettingsPageProvider
+          actionsContainer={container}
+          titleStatusContainer={titleStatus}
+        >
+          <OAuthBindRewardSection defaultValue={defaultValue} />
+        </SettingsPageProvider>
+      </QueryClientProvider>
+    </I18nextProvider>
+  )
+}
+
+describe('OAuth binding reward settings', () => {
+  it('saves positive rewards for built-in and custom providers as one JSON map', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: [{ id: 4, name: 'Gitea', slug: 'gitea' }] },
+    })
+    const user = userEvent.setup()
+    const route = createRootRoute({
+      component: () => <RewardFixture defaultValue='{"github":500000}' />,
+    })
+    const router = createRouter({
+      routeTree: route,
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+    })
+    await router.load()
+    render(<RouterProvider router={router} />)
+
+    const github = await screen.findByLabelText('GitHub')
+    await waitFor(() => expect(github).toHaveValue(500000))
+    await user.clear(github)
+    await user.type(screen.getByLabelText('LinuxDO'), '1000')
+    await user.type(await screen.findByLabelText('Gitea'), '250')
+    expect(screen.getByText('Unsaved changes')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/api/option/', {
+        key: 'oauth_bind_reward.rewards',
+        value: '{"linuxdo":1000,"custom:4":250}',
+      })
+    )
+    expect(api.put).toHaveBeenCalledTimes(1)
   })
 })

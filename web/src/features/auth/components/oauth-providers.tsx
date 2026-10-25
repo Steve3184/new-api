@@ -26,10 +26,13 @@ import {
   IconTelegram,
   IconWeChat,
 } from '@/assets/brand-icons'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { useOAuthLogin } from '../hooks/use-oauth-login'
+import { getCustomOAuthBindRewardKey, getOAuthBindReward } from '../lib/oauth'
 import type { SystemStatus } from '../types'
 import { BannedUserDialog } from './banned-user-dialog'
 import { TelegramLoginDialog } from './telegram-login-dialog'
@@ -41,10 +44,13 @@ type OAuthProvidersProps = {
   onWeChatLogin?: () => void
   isWeChatLoading?: boolean
   redirectTo?: string
+  /** Show the one-time reward for linking each provider, used on sign-up */
+  showBindRewards?: boolean
 }
 
 type ProviderButton = {
   key: string
+  rewardKey: string
   label: string
   onClick: () => void
   icon?: ReactNode
@@ -58,6 +64,7 @@ export function OAuthProviders({
   onWeChatLogin,
   isWeChatLoading = false,
   redirectTo,
+  showBindRewards = false,
 }: OAuthProvidersProps) {
   const { t } = useTranslation()
   const {
@@ -83,6 +90,7 @@ export function OAuthProviders({
   if (status?.wechat_login && onWeChatLogin) {
     providerButtons.push({
       key: 'wechat',
+      rewardKey: 'wechat',
       label: t('Continue with WeChat'),
       onClick: onWeChatLogin,
       icon: <IconWeChat className='h-4 w-4' />,
@@ -93,6 +101,7 @@ export function OAuthProviders({
   if (status?.github_oauth) {
     providerButtons.push({
       key: 'github',
+      rewardKey: 'github',
       label: githubButtonText || t('Continue with GitHub'),
       onClick: handleGitHubLogin,
       icon: <IconGithub className='h-4 w-4' />,
@@ -103,6 +112,7 @@ export function OAuthProviders({
   if (status?.discord_oauth) {
     providerButtons.push({
       key: 'discord',
+      rewardKey: 'discord',
       label: t('Continue with Discord'),
       onClick: handleDiscordLogin,
       icon: <IconDiscord className='h-4 w-4' />,
@@ -113,6 +123,7 @@ export function OAuthProviders({
     const oidcDisplayName = status.oidc_display_name?.trim() || 'OIDC'
     providerButtons.push({
       key: 'oidc',
+      rewardKey: 'oidc',
       label: t('Continue with {{name}}', {
         name: oidcDisplayName,
       }),
@@ -123,6 +134,7 @@ export function OAuthProviders({
   if (status?.linuxdo_oauth) {
     providerButtons.push({
       key: 'linuxdo',
+      rewardKey: 'linuxdo',
       label: t('Continue with LinuxDO'),
       onClick: handleLinuxDOLogin,
       icon: <IconLinuxDo className='h-4 w-4' />,
@@ -132,6 +144,7 @@ export function OAuthProviders({
   if (status?.telegram_oauth) {
     providerButtons.push({
       key: 'telegram',
+      rewardKey: 'telegram',
       label: t('Continue with Telegram'),
       onClick: handleTelegramLogin,
       icon: <IconTelegram data-icon='inline-start' />,
@@ -144,6 +157,7 @@ export function OAuthProviders({
     for (const provider of customProviders) {
       providerButtons.push({
         key: `custom-${provider.slug}`,
+        rewardKey: getCustomOAuthBindRewardKey(provider.id),
         label: t('Continue with {{name}}', { name: provider.name }),
         onClick: () => handleCustomOAuthLogin(provider),
       })
@@ -167,21 +181,29 @@ export function OAuthProviders({
         </div>
 
         <div className='flex flex-col gap-2'>
-          {providerButtons.map(
-            ({ key, label, onClick, icon, disabled: extraDisabled }) => (
+          {providerButtons.map((button) => {
+            const reward = showBindRewards
+              ? getOAuthBindReward(status, button.rewardKey)
+              : 0
+            return (
               <Button
-                key={key}
+                key={button.key}
                 variant='outline'
                 type='button'
-                disabled={disabled || isLoading || extraDisabled}
-                onClick={onClick}
+                disabled={disabled || isLoading || button.disabled}
+                onClick={button.onClick}
                 className='h-11 w-full justify-center gap-2 rounded-lg'
               >
-                {icon}
-                {label}
+                {button.icon}
+                {button.label}
+                {reward > 0 && (
+                  <Badge variant='secondary'>
+                    {t('+{{amount}} bonus', { amount: formatQuota(reward) })}
+                  </Badge>
+                )}
               </Button>
             )
-          )}
+          })}
         </div>
       </div>
 

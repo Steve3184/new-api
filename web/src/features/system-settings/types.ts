@@ -246,6 +246,7 @@ export type AuthSettings = {
   RegisterEnabled: boolean
   EmailDomainRestrictionEnabled: boolean
   EmailDomainRewardRestrictionEnabled: boolean
+  'oauth_bind_reward.rewards': string
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
   ServerAddress: string

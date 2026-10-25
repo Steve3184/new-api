@@ -8325,6 +8325,12 @@
     "Per-model pricing": "Цены по моделям",
     "Real-time balance": "Баланс в реальном времени",
     "Quota limits": "Лимиты квоты",
-    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "Зарегистрируйтесь, создайте ключ и отправьте первый запрос за несколько минут — все модели за одной точкой доступа."
+    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "Зарегистрируйтесь, создайте ключ и отправьте первый запрос за несколько минут — все модели за одной точкой доступа.",
+    "+{{amount}} bonus": "+{{amount}} бонус",
+    "Received {{amount}} for linking your account": "Получено {{amount}} за привязку аккаунта",
+    "OAuth Binding Rewards": "Награды за привязку OAuth",
+    "One-time quota paid the first time an external account is linked, including sign-up with that provider. Each external account and each user can receive a provider reward only once. Leave empty or 0 to disable.": "Разовая квота, начисляемая при первой привязке внешнего аккаунта, включая регистрацию через этого провайдера. Каждый внешний аккаунт и каждый пользователь могут получить награду провайдера только один раз. Оставьте пустым или 0, чтобы отключить.",
+    "Binding reward ({{formattedQuota}})": "Награда за привязку ({{formattedQuota}})",
+    "OAuth binding bonus for {{provider}} {{quota}}": "Бонус за привязку {{provider}} {{quota}}"
   }
 }

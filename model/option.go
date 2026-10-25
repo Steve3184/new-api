@@ -346,6 +346,9 @@ func validateOptionValue(key string, value string) error {
 	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
 		return err
 	}
+	if key == operation_setting.OAuthBindRewardsOptionKey {
+		return operation_setting.ValidateOAuthBindRewards(value)
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}

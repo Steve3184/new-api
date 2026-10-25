@@ -221,6 +221,8 @@ export interface SystemStatus {
   password_login_encryption_enabled?: boolean
   password_register_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
+  /** One-time quota paid for the first link of each provider, keyed by provider or `custom:<id>` */
+  oauth_bind_rewards?: Record<string, number>
   notice_popup_enabled?: boolean
   notice_popup_mode?: 'home' | 'dashboard' | 'both'
   notice_popup_on_dashboard?: boolean

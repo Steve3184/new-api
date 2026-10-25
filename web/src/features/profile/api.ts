@@ -31,6 +31,7 @@ import type {
   CheckinResponse,
   AccountSecurityResult,
   EmailBindingFlow,
+  OAuthBindingResult,
 } from './types'
 
 // ============================================================================
@@ -199,7 +200,7 @@ export function bindWeChat(
   code: string,
   proofToken: string,
   signal: AbortSignal
-): Promise<AccountSecurityResult> {
+): Promise<OAuthBindingResult> {
   return authResult(
     api.post(
       '/api/oauth/wechat/bind',

@@ -8325,6 +8325,12 @@
     "Per-model pricing": "Giá theo mô hình",
     "Real-time balance": "Số dư thời gian thực",
     "Quota limits": "Giới hạn hạn mức",
-    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "Đăng ký, tạo khóa và gửi yêu cầu đầu tiên chỉ trong vài phút, với mọi mô hình sau cùng một điểm cuối."
+    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "Đăng ký, tạo khóa và gửi yêu cầu đầu tiên chỉ trong vài phút, với mọi mô hình sau cùng một điểm cuối.",
+    "+{{amount}} bonus": "Thưởng +{{amount}}",
+    "Received {{amount}} for linking your account": "Đã nhận {{amount}} khi liên kết tài khoản",
+    "OAuth Binding Rewards": "Phần thưởng liên kết OAuth",
+    "One-time quota paid the first time an external account is linked, including sign-up with that provider. Each external account and each user can receive a provider reward only once. Leave empty or 0 to disable.": "Hạn mức một lần được cấp khi liên kết tài khoản bên ngoài lần đầu, bao gồm cả đăng ký bằng nhà cung cấp đó. Mỗi tài khoản bên ngoài và mỗi người dùng chỉ nhận phần thưởng của một nhà cung cấp một lần. Để trống hoặc 0 để tắt.",
+    "Binding reward ({{formattedQuota}})": "Phần thưởng liên kết ({{formattedQuota}})",
+    "OAuth binding bonus for {{provider}} {{quota}}": "Thưởng liên kết {{provider}} {{quota}}"
   }
 }

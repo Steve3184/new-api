@@ -87,6 +87,8 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** Provider keys whose one-time binding reward this account already claimed */
+  oauth_bind_rewards_claimed?: string[]
 }
 
 /**
@@ -145,6 +147,11 @@ export interface UpdateUserRequest {
 
 export interface AccountSecurityResult {
   notification_warning?: boolean
+}
+
+export interface OAuthBindingResult extends AccountSecurityResult {
+  /** Quota paid for the first link of this provider, 0 when none */
+  reward_quota?: number
 }
 
 export interface EmailBindingFlow extends AccountSecurityResult {

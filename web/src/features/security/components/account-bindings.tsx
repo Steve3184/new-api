@@ -29,8 +29,13 @@ import {
 } from '@/assets/brand-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { createOAuthAuthorization } from '@/features/auth/api'
+import {
+  getCustomOAuthBindRewardKey,
+  getOAuthBindReward,
+} from '@/features/auth/lib/oauth'
 import {
   openOAuthPopup,
   type OAuthPopupExchange,
@@ -42,10 +47,12 @@ import type {
   UserProfile,
   BindingItem,
   AccountSecurityResult,
+  OAuthBindingResult,
 } from '@/features/profile/types'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
 import { api } from '@/lib/api'
+import { formatQuota } from '@/lib/format'
 import {
   buildOAuthAuthorizationUrl,
   indexCustomOAuthBindings,
@@ -186,7 +193,7 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
           prepare: async () => ({ state: prepared.state, url: prepared.url }),
         })
         const callback = exchange.callback
-        const outcome = await authResult<AccountSecurityResult>(
+        const outcome = await authResult<OAuthBindingResult>(
           api.get(`/api/oauth/${prepared.provider}`, {
             ...authRequestOptions,
             singleUseAuthorization: true,
@@ -213,6 +220,13 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
     })
     if (result) {
       toast.success(t('Binding successful!'))
+      if (result.reward_quota && result.reward_quota > 0) {
+        toast.success(
+          t('Received {{amount}} for linking your account', {
+            amount: formatQuota(result.reward_quota),
+          })
+        )
+      }
       onUpdate()
       await fetchCustomBindings()
     }
@@ -229,6 +243,15 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
   }, [security.sessionKey, closeDialogs])
 
   if (!profile || !status || loading) return null
+
+  const claimedRewards = profile.oauth_bind_rewards_claimed ?? []
+  const getRewardBadge = (rewardKey: string, isBound: boolean) => {
+    const reward = getOAuthBindReward(status, rewardKey)
+    if (isBound || reward === 0 || claimedRewards.includes(rewardKey)) {
+      return undefined
+    }
+    return t('+{{amount}} bonus', { amount: formatQuota(reward) })
+  }
 
   const bindings: BindingItem[] = [
     {
@@ -330,6 +353,7 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
           } else if (binding.isBound) {
             actionLabel = t('Bound')
           }
+          const rewardBadge = getRewardBadge(binding.id, binding.isBound)
 
           return (
             <li
@@ -354,6 +378,11 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
                         variant='success'
                         copyable={false}
                       />
+                    )}
+                    {rewardBadge && (
+                      <Badge variant='secondary' className='shrink-0'>
+                        {rewardBadge}
+                      </Badge>
                     )}
                   </div>
                   <p className='text-muted-foreground truncate text-xs'>
@@ -383,6 +412,10 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
         {customProviders?.map((provider) => {
           const binding = customBindingsByProviderId.get(provider.id)
           const isBound = !!binding
+          const rewardBadge = getRewardBadge(
+            getCustomOAuthBindRewardKey(provider.id),
+            isBound
+          )
           return (
             <li
               key={provider.id}
@@ -406,6 +439,11 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
                         variant='success'
                         copyable={false}
                       />
+                    )}
+                    {rewardBadge && (
+                      <Badge variant='secondary' className='shrink-0'>
+                        {rewardBadge}
+                      </Badge>
                     )}
                   </div>
                   <p className='text-muted-foreground truncate text-xs'>

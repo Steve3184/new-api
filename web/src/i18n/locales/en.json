@@ -8325,6 +8325,12 @@
     "Per-model pricing": "Per-model pricing",
     "Real-time balance": "Real-time balance",
     "Quota limits": "Quota limits",
-    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint."
+    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.",
+    "+{{amount}} bonus": "+{{amount}} bonus",
+    "Received {{amount}} for linking your account": "Received {{amount}} for linking your account",
+    "OAuth Binding Rewards": "OAuth Binding Rewards",
+    "One-time quota paid the first time an external account is linked, including sign-up with that provider. Each external account and each user can receive a provider reward only once. Leave empty or 0 to disable.": "One-time quota paid the first time an external account is linked, including sign-up with that provider. Each external account and each user can receive a provider reward only once. Leave empty or 0 to disable.",
+    "Binding reward ({{formattedQuota}})": "Binding reward ({{formattedQuota}})",
+    "OAuth binding bonus for {{provider}} {{quota}}": "OAuth binding bonus for {{provider}} {{quota}}"
   }
 }

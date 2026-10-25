@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { SecureVerificationDialog } from '@/features/auth/secure-verification'
 import { bindWeChat } from '@/features/profile/api'
+import { formatQuota } from '@/lib/format'
 
 import { useAccountSecurity } from '../../hooks/use-account-security'
 
@@ -94,6 +95,13 @@ export function WeChatBindDialog(props: WeChatBindDialogProps) {
     })
     if (!result) return
     toast.success(t('Binding successful!'))
+    if (result.reward_quota && result.reward_quota > 0) {
+      toast.success(
+        t('Received {{amount}} for linking your account', {
+          amount: formatQuota(result.reward_quota),
+        })
+      )
+    }
     handleOpenChange(false)
     props.onSuccess()
   }

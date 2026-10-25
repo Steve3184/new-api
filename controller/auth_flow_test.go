@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gin-gonic/gin"
@@ -1266,4 +1267,56 @@ func TestOAuthBindIgnoresLegacyGitHubUsernames(t *testing.T) {
 			assert.Equal(t, "This GitHub account has already been bound", result.Message)
 		})
 	}
+}
+
+func TestOAuthBindPaysRewardOnlyForFirstLink(t *testing.T) {
+	user, identity := setupSecurityEnrollmentTest(t)
+	require.NoError(t, model.LOG_DB.AutoMigrate(&model.Log{}))
+	rewardConfig := config.GlobalConfig.Get("oauth_bind_reward")
+	require.NoError(t, config.UpdateConfigFromMap(rewardConfig, map[string]string{"rewards": `{"github":500}`}))
+	t.Cleanup(func() {
+		require.NoError(t, config.UpdateConfigFromMap(rewardConfig, map[string]string{"rewards": "{}"}))
+	})
+	const slug = "github-bind-reward-test"
+	oauth.Register(slug, &legacyGitHubOAuthProvider{providerUserID: "700001"})
+	t.Cleanup(func() { oauth.Unregister(slug) })
+
+	bind := func() int {
+		proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccountBind, Context: []byte(`{"provider":"` + slug + `"}`)}, service.VerificationMethodPassword)
+		started := securityEnrollmentRequest(http.MethodPost, "/api/oauth/state", `{"provider":"`+slug+`","intent":"bind"}`, proof, identity, GenerateOAuthCode)
+		var flow struct {
+			Data struct {
+				FlowToken string `json:"flow_token"`
+			} `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(started.Body.Bytes(), &flow))
+		require.NotEmpty(t, flow.Data.FlowToken, started.Body.String())
+		response := securityEnrollmentRequest(http.MethodGet, "/api/oauth/"+slug+"?state="+flow.Data.FlowToken+"&code=provider-code", "", "", identity, func(c *gin.Context) {
+			c.Params = gin.Params{{Key: "provider", Value: slug}}
+			HandleOAuth(c)
+		})
+		var result struct {
+			Success bool `json:"success"`
+			Data    struct {
+				RewardQuota int `json:"reward_quota"`
+			} `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+		require.True(t, result.Success, response.Body.String())
+		return result.Data.RewardQuota
+	}
+
+	before := user.Quota
+	assert.Equal(t, 500, bind())
+	// An administrator clears the binding and the same account is linked again.
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("github_id", "").Error)
+	assert.Equal(t, 0, bind())
+
+	var bound model.User
+	require.NoError(t, model.DB.First(&bound, user.Id).Error)
+	assert.Equal(t, "700001", bound.GitHubId)
+	assert.Equal(t, before+500, bound.Quota)
+	var logs int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("user_id = ? AND type = ?", user.Id, model.LogTypeSystem).Count(&logs).Error)
+	assert.EqualValues(t, 1, logs)
 }

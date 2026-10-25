@@ -502,6 +502,12 @@ func GetSelf(c *gin.Context) {
 	permissions := calculateUserPermissions(userRole)
 	permissions["admin_permissions"] = authz.Capabilities(id, userRole)
 	responseData["permissions"] = permissions
+	claimedBindRewards, err := model.GetClaimedOAuthBindRewards(id)
+	if err != nil {
+		common.SysError(common.LogText("failed to load claimed OAuth binding rewards for user %d: %s", id, err.Error()))
+		claimedBindRewards = []string{}
+	}
+	responseData["oauth_bind_rewards_claimed"] = claimedBindRewards
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

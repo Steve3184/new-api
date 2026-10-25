@@ -166,8 +166,10 @@ func MigrateLegacyGitHubBindingWithTx(tx *gorm.DB, userID int, legacyID, gitHubI
 		return false, ErrExternalIdentityAlreadyClaimed
 	}
 	result := tx.Model(&User{}).Where("id = ? AND github_id = ?", userID, legacyID).Update("github_id", gitHubID)
-	if result.Error != nil {
+	if result.Error != nil || result.RowsAffected != 1 {
 		return false, result.Error
 	}
-	return result.RowsAffected == 1, nil
+	// The rewrite is not a new link, so the numeric ID is only marked as
+	// claimed and can never earn a binding reward on another account.
+	return true, RecordOAuthBindClaimWithTx(tx, "github", gitHubID, userID)
 }

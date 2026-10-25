@@ -138,6 +138,7 @@ func TelegramBind(c *gin.Context) {
 		telegramBindFailure(c, telegramBindErrorInvalidRequest)
 		return
 	}
+	rewardQuota := 0
 	_, err = model.ConsumeAuthFlowWithAction(c.Param("flow_token"), model.AuthFlowMatch{
 		Purpose:   model.AuthFlowPurposeTelegramBind,
 		UserId:    pendingFlow.UserId,
@@ -197,7 +198,9 @@ func TelegramBind(c *gin.Context) {
 		if result.RowsAffected != 1 {
 			return errTelegramAccountAlreadyBound
 		}
-		return nil
+		var claimErr error
+		rewardQuota, claimErr = model.ClaimOAuthBindRewardWithTx(tx, "telegram", telegramId, user.Id)
+		return claimErr
 	})
 	if err != nil {
 		switch {
@@ -220,6 +223,7 @@ func TelegramBind(c *gin.Context) {
 		return
 	}
 
+	model.FinishOAuthBindReward(pendingFlow.UserId, rewardQuota, "Telegram")
 	callback := "/oauth/telegram?telegram_bind=success&flow_token=" + url.QueryEscape(c.Param("flow_token"))
 	c.Redirect(http.StatusFound, callback)
 }

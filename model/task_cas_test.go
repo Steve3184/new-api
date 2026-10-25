@@ -64,6 +64,7 @@ func TestMain(m *testing.M) {
 		&SupportMessage{},
 		&UserAccessToken{},
 		&RegistrationEmail{},
+		&OAuthBindReward{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -86,6 +87,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM user_oauth_bindings")
 		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM registration_emails")
+		DB.Exec("DELETE FROM oauth_bind_rewards")
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM channels")
 		DB.Exec("DELETE FROM quota_data")

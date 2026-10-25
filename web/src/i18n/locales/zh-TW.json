@@ -8325,6 +8325,12 @@
     "Per-model pricing": "依模型定價",
     "Real-time balance": "即時餘額",
     "Quota limits": "額度限制",
-    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "註冊、建立金鑰，幾分鐘內即可送出第一個請求，所有模型都在同一個端點之後。"
+    "Sign up, create a key, and make your first request in minutes, with every model behind the same endpoint.": "註冊、建立金鑰，幾分鐘內即可送出第一個請求，所有模型都在同一個端點之後。",
+    "+{{amount}} bonus": "獎勵 {{amount}}",
+    "Received {{amount}} for linking your account": "綁定帳號獲得 {{amount}}",
+    "OAuth Binding Rewards": "OAuth 綁定獎勵",
+    "One-time quota paid the first time an external account is linked, including sign-up with that provider. Each external account and each user can receive a provider reward only once. Leave empty or 0 to disable.": "首次綁定外部帳號時發放的一次性額度，使用該方式直接註冊也計入。每個外部帳號和每個使用者在同一提供者下只能領取一次。留空或填 0 表示不發放。",
+    "Binding reward ({{formattedQuota}})": "綁定獎勵（{{formattedQuota}}）",
+    "OAuth binding bonus for {{provider}} {{quota}}": "綁定 {{provider}} 獎勵 {{quota}}"
   }
 }

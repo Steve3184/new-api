@@ -169,6 +169,9 @@ func GetStatus(c *gin.Context) {
 		data["faq"] = console_setting.GetFAQ()
 	}
 
+	// The frontend shows each reward next to the matching enabled provider.
+	data["oauth_bind_rewards"] = operation_setting.GetOAuthBindRewards()
+
 	// Add enabled custom OAuth providers
 	customProviders := oauth.GetEnabledCustomProviders()
 	if len(customProviders) > 0 {

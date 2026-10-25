@@ -82,6 +82,8 @@ export {
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
   getAvailableOAuthProviders,
+  getCustomOAuthBindRewardKey,
+  getOAuthBindReward,
   hasOAuthProviders,
 } from './lib/oauth'
 

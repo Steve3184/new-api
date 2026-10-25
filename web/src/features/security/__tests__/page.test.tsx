@@ -61,6 +61,8 @@ const profile: UserProfile = {
   }),
 }
 
+let profileOverrides: Partial<UserProfile> = {}
+
 beforeEach(() => {
   vi.stubGlobal('localStorage', {
     getItem: () => null,
@@ -84,7 +86,9 @@ beforeEach(() => {
       }
     }
     if (url === '/api/user/self') {
-      return { data: { success: true, data: profile } }
+      return {
+        data: { success: true, data: { ...profile, ...profileOverrides } },
+      }
     }
     if (url === '/api/user/passkey') {
       return { data: { success: true, data: { enabled: false } } }
@@ -105,13 +109,17 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  profileOverrides = {}
   cleanup()
   vi.unstubAllGlobals()
   useAuthStore.getState().auth.reset()
   vi.restoreAllMocks()
 })
 
-async function renderPage(path = '/security') {
+async function renderPage(
+  path = '/security',
+  statusOverrides: Record<string, unknown> = {}
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -130,6 +138,7 @@ async function renderPage(path = '/security') {
         scopes: 'openid',
       },
     ],
+    ...statusOverrides,
   })
   const root = createRootRoute()
   const security = createRoute({
@@ -220,6 +229,46 @@ describe('security page migration', () => {
       'gap-2'
     )
     expect(screen.queryByText('Custom OAuth')).not.toBeInTheDocument()
+  })
+
+  it('unbound providers with an unclaimed binding reward show the reward badge', async () => {
+    profileOverrides = { github_id: '', oauth_bind_rewards_claimed: ['wechat'] }
+    await renderPage('/security', {
+      oauth_bind_rewards: {
+        github: 500000,
+        wechat: 500000,
+        'custom:1': 250000,
+      },
+    })
+    const bindings = await screen.findByRole('list', {
+      name: 'Account Bindings',
+    })
+    const itemFor = (label: string) =>
+      within(bindings)
+        .getByText(label, { selector: 'p' })
+        .closest('li') as HTMLElement
+
+    expect(within(itemFor('GitHub')).getByText(/bonus$/)).toBeVisible()
+    expect(within(itemFor('Gitea')).getByText(/bonus$/)).toBeVisible()
+    expect(
+      within(itemFor('WeChat')).queryByText(/bonus$/)
+    ).not.toBeInTheDocument()
+    expect(
+      within(itemFor('OIDC')).queryByText(/bonus$/)
+    ).not.toBeInTheDocument()
+  })
+
+  it('bound providers do not show the binding reward badge', async () => {
+    profileOverrides = { github_id: '12345' }
+    await renderPage('/security', { oauth_bind_rewards: { github: 500000 } })
+    const bindings = await screen.findByRole('list', {
+      name: 'Account Bindings',
+    })
+    const github = within(bindings)
+      .getByText('GitHub', { selector: 'p' })
+      .closest('li') as HTMLElement
+    expect(within(github).getByText('12345')).toBeVisible()
+    expect(within(github).queryByText(/bonus$/)).not.toBeInTheDocument()
   })
 
   it('the password action opens the existing dialog by keyboard and Escape closes it', async () => {

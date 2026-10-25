@@ -88,10 +88,20 @@ func WeChatAuth(c *gin.Context) {
 			user.Status = common.UserStatusEnabled
 			user.RegisterIp = c.ClientIP()
 
-			if err := user.Insert(0); err != nil {
+			rewardQuota := 0
+			if err := model.DB.Transaction(func(tx *gorm.DB) error {
+				if err := user.InsertWithTx(tx, 0); err != nil {
+					return err
+				}
+				var err error
+				rewardQuota, err = model.ClaimOAuthBindRewardWithTx(tx, "wechat", wechatId, user.Id)
+				return err
+			}); err != nil {
 				common.ApiError(c, err)
 				return
 			}
+			user.FinalizeOAuthUserCreation(0)
+			model.FinishOAuthBindReward(user.Id, rewardQuota, "WeChat")
 		} else {
 			common.ApiErrorT(c, "New user registration has been disabled by administrator")
 			return
@@ -147,13 +157,20 @@ func WeChatBind(c *gin.Context) {
 		return
 	}
 	// 只更新绑定列，避免完整用户快照覆盖并发的封禁、降权或分组变更。
+	rewardQuota := 0
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
-		return model.UpdateUserBindColumnForSessionWithTx(tx, identity, "wechat_id", wechatId)
+		if err := model.UpdateUserBindColumnForSessionWithTx(tx, identity, "wechat_id", wechatId); err != nil {
+			return err
+		}
+		var err error
+		rewardQuota, err = model.ClaimOAuthBindRewardWithTx(tx, "wechat", wechatId, identity.UserID)
+		return err
 	}); err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 	succeeded = true
+	model.FinishOAuthBindReward(identity.UserID, rewardQuota, "WeChat")
 	user, err := model.GetUserById(identity.UserID, false)
 	if err != nil {
 		writeSecurityOperationError(c, err)
@@ -163,7 +180,7 @@ func WeChatBind(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    gin.H{"notification_warning": notificationFailed},
+		"data":    gin.H{"notification_warning": notificationFailed, "reward_quota": rewardQuota},
 	})
 	return
 }
