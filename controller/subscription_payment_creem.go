@@ -15,7 +15,8 @@ import (
 )
 
 type SubscriptionCreemPayRequest struct {
-	PlanId int `json:"plan_id"`
+	Multiplier int `json:"multiplier"`
+	PlanId     int `json:"plan_id"`
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -39,7 +40,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		return
 	}
 
-	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	plan, err := model.GetSubscriptionPlanTier(req.PlanId, req.Multiplier)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -81,6 +82,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
+		Multiplier:      plan.UsageMultiplier,
 		Money:           product.Price,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,

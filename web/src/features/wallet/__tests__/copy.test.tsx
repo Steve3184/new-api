@@ -28,7 +28,7 @@ import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { RechargeFormCard } from '../components/recharge-form-card'
-import { SubscriptionPlansCard } from '../components/subscription-plans-card'
+import { SubscriptionSection } from '../components/subscription-section'
 
 const i18n = createInstance()
 
@@ -71,7 +71,7 @@ it.each(['subscription_only', 'subscription_first'])(
     render(
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={new QueryClient()}>
-          <SubscriptionPlansCard topupInfo={null} />
+          <SubscriptionSection topupInfo={null} />
         </QueryClientProvider>
       </I18nextProvider>
     )

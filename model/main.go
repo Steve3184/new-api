@@ -663,6 +663,10 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`monthly_limit`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
 ` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
+` + "`usage_tiers`" + ` text,
+` + "`allow_tier_switch`" + ` numeric,
+` + "`upgrade_plan_ids`" + ` text,
+` + "`allow_auto_renew`" + ` numeric,
 ` + "`created_at`" + ` bigint,
 ` + "`updated_at`" + ` bigint,
 PRIMARY KEY (` + "`id`" + `)
@@ -708,6 +712,10 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "monthly_limit", DDL: "`monthly_limit` bigint NOT NULL DEFAULT 0"},
 		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
+		{Name: "usage_tiers", DDL: "`usage_tiers` text"},
+		{Name: "allow_tier_switch", DDL: "`allow_tier_switch` numeric"},
+		{Name: "upgrade_plan_ids", DDL: "`upgrade_plan_ids` text"},
+		{Name: "allow_auto_renew", DDL: "`allow_auto_renew` numeric"},
 		{Name: "created_at", DDL: "`created_at` bigint"},
 		{Name: "updated_at", DDL: "`updated_at` bigint"},
 	}

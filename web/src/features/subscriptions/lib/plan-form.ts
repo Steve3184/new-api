@@ -22,6 +22,7 @@ import { z } from 'zod'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 
 import type { SubscriptionPlan, PlanPayload } from '../types'
+import { MAX_USAGE_MULTIPLIER, parseUsageTiers } from './usage-tiers'
 
 export function getPlanFormSchema(t: TFunction) {
   return z.object({
@@ -64,6 +65,31 @@ export function getPlanFormSchema(t: TFunction) {
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
+    usage_tiers: z
+      .array(
+        z.object({
+          multiplier: z.coerce
+            .number()
+            .int()
+            .min(2, t('Usage multiplier must be between 2 and 100'))
+            .max(
+              MAX_USAGE_MULTIPLIER,
+              t('Usage multiplier must be between 2 and 100')
+            ),
+          price_amount: z.coerce.number().min(0).max(9999),
+          stripe_price_id: z.string().optional(),
+          creem_product_id: z.string().optional(),
+          waffo_pancake_product_id: z.string().optional(),
+        })
+      )
+      .refine(
+        (tiers) =>
+          new Set(tiers.map((tier) => tier.multiplier)).size === tiers.length,
+        t('Usage multipliers must be unique')
+      ),
+    allow_tier_switch: z.boolean(),
+    upgrade_plan_ids: z.array(z.string()),
+    allow_auto_renew: z.boolean(),
   })
 }
 
@@ -98,6 +124,10 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
+  usage_tiers: [],
+  allow_tier_switch: false,
+  upgrade_plan_ids: [],
+  allow_auto_renew: false,
 }
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
@@ -151,6 +181,19 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
+    usage_tiers: parseUsageTiers(plan.usage_tiers).map((tier) => ({
+      multiplier: tier.multiplier,
+      price_amount: Number(tier.price_amount || 0),
+      stripe_price_id: tier.stripe_price_id || '',
+      creem_product_id: tier.creem_product_id || '',
+      waffo_pancake_product_id: tier.waffo_pancake_product_id || '',
+    })),
+    allow_tier_switch: plan.allow_tier_switch === true,
+    upgrade_plan_ids: (plan.upgrade_plan_ids || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean),
+    allow_auto_renew: plan.allow_auto_renew === true,
   }
 }
 
@@ -189,6 +232,21 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
         : parseQuotaFromDollars(Number(values.monthly_limit || 0)),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
+      usage_tiers: JSON.stringify(
+        [...values.usage_tiers]
+          .sort((a, b) => a.multiplier - b.multiplier)
+          .map((tier) => ({
+            multiplier: Number(tier.multiplier),
+            price_amount: Number(tier.price_amount || 0),
+            stripe_price_id: tier.stripe_price_id?.trim() || undefined,
+            creem_product_id: tier.creem_product_id?.trim() || undefined,
+            waffo_pancake_product_id:
+              tier.waffo_pancake_product_id?.trim() || undefined,
+          }))
+      ),
+      allow_tier_switch: values.allow_tier_switch,
+      upgrade_plan_ids: values.upgrade_plan_ids.join(','),
+      allow_auto_renew: values.allow_balance_pay && values.allow_auto_renew,
     },
   }
 }

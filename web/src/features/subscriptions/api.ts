@@ -31,6 +31,9 @@ import type {
   SubscriptionPayResponse,
   SubscriptionPayRequest,
   SelfSubscriptionData,
+  SubscriptionRenewalRequest,
+  SubscriptionUpgradeQuote,
+  SubscriptionUpgradeRequest,
 } from './types'
 
 // ============================================================================
@@ -142,6 +145,7 @@ export async function resetPlanSubscriptions(
 
 export async function quoteSubscriptionPayment(data: {
   plan_id: number
+  multiplier: number
   payment_method: string
   epay_gateway?: string
 }): Promise<ApiResponse<{ amount: number; currency: string }>> {
@@ -179,6 +183,7 @@ export async function paySubscriptionBalance(
 
 export async function paySubscriptionNowPayments(data: {
   plan_id: number
+  multiplier: number
   pay_currency: string
 }): Promise<ApiResponse<NowPaymentsInvoice>> {
   const res = await api.post('/api/subscription/nowpayments/pay', data)
@@ -261,5 +266,34 @@ export async function updateBillingPreference(
 
 export async function getGroups(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/group')
+  return res.data
+}
+
+// ============================================================================
+// User-facing Renewal & Upgrade
+// ============================================================================
+
+export async function updateSubscriptionRenewal(
+  subscriptionId: number,
+  data: SubscriptionRenewalRequest
+): Promise<ApiResponse> {
+  const res = await api.put(
+    `/api/subscription/self/${subscriptionId}/renewal`,
+    data
+  )
+  return res.data
+}
+
+export async function quoteSubscriptionUpgrade(
+  data: SubscriptionUpgradeRequest
+): Promise<ApiResponse<SubscriptionUpgradeQuote>> {
+  const res = await api.post('/api/subscription/upgrade/quote', data)
+  return res.data
+}
+
+export async function upgradeSubscription(
+  data: SubscriptionUpgradeRequest
+): Promise<ApiResponse<SubscriptionUpgradeQuote>> {
+  const res = await api.post('/api/subscription/upgrade', data)
   return res.data
 }

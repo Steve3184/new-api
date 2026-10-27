@@ -54,6 +54,10 @@ export const subscriptionPlanSchema = z.object({
   stripe_price_id: z.string().optional(),
   creem_product_id: z.string().optional(),
   waffo_pancake_product_id: z.string().optional(),
+  usage_tiers: z.string().optional().default('[]'),
+  allow_tier_switch: z.boolean().optional().default(false),
+  upgrade_plan_ids: z.string().optional().default(''),
+  allow_auto_renew: z.boolean().optional().default(false),
 })
 
 export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>
@@ -86,6 +90,10 @@ export const userSubscriptionSchema = z.object({
   monthly_limit: z.number().optional(),
   monthly_used: z.number().optional(),
   monthly_next_reset_time: z.number().optional(),
+  multiplier: z.number().optional(),
+  price_amount: z.number().nullable().optional(),
+  auto_renew: z.boolean().optional(),
+  renew_multiplier: z.number().optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
@@ -110,7 +118,38 @@ export interface PlanPayload {
 
 export interface SubscriptionPayRequest {
   plan_id: number
+  multiplier?: number
   payment_method?: string
+  auto_renew?: boolean
+}
+
+/** A purchasable usage multiplier of a plan; the plan itself is 1x. */
+export interface SubscriptionUsageTier {
+  multiplier: number
+  price_amount: number
+  stripe_price_id?: string
+  creem_product_id?: string
+  waffo_pancake_product_id?: string
+}
+
+export interface SubscriptionUpgradeRequest {
+  subscription_id: number
+  plan_id: number
+  multiplier: number
+}
+
+export interface SubscriptionUpgradeQuote {
+  subscription_id: number
+  plan_id: number
+  multiplier: number
+  price_quota: number
+  credit_quota: number
+  charge_quota: number
+}
+
+export interface SubscriptionRenewalRequest {
+  auto_renew: boolean
+  renew_multiplier: number
 }
 
 export interface SubscriptionPayResponse {
@@ -134,6 +173,7 @@ export interface SubscriptionPayResponse {
 
 export interface CreateUserSubscriptionRequest {
   plan_id: number
+  multiplier?: number
 }
 
 export interface ResetUserSubscriptionsRequest {

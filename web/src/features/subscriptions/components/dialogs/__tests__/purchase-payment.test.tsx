@@ -100,6 +100,7 @@ describe('subscription payment selection', () => {
     expect(paySubscriptionEpay).not.toHaveBeenCalled()
     expect(quoteSubscriptionPayment).toHaveBeenCalledWith({
       plan_id: 1,
+      multiplier: 1,
       payment_method: 'alipay',
       epay_gateway: 'custom',
     })
@@ -107,6 +108,7 @@ describe('subscription payment selection', () => {
     await waitFor(() =>
       expect(paySubscriptionEpay).toHaveBeenCalledWith({
         plan_id: 1,
+        multiplier: 1,
         payment_method: 'alipay',
         epay_gateway: 'custom',
       })
@@ -123,6 +125,7 @@ describe('subscription payment selection', () => {
     await waitFor(() =>
       expect(quoteSubscriptionPayment).toHaveBeenCalledWith({
         plan_id: 1,
+        multiplier: 1,
         payment_method: 'waffo_pancake',
         epay_gateway: undefined,
       })
@@ -173,5 +176,53 @@ describe('subscription payment selection', () => {
     expect(pay).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Alipay' }))
     await waitFor(() => expect(pay).toBeEnabled())
+  })
+
+  test('quotes and pays for the selected usage tier', async () => {
+    const tieredPlan = subscriptionPlanSchema.parse({
+      ...plan,
+      price_amount: 40,
+      usage_tiers: '[{"multiplier":5,"price_amount":40}]',
+    })
+    renderPurchase({ plan: { plan: tieredPlan }, multiplier: 5 })
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('5x')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Alipay' }))
+    await waitFor(() =>
+      expect(quoteSubscriptionPayment).toHaveBeenCalledWith({
+        plan_id: 1,
+        multiplier: 5,
+        payment_method: 'alipay',
+        epay_gateway: 'custom',
+      })
+    )
+  })
+
+  test('offers balance auto-renewal only when the plan allows it and sends the choice', async () => {
+    const view = renderPurchase()
+    await screen.findByRole('dialog')
+    expect(
+      screen.queryByRole('switch', { name: 'Auto-renew from balance' })
+    ).not.toBeInTheDocument()
+    view.unmount()
+
+    renderPurchase({
+      plan: {
+        plan: subscriptionPlanSchema.parse({ ...plan, allow_auto_renew: true }),
+      },
+    })
+    const autoRenew = await screen.findByRole('switch', {
+      name: 'Auto-renew from balance',
+    })
+    expect(autoRenew).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(autoRenew)
+    fireEvent.click(screen.getByRole('button', { name: 'Pay' }))
+    await waitFor(() =>
+      expect(paySubscriptionBalance).toHaveBeenCalledWith({
+        plan_id: 1,
+        multiplier: 1,
+        auto_renew: true,
+      })
+    )
   })
 })

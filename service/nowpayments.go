@@ -551,7 +551,7 @@ func GetNowPaymentsSubscriptionPriceUSD(plan *model.SubscriptionPlan) (decimal.D
 	return finalizeNowPaymentsPrice(priceUSD)
 }
 
-func CreateNowPaymentsSubscription(ctx context.Context, userID, planID int, payCurrency string) (*NowPaymentsInvoice, error) {
+func CreateNowPaymentsSubscription(ctx context.Context, userID, planID, multiplier int, payCurrency string) (*NowPaymentsInvoice, error) {
 	if !IsNowPaymentsTopUpEnabled() {
 		return nil, errors.New("NOWPayments is not configured")
 	}
@@ -559,7 +559,7 @@ func CreateNowPaymentsSubscription(ctx context.Context, userID, planID int, payC
 	if !setting.IsValidNowPaymentsCurrency(payCurrency) {
 		return nil, errors.New("selected NOWPayments currency is not enabled")
 	}
-	plan, err := model.GetSubscriptionPlanById(planID)
+	plan, err := model.GetSubscriptionPlanTier(planID, multiplier)
 	if err != nil || plan == nil {
 		return nil, errors.New("subscription plan not found")
 	}
@@ -597,6 +597,7 @@ func CreateNowPaymentsSubscription(ctx context.Context, userID, planID int, payC
 	order := &model.SubscriptionOrder{
 		UserId:          userID,
 		PlanId:          plan.Id,
+		Multiplier:      plan.UsageMultiplier,
 		Money:           priceUSD.InexactFloat64(),
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodNowPayments,

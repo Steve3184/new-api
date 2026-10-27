@@ -26,7 +26,9 @@ import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { NowPaymentsCurrencyDialog } from '@/features/wallet/components/dialogs/nowpayments-currency-dialog'
 import { PaymentMethodCard } from '@/features/wallet/components/payment-method-card'
 import { submitPaymentForm } from '@/features/wallet/lib/payment'
@@ -47,7 +49,12 @@ import {
   paySubscriptionBalance,
   paySubscriptionNowPayments,
 } from '../../api'
-import { formatDuration, formatResetPeriod } from '../../lib'
+import {
+  formatDuration,
+  formatMultiplier,
+  formatResetPeriod,
+  getUsageTierOptions,
+} from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -62,7 +69,10 @@ interface PaymentMethod {
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** The plan already sized and priced for the selected usage tier. */
   plan: PlanRecord | null
+  /** Usage tier multiplier being bought; defaults to 1x. */
+  multiplier?: number
   enableStripe?: boolean
   enableCreem?: boolean
   enableWaffoPancake?: boolean
@@ -84,7 +94,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const { t, i18n } = useTranslation()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
+  const [autoRenew, setAutoRenew] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState('balance')
+  const multiplier = Math.max(1, props.multiplier || 1)
   const [selectedNowPaymentsCurrency, setSelectedNowPaymentsCurrency] =
     useState('')
   const [nowPaymentsCurrencyDialogOpen, setNowPaymentsCurrencyDialogOpen] =
@@ -92,6 +104,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   useEffect(() => {
     if (!props.open) return
+    setAutoRenew(false)
     const currentPlan = props.plan?.plan
     if (currentPlan?.allow_balance_pay !== false) setSelectedPayment('balance')
     else if (props.enableStripe) setSelectedPayment('stripe')
@@ -132,6 +145,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     queryKey: [
       'subscription-payment-quote',
       props.plan?.plan.id,
+      multiplier,
       quoteMethod,
       selectedEpayMethodConfig?.gateway,
     ],
@@ -139,6 +153,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
       if (!props.plan) throw new Error(t('Payment request failed'))
       const result = await quoteSubscriptionPayment({
         plan_id: props.plan.plan.id,
+        multiplier,
         payment_method: quoteMethod,
         epay_gateway: selectedEpayMethodConfig?.gateway,
       })
@@ -181,6 +196,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
   )
   const userQuota = Math.max(0, Number(props.userQuota || 0))
   const allowBalancePay = plan.allow_balance_pay !== false
+  const canAutoRenew = allowBalancePay && plan.allow_auto_renew === true
+  const hasUsageTiers = getUsageTierOptions(plan).length > 1
   const insufficientBalance = userQuota < balanceCost
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
@@ -193,7 +210,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayStripe = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionStripe({ plan_id: plan.id })
+      const res = await paySubscriptionStripe({
+        plan_id: plan.id,
+        multiplier,
+      })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
@@ -215,7 +235,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayCreem = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionCreem({ plan_id: plan.id })
+      const res = await paySubscriptionCreem({
+        plan_id: plan.id,
+        multiplier,
+      })
       if (res.message === 'success' && res.data?.checkout_url) {
         window.open(res.data.checkout_url, '_blank')
         toast.success(t('Payment page opened'))
@@ -239,7 +262,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayWaffoPancake = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
+      const res = await paySubscriptionWaffoPancake({
+        plan_id: plan.id,
+        multiplier,
+      })
       if (res.message === 'success' && res.data?.checkout_url) {
         toast.success(t('Redirecting to payment page...'))
         window.location.href = res.data.checkout_url
@@ -266,6 +292,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionEpay({
         plan_id: plan.id,
+        multiplier,
         payment_method: selectedEpayMethodConfig.type,
         epay_gateway: selectedEpayMethodConfig.gateway,
       })
@@ -294,7 +321,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
     setPaying(true)
     try {
-      const res = await paySubscriptionBalance({ plan_id: plan.id })
+      const res = await paySubscriptionBalance({
+        plan_id: plan.id,
+        multiplier,
+        auto_renew: canAutoRenew && autoRenew,
+      })
       if (res.success) {
         toast.success(t('Subscription purchased successfully'))
         void props.onPurchaseSuccess?.()
@@ -322,6 +353,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionNowPayments({
         plan_id: plan.id,
+        multiplier,
         pay_currency: selectedNowPaymentsCurrency,
       })
       if (res.success && res.data) {
@@ -414,6 +446,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 {plan.title}
               </span>
             </div>
+            {hasUsageTiers && (
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground text-sm'>
+                  {t('Usage Tier')}
+                </span>
+                <span className='text-sm font-medium'>
+                  {formatMultiplier(multiplier)}
+                </span>
+              </div>
+            )}
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>
                 {t('Validity Period')}
@@ -589,6 +631,29 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 <span className='text-muted-foreground'>{t('Available')}</span>
                 <span>{formatQuota(userQuota)}</span>
               </div>
+              {canAutoRenew && (
+                <div className='flex items-start justify-between gap-3 border-t pt-2'>
+                  <div className='space-y-0.5'>
+                    <Label
+                      htmlFor='subscription-auto-renew'
+                      className='text-xs'
+                    >
+                      {t('Auto-renew from balance')}
+                    </Label>
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'Renews when the plan ends; turns off if your balance is insufficient'
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    id='subscription-auto-renew'
+                    checked={autoRenew}
+                    onCheckedChange={setAutoRenew}
+                    disabled={paying}
+                  />
+                </div>
+              )}
               {selectedPayment === 'balance' && insufficientBalance && (
                 <Alert variant='destructive'>
                   <AlertDescription>

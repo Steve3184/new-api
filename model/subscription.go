@@ -321,6 +321,19 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// UsageTiers stores JSON usage multipliers sold beside the base 1x tier.
+	UsageTiers string `json:"usage_tiers" gorm:"type:text"`
+	// AllowTierSwitch lets subscribers move to a higher tier immediately and
+	// pick another tier for their next renewal.
+	AllowTierSwitch bool `json:"allow_tier_switch"`
+	// UpgradePlanIds lists the plans (comma separated ids) a subscriber may upgrade to.
+	UpgradePlanIds string `json:"upgrade_plan_ids" gorm:"type:text"`
+	// AllowAutoRenew lets subscribers renew from wallet balance; it requires AllowBalancePay.
+	AllowAutoRenew bool `json:"allow_auto_renew"`
+
+	// UsageMultiplier is set on plan views returned by ForUsageTier.
+	UsageMultiplier int `json:"-" gorm:"-"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -354,6 +367,12 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 	}
 	p.WalletOnlyGroupsMode = NormalizeWalletOnlyGroupsMode(p.WalletOnlyGroupsMode)
 	p.WalletOnlyGroups = NormalizeWalletOnlyGroups(p.WalletOnlyGroups)
+	if strings.TrimSpace(p.UsageTiers) == "" {
+		p.UsageTiers = "[]"
+	}
+	if !*p.AllowBalancePay {
+		p.AllowAutoRenew = false
+	}
 }
 
 func NormalizeWalletOnlyGroupsMode(mode string) string {
@@ -461,6 +480,11 @@ type SubscriptionOrder struct {
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
 
+	// Multiplier is the usage tier bought by this order.
+	Multiplier int `json:"multiplier" gorm:"type:int;not null;default:1"`
+	// OrderType is purchase, renew or upgrade.
+	OrderType string `json:"order_type" gorm:"type:varchar(16);default:'purchase'"`
+
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
 
@@ -540,6 +564,16 @@ type UserSubscription struct {
 
 	// Whether wallet fallback is allowed after this subscription's quota is exhausted (snapshot from plan)
 	AllowWalletOverflow bool `json:"allow_wallet_overflow"`
+
+	// Multiplier is the usage tier of the current billing period.
+	Multiplier int `json:"multiplier" gorm:"type:int;not null;default:1"`
+	// PriceAmount is the list price paid for the current billing period and
+	// values the upgrade credit. Nil marks rows created before it existed.
+	PriceAmount *float64 `json:"price_amount" gorm:"type:decimal(10,6)"`
+	// AutoRenew renews the subscription from wallet balance when it ends.
+	AutoRenew bool `json:"auto_renew"`
+	// RenewMultiplier is the usage tier for the next renewal (0 = keep Multiplier).
+	RenewMultiplier int `json:"renew_multiplier" gorm:"type:int;not null;default:0"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
@@ -804,6 +838,13 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 }
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	return createUserSubscriptionTx(tx, userId, plan, source, true)
+}
+
+// createUserSubscriptionTx creates a subscription from plan, which may be a
+// usage tier view. checkCapacity is false only when the new subscription
+// replaces one of the same plan.
+func createUserSubscriptionTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, checkCapacity bool) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -817,90 +858,92 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
 		return nil, err
 	}
-	if err := CheckSubscriptionPurchaseCapacity(tx, userId, plan); err != nil {
-		return nil, err
+	if checkCapacity {
+		if err := CheckSubscriptionPurchaseCapacity(tx, userId, plan); err != nil {
+			return nil, err
+		}
 	}
-	nowUnix := getDBTimestamp(tx)
-	now := time.Unix(nowUnix, 0)
-	endUnix, err := calcPlanEndTime(now, plan)
-	if err != nil {
-		return nil, err
+	// Admin, redemption and support grants were not paid for, so they carry
+	// no upgrade credit.
+	paidPrice := 0.0
+	switch source {
+	case "order", PaymentMethodBalance, SubscriptionSourceUpgrade:
+		paidPrice = plan.PriceAmount
 	}
-	resetBase := now
-	nextReset := calcNextResetTime(resetBase, plan, endUnix)
-	lastReset := int64(0)
-	if nextReset > 0 {
-		lastReset = now.Unix()
+	sub := &UserSubscription{
+		UserId:         userId,
+		PlanId:         plan.Id,
+		Status:         "active",
+		Source:         source,
+		DowngradeGroup: strings.TrimSpace(plan.DowngradeGroup),
+	}
+	if err := sub.startBillingPeriod(plan, time.Unix(getDBTimestamp(tx), 0), paidPrice); err != nil {
+		return nil, err
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
-	prevGroup := ""
 	if upgradeGroup != "" {
 		currentGroup, err := getUserGroupByIdTx(tx, userId)
 		if err != nil {
 			return nil, err
 		}
 		if currentGroup != upgradeGroup {
-			prevGroup = currentGroup
+			sub.PrevUserGroup = currentGroup
 			if err := tx.Model(&User{}).Where("id = ?", userId).
 				Update("group", upgradeGroup).Error; err != nil {
 				return nil, err
 			}
 		}
 	}
-	allowWalletOverflow := true
-	if plan.AllowWalletOverflow != nil {
-		allowWalletOverflow = *plan.AllowWalletOverflow
-	}
-	fiveHourLastResetTime := int64(0)
-	fiveHourNextResetTime := int64(0)
-	// A 5-hour window starts with the first successful consumption, not when
-	// the subscription row is created. Keep both timestamps empty until then.
-	weeklyLastResetTime := int64(0)
-	weeklyNextResetTime := int64(0)
-	if plan.WeeklyLimit > 0 {
-		weeklyLastResetTime = now.Unix()
-		weeklyNextResetTime = calcSubscriptionUsageLimitNextResetTime(now, SubscriptionResetWeekly, endUnix)
-	}
-	monthlyLastResetTime := int64(0)
-	monthlyNextResetTime := int64(0)
-	if plan.MonthlyLimit > 0 {
-		monthlyLastResetTime = now.Unix()
-		monthlyNextResetTime = calcSubscriptionUsageLimitNextResetTime(now, SubscriptionResetMonthly, endUnix)
-	}
-	sub := &UserSubscription{
-		UserId:                userId,
-		PlanId:                plan.Id,
-		AmountTotal:           plan.TotalAmount,
-		AmountUsed:            0,
-		StartTime:             now.Unix(),
-		EndTime:               endUnix,
-		Status:                "active",
-		Source:                source,
-		LastResetTime:         lastReset,
-		NextResetTime:         nextReset,
-		FiveHourLimit:         plan.FiveHourLimit,
-		FiveHourUsed:          0,
-		FiveHourLastResetTime: fiveHourLastResetTime,
-		FiveHourNextResetTime: fiveHourNextResetTime,
-		WeeklyLimit:           plan.WeeklyLimit,
-		WeeklyUsed:            0,
-		WeeklyLastResetTime:   weeklyLastResetTime,
-		WeeklyNextResetTime:   weeklyNextResetTime,
-		MonthlyLimit:          plan.MonthlyLimit,
-		MonthlyUsed:           0,
-		MonthlyLastResetTime:  monthlyLastResetTime,
-		MonthlyNextResetTime:  monthlyNextResetTime,
-		UpgradeGroup:          upgradeGroup,
-		PrevUserGroup:         prevGroup,
-		DowngradeGroup:        strings.TrimSpace(plan.DowngradeGroup),
-		AllowWalletOverflow:   allowWalletOverflow,
-		CreatedAt:             common.GetTimestamp(),
-		UpdatedAt:             common.GetTimestamp(),
-	}
+	sub.UpgradeGroup = upgradeGroup
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
 	}
 	return sub, nil
+}
+
+// startBillingPeriod begins a fresh billing period at start: it snapshots the
+// limits of plan (a usage tier view), clears usage and anchors every reset
+// window. Changing a plan later only affects periods started after the change.
+func (s *UserSubscription) startBillingPeriod(plan *SubscriptionPlan, start time.Time, paidPrice float64) error {
+	endUnix, err := calcPlanEndTime(start, plan)
+	if err != nil {
+		return err
+	}
+	s.Multiplier = max(plan.UsageMultiplier, 1)
+	s.PriceAmount = &paidPrice
+	s.AmountTotal = plan.TotalAmount
+	s.AmountUsed = 0
+	s.StartTime = start.Unix()
+	s.EndTime = endUnix
+	s.NextResetTime = calcNextResetTime(start, plan, endUnix)
+	s.LastResetTime = 0
+	if s.NextResetTime > 0 {
+		s.LastResetTime = start.Unix()
+	}
+	// A 5-hour window starts with the first successful consumption, not when
+	// the period starts. Keep both timestamps empty until then.
+	s.FiveHourLimit = plan.FiveHourLimit
+	s.FiveHourUsed = 0
+	s.FiveHourLastResetTime = 0
+	s.FiveHourNextResetTime = 0
+	s.WeeklyLimit = plan.WeeklyLimit
+	s.WeeklyUsed = 0
+	s.WeeklyLastResetTime = 0
+	s.WeeklyNextResetTime = 0
+	if plan.WeeklyLimit > 0 {
+		s.WeeklyLastResetTime = start.Unix()
+		s.WeeklyNextResetTime = calcSubscriptionUsageLimitNextResetTime(start, SubscriptionResetWeekly, endUnix)
+	}
+	s.MonthlyLimit = plan.MonthlyLimit
+	s.MonthlyUsed = 0
+	s.MonthlyLastResetTime = 0
+	s.MonthlyNextResetTime = 0
+	if plan.MonthlyLimit > 0 {
+		s.MonthlyLastResetTime = start.Unix()
+		s.MonthlyNextResetTime = calcSubscriptionUsageLimitNextResetTime(start, SubscriptionResetMonthly, endUnix)
+	}
+	s.AllowWalletOverflow = plan.AllowWalletOverflow == nil || *plan.AllowWalletOverflow
+	return nil
 }
 
 func refreshSubscriptionUserGroupCache(userId int, operation string) {
@@ -982,7 +1025,13 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 	if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
 		return result, err
 	}
-	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+	tierPlan, err := plan.ForUsageTier(order.Multiplier)
+	if err != nil {
+		// The tier may have been removed after the order was placed; the
+		// buyer still receives the usage multiplier that was paid for.
+		tierPlan = plan.withUsageMultiplier(order.Multiplier)
+	}
+	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, tierPlan, "order")
 	if err != nil {
 		return result, err
 	}
@@ -1099,11 +1148,15 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 }
 
 // Admin bind (no payment). Creates a UserSubscription from a plan.
-func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.Message, error) {
+func AdminBindSubscription(userId int, planId int, multiplier int, sourceNote string) (*common.Message, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
-	plan, err := GetSubscriptionPlanById(planId)
+	basePlan, err := GetSubscriptionPlanById(planId)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := basePlan.ForUsageTier(multiplier)
 	if err != nil {
 		return nil, err
 	}
@@ -1144,29 +1197,39 @@ func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
 	return common.WalletQuotaFromDecimalStrict(quota)
 }
 
-// PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
-func PurchaseSubscriptionWithBalance(userId int, planId int) error {
+// PurchaseSubscriptionWithBalance creates a subscription to the usage tier
+// multiplier of a plan by deducting the user's wallet quota. autoRenew turns
+// on balance auto-renewal for the new subscription.
+func PurchaseSubscriptionWithBalance(userId int, planId int, multiplier int, autoRenew bool) error {
 	if userId <= 0 || planId <= 0 {
 		return errors.New("invalid userId or planId")
 	}
 
 	var logPlanTitle string
 	var logMoney float64
+	var logMultiplier int
 	var chargedQuota int
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		plan, err := getSubscriptionPlanByIdTx(tx, planId)
+		basePlan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			return err
 		}
-		if !plan.Enabled {
+		if !basePlan.Enabled {
 			return common.NewMessage("Subscription plan is not enabled")
+		}
+		if basePlan.AllowBalancePay != nil && !*basePlan.AllowBalancePay {
+			return common.NewMessage("This plan does not allow balance redemption")
+		}
+		if autoRenew && !basePlan.AllowAutoRenew {
+			return common.NewMessage("This plan does not support auto-renewal")
+		}
+		plan, err := basePlan.ForUsageTier(multiplier)
+		if err != nil {
+			return err
 		}
 		if plan.PriceAmount < 0 {
 			return common.NewMessage("Price cannot be negative")
-		}
-		if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
-			return common.NewMessage("This plan does not allow balance redemption")
 		}
 
 		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
@@ -1195,27 +1258,19 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		if err != nil {
 			return err
 		}
-
-		now := common.GetTimestamp()
-		tradeNo := fmt.Sprintf("SUBBALUSR%dNO%s%d", userId, common.GetRandomString(6), time.Now().UnixNano())
-		order := &SubscriptionOrder{
-			UserId:          userId,
-			PlanId:          plan.Id,
-			Money:           plan.PriceAmount,
-			TradeNo:         tradeNo,
-			PaymentMethod:   PaymentMethodBalance,
-			PaymentProvider: PaymentProviderBalance,
-			Status:          common.TopUpStatusSuccess,
-			CreateTime:      now,
-			CompleteTime:    now,
-			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
+		if autoRenew {
+			if err := tx.Model(subscription).Update("auto_renew", true).Error; err != nil {
+				return err
+			}
 		}
-		if err := tx.Create(order).Error; err != nil {
+
+		if err := createBalanceSubscriptionOrderTx(tx, userId, plan, SubscriptionOrderTypePurchase, plan.PriceAmount, fmt.Sprintf("charged_quota=%d", requiredQuota)); err != nil {
 			return err
 		}
 
 		logPlanTitle = plan.Title
 		logMoney = plan.PriceAmount
+		logMultiplier = plan.UsageMultiplier
 		chargedQuota = requiredQuota
 		if subscription.PrevUserGroup != "" {
 			upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
@@ -1235,12 +1290,32 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	if upgradeGroup != "" {
 		refreshSubscriptionUserGroupCache(userId, common.LogText("subscription balance purchase"))
 	}
-	RecordLog(userId, LogTypeTopup, common.NewMessage("Subscription purchased with balance, plan: {{plan}}, payment amount: {{amount}}, quota deducted: {{quota}}", map[string]any{
-		"plan":   logPlanTitle,
-		"amount": fmt.Sprintf("%.2f", logMoney),
-		"quota":  chargedQuota,
+	RecordLog(userId, LogTypeTopup, common.NewMessage("Subscription purchased with balance, plan: {{plan}} ({{multiplier}}x), payment amount: {{amount}}, quota deducted: {{quota}}", map[string]any{
+		"plan":       logPlanTitle,
+		"multiplier": logMultiplier,
+		"amount":     fmt.Sprintf("%.2f", logMoney),
+		"quota":      chargedQuota,
 	}))
 	return nil
+}
+
+// createBalanceSubscriptionOrderTx records a completed wallet-paid order.
+func createBalanceSubscriptionOrderTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, orderType string, money float64, payload string) error {
+	now := common.GetTimestamp()
+	return tx.Create(&SubscriptionOrder{
+		UserId:          userId,
+		PlanId:          plan.Id,
+		Money:           money,
+		TradeNo:         fmt.Sprintf("SUBBALUSR%dNO%s%d", userId, common.GetRandomString(6), time.Now().UnixNano()),
+		PaymentMethod:   PaymentMethodBalance,
+		PaymentProvider: PaymentProviderBalance,
+		Status:          common.TopUpStatusSuccess,
+		CreateTime:      now,
+		CompleteTime:    now,
+		Multiplier:      max(plan.UsageMultiplier, 1),
+		OrderType:       orderType,
+		ProviderPayload: payload,
+	}).Error
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.

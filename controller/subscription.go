@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -24,7 +25,20 @@ type BillingPreferenceRequest struct {
 }
 
 type SubscriptionBalancePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId     int  `json:"plan_id"`
+	Multiplier int  `json:"multiplier"`
+	AutoRenew  bool `json:"auto_renew"`
+}
+
+type SubscriptionRenewalRequest struct {
+	AutoRenew       bool `json:"auto_renew"`
+	RenewMultiplier int  `json:"renew_multiplier"`
+}
+
+type SubscriptionUpgradeRequest struct {
+	SubscriptionId int `json:"subscription_id"`
+	PlanId         int `json:"plan_id"`
+	Multiplier     int `json:"multiplier"`
 }
 
 func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
@@ -89,6 +103,31 @@ func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
 		walletGroups = append(walletGroups, group)
 	}
 	plan.WalletOnlyGroups = strings.Join(walletGroups, ",")
+	usageTiers, _, err := model.NormalizeSubscriptionUsageTiers(plan.UsageTiers)
+	if err != nil {
+		return err
+	}
+	plan.UsageTiers = usageTiers
+	if !plan.SubscriptionUsageTiersFitQuota() {
+		return common.NewMessage("Usage tier quota exceeds the maximum allowed quota")
+	}
+	upgradePlanIds := model.ParseSubscriptionPlanIds(plan.UpgradePlanIds, plan.Id)
+	existingPlanIds := make([]int, 0, len(upgradePlanIds))
+	if len(upgradePlanIds) > 0 {
+		if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id IN ?", upgradePlanIds).Pluck("id", &existingPlanIds).Error; err != nil {
+			return err
+		}
+	}
+	upgradeIds := make([]string, 0, len(upgradePlanIds))
+	for _, id := range upgradePlanIds {
+		if slices.Contains(existingPlanIds, id) {
+			upgradeIds = append(upgradeIds, strconv.Itoa(id))
+		}
+	}
+	plan.UpgradePlanIds = strings.Join(upgradeIds, ",")
+	if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
+		plan.AllowAutoRenew = false
+	}
 	return nil
 }
 
@@ -174,11 +213,62 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 		return
 	}
 
-	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId); err != nil {
+	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId, req.Multiplier, req.AutoRenew); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+func UpdateSubscriptionRenewal(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+	subscriptionId, _ := strconv.Atoi(c.Param("id"))
+	var req SubscriptionRenewalRequest
+	if err := c.ShouldBindJSON(&req); err != nil || subscriptionId <= 0 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if err := model.UpdateUserSubscriptionRenewal(c.GetInt("id"), subscriptionId, req.AutoRenew, req.RenewMultiplier); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func SubscriptionUpgradeQuote(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+	var req SubscriptionUpgradeRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.SubscriptionId <= 0 || req.PlanId <= 0 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	quote, err := model.QuoteSubscriptionUpgrade(c.GetInt("id"), req.SubscriptionId, req.PlanId, req.Multiplier)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, quote)
+}
+
+func SubscriptionUpgrade(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+	var req SubscriptionUpgradeRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.SubscriptionId <= 0 || req.PlanId <= 0 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	quote, err := model.UpgradeSubscriptionWithBalance(c.GetInt("id"), req.SubscriptionId, req.PlanId, req.Multiplier)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, quote)
 }
 
 // ---- Admin APIs ----
@@ -230,7 +320,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		req.Plan.Currency = "USD"
 	}
 	if err := normalizeSubscriptionPlanInput(&req.Plan); err != nil {
-		common.ApiErrorMsg(c, err.Error())
+		common.ApiError(c, err)
 		return
 	}
 	if req.Plan.AllowBalancePay == nil {
@@ -313,7 +403,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		req.Plan.Currency = "USD"
 	}
 	if err := normalizeSubscriptionPlanInput(&req.Plan); err != nil {
-		common.ApiErrorMsg(c, err.Error())
+		common.ApiError(c, err)
 		return
 	}
 	if req.Plan.DurationUnit == "" {
@@ -379,6 +469,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"rate_limit_groups":          req.Plan.RateLimitGroups,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"usage_tiers":                req.Plan.UsageTiers,
+			"allow_tier_switch":          req.Plan.AllowTierSwitch,
+			"upgrade_plan_ids":           req.Plan.UpgradePlanIds,
+			"allow_auto_renew":           req.Plan.AllowAutoRenew,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if req.Plan.AllowBalancePay != nil {
@@ -445,8 +539,9 @@ func AdminDeleteSubscriptionPlan(c *gin.Context) {
 }
 
 type AdminBindSubscriptionRequest struct {
-	UserId int `json:"user_id"`
-	PlanId int `json:"plan_id"`
+	UserId     int `json:"user_id"`
+	PlanId     int `json:"plan_id"`
+	Multiplier int `json:"multiplier"`
 }
 
 func AdminBindSubscription(c *gin.Context) {
@@ -459,7 +554,7 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
-	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
+	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, req.Multiplier, "")
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -496,7 +591,8 @@ func AdminListUserSubscriptions(c *gin.Context) {
 }
 
 type AdminCreateUserSubscriptionRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId     int `json:"plan_id"`
+	Multiplier int `json:"multiplier"`
 }
 
 type AdminResetSubscriptionRequest struct {
@@ -563,7 +659,7 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
-	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
+	msg, err := model.AdminBindSubscription(userId, req.PlanId, req.Multiplier, "")
 	if err != nil {
 		common.ApiError(c, err)
 		return

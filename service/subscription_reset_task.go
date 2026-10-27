@@ -52,6 +52,12 @@ func runSubscriptionQuotaResetOnce() {
 	ctx := context.Background()
 	totalReset := 0
 	totalExpired := 0
+	// Renew before expiring: the lead of two ticks lets a renewal start the
+	// next period exactly when the current one ends.
+	totalRenewed, err := model.RenewDueSubscriptions(subscriptionResetBatchSize, 2*subscriptionResetTickInterval)
+	if err != nil {
+		logger.LogWarn(ctx, common.LogText("subscription renewal task failed: %v", err))
+	}
 	for {
 		n, err := model.ExpireDueSubscriptions(subscriptionResetBatchSize)
 		if err != nil {
@@ -86,7 +92,7 @@ func runSubscriptionQuotaResetOnce() {
 			subscriptionCleanupLast.Store(time.Now().Unix())
 		}
 	}
-	if common.DebugEnabled && (totalReset > 0 || totalExpired > 0) {
-		logger.LogDebug(ctx, "subscription maintenance: reset_count=%d, expired_count=%d", totalReset, totalExpired)
+	if common.DebugEnabled && (totalReset > 0 || totalExpired > 0 || totalRenewed > 0) {
+		logger.LogDebug(ctx, "subscription maintenance: reset_count=%d, expired_count=%d, renewed_count=%d", totalReset, totalExpired, totalRenewed)
 	}
 }

@@ -82,15 +82,16 @@ func SubscriptionRequestPaymentQuote(c *gin.Context) {
 		return
 	}
 	var req struct {
-		PlanID  int    `json:"plan_id"`
-		Method  string `json:"payment_method"`
-		Gateway string `json:"epay_gateway"`
+		PlanID     int    `json:"plan_id"`
+		Multiplier int    `json:"multiplier"`
+		Method     string `json:"payment_method"`
+		Gateway    string `json:"epay_gateway"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanID <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	plan, err := model.GetSubscriptionPlanById(req.PlanID)
+	plan, err := model.GetSubscriptionPlanTier(req.PlanID, req.Multiplier)
 	if err != nil {
 		common.ApiError(c, err)
 		return

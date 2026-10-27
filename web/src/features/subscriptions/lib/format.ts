@@ -66,3 +66,21 @@ export function formatTimestamp(ts: number): string {
   if (!ts) return '-'
   return dayjs(ts * 1000).format('YYYY-MM-DD HH:mm:ss')
 }
+
+/** Billing period suffix shown after a price, such as "/ month". */
+export function formatBillingPeriod(
+  plan: Partial<SubscriptionPlan>,
+  t: TFunction
+): string {
+  const unit = plan?.duration_unit || 'month'
+  if (unit !== 'custom' && Number(plan?.duration_value || 1) === 1) {
+    const single: Record<string, string> = {
+      year: t('/ year'),
+      month: t('/ month'),
+      day: t('/ day'),
+      hour: t('/ hour'),
+    }
+    if (single[unit]) return single[unit]
+  }
+  return `/ ${formatDuration(plan, t)}`
+}

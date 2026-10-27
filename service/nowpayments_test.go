@@ -368,7 +368,7 @@ func TestNowPaymentsSubscriptionCompletesAfterFinishedPayment(t *testing.T) {
 	defer apiServer.Close()
 	setting.NowPaymentsAPIBaseURL = apiServer.URL
 
-	invoice, err := CreateNowPaymentsSubscription(context.Background(), 992, plan.Id, "btc")
+	invoice, err := CreateNowPaymentsSubscription(context.Background(), 992, plan.Id, 1, "btc")
 	require.NoError(t, err)
 	require.Equal(t, "sub-payment-1", invoice.PaymentID)
 

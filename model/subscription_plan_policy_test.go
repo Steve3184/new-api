@@ -138,7 +138,7 @@ func TestSubscriptionPurchaseCapacityDatabaseMatrix(t *testing.T) {
 			}
 			assert.Equal(t, 1, successes)
 			require.Error(t, CheckSubscriptionPurchaseCapacity(db, user.Id, &plan))
-			require.Error(t, PurchaseSubscriptionWithBalance(user.Id, plan.Id))
+			require.Error(t, PurchaseSubscriptionWithBalance(user.Id, plan.Id, 1, false))
 			var unchangedUser User
 			require.NoError(t, db.First(&unchangedUser, user.Id).Error)
 			assert.Equal(t, user.Quota, unchangedUser.Quota)

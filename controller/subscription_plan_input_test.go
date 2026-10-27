@@ -25,6 +25,21 @@ func TestSubscriptionSimultaneousLimitValidation(t *testing.T) {
 	require.Error(t, normalizeSubscriptionPlanInput(nil))
 }
 
+func TestSubscriptionPlanInputUsageTiersAndAutoRenew(t *testing.T) {
+	plan := &model.SubscriptionPlan{TotalAmount: 1000, UsageTiers: `[{"multiplier":5,"price_amount":40},{"multiplier":2,"price_amount":18}]`, AllowBalancePay: common.GetPointer(true), AllowAutoRenew: true}
+	require.NoError(t, normalizeSubscriptionPlanInput(plan))
+	assert.JSONEq(t, `[{"multiplier":2,"price_amount":18},{"multiplier":5,"price_amount":40}]`, plan.UsageTiers)
+	assert.True(t, plan.AllowAutoRenew)
+
+	// Auto-renewal charges the wallet, so it is dropped without balance payment.
+	plan.AllowBalancePay = common.GetPointer(false)
+	require.NoError(t, normalizeSubscriptionPlanInput(plan))
+	assert.False(t, plan.AllowAutoRenew)
+
+	require.Error(t, normalizeSubscriptionPlanInput(&model.SubscriptionPlan{UsageTiers: `[{"multiplier":0,"price_amount":1}]`}))
+	require.Error(t, normalizeSubscriptionPlanInput(&model.SubscriptionPlan{TotalAmount: common.MaxWalletQuota / 2, UsageTiers: `[{"multiplier":3,"price_amount":1}]`}))
+}
+
 func TestSubscriptionCreemProductPriorityAndWalletFallback(t *testing.T) {
 	original := setting.CreemProducts
 	t.Cleanup(func() { setting.CreemProducts = original })

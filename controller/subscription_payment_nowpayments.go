@@ -8,6 +8,7 @@ import (
 
 type SubscriptionNowPaymentsPayRequest struct {
 	PlanID      int    `json:"plan_id"`
+	Multiplier  int    `json:"multiplier"`
 	PayCurrency string `json:"pay_currency"`
 }
 
@@ -20,7 +21,7 @@ func SubscriptionRequestNowPaymentsPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "invalid NOWPayments subscription request")
 		return
 	}
-	invoice, err := service.CreateNowPaymentsSubscription(c.Request.Context(), c.GetInt("id"), request.PlanID, request.PayCurrency)
+	invoice, err := service.CreateNowPaymentsSubscription(c.Request.Context(), c.GetInt("id"), request.PlanID, request.Multiplier, request.PayCurrency)
 	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return

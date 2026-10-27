@@ -16,7 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export { formatDuration, formatResetPeriod, formatTimestamp } from './format'
+export {
+  formatBillingPeriod,
+  formatDuration,
+  formatResetPeriod,
+  formatTimestamp,
+} from './format'
+export {
+  describePlan,
+  type PlanBenefit,
+  type PlanDescription,
+} from './plan-benefits'
+export {
+  applyUsageTier,
+  formatMultiplier,
+  getUpgradeOptions,
+  getUpgradePlanIds,
+  getUsageTierOptions,
+  isActiveSubscription,
+  MAX_USAGE_MULTIPLIER,
+  parseUsageTiers,
+  type UpgradeOption,
+} from './usage-tiers'
 export {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,

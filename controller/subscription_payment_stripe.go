@@ -17,7 +17,8 @@ import (
 )
 
 type SubscriptionStripePayRequest struct {
-	PlanId int `json:"plan_id"`
+	Multiplier int `json:"multiplier"`
+	PlanId     int `json:"plan_id"`
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
@@ -31,7 +32,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 
-	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	plan, err := model.GetSubscriptionPlanTier(req.PlanId, req.Multiplier)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -71,6 +72,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
+		Multiplier:      plan.UsageMultiplier,
 		Money:           plan.PriceAmount,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,

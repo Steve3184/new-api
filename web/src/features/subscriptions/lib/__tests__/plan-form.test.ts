@@ -125,3 +125,69 @@ describe('subscription plan usage limit form mapping', () => {
     expect(values.monthly_limit).toBe(quotaUnitsToDollars(500000))
   })
 })
+
+describe('subscription plan tiers form mapping', () => {
+  test('round-trips usage tiers, upgrade targets and renewal settings', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      usage_tiers: [
+        { multiplier: 5, price_amount: 40, stripe_price_id: ' price_5 ' },
+        { multiplier: 2, price_amount: 18, stripe_price_id: '' },
+      ],
+      allow_tier_switch: true,
+      upgrade_plan_ids: ['3', '4'],
+      allow_auto_renew: true,
+    })
+    expect(JSON.parse(payload.plan.usage_tiers || '[]')).toEqual([
+      { multiplier: 2, price_amount: 18 },
+      { multiplier: 5, price_amount: 40, stripe_price_id: 'price_5' },
+    ])
+    expect(payload.plan).toMatchObject({
+      allow_tier_switch: true,
+      upgrade_plan_ids: '3,4',
+      allow_auto_renew: true,
+    })
+    const values = planToFormValues(
+      subscriptionPlanSchema.parse({ ...payload.plan, id: 1 })
+    )
+    expect(values.usage_tiers.map((tier) => tier.multiplier)).toEqual([2, 5])
+    expect(values.upgrade_plan_ids).toEqual(['3', '4'])
+  })
+
+  test('drops auto-renewal when balance payment is disabled', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      allow_balance_pay: false,
+      allow_auto_renew: true,
+    })
+    expect(payload.plan.allow_auto_renew).toBe(false)
+  })
+
+  test('rejects duplicate and out-of-range multipliers', () => {
+    const schema = getPlanFormSchema(i18next.t.bind(i18next))
+    const base = { ...PLAN_FORM_DEFAULTS, title: 'Plan' }
+    expect(
+      schema.safeParse({
+        ...base,
+        usage_tiers: [
+          { multiplier: 2, price_amount: 1 },
+          { multiplier: 2, price_amount: 2 },
+        ],
+      }).success
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        usage_tiers: [{ multiplier: 1, price_amount: 1 }],
+      }).success
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        usage_tiers: [{ multiplier: 5, price_amount: 1 }],
+      }).success
+    ).toBe(true)
+  })
+})

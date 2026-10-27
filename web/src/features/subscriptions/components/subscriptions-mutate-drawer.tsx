@@ -105,6 +105,7 @@ import {
   type PlanFormValues,
 } from '../lib'
 import type { PlanRecord } from '../types'
+import { PlanTiersSection } from './plan-tiers-section'
 import { useSubscriptions } from './subscriptions-provider'
 
 interface Props {
@@ -1283,6 +1284,8 @@ export function SubscriptionsMutateDrawer({
                 />
               </div>
             </SideDrawerSection>
+
+            <PlanTiersSection form={form} planId={currentRow?.plan?.id} />
 
             {/* Payment Config */}
             <SideDrawerSection>

@@ -18,6 +18,7 @@ import (
 )
 
 type SubscriptionEpayPayRequest struct {
+	Multiplier    int    `json:"multiplier"`
 	PlanId        int    `json:"plan_id"`
 	PaymentMethod string `json:"payment_method"`
 	EpayGatewayID string `json:"epay_gateway"`
@@ -34,7 +35,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
-	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	plan, err := model.GetSubscriptionPlanTier(req.PlanId, req.Multiplier)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -92,6 +93,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
+		Multiplier:      plan.UsageMultiplier,
 		Money:           payMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
