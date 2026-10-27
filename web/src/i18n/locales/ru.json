@@ -2601,6 +2601,7 @@
     "Enter a valid Epay gateway URL": "Введите корректный URL шлюза Epay",
     "Enter a valid test recipient email": "Введите действительный адрес для тестового письма",
     "Enter a value and press Enter": "Введите значение и нажмите Enter",
+    "Enter a whole number from {{min}} to {{max}}": "Введите целое число от {{min}} до {{max}}",
     "Enter amount in {{currency}}": "Введите сумму в {{currency}}",
     "Enter amount in tokens": "Введите сумму в токенах",
     "Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments": "Введите абсолютный URL HTTP(S) без учётных данных, параметров запроса и фрагмента",

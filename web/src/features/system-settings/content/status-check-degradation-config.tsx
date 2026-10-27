@@ -40,6 +40,8 @@ export function StatusCheckDegradationConfig(props: {
   group: string
   value: DegradationGroupConfig
   onChange: (update: Partial<DegradationGroupConfig>) => void
+  /** Shown under the interval when it fails validation. */
+  intervalError?: string
 }) {
   const { t } = useTranslation()
   const modelsQuery = useQuery({
@@ -86,6 +88,7 @@ export function StatusCheckDegradationConfig(props: {
             max={DEGRADATION_INTERVAL_MAX}
             step={1}
             disabled={!props.value.enabled}
+            aria-invalid={!!props.intervalError}
             value={props.value.interval_minutes}
             onChange={(event) => {
               if (Number.isFinite(event.target.valueAsNumber)) {
@@ -100,6 +103,11 @@ export function StatusCheckDegradationConfig(props: {
               'Each check spends reasoning tokens. Longer intervals reduce cost.'
             )}
           </p>
+          {props.intervalError && (
+            <p className='text-destructive text-xs' role='alert'>
+              {props.intervalError}
+            </p>
+          )}
         </div>
         <div className='space-y-2'>
           <Label htmlFor={`${controlId}-models`}>{t('Models to check')}</Label>

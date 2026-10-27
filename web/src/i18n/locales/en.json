@@ -2601,6 +2601,7 @@
     "Enter a valid Epay gateway URL": "Enter a valid Epay gateway URL",
     "Enter a valid test recipient email": "Enter a valid test recipient email",
     "Enter a value and press Enter": "Enter a value and press Enter",
+    "Enter a whole number from {{min}} to {{max}}": "Enter a whole number from {{min}} to {{max}}",
     "Enter amount in {{currency}}": "Enter amount in {{currency}}",
     "Enter amount in tokens": "Enter amount in tokens",
     "Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments": "Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments",

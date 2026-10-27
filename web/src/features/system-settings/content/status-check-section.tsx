@@ -10,6 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import * as z from 'zod'
 
 import { MultiSelect } from '@/components/multi-select'
@@ -453,12 +454,20 @@ export function StatusCheckSection(props: {
     }
   }
 
+  // The per-group controls are not registered fields, so a failed
+  // validation must be reported here or the save silently does nothing.
+  const submit = form.handleSubmit(onSubmit, () => {
+    toast.error(t('Please fix the highlighted fields before saving'))
+  })
+  const rangeMessage = (min: number, max: number) =>
+    t('Enter a whole number from {{min}} to {{max}}', { min, max })
+
   return (
     <SettingsSection title={t('Status Check')}>
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
+        <SettingsForm onSubmit={submit}>
           <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
+            onSave={submit}
             isSaving={updateOption.isPending}
           />
           <FormField
@@ -519,6 +528,18 @@ export function StatusCheckSection(props: {
             ) : (
               visibleProbeGroups.map((group) => {
                 const config = getFlexibleGroupConfig(group)
+                const flexibleErrors =
+                  form.formState.errors.flexibleGroups?.[
+                    flexibleGroups.findIndex(
+                      (candidate) => candidate.group === group
+                    )
+                  ]
+                const degradationErrors =
+                  form.formState.errors.degradationGroups?.[
+                    degradationGroups.findIndex(
+                      (candidate) => candidate.group === group
+                    )
+                  ]
                 // Degradation checks already fill idle hours, so the backend
                 // skips flexible probes for groups that run them.
                 const degradationEnabled =
@@ -556,7 +577,9 @@ export function StatusCheckSection(props: {
                     <div className='grid gap-4 sm:grid-cols-2'>
                       <FormItem>
                         <FormLabel>{t('Idle period (minutes)')}</FormLabel>
-                        <FormControl>
+                        <FormControl
+                          aria-invalid={!!flexibleErrors?.idle_minutes}
+                        >
                           <Input
                             type='number'
                             min={1}
@@ -578,10 +601,19 @@ export function StatusCheckSection(props: {
                             'Minimum time without a relay request before probing.'
                           )}
                         </FormDescription>
+                        {flexibleErrors?.idle_minutes && (
+                          <p className='text-destructive text-sm' role='alert'>
+                            {rangeMessage(1, 1440)}
+                          </p>
+                        )}
                       </FormItem>
                       <FormItem>
                         <FormLabel>{t('Maximum consecutive probes')}</FormLabel>
-                        <FormControl>
+                        <FormControl
+                          aria-invalid={
+                            !!flexibleErrors?.max_consecutive_probes
+                          }
+                        >
                           <Input
                             type='number'
                             min={1}
@@ -604,6 +636,11 @@ export function StatusCheckSection(props: {
                             'After this many automatic probes without a real relay request, probing pauses until traffic resumes.'
                           )}
                         </FormDescription>
+                        {flexibleErrors?.max_consecutive_probes && (
+                          <p className='text-destructive text-sm' role='alert'>
+                            {rangeMessage(1, 1000)}
+                          </p>
+                        )}
                       </FormItem>
                     </div>
                     <StatusCheckProbeModelField
@@ -617,6 +654,14 @@ export function StatusCheckSection(props: {
                     <StatusCheckDegradationConfig
                       group={group}
                       value={getDegradationGroupConfig(group)}
+                      intervalError={
+                        degradationErrors?.interval_minutes
+                          ? rangeMessage(
+                              DEGRADATION_INTERVAL_MIN,
+                              DEGRADATION_INTERVAL_MAX
+                            )
+                          : undefined
+                      }
                       onChange={(update) =>
                         updateDegradationGroupConfig(group, update)
                       }

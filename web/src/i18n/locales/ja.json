@@ -2601,6 +2601,7 @@
     "Enter a valid Epay gateway URL": "有効な Epay ゲートウェイ URL を入力してください",
     "Enter a valid test recipient email": "有効なテスト送信先メールアドレスを入力してください",
     "Enter a value and press Enter": "値を入力してEnterを押してください",
+    "Enter a whole number from {{min}} to {{max}}": "{{min}}〜{{max}} の整数を入力してください",
     "Enter amount in {{currency}}": "{{currency}}で金額を入力",
     "Enter amount in tokens": "トークンで金額を入力",
     "Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments": "認証情報、クエリパラメータ、フラグメントを含まない絶対 HTTP(S) URL を入力してください",

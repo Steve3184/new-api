@@ -2601,6 +2601,7 @@
     "Enter a valid Epay gateway URL": "请输入有效的 Epay 网关 URL",
     "Enter a valid test recipient email": "请输入有效的测试收件人邮箱",
     "Enter a value and press Enter": "输入值并按回车键",
+    "Enter a whole number from {{min}} to {{max}}": "请输入 {{min}} 到 {{max}} 之间的整数",
     "Enter amount in {{currency}}": "输入金额（{{currency}}）",
     "Enter amount in tokens": "输入额度（Token）",
     "Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments": "请输入不含认证信息、查询参数或片段的 HTTP(S) 绝对 URL",

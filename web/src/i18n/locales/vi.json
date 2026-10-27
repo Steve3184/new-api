@@ -2601,6 +2601,7 @@
     "Enter a valid Epay gateway URL": "Nhập URL cổng Epay hợp lệ",
     "Enter a valid test recipient email": "Nhập địa chỉ email nhận thử nghiệm hợp lệ",
     "Enter a value and press Enter": "Nhập giá trị và nhấn Enter",
+    "Enter a whole number from {{min}} to {{max}}": "Nhập số nguyên từ {{min}} đến {{max}}",
     "Enter amount in {{currency}}": "Nhập số tiền bằng {{currency}}",
     "Enter amount in tokens": "Nhập số lượng token",
     "Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments": "Nhập URL HTTP(S) tuyệt đối không chứa thông tin xác thực, tham số truy vấn hoặc phân mảnh",
