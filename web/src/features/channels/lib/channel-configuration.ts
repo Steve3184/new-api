@@ -92,6 +92,7 @@ const CONFIGURATION_BLOCKS = {
       'http_protocol',
       'http2_connection_shards',
       'stream_first_response_timeout',
+      'max_retry_times',
       'tls_insecure_skip_verify',
       'disable_task_polling_sleep',
       'agnes_auto_image_url',
@@ -194,6 +195,7 @@ export function getChannelConfigurationState(
       (values.http2_connection_shards ?? 1) > 1 ||
       values.tls_insecure_skip_verify ||
       (values.stream_first_response_timeout ?? 0) > 0 ||
+      (values.max_retry_times ?? 0) > 0 ||
       values.disable_task_polling_sleep ||
       (values.type === CHANNEL_TYPE_AGNES && values.agnes_auto_image_url)
     ),

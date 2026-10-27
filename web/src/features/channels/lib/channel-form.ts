@@ -84,6 +84,7 @@ export const HTTP_PROTOCOL_AUTO = 'auto'
 export const HTTP_PROTOCOL_HTTP1 = 'http1'
 export const MAX_HTTP2_CONNECTION_SHARDS = 8
 export const MAX_STREAM_FIRST_RESPONSE_TIMEOUT_SECONDS = 24 * 60 * 60
+export const MAX_CHANNEL_RETRY_TIMES = 10
 
 export function normalizeHttpProtocol(
   value: string | undefined | null
@@ -318,6 +319,12 @@ export const channelFormSchema = z
       .min(0)
       .max(MAX_STREAM_FIRST_RESPONSE_TIMEOUT_SECONDS)
       .optional(),
+    max_retry_times: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_CHANNEL_RETRY_TIMES)
+      .optional(),
     tls_insecure_skip_verify: z.boolean().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     responses_websocket_enabled: z.boolean().optional(),
@@ -526,6 +533,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
   stream_first_response_timeout: 0,
+  max_retry_times: 0,
   tls_insecure_skip_verify: false,
   pass_through_body_enabled: false,
   responses_websocket_enabled: false,
@@ -581,6 +589,7 @@ export function transformChannelToFormDefaults(
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
     stream_first_response_timeout: 0,
+    max_retry_times: 0,
     tls_insecure_skip_verify: false,
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
@@ -612,6 +621,10 @@ export function transformChannelToFormDefaults(
         stream_first_response_timeout:
           typeof parsed.stream_first_response_timeout === 'number'
             ? parsed.stream_first_response_timeout
+            : 0,
+        max_retry_times:
+          typeof parsed.max_retry_times === 'number'
+            ? parsed.max_retry_times
             : 0,
         tls_insecure_skip_verify: parsed.tls_insecure_skip_verify === true,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
@@ -808,6 +821,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
   if ((formData.stream_first_response_timeout ?? 0) > 0) {
     settingObj.stream_first_response_timeout =
       formData.stream_first_response_timeout
+  }
+  if ((formData.max_retry_times ?? 0) > 0) {
+    settingObj.max_retry_times = formData.max_retry_times
   }
   if (formData.tls_insecure_skip_verify === true) {
     settingObj.tls_insecure_skip_verify = true

@@ -37,6 +37,9 @@ type ChannelSettings struct {
 	// TLSInsecureSkipVerify accepts upstream certificates that fail
 	// verification, such as self-signed ones, for this channel only.
 	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
+	// MaxRetryTimes retries a failed request on this same channel up to N
+	// times before the normal retry path moves to another channel.
+	MaxRetryTimes int `json:"max_retry_times,omitempty"`
 }
 
 const (
@@ -44,6 +47,7 @@ const (
 	HTTPProtocolHTTP1                    = "http1"
 	MaxHTTP2ConnectionShards             = 8
 	MaxStreamFirstResponseTimeoutSeconds = 24 * 60 * 60
+	MaxChannelRetryTimes                 = 10
 )
 
 // BindsTaskPlugin reports whether the channel is bound to a task plugin through
@@ -70,7 +74,7 @@ func (s ChannelSettings) TaskPluginBindings() []string {
 	return bindings
 }
 
-// ValidateHTTPTransport validates save-time HTTP transport channel settings.
+// ValidateHTTPTransport validates save-time HTTP transport and retry channel settings.
 func (s *ChannelSettings) ValidateHTTPTransport() error {
 	if s == nil {
 		return nil
@@ -89,6 +93,9 @@ func (s *ChannelSettings) ValidateHTTPTransport() error {
 	}
 	if s.StreamFirstResponseTimeout < 0 || s.StreamFirstResponseTimeout > MaxStreamFirstResponseTimeoutSeconds {
 		return fmt.Errorf("invalid stream_first_response_timeout: %d", s.StreamFirstResponseTimeout)
+	}
+	if s.MaxRetryTimes < 0 || s.MaxRetryTimes > MaxChannelRetryTimes {
+		return fmt.Errorf("invalid max_retry_times: %d", s.MaxRetryTimes)
 	}
 	return nil
 }

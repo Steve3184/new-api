@@ -53,6 +53,7 @@ type RetryParam struct {
 	Attempt         int
 	PinnedChannelID int
 	resetNextTry    bool
+	holdNextTry     bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -67,6 +68,10 @@ func (p *RetryParam) SetRetry(retry int) {
 }
 
 func (p *RetryParam) IncreaseRetry() {
+	if p.holdNextTry {
+		p.holdNextTry = false
+		return
+	}
 	p.Attempt++
 	if p.resetNextTry {
 		p.resetNextTry = false
@@ -80,6 +85,14 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+// RetrySameChannel pins the next attempt to channelID without advancing the
+// retry position, so the normal retry path resumes where it stopped once the
+// channel's own retries are used up.
+func (p *RetryParam) RetrySameChannel(channelID int) {
+	p.PinnedChannelID = channelID
+	p.holdNextTry = true
 }
 
 func (p *RetryParam) routeModelAndRetry() (string, int) {
@@ -160,10 +173,14 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	if param.PinnedChannelID > 0 {
 		channel, err := model.CacheGetChannel(param.PinnedChannelID)
 		param.PinnedChannelID = 0
-		if err != nil {
-			return nil, param.TokenGroup, err
+		pinnedGroup := param.TokenGroup
+		if autoGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyAutoGroup); param.TokenGroup == "auto" && autoGroup != "" {
+			pinnedGroup = autoGroup
 		}
-		return channel, param.TokenGroup, nil
+		if err != nil {
+			return nil, pinnedGroup, err
+		}
+		return channel, pinnedGroup, nil
 	}
 	var channel *model.Channel
 	var err error

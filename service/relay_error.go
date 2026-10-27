@@ -41,6 +41,32 @@ func DecideRelayRetry(c *gin.Context, err *types.NewAPIError, retryTimes int) Po
 	if retryTimes <= 0 {
 		return PolicyDecision{Action: "stop", Reason: "attempt_budget_exhausted", Source: "global"}
 	}
+	return decideRetryByError(err)
+}
+
+// DecideSameChannelRetry decides whether a failed attempt is retried on the
+// channel that just failed, before the normal retry path moves on. Session
+// and pin constraints do not block it because the channel does not change.
+func DecideSameChannelRetry(err *types.NewAPIError, remaining int, autoBan bool) PolicyDecision {
+	if err == nil {
+		return PolicyDecision{Action: "stop", Reason: "request_completed", Source: "system"}
+	}
+	if remaining <= 0 {
+		return PolicyDecision{Action: "stop", Reason: "same_channel_retry_exhausted", Source: "channel"}
+	}
+	if autoBan && ShouldDisableChannel(err) {
+		return PolicyDecision{Action: "stop", Reason: "channel_disable_requested", Source: "channel"}
+	}
+	decision := decideRetryByError(err)
+	if decision.Action == "retry" {
+		decision.Reason, decision.Source = "same_channel_retry", "channel"
+	}
+	return decision
+}
+
+// decideRetryByError classifies whether the error itself may be retried,
+// independent of the attempt budget and routing constraints.
+func decideRetryByError(err *types.NewAPIError) PolicyDecision {
 	if types.IsChannelError(err) {
 		return PolicyDecision{Action: "retry", Reason: "channel_error", Source: "system"}
 	}

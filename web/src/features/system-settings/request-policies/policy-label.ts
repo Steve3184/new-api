@@ -17,6 +17,10 @@ export function policyLabel(t: TFunction, value: string): string {
       return t('Total attempt budget exhausted')
     case 'channel_error':
       return t('Channel error')
+    case 'same_channel_retry':
+      return t('Retry the same channel')
+    case 'same_channel_retry_exhausted':
+      return t('Same-channel retries exhausted')
     case 'unrecognized_status':
       return t('Unrecognized status code')
     case 'task_accepted':

@@ -196,6 +196,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	sameChannelRetries := 0
 
 	for ; ; retryParam.IncreaseRetry() {
 		relayInfo.StreamStatus = nil
@@ -262,9 +263,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		retryTimes := getRetryTimesForCurrentGroup(c, relayInfo.TokenGroup)
 		decision := service.DecideRelayRetry(c, newAPIError, retryTimes-retryParam.GetRetry())
-		if multiKeyRuleMatched && channel.ChannelInfo.MultiKeyAutoRetry && !types.IsSkipRetryError(newAPIError) && channel.HasEnabledMultiKey() {
+		channelSetting, _ := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+		sameChannelDecision := service.DecideSameChannelRetry(newAPIError, channelSetting.MaxRetryTimes-sameChannelRetries, channel.GetAutoBan())
+		switch {
+		case multiKeyRuleMatched && channel.ChannelInfo.MultiKeyAutoRetry && !types.IsSkipRetryError(newAPIError) && channel.HasEnabledMultiKey():
 			decision = service.PolicyDecision{Action: "retry", Reason: "channel_error", Source: "channel"}
 			retryParam.PinnedChannelID = channel.Id
+			sameChannelRetries = 0
+		case !multiKeyRuleMatched && sameChannelDecision.Action == "retry":
+			// Same-channel retries do not spend the retry budget or move the
+			// priority position; the normal retry path resumes afterwards.
+			decision = sameChannelDecision
+			sameChannelRetries++
+			retryParam.RetrySameChannel(channel.Id)
+		default:
+			// A channel that used up its own retries gives up the session
+			// binding to whichever channel succeeds next.
+			if decision.Action == "retry" && channelSetting.MaxRetryTimes > 0 {
+				service.RebindChannelAffinityOnSuccess(c)
+			}
+			sameChannelRetries = 0
 		}
 		service.RecordPolicyFailure(c, channel.Id, newAPIError, decision)
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, relayInfo)

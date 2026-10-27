@@ -26,6 +26,7 @@ const (
 	ginKeyChannelAffinityMeta       = "channel_affinity_meta"
 	ginKeyChannelAffinityLogInfo    = "channel_affinity_log_info"
 	ginKeyChannelAffinitySkipRetry  = "channel_affinity_skip_retry_on_failure"
+	ginKeyChannelAffinityRebind     = "channel_affinity_rebind_on_success"
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v1"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
@@ -726,6 +727,15 @@ func AppendChannelAffinityAdminInfo(c *gin.Context, other *model.LogOther) {
 	other.SetAdmin("channel_affinity", anyInfo)
 }
 
+// RebindChannelAffinityOnSuccess binds the session to the channel that
+// finally succeeds instead of the first channel of the request. It is used
+// after a channel has used up its own retries and the request moved on.
+func RebindChannelAffinityOnSuccess(c *gin.Context) {
+	if c != nil {
+		c.Set(ginKeyChannelAffinityRebind, true)
+	}
+}
+
 func RecordChannelAffinity(c *gin.Context, channelID int) {
 	if channelID <= 0 {
 		return
@@ -737,7 +747,7 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	if setting == nil || !setting.Enabled {
 		return
 	}
-	if setting.SwitchOnSuccess && c != nil {
+	if c != nil && (setting.SwitchOnSuccess || c.GetBool(ginKeyChannelAffinityRebind)) {
 		if successChannelID := c.GetInt("channel_id"); successChannelID > 0 {
 			channelID = successChannelID
 		}

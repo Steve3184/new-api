@@ -108,6 +108,7 @@ export interface ChannelSettings {
   system_prompt?: string
   system_prompt_override?: boolean
   stream_first_response_timeout?: number
+  max_retry_times?: number
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
   tls_insecure_skip_verify?: boolean

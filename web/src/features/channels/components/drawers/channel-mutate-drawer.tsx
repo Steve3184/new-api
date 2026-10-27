@@ -167,6 +167,7 @@ import {
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   CHANNEL_TYPE_ADVANCED_CUSTOM,
+  MAX_CHANNEL_RETRY_TIMES,
   channelFormSchema,
   channelsQueryKeys,
   getAdvancedCustomStats,
@@ -314,6 +315,7 @@ const SENSITIVE_FORM_FIELDS = [
   'http_protocol',
   'http2_connection_shards',
   'stream_first_response_timeout',
+  'max_retry_times',
   'tls_insecure_skip_verify',
   'pass_through_body_enabled',
   'responses_websocket_enabled',
@@ -2142,6 +2144,36 @@ export function ChannelMutateDrawer({
           <FormDescription>
             {t(
               'For streaming requests, retry the next channel when no upstream response bytes arrive within this many seconds. Set to 0 to disable.'
+            )}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+
+  const maxRetryTimesFields = (
+    <FormField
+      control={form.control}
+      name='max_retry_times'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Max retry times')}</FormLabel>
+          <FormControl>
+            <Input
+              type='number'
+              min={0}
+              max={MAX_CHANNEL_RETRY_TIMES}
+              step={1}
+              value={field.value ?? 0}
+              onChange={(event) => {
+                field.onChange(Number(event.target.value || 0))
+              }}
+            />
+          </FormControl>
+          <FormDescription>
+            {t(
+              'When this channel returns an error, retry it this many times before the retry path moves to the next channel and rebinds the session. Set to 0 to disable.'
             )}
           </FormDescription>
           <FormMessage />
@@ -5080,6 +5112,7 @@ export function ChannelMutateDrawer({
                 {httpProtocolFields}
                 {httpShardsFields}
                 {streamTimeoutFields}
+                {maxRetryTimesFields}
                 {tlsInsecureSkipVerifyFields}
               </fieldset>
             </div>

@@ -514,3 +514,34 @@ func TestSessionRulesInheritOrOverrideGlobalDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestRebindChannelAffinityOnSuccessBindsFinalChannel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	setting.Enabled, setting.SwitchOnSuccess = true, false
+	t.Cleanup(func() { *setting = previous })
+
+	cacheKeySuffix := fmt.Sprintf("rebind:default:%d", time.Now().UnixNano())
+	cache := getChannelAffinityCache()
+	t.Cleanup(func() { _, _ = cache.DeleteMany([]string{cacheKeySuffix}) })
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   channelAffinityCacheNamespace + ":" + cacheKeySuffix,
+		TTLSeconds: 60,
+		RuleName:   "rebind",
+	})
+	ctx.Set("channel_id", 22)
+
+	RecordChannelAffinity(ctx, 11)
+	cached, found, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 11, cached, "without a rebind the first channel keeps the session")
+
+	RebindChannelAffinityOnSuccess(ctx)
+	RecordChannelAffinity(ctx, 11)
+	cached, found, err = cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 22, cached, "after a rebind the channel that succeeded takes over the session")
+}

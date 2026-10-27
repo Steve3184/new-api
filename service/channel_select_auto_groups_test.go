@@ -175,3 +175,41 @@ func TestCacheGetRandomSatisfiedChannelSkipsAutoGroupWithoutVirtualMapping(t *te
 	assert.Equal(t, 2112, channel.Id)
 	assert.Equal(t, "default", selectedGroup)
 }
+
+func TestRetrySameChannelKeepsRetryPathPosition(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "same-channel-retry-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2201, "vip", modelName)
+	createChannelSelectAutoGroupsChannel(t, db, 2202, "default", modelName)
+	model.InitChannelCache()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenAutoGroups, []string{"vip", "default"})
+	common.SetContextKey(ctx, constant.ContextKeyTokenCrossGroupRetry, true)
+	param := &RetryParam{Ctx: ctx, TokenGroup: "auto", ModelName: modelName, RequestPath: "/v1/chat/completions", Retry: common.GetPointer(0)}
+
+	first, firstGroup, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	assert.Equal(t, 2201, first.Id)
+	assert.Equal(t, "vip", firstGroup)
+
+	param.RetrySameChannel(first.Id)
+	param.IncreaseRetry()
+	again, againGroup, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, again)
+	assert.Equal(t, 2201, again.Id, "the same-channel retry reuses the failed channel")
+	assert.Equal(t, "vip", againGroup, "the pinned retry reports the auto group it came from")
+	assert.Equal(t, 0, param.GetRetry(), "the same-channel retry does not spend the retry budget")
+	assert.Equal(t, 0, param.Attempt)
+
+	param.IncreaseRetry()
+	next, nextGroup, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, next)
+	assert.Equal(t, 2202, next.Id, "the normal retry path resumes with the next group")
+	assert.Equal(t, "default", nextGroup)
+}
