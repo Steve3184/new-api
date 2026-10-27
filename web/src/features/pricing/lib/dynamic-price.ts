@@ -389,20 +389,34 @@ export function getDynamicPriceEntries(
     if (!variable.field) return []
     const value = Number((tier as ParsedTier)[variable.field])
     if (!Number.isFinite(value) || value < 0) return []
+    // Same-price reads can stay in the expression to preserve accounting for
+    // overlapping usage. They do not need a separate displayed price. Keep
+    // explicit zero prices visible, even when the input itself is free.
+    if (
+      variable.key === 'cr' &&
+      value !== 0 &&
+      value === (tier as ParsedTier).inputPrice
+    ) {
+      return []
+    }
+
+    let label = variable.label
+    let shortLabel = variable.shortLabel
+    if (variable.key === 'cc') {
+      if (typeof (tier as ParsedTier).cacheCreate1hPrice === 'number') {
+        label = 'Cache Creation (5m)'
+        shortLabel = 'Cache Write (5m)'
+      } else if (typeof (tier as ParsedTier).cacheCreate12hPrice === 'number') {
+        label = 'Cache Creation (30m)'
+        shortLabel = 'Cache Write (30m)'
+      }
+    }
     return [
       {
         key: variable.key,
         field: variable.field,
-        label:
-          variable.key === 'cc' &&
-          typeof (tier as ParsedTier).cacheCreate1hPrice === 'number'
-            ? 'Cache Creation (5m)'
-            : variable.label,
-        shortLabel:
-          variable.key === 'cc' &&
-          typeof (tier as ParsedTier).cacheCreate1hPrice === 'number'
-            ? 'Cache Write (5m)'
-            : variable.shortLabel,
+        label,
+        shortLabel,
         labelKind: 'i18n' as const,
         value,
         formatted: formatDynamicUnitPrice(value, options),

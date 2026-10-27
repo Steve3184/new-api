@@ -76,6 +76,7 @@ func (w *WalletFunding) PreConsume(amount int) error {
 		w.restoreCheckinCredit(w.checkinConsumed - checkinBefore)
 		return ErrInsufficientWalletQuota
 	}
+	// 发送前补扣会再次预扣，累加后退款才能退回全部预扣。
 	w.consumed += remaining
 	return nil
 }

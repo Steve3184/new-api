@@ -18,7 +18,7 @@ import (
 // The environment exposes:
 //   - p, c               — prompt / completion tokens (auto-excluding separately-priced sub-categories)
 //   - len                — total input context length for tier conditions (never reduced by sub-category exclusion)
-//   - cr, cc, cc1h       — cache read / creation / creation-1h tokens
+//   - cr, cc, cc1h, cc12h — cache read / creation / creation-1h / creation-12h tokens
 //   - img, img_cr, img_o — image input / cached image input / image output tokens
 //   - image_count        — validated generated-image quantity
 //   - req                — one request, represented as 1M units so its coefficient is $/request
@@ -81,6 +81,7 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		"cr":          params.CR,
 		"cc":          params.CC,
 		"cc1h":        params.CC1h,
+		"cc12h":       params.CC12h,
 		"img":         params.Img,
 		"img_cr":      params.ImgCR,
 		"img_o":       params.ImgO,

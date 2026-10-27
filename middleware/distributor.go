@@ -92,17 +92,26 @@ func Distribute() func(c *gin.Context) {
 		}
 		if pinned || shouldSelectChannel {
 			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-			retryParam := &service.RetryParam{
-				Ctx:         c,
-				ModelName:   modelRequest.Model,
-				TokenGroup:  usingGroup,
-				RequestPath: canonicalRelayPath(c.Request.URL.Path),
-				Retry:       common.GetPointer(0),
-			}
 			var selectErr *service.ChannelSelectError
-			channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, retryParam)
-			if retryParam.SelectedModel != "" {
-				selectedModel = retryParam.SelectedModel
+			if value, exists := c.Get(contextKeyTaskPluginEndpointSelection); exists && !pinned {
+				if selected, ok := value.(taskPluginEndpointSelection); ok && selected.Model == modelRequest.Model && selected.Channel != nil && selected.Channel.Status == common.ChannelStatusEnabled {
+					if matches, _ := model.ChannelSatisfiesFilters(selected.Channel, modelRequest.Model, constraints.Filters); matches {
+						channel = selected.Channel
+					}
+				}
+			}
+			if channel == nil {
+				retryParam := &service.RetryParam{
+					Ctx:         c,
+					ModelName:   modelRequest.Model,
+					TokenGroup:  usingGroup,
+					RequestPath: canonicalRelayPath(c.Request.URL.Path),
+					Retry:       common.GetPointer(0),
+				}
+				channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, retryParam)
+				if retryParam.SelectedModel != "" {
+					selectedModel = retryParam.SelectedModel
+				}
 			}
 			if selectErr != nil {
 				if selectErr.FilterKind == taskdto.FilterTaskPluginIdentity {

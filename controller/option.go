@@ -88,7 +88,9 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
-		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" {
+		// The Resend key is reported only through ResendKeyConfigured, which
+		// the email settings form reads instead of a placeholder value.
+		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" || k == "ResendKeyConfigured" || k == "ResendApiKey" {
 			continue
 		}
 		value := common.Interface2String(v)
@@ -137,6 +139,9 @@ func GetOptions(c *gin.Context) {
 			}
 		}
 	}
+	options = append(options, &model.Option{
+		Key: "ResendKeyConfigured", Value: strconv.FormatBool(strings.TrimSpace(common.OptionMap["ResendApiKey"]) != ""),
+	})
 	common.OptionMapRWMutex.Unlock()
 	// Expose the same effective expressions used by pricing and settlement,
 	// including built-in defaults that are intentionally not persisted.

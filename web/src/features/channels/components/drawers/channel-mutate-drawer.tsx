@@ -5046,8 +5046,7 @@ export function ChannelMutateDrawer({
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
                 {remoteCompactFields}
-                {currentType !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
-                  passthroughFields}
+                {passthroughFields}
                 {proxyImageURLFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}
@@ -5444,6 +5443,7 @@ export function ChannelMutateDrawer({
         onConfirm={() => handleStatusCodeRiskAction(true)}
       />
       <PassthroughWarningDialog
+        channelType={currentType}
         open={passthroughWarningKind !== null}
         kind={passthroughWarningKind}
         onOpenChange={(v) => {
