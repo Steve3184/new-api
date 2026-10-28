@@ -561,6 +561,11 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorMsg(c, err.Error())
 			return
 		}
+	case "ChatPresetSettings":
+		if _, err = setting.ParseChatPresetSettings(option.Value.(string)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorT(c, "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.")

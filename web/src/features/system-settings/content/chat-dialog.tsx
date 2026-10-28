@@ -152,7 +152,9 @@ export function ChatDialog({
                   <Input placeholder={t('Please enter the URL')} {...field} />
                 </FormControl>
                 <FormDescription>
-                  {t('The URL for this chat client.')}
+                  {t(
+                    'Placeholders: {key} becomes the user\'s real API key (sk-…) and {address} the server address. Client import links can use {cherryConfig}, {aionuiConfig}, {deepchatConfig} or {aqbotConfig} instead.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

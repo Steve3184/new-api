@@ -462,6 +462,7 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'token.delete_batch': 'API token batch deletion',
   'token.key_view': 'API token key access',
   'token.key_view_batch': 'API token batch key access',
+  'token.chat_preset_key': 'API token key access for a chat preset',
   'access_token.generate': 'Created an access token',
   'access_token.revoke': 'Revoked an access token',
   'access_token.rename': 'Renamed an access token',

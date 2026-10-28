@@ -125,7 +125,10 @@ const CONTENT_SECTIONS = [
     id: 'chat',
     titleKey: 'Chat Presets',
     build: (settings: ContentSettings) => (
-      <ChatSettingsSection defaultValue={settings.Chats} />
+      <ChatSettingsSection
+        defaultValue={settings.Chats}
+        defaultPresetSettings={settings.ChatPresetSettings}
+      />
     ),
   },
   {

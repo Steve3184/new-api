@@ -191,6 +191,15 @@ export async function fetchTokenKey(
   return res.data
 }
 
+// Fetch the caller's key for a chat preset, creating it from the preset
+// template on first use
+export async function fetchChatPresetKey(
+  preset: string
+): Promise<{ success: boolean; message?: string; data?: { key: string } }> {
+  const res = await api.post('/api/token/chat-preset-key', { preset })
+  return res.data
+}
+
 // Batch fetch real (unmasked) keys for multiple tokens
 export async function fetchTokenKeysBatch(ids: number[]): Promise<{
   success: boolean

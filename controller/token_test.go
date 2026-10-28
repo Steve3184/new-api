@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -792,6 +793,156 @@ func TestGetTokenUsageFollowsTheUserQuotaSwitchAndIPWhitelist(t *testing.T) {
 			if tc.wantUserQuota {
 				assert.JSONEq(t, `{"total_available":12345,"total_used":678}`, string(response.Data["user_quota"]))
 			}
+		})
+	}
+}
+
+func configureChatPresetKeyTest(t *testing.T, chats string, presetSettings string) {
+	t.Helper()
+	originalChats := setting.Chats2JsonString()
+	originalSettings := setting.ChatPresetSettings2JsonString()
+	require.NoError(t, setting.UpdateChatsByJsonString(chats))
+	require.NoError(t, setting.UpdateChatPresetSettingsByJsonString(presetSettings))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateChatsByJsonString(originalChats))
+		require.NoError(t, setting.UpdateChatPresetSettingsByJsonString(originalSettings))
+	})
+}
+
+// requestChatPresetKey calls the endpoint as a browser session, or as a scoped
+// access token when scopes are given.
+func requestChatPresetKey(t *testing.T, preset string, userID int, scopes ...string) (tokenAPIResponse, string) {
+	t.Helper()
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/chat-preset-key", map[string]any{"preset": preset}, userID)
+	if scopes != nil {
+		ctx.Set("access_token_id", 7)
+		ctx.Set("access_token_scopes", scopes)
+	}
+	GetChatPresetKey(ctx)
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		return response, ""
+	}
+	var keyData tokenKeyResponse
+	require.NoError(t, common.Unmarshal(response.Data, &keyData))
+	return response, keyData.Key
+}
+
+func TestGetChatPresetKeyCreatesTheTemplateKeyOnceAndReusesIt(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	longName := strings.Repeat("聊", 20)
+	configureChatPresetKeyTest(t,
+		`[{"Lobe":"https://lobe.example/?key={key}"},{"`+longName+`":"https://long.example/?key={key}"}]`,
+		`{"Lobe":{"auto_key":{"enabled":true,"remain_quota":500,"unlimited_quota":false,"model_limits":"gpt-4o,gpt-4o-mini","allow_ips":"10.0.0.0/8","allow_user_quota_query":false,"group":"default","auto_groups":["vip"],"cross_group_retry":true}},
+		 "`+longName+`":{"auto_key":{"enabled":true,"unlimited_quota":true,"group":"default"}}}`)
+	seedToken(t, db, 2, "app-Lobe", "other-user-chat-key")
+
+	response, firstKey := requestChatPresetKey(t, "Lobe", 1)
+	require.True(t, response.Success, response.Message)
+	_, secondKey := requestChatPresetKey(t, "Lobe", 1)
+	assert.Equal(t, firstKey, secondKey)
+
+	var created []model.Token
+	require.NoError(t, db.Where("user_id = ? AND name = ?", 1, "app-Lobe").Find(&created).Error)
+	require.Len(t, created, 1)
+	assert.Equal(t, firstKey, created[0].Key)
+	assert.Equal(t, 500, created[0].RemainQuota)
+	assert.False(t, created[0].UnlimitedQuota)
+	assert.True(t, created[0].ModelLimitsEnabled)
+	assert.Equal(t, "gpt-4o,gpt-4o-mini", created[0].ModelLimits)
+	require.NotNil(t, created[0].AllowIps)
+	assert.Equal(t, "10.0.0.0/8", *created[0].AllowIps)
+	assert.False(t, created[0].AllowUserQuotaQuery)
+	assert.Equal(t, "default", created[0].Group)
+	assert.False(t, created[0].CrossGroupRetry, "non-auto groups drop Auto-only options")
+	assert.Equal(t, int64(-1), created[0].ExpiredTime)
+
+	response, _ = requestChatPresetKey(t, longName, 1)
+	require.True(t, response.Success, response.Message)
+	var longToken model.Token
+	require.NoError(t, db.Where("user_id = ? AND name LIKE ?", 1, "app-%").Where("name <> ?", "app-Lobe").First(&longToken).Error)
+	assert.LessOrEqual(t, len(longToken.Name), 50)
+	assert.True(t, strings.HasPrefix("app-"+longName, longToken.Name), "the default name is app-<preset> cut at a character boundary")
+}
+
+func TestGetChatPresetKeyRejectsPresetsWithoutAnUsableTemplateKey(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		preset   string
+		settings string
+		seed     func(t *testing.T, db *gorm.DB)
+	}{
+		{name: "preset without automatic keys", preset: "Plain", settings: `{"Plain":{"standalone_menu":true}}`},
+		{name: "automatic keys turned off", preset: "Lobe", settings: `{"Lobe":{"auto_key":{"enabled":false,"unlimited_quota":true}}}`},
+		{name: "settings left for a removed preset", preset: "Removed", settings: `{"Removed":{"auto_key":{"enabled":true,"unlimited_quota":true}}}`},
+		{
+			name:     "existing key with the template name is disabled",
+			preset:   "Lobe",
+			settings: `{"Lobe":{"auto_key":{"enabled":true,"name":"lobe-key","unlimited_quota":true}}}`,
+			seed: func(t *testing.T, db *gorm.DB) {
+				token := seedToken(t, db, 1, "lobe-key", "disabled-chat-key")
+				require.NoError(t, db.Model(token).Update("status", common.TokenStatusDisabled).Error)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTokenControllerTestDB(t)
+			configureChatPresetKeyTest(t, `[{"Lobe":"https://lobe.example/?key={key}"},{"Plain":"https://plain.example"}]`, tc.settings)
+			if tc.seed != nil {
+				tc.seed(t, db)
+			}
+			var before int64
+			require.NoError(t, db.Model(&model.Token{}).Count(&before).Error)
+
+			response, key := requestChatPresetKey(t, tc.preset, 1)
+
+			assert.False(t, response.Success)
+			assert.Empty(t, key)
+			assert.NotContains(t, response.Message, "disabled-chat-key")
+			var after int64
+			require.NoError(t, db.Model(&model.Token{}).Count(&after).Error)
+			assert.Equal(t, before, after)
+		})
+	}
+}
+
+func TestGetChatPresetKeyNeedsWriteScopeOnlyToCreateTheKey(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	configureChatPresetKeyTest(t, `[{"Lobe":"https://lobe.example/?key={key}"}]`,
+		`{"Lobe":{"auto_key":{"enabled":true,"unlimited_quota":true,"group":"default"}}}`)
+
+	response, key := requestChatPresetKey(t, "Lobe", 1, "api_key:reveal")
+	assert.False(t, response.Success)
+	assert.Empty(t, key)
+	var count int64
+	require.NoError(t, db.Model(&model.Token{}).Count(&count).Error)
+	assert.Zero(t, count)
+
+	response, created := requestChatPresetKey(t, "Lobe", 1, "api_key:reveal", "api_key:write")
+	require.True(t, response.Success, response.Message)
+	_, reused := requestChatPresetKey(t, "Lobe", 1, "api_key:reveal")
+	assert.Equal(t, created, reused)
+}
+
+func TestChatPresetSettingsValidateTheTemplateKeyName(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		settings string
+		wantErr  bool
+	}{
+		{name: "default name", settings: `{"Lobe":{"auto_key":{"enabled":true}}}`},
+		{name: "custom name over 50 bytes", settings: `{"Lobe":{"auto_key":{"enabled":true,"name":"` + strings.Repeat("k", 51) + `"}}}`, wantErr: true},
+		{name: "name with a LIKE wildcard", settings: `{"50% off":{"auto_key":{"enabled":true}}}`, wantErr: true},
+		{name: "negative quota", settings: `{"Lobe":{"auto_key":{"enabled":true,"remain_quota":-1}}}`, wantErr: true},
+		{name: "blank preset name", settings: `{" ":{"standalone_menu":true}}`, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := setting.ParseChatPresetSettings(tc.settings)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
 		})
 	}
 }

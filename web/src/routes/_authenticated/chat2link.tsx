@@ -22,7 +22,7 @@ import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
+import { useChatPresetKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl } from '@/features/chat/lib/chat-links'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -41,7 +41,8 @@ function Chat2LinkPage() {
     [chatPresets]
   )
 
-  const { data: activeKey, error: keyError } = useActiveChatKey(
+  const { data: activeKey, error: keyError } = useChatPresetKey(
+    firstWebPreset,
     Boolean(firstWebPreset)
   )
 

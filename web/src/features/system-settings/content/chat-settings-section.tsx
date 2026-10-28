@@ -83,16 +83,19 @@ const createChatSchema = (t: (key: string) => string) =>
         })
       }
     }),
+    ChatPresetSettings: z.string(),
   })
 
 type ChatSettingsFormValues = z.infer<ReturnType<typeof createChatSchema>>
 
 type ChatSettingsSectionProps = {
   defaultValue: string
+  defaultPresetSettings: string
 }
 
 export function ChatSettingsSection({
   defaultValue,
+  defaultPresetSettings,
 }: ChatSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -105,26 +108,43 @@ export function ChatSettingsSection({
     mode: 'onChange', // Enable real-time validation
     defaultValues: {
       Chats: formatted,
+      ChatPresetSettings: normalizeJsonString(defaultPresetSettings, '{}'),
     },
   })
 
   const initialNormalizedRef = useRef(normalizeJsonString(defaultValue, '[]'))
+  const initialPresetSettingsRef = useRef(
+    normalizeJsonString(defaultPresetSettings, '{}')
+  )
 
   useEffect(() => {
-    form.reset({ Chats: formatJsonForEditor(defaultValue, '[]') })
+    const presetSettings = normalizeJsonString(defaultPresetSettings, '{}')
+    form.reset({
+      Chats: formatJsonForEditor(defaultValue, '[]'),
+      ChatPresetSettings: presetSettings,
+    })
     initialNormalizedRef.current = normalizeJsonString(defaultValue, '[]')
-  }, [defaultValue, form])
+    initialPresetSettingsRef.current = presetSettings
+  }, [defaultValue, defaultPresetSettings, form])
 
   const onSubmit = async (values: ChatSettingsFormValues) => {
     const normalized = normalizeJsonString(values.Chats, '[]')
-    if (normalized === initialNormalizedRef.current) {
-      return
-    }
+    const presetSettings = normalizeJsonString(values.ChatPresetSettings, '{}')
 
-    await updateOption.mutateAsync({
-      key: 'Chats',
-      value: normalized,
-    })
+    if (normalized !== initialNormalizedRef.current) {
+      await updateOption.mutateAsync({
+        key: 'Chats',
+        value: normalized,
+      })
+      initialNormalizedRef.current = normalized
+    }
+    if (presetSettings !== initialPresetSettingsRef.current) {
+      await updateOption.mutateAsync({
+        key: 'ChatPresetSettings',
+        value: presetSettings,
+      })
+      initialPresetSettingsRef.current = presetSettings
+    }
   }
 
   return (
@@ -156,6 +176,12 @@ export function ChatSettingsSection({
                       <ChatSettingsVisualEditor
                         value={field.value}
                         onChange={field.onChange}
+                        presetSettings={form.watch('ChatPresetSettings')}
+                        onPresetSettingsChange={(value) =>
+                          form.setValue('ChatPresetSettings', value, {
+                            shouldDirty: true,
+                          })
+                        }
                       />
                     </FormControl>
                     <FormMessage />

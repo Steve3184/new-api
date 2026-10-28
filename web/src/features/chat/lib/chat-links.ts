@@ -25,6 +25,10 @@ export type ChatPreset = {
   name: string
   url: string
   type: ChatLinkType
+  /** Shown as its own sidebar entry instead of inside the Chat submenu */
+  standaloneMenu: boolean
+  /** Opens with the per-preset API key the server creates on first use */
+  autoKey: boolean
 }
 
 export type RawChatConfig =
@@ -33,6 +37,8 @@ export type RawChatConfig =
   | Array<Record<string, unknown>>
   | null
   | undefined
+
+export type RawChatPresetSettings = unknown
 
 export type ResolveChatUrlParams = {
   template: string
@@ -94,7 +100,28 @@ export function chatLinkRequiresApiKey(url: string): boolean {
   )
 }
 
-export function parseChatConfig(raw: RawChatConfig): ChatPreset[] {
+function readPresetFlags(
+  settings: RawChatPresetSettings,
+  name: string
+): Pick<ChatPreset, 'standaloneMenu' | 'autoKey'> {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    return { standaloneMenu: false, autoKey: false }
+  }
+  const entry = (settings as Record<string, unknown>)[name]
+  if (!entry || typeof entry !== 'object') {
+    return { standaloneMenu: false, autoKey: false }
+  }
+  const flags = entry as { standalone_menu?: unknown; auto_key?: unknown }
+  return {
+    standaloneMenu: flags.standalone_menu === true,
+    autoKey: flags.auto_key === true,
+  }
+}
+
+export function parseChatConfig(
+  raw: RawChatConfig,
+  settings?: RawChatPresetSettings
+): ChatPreset[] {
   let parsed: unknown = raw
 
   if (typeof raw === 'string') {
@@ -135,6 +162,7 @@ export function parseChatConfig(raw: RawChatConfig): ChatPreset[] {
         name,
         url,
         type: detectChatLinkType(url),
+        ...readPresetFlags(settings, name),
       } satisfies ChatPreset
     })
     .filter((item): item is ChatPreset => item !== null)

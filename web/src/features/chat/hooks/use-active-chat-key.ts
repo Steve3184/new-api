@@ -19,13 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { t } from 'i18next'
 
-import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
+import {
+  fetchChatPresetKey,
+  fetchTokenKey,
+  getApiKeys,
+} from '@/features/keys/api'
 import { API_KEY_STATUS } from '@/features/keys/constants'
 import {
   requireServerSuccess,
   createServerError,
 } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
+
+import type { ChatPreset } from '../lib/chat-links'
 
 export async function fetchActiveChatKey() {
   const result = await getApiKeys({ p: 1, size: 50 })
@@ -48,15 +54,44 @@ export async function fetchActiveChatKey() {
 }
 
 /**
- * Get the currently active API key for chat links
+ * Resolve the API key a chat preset opens with: its own server-created key
+ * when the preset has one, otherwise the user's first enabled key.
  */
-export function useActiveChatKey(enabled: boolean) {
+export async function fetchKeyForChatPreset(
+  preset: Pick<ChatPreset, 'name' | 'autoKey'>
+) {
+  if (!preset.autoKey) return fetchActiveChatKey()
+
+  const result = await fetchChatPresetKey(preset.name)
+  if (!result.success || !result.data?.key) {
+    throw createServerError(
+      result,
+      t('Failed to prepare the API key for this chat preset')
+    )
+  }
+  return `sk-${result.data.key}`
+}
+
+/**
+ * Get the API key used to open a chat preset link
+ */
+export function useChatPresetKey(
+  preset: Pick<ChatPreset, 'name' | 'autoKey'> | undefined,
+  enabled: boolean
+) {
   const userId = useAuthStore((state) => state.auth.user?.id)
+  const presetKey = preset?.autoKey ? preset.name : null
 
   return useQuery({
-    queryKey: ['chat-active-key', userId],
-    queryFn: async () => requireServerSuccess(await fetchActiveChatKey()),
-    enabled: enabled && Boolean(userId),
+    queryKey: ['chat-active-key', userId, presetKey],
+    queryFn: async () =>
+      requireServerSuccess(
+        await fetchKeyForChatPreset({
+          name: presetKey ?? '',
+          autoKey: presetKey !== null,
+        })
+      ),
+    enabled: enabled && Boolean(userId) && Boolean(preset),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })

@@ -22,7 +22,12 @@ import { z } from 'zod'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 
 import { DEFAULT_GROUP } from '../constants'
-import type { ApiKey, ApiKeyAutoRoutes, ApiKeyFormData } from '../types'
+import type {
+  ApiKey,
+  ApiKeyAutoRoutes,
+  ApiKeyFormData,
+  ApiKeyTemplate,
+} from '../types'
 
 // ============================================================================
 // Form Schema
@@ -222,4 +227,50 @@ export function transformApiKeyToFormDefaults(
     cross_group_retry: !!apiKey.cross_group_retry,
     tokenCount: 1,
   }
+}
+
+/**
+ * Transform a stored key template into drawer values. The template keeps Auto
+ * groups as configured; the drawer drops the ones the editor cannot select.
+ */
+export function transformKeyTemplateToFormDefaults(
+  template: Partial<ApiKeyTemplate> | undefined,
+  name: string,
+  defaultUseAutoGroup: boolean
+): ApiKeyFormValues {
+  const defaults = getApiKeyFormDefaultValues(defaultUseAutoGroup)
+  if (!template) return { ...defaults, name }
+
+  const unlimitedQuota = template.unlimited_quota ?? defaults.unlimited_quota
+  const autoGroups = template.auto_groups ?? []
+  return {
+    ...defaults,
+    name: template.name || name,
+    remain_quota_dollars: unlimitedQuota
+      ? defaults.remain_quota_dollars
+      : quotaUnitsToDollars(template.remain_quota ?? 0),
+    unlimited_quota: unlimitedQuota,
+    model_limits: template.model_limits
+      ? template.model_limits.split(',').filter(Boolean)
+      : [],
+    allow_ips: template.allow_ips ?? '',
+    allow_user_quota_query:
+      template.allow_user_quota_query ?? defaults.allow_user_quota_query,
+    group: template.group || defaults.group,
+    auto_groups_mode: autoGroups.length > 0 ? 'custom' : 'inherit',
+    auto_groups: autoGroups,
+    auto_routes: template.auto_routes ?? {},
+    cross_group_retry: template.cross_group_retry ?? defaults.cross_group_retry,
+  }
+}
+
+/**
+ * Transform drawer values into a key template; expiry does not apply to it.
+ */
+export function transformFormDataToKeyTemplate(
+  data: ApiKeyFormValues
+): ApiKeyTemplate {
+  const { expired_time: _expiredTime, ...template } =
+    transformFormDataToPayload(data)
+  return template
 }

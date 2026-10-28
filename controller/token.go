@@ -574,24 +574,37 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if _, ok := insertUserToken(c, request); !ok {
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+// insertUserToken applies the user token creation rules (name, quota, token
+// count and Auto group limits) and stores the token. It writes the API error
+// itself and reports false when the token was not created.
+func insertUserToken(c *gin.Context, request tokenRequest) (*model.Token, bool) {
 	token := request.Token
 	// User API keys remain valid until explicitly reset; expiry is reserved for
 	// server-managed channel tokens.
 	token.ExpiredTime = -1
 	if len(token.Name) > 50 {
 		common.ApiErrorT(c, "Token name is too long")
-		return
+		return nil, false
 	}
 	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
 			common.ApiErrorT(c, "Quota value cannot be negative")
-			return
+			return nil, false
 		}
 		maxQuotaValue := maxTokenQuota()
 		if token.RemainQuota > maxQuotaValue {
 			common.ApiErrorT(c, "Quota value exceeds valid range, maximum is {{max}}", map[string]any{"max": logger.FormatQuota(maxQuotaValue)})
-			return
+			return nil, false
 		}
 	}
 	// 检查用户令牌数量是否已达上限
@@ -599,18 +612,18 @@ func AddToken(c *gin.Context) {
 	count, err := model.CountUserTokens(c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
-		return
+		return nil, false
 	}
 	if int(count) >= maxTokens {
 		common.ApiErrorT(c, "Maximum number of tokens reached ({{max}})", map[string]any{"max": maxTokens})
-		return
+		return nil, false
 	}
 	if token.Group == "auto" {
 		if !setTokenAutoGroups(c, &token, request.AutoGroups.Groups) {
-			return
+			return nil, false
 		}
 		if !setTokenAutoRoutes(c, &token, request.AutoRoutes.Routes) {
-			return
+			return nil, false
 		}
 	} else {
 		token.CrossGroupRetry = false
@@ -621,7 +634,7 @@ func AddToken(c *gin.Context) {
 	if err != nil {
 		common.ApiErrorT(c, "Failed to generate token")
 		common.SysLog(common.LogText("failed to generate token key: %s", err.Error()))
-		return
+		return nil, false
 	}
 	cleanToken := model.Token{
 		UserId:             c.GetInt("id"),
@@ -641,15 +654,79 @@ func AddToken(c *gin.Context) {
 		AutoRoutes:         token.AutoRoutes,
 	}
 	cleanToken.AllowUserQuotaQuery = request.AllowUserQuotaQuery == nil || *request.AllowUserQuotaQuery
-	err = cleanToken.Insert()
+	if err := cleanToken.Insert(); err != nil {
+		common.ApiError(c, err)
+		return nil, false
+	}
+	return &cleanToken, true
+}
+
+type chatPresetKeyRequest struct {
+	Preset string `json:"preset"`
+}
+
+// GetChatPresetKey returns the caller's API key for a chat preset with automatic
+// key creation, creating it from the preset template on first use.
+func GetChatPresetKey(c *gin.Context) {
+	request := chatPresetKeyRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	presetName := strings.TrimSpace(request.Preset)
+	autoKey, ok := setting.GetChatPresetAutoKey(presetName)
+	if !ok {
+		common.ApiErrorT(c, "This chat preset does not create API keys automatically")
+		return
+	}
+	keyName := setting.ChatPresetAutoKeyName(presetName, autoKey)
+	tokens, _, err := model.SearchUserTokens(c.GetInt("id"), keyName, "", 0, 100)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
+	foundDisabled := false
+	for _, token := range tokens {
+		if token.Name != keyName {
+			continue
+		}
+		if token.Status == common.TokenStatusEnabled {
+			common.ApiSuccess(c, gin.H{"key": token.GetFullKey()})
+			return
+		}
+		foundDisabled = true
+	}
+	if foundDisabled {
+		common.ApiErrorT(c, "The API key {{name}} for this chat preset is not enabled", map[string]any{"name": keyName})
+		return
+	}
+	// The route only requires api_key:reveal; a scoped access token must also
+	// hold api_key:write before it can create a key.
+	if c.GetInt("access_token_id") > 0 && !service.AccessTokenScopeGranted(c.GetStringSlice("access_token_scopes"), "api_key:write") {
+		common.ApiErrorT(c, "The access token lacks the required permission: {{scope}}", map[string]any{"scope": "api_key:write"})
+		return
+	}
+
+	allowUserQuotaQuery := autoKey.AllowUserQuotaQuery
+	token, ok := insertUserToken(c, tokenRequest{
+		Token: model.Token{
+			Name:               keyName,
+			RemainQuota:        autoKey.RemainQuota,
+			UnlimitedQuota:     autoKey.UnlimitedQuota,
+			ModelLimitsEnabled: autoKey.ModelLimitsEnabled,
+			ModelLimits:        autoKey.ModelLimits,
+			AllowIps:           &autoKey.AllowIps,
+			Group:              autoKey.Group,
+			CrossGroupRetry:    autoKey.CrossGroupRetry,
+		},
+		AutoGroups:          tokenAutoGroupsInput{Set: true, Groups: autoKey.AutoGroups},
+		AutoRoutes:          tokenAutoRoutesInput{Set: true, Routes: autoKey.AutoRoutes},
+		AllowUserQuotaQuery: &allowUserQuotaQuery,
 	})
+	if !ok {
+		return
+	}
+	common.ApiSuccess(c, gin.H{"key": token.GetFullKey()})
 }
 
 func DeleteToken(c *gin.Context) {

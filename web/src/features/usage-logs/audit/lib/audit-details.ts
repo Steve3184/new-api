@@ -61,6 +61,7 @@ const TOKEN_AUDIT_OPERATIONS: Record<
   },
   'token.delete_batch': { labelKey: 'Batch delete API tokens' },
   'token.key_view_batch': { labelKey: 'View API token keys in batch' },
+  'token.chat_preset_key': { labelKey: 'Get chat preset API key' },
 }
 
 export type AuditDetailField = {

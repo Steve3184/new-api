@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Settings2 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,14 +24,29 @@ import { StaticDataTable } from '@/components/data-table/static/static-data-tabl
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { ApiKeysMutateDrawer } from '@/features/keys/components/api-keys-mutate-drawer'
+import {
+  transformFormDataToKeyTemplate,
+  transformKeyTemplateToFormDefaults,
+} from '@/features/keys/lib'
+import { useStatus } from '@/hooks/use-status'
 
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import { ChatDialog, type ChatEntryData } from './chat-dialog'
+import {
+  getDefaultChatPresetKeyName,
+  moveChatPresetSetting,
+  parseChatPresetSettings,
+  type ChatPresetSetting,
+} from './chat-preset-settings'
 
 type ChatSettingsVisualEditorProps = {
   value: string
   onChange: (value: string) => void
+  presetSettings: string
+  onPresetSettingsChange: (value: string) => void
 }
 
 type ChatEntry = ChatEntryData
@@ -39,11 +54,22 @@ type ChatEntry = ChatEntryData
 export function ChatSettingsVisualEditor({
   value,
   onChange,
+  presetSettings,
+  onPresetSettingsChange,
 }: ChatSettingsVisualEditorProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
   const [searchText, setSearchText] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<ChatEntry | null>(null)
+  const [keyDrawerOpen, setKeyDrawerOpen] = useState(false)
+  // Kept after closing so the drawer keeps its title while it animates out
+  const [keyPresetName, setKeyPresetName] = useState<string | null>(null)
+
+  const settings = useMemo(
+    () => parseChatPresetSettings(presetSettings),
+    [presetSettings]
+  )
 
   const chats = useMemo(() => {
     const parsed = safeJsonParseWithValidation<unknown[]>(value, {
@@ -77,6 +103,11 @@ export function ChatSettingsVisualEditor({
     )
   }, [chats, searchText])
 
+  const updatePresetSetting = (name: string, patch: ChatPresetSetting) => {
+    const next = { ...settings, [name]: { ...settings[name], ...patch } }
+    onPresetSettingsChange(JSON.stringify(next))
+  }
+
   const handleSave = (data: ChatEntryData) => {
     const chatsArray = safeJsonParseWithValidation<unknown[]>(value, {
       fallback: [],
@@ -93,6 +124,14 @@ export function ChatSettingsVisualEditor({
         }
         return true
       })
+      const movedSettings = moveChatPresetSetting(
+        settings,
+        editData.name,
+        data.name
+      )
+      if (movedSettings !== settings) {
+        onPresetSettingsChange(JSON.stringify(movedSettings))
+      }
     }
 
     updatedArray.push({ [data.name]: data.url })
@@ -115,6 +154,10 @@ export function ChatSettingsVisualEditor({
     })
 
     onChange(JSON.stringify(updatedArray, null, 2))
+    const remainingSettings = moveChatPresetSetting(settings, name, null)
+    if (remainingSettings !== settings) {
+      onPresetSettingsChange(JSON.stringify(remainingSettings))
+    }
   }
 
   const handleEdit = (chat: ChatEntry) => {
@@ -126,6 +169,28 @@ export function ChatSettingsVisualEditor({
     setEditData(null)
     setDialogOpen(true)
   }
+
+  const openKeyDrawer = (name: string) => {
+    setKeyPresetName(name)
+    setKeyDrawerOpen(true)
+  }
+
+  const handleAutoKeyToggle = (name: string, enabled: boolean) => {
+    const autoKey = settings[name]?.auto_key
+    // Turning it on for the first time asks for the key settings; the switch
+    // stays off unless they are saved.
+    if (enabled && !autoKey) {
+      openKeyDrawer(name)
+      return
+    }
+    if (autoKey) {
+      updatePresetSetting(name, { auto_key: { ...autoKey, enabled } })
+    }
+  }
+
+  const keyPresetDefaultName = keyPresetName
+    ? getDefaultChatPresetKeyName(keyPresetName)
+    : ''
 
   return (
     <div className='space-y-4'>
@@ -169,6 +234,59 @@ export function ChatSettingsVisualEditor({
             cell: (chat) => chat.url,
           },
           {
+            id: 'standalone',
+            header: t('Standalone menu'),
+            cell: (chat) => (
+              <Switch
+                checked={settings[chat.name]?.standalone_menu === true}
+                onCheckedChange={(checked) =>
+                  updatePresetSetting(chat.name, { standalone_menu: checked })
+                }
+                aria-label={t('Show {{name}} as a standalone menu', {
+                  name: chat.name,
+                })}
+              />
+            ),
+          },
+          {
+            id: 'auto-key',
+            header: t('Auto-created API key'),
+            cell: (chat) => {
+              const autoKey = settings[chat.name]?.auto_key
+              const enabled = autoKey?.enabled === true
+              return (
+                <div className='flex min-w-0 items-center gap-2'>
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={(checked) =>
+                      handleAutoKeyToggle(chat.name, checked)
+                    }
+                    aria-label={t('Create an API key for {{name}}', {
+                      name: chat.name,
+                    })}
+                  />
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon-sm'
+                    disabled={!enabled}
+                    onClick={() => openKeyDrawer(chat.name)}
+                    aria-label={t('Configure the API key for {{name}}', {
+                      name: chat.name,
+                    })}
+                  >
+                    <Settings2 className='size-4' />
+                  </Button>
+                  {enabled && (
+                    <span className='text-muted-foreground max-w-40 truncate font-mono text-xs'>
+                      {autoKey.name || getDefaultChatPresetKeyName(chat.name)}
+                    </span>
+                  )}
+                </div>
+              )
+            },
+          },
+          {
             id: 'actions',
             header: t('Actions'),
             className: 'text-right',
@@ -191,6 +309,39 @@ export function ChatSettingsVisualEditor({
         onOpenChange={setDialogOpen}
         onSave={handleSave}
         editData={editData}
+      />
+
+      <ApiKeysMutateDrawer
+        open={keyDrawerOpen}
+        onOpenChange={setKeyDrawerOpen}
+        template={
+          keyPresetName === null
+            ? undefined
+            : {
+                title: t('API key for {{name}}', { name: keyPresetName }),
+                description: t(
+                  'Each user gets this key the first time they open the preset. Changes apply only to keys created afterwards.'
+                ),
+                values: transformKeyTemplateToFormDefaults(
+                  settings[keyPresetName]?.auto_key,
+                  keyPresetDefaultName,
+                  status?.default_use_auto_group === true
+                ),
+                onSave: (formValues) => {
+                  const template = transformFormDataToKeyTemplate(formValues)
+                  updatePresetSetting(keyPresetName, {
+                    auto_key: {
+                      ...template,
+                      name:
+                        template.name === keyPresetDefaultName
+                          ? ''
+                          : template.name,
+                      enabled: true,
+                    },
+                  })
+                },
+              }
+        }
       />
     </div>
   )

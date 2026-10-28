@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
+import { useChatPresetKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
   chatLinkRequiresApiKey,
@@ -61,7 +61,7 @@ function ChatRouteComponent() {
     isPending,
     isError,
     error,
-  } = useActiveChatKey(Boolean(preset && requiresActiveKey))
+  } = useChatPresetKey(preset, requiresActiveKey)
 
   const iframeSrc = useMemo(() => {
     if (!preset || !isWebLink) return ''

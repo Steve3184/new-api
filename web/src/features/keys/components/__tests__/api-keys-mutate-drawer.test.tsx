@@ -20,6 +20,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import type { ApiKey } from '../../types'
+import type { ApiKeyTemplateEditing } from '../api-keys-mutate-drawer'
 
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
@@ -101,7 +102,10 @@ function installApiFixtures(
   }
 }
 
-async function renderCreateDrawer(): Promise<void> {
+async function renderCreateDrawer(
+  template?: ApiKeyTemplateEditing,
+  onOpenChange: (open: boolean) => void = () => undefined
+): Promise<void> {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -142,9 +146,17 @@ async function renderCreateDrawer(): Promise<void> {
   render(
     <QueryClientProvider client={queryClient}>
       <I18nextProvider i18n={i18n}>
-        <ApiKeysProvider>
-          <ApiKeysMutateDrawer open onOpenChange={() => undefined} />
-        </ApiKeysProvider>
+        {template ? (
+          <ApiKeysMutateDrawer
+            open
+            onOpenChange={onOpenChange}
+            template={template}
+          />
+        ) : (
+          <ApiKeysProvider>
+            <ApiKeysMutateDrawer open onOpenChange={onOpenChange} />
+          </ApiKeysProvider>
+        )}
       </I18nextProvider>
     </QueryClientProvider>
   )
@@ -169,7 +181,9 @@ function findButton(text: string, required = true): HTMLButtonElement | null {
   return button ?? null
 }
 
-function getControlByLabel(labelText: 'Name' | 'Quantity'): HTMLInputElement
+function getControlByLabel(
+  labelText: 'Name' | 'Quantity' | 'Quota (USD)'
+): HTMLInputElement
 function getControlByLabel(labelText: 'Group'): HTMLButtonElement
 function getControlByLabel(labelText: 'Auto group order'): HTMLElement
 function getControlByLabel(labelText: string): HTMLElement {
@@ -487,5 +501,49 @@ describe('API keys mutate drawer user quota query switch', () => {
     fireEvent.click(findButton('Save changes', true))
     await waitFor(() => expect(createdPayloads).toHaveLength(1))
     expect(createdPayloads[0]?.allow_user_quota_query).toBe(false)
+  })
+})
+
+describe('API keys mutate drawer key template mode', () => {
+  test('edits the template values and hands them back without creating a key', async () => {
+    const createdPayloads: Array<Record<string, unknown>> = []
+    installApiFixtures(createdPayloads)
+    const saved: unknown[] = []
+    const openChanges: boolean[] = []
+    const { getApiKeyFormDefaultValues } = await import('../../lib')
+    await renderCreateDrawer(
+      {
+        title: 'API key for Lobe',
+        description: 'Template description',
+        values: {
+          ...getApiKeyFormDefaultValues(false),
+          name: 'app-Lobe',
+          group: 'vip',
+          unlimited_quota: false,
+          remain_quota_dollars: 3,
+        },
+        onSave: (values) => saved.push(values),
+      },
+      (open) => openChanges.push(open)
+    )
+
+    expect(screen.getByText('API key for Lobe')).toBeInTheDocument()
+    expect(getControlByLabel('Name')).toHaveValue('app-Lobe')
+    expect(getControlByLabel('Quota (USD)')).toHaveValue(3)
+    expect(screen.queryByText('Expiration Time')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quantity')).not.toBeInTheDocument()
+
+    changeInput(getControlByLabel('Name'), 'lobe-key')
+    fireEvent.click(findButton('Save changes', true))
+
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0]).toMatchObject({
+      name: 'lobe-key',
+      unlimited_quota: false,
+      remain_quota_dollars: 3,
+      group: 'vip',
+    })
+    expect(openChanges).toEqual([false])
+    expect(createdPayloads).toHaveLength(0)
   })
 })

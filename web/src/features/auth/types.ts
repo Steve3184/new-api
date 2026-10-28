@@ -231,6 +231,10 @@ export interface SystemStatus {
   status_check_announcement?: string
   playground?: PlaygroundPublicSettings
   custom_tabs?: string
+  chat_preset_settings?: Record<
+    string,
+    { standalone_menu?: boolean; auto_key?: boolean }
+  >
   log_export_enabled?: boolean
   log_max_range_days?: number
   quota_remind_enabled?: boolean

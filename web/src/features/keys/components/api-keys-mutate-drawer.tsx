@@ -107,24 +107,37 @@ import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
 } from './api-key-group-combobox'
-import { useApiKeys } from './api-keys-provider'
+import { useOptionalApiKeys } from './api-keys-context'
 import { AutoGroupOrderEditor } from './auto-group-order-editor'
+
+/**
+ * Edits the settings of a key that is created later instead of a real key.
+ * Nothing is sent to the token API; the values go back through onSave.
+ */
+export type ApiKeyTemplateEditing = {
+  title: string
+  description: string
+  values: ApiKeyFormValues
+  onSave: (values: ApiKeyFormValues) => void
+}
 
 type ApiKeyMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: ApiKey
+  template?: ApiKeyTemplateEditing
 }
 
 export function ApiKeysMutateDrawer({
   open,
   onOpenChange,
   currentRow,
+  template,
 }: ApiKeyMutateDrawerProps) {
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const currentRowId = currentRow?.id
-  const { triggerRefresh } = useApiKeys()
+  const apiKeys = useOptionalApiKeys()
   const { status, loading: statusLoading } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -266,7 +279,9 @@ export function ApiKeysMutateDrawer({
     if (isUpdate && (!autoRoutesFetched || autoRoutesFetching)) return
     if (!isUpdate && statusLoading) return
 
-    const target = isUpdate && currentRow ? `update:${currentRow.id}` : 'create'
+    let target = 'create'
+    if (template) target = 'template'
+    else if (isUpdate && currentRow) target = `update:${currentRow.id}`
     if (initializedTarget === target) return
     if (isUpdate && currentRow) {
       if (apiKeyData?.success && apiKeyData.data) {
@@ -286,7 +301,8 @@ export function ApiKeysMutateDrawer({
       }
     } else {
       form.reset(
-        getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
+        template?.values ??
+          getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
       )
       setInitializedTarget(target)
     }
@@ -311,10 +327,12 @@ export function ApiKeysMutateDrawer({
     availableAutoGroupNames,
     maxAutoGroups,
     initializedTarget,
+    template,
   ])
 
-  const formTarget =
-    isUpdate && currentRow ? `update:${currentRow.id}` : 'create'
+  let formTarget = 'create'
+  if (template) formTarget = 'template'
+  else if (isUpdate && currentRow) formTarget = `update:${currentRow.id}`
   const isFormInitialized = initializedTarget === formTarget
   const selectedGroup = form.watch('group')
 
@@ -337,6 +355,11 @@ export function ApiKeysMutateDrawer({
   }, [groups, form, selectedGroup])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
+    if (template) {
+      template.onSave(data)
+      onOpenChange(false)
+      return
+    }
     setIsSubmitting(true)
     try {
       const basePayload = transformFormDataToPayload(data)
@@ -349,7 +372,7 @@ export function ApiKeysMutateDrawer({
         if (result.success) {
           toast.success(t(SUCCESS_MESSAGES.API_KEY_UPDATED))
           onOpenChange(false)
-          triggerRefresh()
+          apiKeys?.triggerRefresh()
         } else {
           toast.error(result.message || t(ERROR_MESSAGES.UPDATE_FAILED))
         }
@@ -381,7 +404,7 @@ export function ApiKeysMutateDrawer({
             })
           )
           onOpenChange(false)
-          triggerRefresh()
+          apiKeys?.triggerRefresh()
         }
       }
     } catch {
@@ -494,6 +517,16 @@ export function ApiKeysMutateDrawer({
     form.setValue('auto_routes', routes, { shouldDirty: true })
   }
 
+  let drawerTitle = t('Create API Key')
+  let drawerDescription = t('Add a new API key by providing necessary info.')
+  if (template) {
+    drawerTitle = template.title
+    drawerDescription = template.description
+  } else if (isUpdate) {
+    drawerTitle = t('Update API Key')
+    drawerDescription = t('Update the API key by providing necessary info.')
+  }
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -501,14 +534,8 @@ export function ApiKeysMutateDrawer({
           className={sideDrawerContentClassName('max-w-none sm:!max-w-[620px]')}
         >
           <SheetHeader className={sideDrawerHeaderClassName()}>
-            <SheetTitle>
-              {isUpdate ? t('Update API Key') : t('Create API Key')}
-            </SheetTitle>
-            <SheetDescription>
-              {isUpdate
-                ? t('Update the API key by providing necessary info.')
-                : t('Add a new API key by providing necessary info.')}
-            </SheetDescription>
+            <SheetTitle>{drawerTitle}</SheetTitle>
+            <SheetDescription>{drawerDescription}</SheetDescription>
           </SheetHeader>
           <Form {...form}>
             <form
@@ -750,6 +777,7 @@ export function ApiKeysMutateDrawer({
                   />
                 )}
 
+                {!template && (
                 <FormField
                   control={form.control}
                   name='expired_time'
@@ -808,8 +836,9 @@ export function ApiKeysMutateDrawer({
                     </FormItem>
                   )}
                 />
+                )}
 
-                {!isUpdate && (
+                {!isUpdate && !template && (
                   <FormField
                     control={form.control}
                     name='tokenCount'

@@ -65,6 +65,8 @@ const STATUS_RELATED_KEYS = new Set([
   'checkin_setting.daily_user_limit',
   'checkin_setting.daily_quota_limit',
   'CustomTabs',
+  'Chats',
+  'ChatPresetSettings',
   'StatusCheckGroups',
   'StatusCheckCacheExcludedModels',
   'StatusCheckAnnouncement',

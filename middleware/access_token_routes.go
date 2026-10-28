@@ -280,6 +280,8 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"DELETE /api/token/:id":      accessTokenScopeRule("api_key:write"),
 	"POST /api/token/batch":      accessTokenScopeRule("api_key:write"),
 	"POST /api/token/batch/keys": accessTokenScopeRule("api_key:reveal"),
+	// Creating the preset key on first use also needs api_key:write; the handler checks it.
+	"POST /api/token/chat-preset-key": accessTokenScopeRule("api_key:reveal"),
 
 	// router/api-router.go: /api/redemption
 	"GET /api/redemption/":           accessTokenScopeRule("redemption:read"),

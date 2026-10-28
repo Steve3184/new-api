@@ -108,6 +108,12 @@ export interface ApiKeyFormData {
   cross_group_retry: boolean
 }
 
+/**
+ * Settings of an API key that is created later, such as the key a chat preset
+ * creates for each user on first use. An empty name means the default name.
+ */
+export type ApiKeyTemplate = Omit<ApiKeyFormData, 'expired_time'>
+
 export interface TokenAutoGroupsConfig {
   groups: string[]
   max_count: number

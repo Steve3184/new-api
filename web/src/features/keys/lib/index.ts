@@ -26,4 +26,6 @@ export {
   getApiKeyFormDefaultValues,
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
+  transformKeyTemplateToFormDefaults,
+  transformFormDataToKeyTemplate,
 } from './api-key-form'

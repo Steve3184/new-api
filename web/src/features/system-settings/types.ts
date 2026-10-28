@@ -327,6 +327,7 @@ export type ContentSettings = {
   DataExportDefaultTime: string
   DataExportInterval: number
   Chats: string
+  ChatPresetSettings: string
   DrawingEnabled: boolean
   MjNotifyEnabled: boolean
   MjAccountFilterEnabled: boolean

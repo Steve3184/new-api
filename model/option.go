@@ -195,6 +195,7 @@ func InitOptionMap() {
 	common.OptionMap["NowPaymentsPaymentExpirationMins"] = strconv.Itoa(setting.NowPaymentsPaymentExpirationMins)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
+	common.OptionMap["ChatPresetSettings"] = setting.ChatPresetSettings2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
 	common.OptionMap["DefaultUseAutoGroup"] = strconv.FormatBool(setting.DefaultUseAutoGroup)
 	common.OptionMap["AutoGroupDescription"] = setting.AutoGroupDescription
@@ -719,6 +720,8 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.PayAddress = value
 	case "Chats":
 		err = setting.UpdateChatsByJsonString(value)
+	case "ChatPresetSettings":
+		err = setting.UpdateChatPresetSettingsByJsonString(value)
 	case "AutoGroups":
 		err = setting.UpdateAutoGroupsByJsonString(value)
 	case "AutoGroupDescription":

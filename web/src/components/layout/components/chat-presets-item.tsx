@@ -41,7 +41,7 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { fetchActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
+import { fetchKeyForChatPreset } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
   chatLinkRequiresApiKey,
@@ -117,6 +117,69 @@ function ChatMenuItem({
 }
 
 /**
+ * Top-level sidebar entry for a preset configured as a standalone menu
+ */
+function StandalonePresetItem({
+  preset,
+  icon: Icon,
+  active,
+  loading,
+  onOpen,
+  onNavigate,
+  preload,
+}: {
+  preset: ChatPreset
+  icon?: React.ElementType
+  active: boolean
+  loading: boolean
+  onOpen: (preset: ChatPreset) => void | Promise<void>
+  onNavigate: () => void
+  preload?: false
+}) {
+  if (preset.type === 'web') {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          isActive={active}
+          tooltip={preset.name}
+          render={
+            <Link
+              to='/chat/$chatId'
+              params={{ chatId: preset.id }}
+              preload={preload}
+              onClick={onNavigate}
+            />
+          }
+        >
+          {Icon && <Icon className='shrink-0' />}
+          <span className='min-w-0 flex-1 truncate'>{preset.name}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    )
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip={preset.name}
+        aria-disabled={loading ? 'true' : undefined}
+        onClick={() => {
+          if (!loading) void onOpen(preset)
+        }}
+      >
+        {Icon && <Icon className='shrink-0' />}
+        <span className='min-w-0 flex-1 truncate'>{preset.name}</span>
+        {loading ? (
+          <Loader2 className='ms-auto size-4 shrink-0 animate-spin' />
+        ) : (
+          <ExternalLink className='ms-auto size-4 shrink-0 opacity-70' />
+        )}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
+/**
  * Dropdown menu item for a single chat preset
  */
 function DropdownPresetItem({
@@ -170,6 +233,12 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
     () => chatPresets.filter((preset) => preset.type !== 'fluent'),
     [chatPresets]
   )
+  const standalonePresets = visiblePresets.filter(
+    (preset) => preset.standaloneMenu
+  )
+  const groupedPresets = visiblePresets.filter(
+    (preset) => !preset.standaloneMenu
+  )
 
   const handleOpenExternal = useCallback(
     async (preset: ChatPreset) => {
@@ -187,7 +256,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
         loadingPresetIdRef.current = preset.id
         setLoadingPresetId(preset.id)
         try {
-          activeKey = await fetchActiveChatKey()
+          activeKey = await fetchKeyForChatPreset(preset)
         } catch (error) {
           const message =
             error instanceof Error
@@ -224,68 +293,86 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
 
   const normalizedHref = normalizeHref(href)
 
-  // Don't render if no visible presets
-  if (visiblePresets.length === 0) {
-    return null
+  const standaloneItems = standalonePresets.map((preset) => (
+    <StandalonePresetItem
+      key={preset.id}
+      preset={preset}
+      icon={item.icon}
+      active={normalizedHref === `/chat/${preset.id}`}
+      loading={loadingPresetId === preset.id}
+      onOpen={handleOpenExternal}
+      onNavigate={() => setOpenMobile(false)}
+      preload={isMobile ? false : undefined}
+    />
+  ))
+
+  if (groupedPresets.length === 0) {
+    return standaloneItems
   }
 
   // Collapsed state on non-mobile - render dropdown menu
   if (state === 'collapsed' && !isMobile) {
     return (
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<SidebarMenuButton tooltip={item.title} />}
-          >
-            {item.icon && <item.icon className='h-4 w-4 shrink-0' />}
-            <span className='min-w-0 flex-1 truncate'>{item.title}</span>
-            <ChevronRight className='ms-auto h-4 w-4 shrink-0 opacity-70' />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='start'>
-            {visiblePresets.map((preset) => (
-              <DropdownPresetItem
-                key={preset.id}
-                preset={preset}
-                loading={loadingPresetId === preset.id}
-                onOpen={handleOpenExternal}
-              />
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
+      <>
+        {standaloneItems}
+        <SidebarMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<SidebarMenuButton tooltip={item.title} />}
+            >
+              {item.icon && <item.icon className='h-4 w-4 shrink-0' />}
+              <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+              <ChevronRight className='ms-auto h-4 w-4 shrink-0 opacity-70' />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start'>
+              {groupedPresets.map((preset) => (
+                <DropdownPresetItem
+                  key={preset.id}
+                  preset={preset}
+                  loading={loadingPresetId === preset.id}
+                  onOpen={handleOpenExternal}
+                />
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </>
     )
   }
 
   // Expanded state - render collapsible menu
   return (
-    <Collapsible
-      defaultOpen={normalizedHref.startsWith('/chat')}
-      className='group/collapsible'
-      render={<SidebarMenuItem />}
-    >
-      <CollapsibleTrigger
-        className='group/collapsible-trigger'
-        render={<SidebarMenuButton />}
+    <>
+      {standaloneItems}
+      <Collapsible
+        defaultOpen={normalizedHref.startsWith('/chat')}
+        className='group/collapsible'
+        render={<SidebarMenuItem />}
       >
-        {item.icon && <item.icon className='shrink-0' />}
-        <span className='min-w-0 flex-1 truncate'>{item.title}</span>
-        <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
-      </CollapsibleTrigger>
-      <CollapsibleContent className='CollapsibleContent'>
-        <SidebarMenuSub>
-          {visiblePresets.map((preset) => (
-            <ChatMenuItem
-              key={preset.id}
-              preset={preset}
-              active={normalizedHref === `/chat/${preset.id}`}
-              loading={loadingPresetId === preset.id}
-              onOpen={handleOpenExternal}
-              onNavigate={() => setOpenMobile(false)}
-              preload={isMobile ? false : undefined}
-            />
-          ))}
-        </SidebarMenuSub>
-      </CollapsibleContent>
-    </Collapsible>
+        <CollapsibleTrigger
+          className='group/collapsible-trigger'
+          render={<SidebarMenuButton />}
+        >
+          {item.icon && <item.icon className='shrink-0' />}
+          <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+          <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
+        </CollapsibleTrigger>
+        <CollapsibleContent className='CollapsibleContent'>
+          <SidebarMenuSub>
+            {groupedPresets.map((preset) => (
+              <ChatMenuItem
+                key={preset.id}
+                preset={preset}
+                active={normalizedHref === `/chat/${preset.id}`}
+                loading={loadingPresetId === preset.id}
+                onOpen={handleOpenExternal}
+                onNavigate={() => setOpenMobile(false)}
+                preload={isMobile ? false : undefined}
+              />
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </Collapsible>
+    </>
   )
 }

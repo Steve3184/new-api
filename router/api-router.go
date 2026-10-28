@@ -342,6 +342,7 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.GET("/:id/auto-routes/status", controller.GetTokenAutoRouteStatus)
 			tokenRoute.GET("/:id", controller.GetToken)
 			tokenRoute.POST("/:id/key", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKey)
+			tokenRoute.POST("/chat-preset-key", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetChatPresetKey)
 			tokenRoute.POST("/:id/reset-used-quota", controller.ResetTokenUsedQuota)
 			tokenRoute.POST("/", controller.AddToken)
 			tokenRoute.PUT("/", controller.UpdateToken)
