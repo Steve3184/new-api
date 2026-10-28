@@ -366,7 +366,7 @@ export interface UserWalletData {
 /**
  * Topup record status
  */
-export type TopupStatus = 'success' | 'pending' | 'expired'
+export type TopupStatus = 'success' | 'pending' | 'expired' | 'failed'
 
 /**
  * Topup billing record
@@ -390,6 +390,22 @@ export interface TopupRecord {
   complete_time?: number
   /** Payment status */
   status: TopupStatus
+  /** Payment provider (epay, stripe, nowpayments, monero, ...) */
+  payment_provider?: string
+  /** Order type: quota top-up or redemption purchase */
+  order_type?: string
+  /** Whether the owner can still resume paying this order */
+  can_continue_payment?: boolean
+  /** Quoted and received crypto amounts for NOWPayments / Monero orders */
+  crypto_payment?: TopupCryptoPayment
+}
+
+export interface TopupCryptoPayment {
+  pay_currency: string
+  pay_amount: string
+  actually_paid: string
+  gateway_status?: string
+  expires_at: number
 }
 
 /**
@@ -405,4 +421,16 @@ export interface BillingHistoryResponse {
  */
 export interface CompleteOrderRequest {
   trade_no: string
+  /** Crypto amount actually received, used only when the gateway has no result */
+  received_amount?: string
 }
+
+/**
+ * What the server returns for resuming a pending order, keyed by how the
+ * gateway collects payment.
+ */
+export type ResumePayment =
+  | { type: 'form'; url: string; params: Record<string, unknown> }
+  | { type: 'redirect'; url: string }
+  | { type: 'nowpayments'; invoice: NowPaymentsInvoice }
+  | { type: 'monero'; invoice: MoneroInvoice }

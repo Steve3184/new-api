@@ -88,6 +88,8 @@ func exerciseNowPaymentsPaymentMigration(t *testing.T, db *gorm.DB) {
 	require.NoError(t, db.Table(legacyTable).AutoMigrate(&TopUp{}))
 	require.NoError(t, db.Table(legacyTable).AutoMigrate(&TopUp{}))
 	require.True(t, db.Migrator().HasColumn(legacyTable, "epay_gateway_id"))
+	require.True(t, db.Migrator().HasColumn(legacyTable, "pay_url"))
+	require.True(t, db.Migrator().HasColumn(legacyTable, "pay_url_expires_at"))
 	var migratedTopUp TopUp
 	require.NoError(t, db.Table(legacyTable).First(&migratedTopUp, legacyTopUp.Id).Error)
 	assert.Equal(t, legacyTopUp.TradeNo, migratedTopUp.TradeNo)
@@ -174,6 +176,7 @@ func exerciseNowPaymentsPaymentMigration(t *testing.T, db *gorm.DB) {
 	require.NoError(t, db.Table(paymentUpgradeTable).AutoMigrate(&NowPaymentsPayment{}))
 	require.NoError(t, db.Table(paymentUpgradeTable).AutoMigrate(&NowPaymentsPayment{}))
 	require.True(t, db.Migrator().HasColumn(paymentUpgradeTable, "settled_quota"))
+	require.True(t, db.Migrator().HasColumn(paymentUpgradeTable, "parent_payment_id"))
 	var migratedPayment NowPaymentsPayment
 	require.NoError(t, db.Table(paymentUpgradeTable).First(&migratedPayment, legacyPayment.ID).Error)
 	assert.Equal(t, legacyPayment.PaymentID, migratedPayment.PaymentID)

@@ -307,6 +307,7 @@ func RequestWaffoPay(c *gin.Context) {
 	if paymentUrl == "" {
 		paymentUrl = orderData.OrderAction
 	}
+	_ = model.SaveTopUpPayURL(merchantOrderId, paymentUrl, 0)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",

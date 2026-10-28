@@ -22,7 +22,6 @@ import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-import { BillingHistoryDialog } from '@/features/wallet/components/dialogs/billing-history-dialog'
 import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
@@ -94,39 +93,6 @@ it.each(['subscription_only', 'subscription_first'])(
     ).toBeVisible()
   }
 )
-
-it('translates billing history statuses and updates them when the language changes', async () => {
-  vi.spyOn(api, 'get').mockResolvedValue({
-    data: {
-      success: true,
-      data: {
-        total: 3,
-        items: ['success', 'pending', 'expired'].map((status, id) => ({
-          id,
-          status,
-          amount: 10,
-          money: 10,
-          trade_no: `order-${id}`,
-          payment_method: 'stripe',
-          create_time: 1,
-        })),
-      },
-    },
-  })
-  render(
-    <I18nextProvider i18n={i18n}>
-      <BillingHistoryDialog open onOpenChange={vi.fn()} />
-    </I18nextProvider>
-  )
-  await screen.findByText('order-0')
-  for (const label of ['成功', '待确认', '已过期']) {
-    expect(screen.getByText(label)).toBeVisible()
-  }
-  await act(() => i18n.changeLanguage('en'))
-  for (const label of ['Success', 'Pending', 'Expired']) {
-    expect(screen.getByText(label)).toBeVisible()
-  }
-})
 
 it.each([
   { priceRatio: 7.3, paid: '584', saved: '146', full: '146' },

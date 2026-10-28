@@ -33,6 +33,7 @@ import type {
   AffiliateTransferResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
+  ResumePayment,
   CreemPaymentRequest,
   CreemPaymentResponse,
   WaffoPaymentRequest,
@@ -335,5 +336,17 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+/**
+ * Fetch what is needed to continue paying a pending order
+ */
+export async function resumeTopupPayment(
+  tradeNo: string
+): Promise<ApiResponse<ResumePayment>> {
+  const res = await api.get(
+    `/api/user/topup/resume?trade_no=${encodeURIComponent(tradeNo)}`
+  )
   return res.data
 }

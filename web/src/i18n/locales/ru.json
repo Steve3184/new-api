@@ -8462,6 +8462,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Order Number": "Номер заказа",
+    "Continue Payment": "Продолжить оплату",
+    "Failed to continue payment": "Не удалось продолжить оплату",
+    "Back to Wallet": "Назад в кошелёк",
+    "Waffo Pancake": "Waffo Pancake",
+    "Creem": "Creem",
+    "Monero": "Monero",
+    "The gateway is checked first and the confirmed amount is credited. Enter the received amount only if the gateway has no confirmed payment.": "Сначала запрашивается шлюз, и зачисляется подтверждённая сумма. Вводите полученную сумму только если шлюз не подтвердил платёж.",
+    "Received amount ({{currency}})": "Полученная сумма ({{currency}})",
+    "Order is not pending payment": "Заказ не ожидает оплаты",
+    "This payment has expired": "Срок действия этого платежа истёк",
+    "Crypto payment record not found": "Запись о криптоплатеже не найдена",
+    "The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.": "Шлюз не подтвердил платёж по этому заказу. Введите полученную сумму, чтобы завершить заказ вручную.",
+    "Invalid received amount": "Недопустимая полученная сумма",
+    "Redemption purchases require the full quoted amount": "Для покупки кодов погашения требуется полная сумма по расчёту",
+    "Crypto orders must be completed through gateway reconciliation": "Криптозаказы завершаются только после сверки со шлюзом"
   }
 }

@@ -62,6 +62,9 @@ type NowPaymentsWebhook struct {
 	ActuallyPaid  json.RawMessage `json:"actually_paid"`
 	PayCurrency   string          `json:"pay_currency"`
 	OrderID       string          `json:"order_id"`
+	// ParentPaymentID is set when NOWPayments reports a repeated deposit to an
+	// address that already belongs to an earlier payment.
+	ParentPaymentID json.RawMessage `json:"parent_payment_id"`
 }
 
 type nowPaymentsCreateRequest struct {
@@ -882,6 +885,43 @@ func HandleNowPaymentsWebhook(payload []byte, callerIP string) error {
 	if err != nil {
 		return err
 	}
+	if parentText := strings.TrimSpace(string(event.ParentPaymentID)); parentText != "" && parentText != "null" {
+		parentID, parentErr := nowPaymentsIDString(event.ParentPaymentID)
+		if parentErr != nil {
+			return parentErr
+		}
+		if parentID != paymentID {
+			// A repeated deposit arrives as its own payment that points back to
+			// the invoice it tops up.
+			parent, parentErr := model.GetNowPaymentsPaymentByPaymentID(parentID)
+			if parentErr != nil {
+				return parentErr
+			}
+			if event.PayAddress != parent.PayAddress || !strings.EqualFold(event.PayCurrency, parent.PayCurrency) {
+				return errors.New("NOWPayments repeated deposit does not match the parent payment")
+			}
+			depositStatus := strings.ToLower(strings.TrimSpace(event.PaymentStatus))
+			if depositStatus != "finished" && depositStatus != "partially_paid" {
+				return nil
+			}
+			depositPaid, parentErr := nowPaymentsOptionalDecimalString(event.ActuallyPaid)
+			if parentErr != nil {
+				return parentErr
+			}
+			if paid, _ := decimal.NewFromString(depositPaid); !paid.IsPositive() {
+				return nil
+			}
+			canonicalDeposit, parentErr := canonicalNowPaymentsJSON(payload)
+			if parentErr != nil {
+				return parentErr
+			}
+			parentErr = model.SettleNowPaymentsRepeatedDeposit(parentID, paymentID, depositStatus, depositPaid, string(canonicalDeposit), callerIP)
+			if errors.Is(parentErr, model.ErrNowPaymentsRepeatedDepositUnsupported) {
+				return nil
+			}
+			return parentErr
+		}
+	}
 	payment, err := model.GetNowPaymentsPaymentByPaymentID(paymentID)
 	if err != nil {
 		return err
@@ -968,6 +1008,33 @@ func HandleNowPaymentsWebhook(payload []byte, callerIP string) error {
 	default:
 		return fmt.Errorf("unsupported NOWPayments payment status %q", status)
 	}
+}
+
+// CompleteNowPaymentsTopUpByAdmin reconciles a pending order with the gateway
+// first, so a verified payment is credited by its actual amount. Only when the
+// gateway has nothing creditable does it use the amount the administrator
+// entered, which is credited in proportion to the quote.
+func CompleteNowPaymentsTopUpByAdmin(ctx context.Context, topUp *model.TopUp, receivedAmount string, callerIP string) error {
+	payment, err := model.GetNowPaymentsPaymentByTopUpID(topUp.Id)
+	if err != nil || payment.OrderType != model.NowPaymentsOrderTypeTopUp {
+		return common.NewMessage("Crypto payment record not found")
+	}
+	if payload, fetchErr := fetchNowPaymentsPayment(ctx, payment.PaymentID); fetchErr == nil {
+		_ = HandleNowPaymentsWebhook(payload, callerIP)
+	}
+	if refreshed := model.GetTopUpById(topUp.Id); refreshed != nil && refreshed.Status == common.TopUpStatusSuccess {
+		return nil
+	}
+	manual := strings.TrimSpace(receivedAmount)
+	if manual == "" {
+		return common.NewMessage("The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.")
+	}
+	paid, err := decimal.NewFromString(manual)
+	if err != nil || !paid.IsPositive() {
+		return common.NewMessage("Invalid received amount")
+	}
+	_, err = model.SettleNowPaymentsTopUpByAdmin(payment.PaymentID, paid.String(), callerIP)
+	return err
 }
 
 func ParseNowPaymentsWebhookPaymentID(payload []byte) string {

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,7 +33,6 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
-import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { MoneroPaymentDialog } from './components/dialogs/monero-payment-dialog'
 import { NowPaymentsCurrencyDialog } from './components/dialogs/nowpayments-currency-dialog'
@@ -78,6 +78,7 @@ interface WalletProps {
 
 export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
@@ -90,7 +91,6 @@ export function Wallet(props: WalletProps) {
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
-  const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [redemptionCaptchaOpen, setRedemptionCaptchaOpen] = useState(false)
   const [redemptionCaptchaKey, setRedemptionCaptchaKey] = useState(0)
@@ -185,10 +185,9 @@ export function Wallet(props: WalletProps) {
 
   useEffect(() => {
     if (props.initialShowHistory) {
-      setBillingDialogOpen(true)
-      window.history.replaceState({}, '', window.location.pathname)
+      void navigate({ to: '/wallet/orders', replace: true })
     }
-  }, [props.initialShowHistory])
+  }, [navigate, props.initialShowHistory])
 
   // Initialize topup amount when topup info is loaded
   const topupAmountInitializedRef = useRef(false)
@@ -513,7 +512,7 @@ export function Wallet(props: WalletProps) {
                     loading={topupLoading}
                     priceRatio={(status?.price as number) || 1}
                     usdExchangeRate={effectiveUsdExchangeRate}
-                    onOpenBilling={() => setBillingDialogOpen(true)}
+                    onOpenBilling={() => void navigate({ to: '/wallet/orders' })}
                     creemProducts={topupInfo?.creem_products}
                     enableCreemTopup={topupInfo?.enable_creem_topup}
                     onCreemProductSelect={handleCreemProductSelect}
@@ -588,11 +587,6 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleTransfer}
         availableQuota={user?.aff_quota ?? 0}
         transferring={transferring}
-      />
-
-      <BillingHistoryDialog
-        open={billingDialogOpen}
-        onOpenChange={setBillingDialogOpen}
       />
 
       <CreemConfirmDialog

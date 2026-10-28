@@ -83,6 +83,33 @@ func ListPendingMoneroPayments(network string) ([]MoneroPayment, error) {
 	return payments, err
 }
 
+// ListScannableMoneroPayments returns pending invoices plus invoices that
+// expired at or after expiredSince, so a transfer that confirms shortly after
+// the invoice window still settles the order it was sent for.
+func ListScannableMoneroPayments(network string, expiredSince int64) ([]MoneroPayment, error) {
+	var payments []MoneroPayment
+	err := DB.Where("network = ? AND (status = ? OR (status = ? AND expires_at >= ?))",
+		network, MoneroPaymentStatusPending, MoneroPaymentStatusExpired, expiredSince).
+		Find(&payments).Error
+	return payments, err
+}
+
+func GetMoneroPaymentByTopUpID(topUpID int) (*MoneroPayment, error) {
+	payment := &MoneroPayment{}
+	if err := DB.Where("top_up_id = ?", topUpID).First(payment).Error; err != nil {
+		return nil, err
+	}
+	return payment, nil
+}
+
+func moneroAtomicToXMR(atomic string) string {
+	value, err := decimal.NewFromString(strings.TrimSpace(atomic))
+	if err != nil {
+		return ""
+	}
+	return value.Shift(-moneroAtomicUnits).String()
+}
+
 // ListTerminalMoneroPaymentAddressAuditCandidates returns only invoices whose
 // Monero payment and associated top-up have both reached a matching terminal
 // state. The address audit must never inspect a pending invoice as eligible.
@@ -137,8 +164,21 @@ func ExpirePendingMoneroPayments(now int64) error {
 
 // SettleMoneroPayment is the only place an observed XMR transfer can credit a
 // user. It locks both records, rechecks the payment provider/status, and uses
-// the quote snapshot rather than a later exchange-rate value.
+// the quote snapshot rather than a later exchange-rate value. Automatic
+// settlement requires the full quoted amount; it also accepts an invoice that
+// expired locally, because Monero has no gateway that can reject late funds.
 func SettleMoneroPayment(paymentID int, receivedAtomic string, transactionIDs []string) (*MoneroPaymentInvoice, int, error) {
+	return settleMoneroPayment(paymentID, receivedAtomic, transactionIDs, false, "monero-rpc")
+}
+
+// SettleMoneroPaymentByAdmin credits an administrator-confirmed amount. An
+// underpaid wallet top-up is credited in proportion to the quote; redemption
+// purchases still need the full amount because codes cannot be split.
+func SettleMoneroPaymentByAdmin(paymentID int, receivedAtomic string, transactionIDs []string, callerIP string) (*MoneroPaymentInvoice, int, error) {
+	return settleMoneroPayment(paymentID, receivedAtomic, transactionIDs, true, callerIP)
+}
+
+func settleMoneroPayment(paymentID int, receivedAtomic string, transactionIDs []string, allowUnderpaid bool, callerIP string) (*MoneroPaymentInvoice, int, error) {
 	received, err := decimal.NewFromString(strings.TrimSpace(receivedAtomic))
 	if err != nil || !received.IsPositive() || !received.Equal(received.Truncate(0)) {
 		return nil, 0, errors.New("invalid monero received amount")
@@ -159,13 +199,13 @@ func SettleMoneroPayment(paymentID int, receivedAtomic string, transactionIDs []
 			settled = &MoneroPaymentInvoice{TopUp: topUp, Payment: payment}
 			return nil
 		}
-		if payment.Status != MoneroPaymentStatusPending {
+		if payment.Status != MoneroPaymentStatusPending && payment.Status != MoneroPaymentStatusExpired {
 			return errors.New("monero payment is not pending")
 		}
 
 		expected, parseErr := decimal.NewFromString(payment.ExpectedAtomic)
-		if parseErr != nil || !expected.IsPositive() || received.LessThan(expected) {
-			return errors.New("monero payment is below the expected amount")
+		if parseErr != nil || !expected.IsPositive() {
+			return errors.New("invalid monero expected amount")
 		}
 		usdPerXMR, parseErr := decimal.NewFromString(payment.USDPerXMR)
 		if parseErr != nil || !usdPerXMR.IsPositive() {
@@ -197,8 +237,11 @@ func SettleMoneroPayment(paymentID int, receivedAtomic string, transactionIDs []
 			settled = &MoneroPaymentInvoice{TopUp: topUp, Payment: payment}
 			return nil
 		}
-		if topUp.Status != common.TopUpStatusPending {
+		if topUp.Status != common.TopUpStatusPending && topUp.Status != common.TopUpStatusExpired {
 			return errors.New("monero topup is not pending")
+		}
+		if received.LessThan(expected) && (!allowUnderpaid || topUp.IsRedemptionPurchase()) {
+			return errors.New("monero payment is below the expected amount")
 		}
 
 		now := common.GetTimestamp()
@@ -237,7 +280,7 @@ func SettleMoneroPayment(paymentID int, receivedAtomic string, transactionIDs []
 	RecordTopupLog(
 		settled.TopUp.UserId,
 		common.NewMessage("{{provider}} top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"provider": "Monero", "quota": logger.FormatQuota(quotaToAdd), "amount": fmt.Sprintf("%.8f USD", settled.TopUp.Money)}),
-		"monero-rpc",
+		callerIP,
 		PaymentMethodMonero,
 		PaymentProviderMonero,
 	)

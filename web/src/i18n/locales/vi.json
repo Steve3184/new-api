@@ -8462,6 +8462,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Order Number": "Mã đơn hàng",
+    "Continue Payment": "Tiếp tục thanh toán",
+    "Failed to continue payment": "Không thể tiếp tục thanh toán",
+    "Back to Wallet": "Quay lại ví",
+    "Waffo Pancake": "Waffo Pancake",
+    "Creem": "Creem",
+    "Monero": "Monero",
+    "The gateway is checked first and the confirmed amount is credited. Enter the received amount only if the gateway has no confirmed payment.": "Hệ thống sẽ kiểm tra cổng thanh toán trước và ghi có số tiền đã xác nhận. Chỉ nhập số lượng đã nhận khi cổng chưa xác nhận khoản thanh toán nào.",
+    "Received amount ({{currency}})": "Số lượng đã nhận ({{currency}})",
+    "Order is not pending payment": "Đơn hàng không ở trạng thái chờ thanh toán",
+    "This payment has expired": "Khoản thanh toán này đã hết hạn",
+    "Crypto payment record not found": "Không tìm thấy bản ghi thanh toán tiền mã hóa",
+    "The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.": "Cổng thanh toán chưa xác nhận khoản thanh toán cho đơn hàng này. Nhập số lượng đã nhận để hoàn tất thủ công.",
+    "Invalid received amount": "Số lượng đã nhận không hợp lệ",
+    "Redemption purchases require the full quoted amount": "Mua mã đổi thưởng yêu cầu thanh toán đủ số tiền báo giá",
+    "Crypto orders must be completed through gateway reconciliation": "Đơn hàng tiền mã hóa phải được hoàn tất bằng cách đối soát với cổng thanh toán"
   }
 }

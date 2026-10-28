@@ -540,6 +540,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		paymentError(c, common.NewMessage("Failed to start payment"))
 		return
 	}
+	_ = model.SaveTopUpPayURL(tradeNo, session.CheckoutURL, time.Now().Unix()+int64(expiresInSeconds)-60)
 	logger.LogInfo(c.Request.Context(), common.LogText("Waffo Pancake top-up order created user_id=%d trade_no=%s session_id=%s amount=%d money=%.2f", id, tradeNo, session.SessionID, req.Amount, price.Money))
 
 	c.JSON(http.StatusOK, gin.H{

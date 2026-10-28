@@ -500,3 +500,74 @@ func TestAuditMoneroTerminalAddressesReportsOnlyFullyUnlockedAddresses(t *testin
 	assert.Equal(t, 1, result.Locked)
 	assert.Equal(t, 1, result.NotReported)
 }
+
+func TestMoneroLatePaymentAfterInvoiceExpirySettlesOrderOnce(t *testing.T) {
+	setupMoneroServiceTest(t)
+
+	rpcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			w.Header().Set("WWW-Authenticate", `Digest realm="monero-rpc", nonce="late-nonce", algorithm=MD5, qop="auth"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		var request moneroRPCRequest
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		var response any
+		switch request.Method {
+		case "get_address":
+			response = map[string]any{"result": map[string]any{"addresses": []map[string]any{{"address": "9latePrimaryAddress"}}}}
+		case "create_address":
+			response = map[string]any{"result": map[string]any{"address": "9lateMoneroInvoiceAddress", "address_index": 7}}
+		case "get_transfers":
+			response = map[string]any{"result": map[string]any{
+				"in":  []map[string]any{{"confirmations": 1, "double_spend_seen": false, "txid": "late-transaction-id", "amount": 100000000000}},
+				"out": []map[string]any{},
+			}}
+		default:
+			response = map[string]any{"error": map[string]any{"code": -1, "message": "unexpected method"}}
+		}
+		body, err := common.Marshal(response)
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer rpcServer.Close()
+
+	priceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		body, err := common.Marshal(map[string]any{"monero": map[string]any{"usd": 100}})
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer priceServer.Close()
+
+	moneroUSDPriceURL = priceServer.URL
+	setting.MoneroEnabled = true
+	setting.MoneroWalletRPCURL = rpcServer.URL + "/json_rpc"
+	setting.MoneroWalletRPCUsername = "rpc-user"
+	setting.MoneroWalletRPCPassword = "rpc-password"
+	setting.MoneroNetwork = setting.MoneroNetworkTestnet
+	setting.MoneroConfirmations = 1
+
+	_, err := CreateMoneroInvoice(context.Background(), 991, 10)
+	require.NoError(t, err)
+	// The invoice window closed before the transfer was seen as confirmed.
+	require.NoError(t, model.DB.Model(&model.MoneroPayment{}).Where("address = ?", "9lateMoneroInvoiceAddress").Update("expires_at", common.GetTimestamp()-3600).Error)
+	require.NoError(t, model.ExpirePendingMoneroPayments(common.GetTimestamp()))
+	var expired model.MoneroPayment
+	require.NoError(t, model.DB.Where("address = ?", "9lateMoneroInvoiceAddress").First(&expired).Error)
+	require.Equal(t, model.MoneroPaymentStatusExpired, expired.Status)
+
+	for range 2 {
+		require.NoError(t, MonitorMoneroPayments(context.Background()))
+		var user model.User
+		require.NoError(t, model.DB.First(&user, 991).Error)
+		assert.Equal(t, 10*500000, user.Quota)
+	}
+	var settled model.MoneroPayment
+	require.NoError(t, model.DB.Where("address = ?", "9lateMoneroInvoiceAddress").First(&settled).Error)
+	assert.Equal(t, model.MoneroPaymentStatusSuccess, settled.Status)
+	var order model.TopUp
+	require.NoError(t, model.DB.First(&order, settled.TopUpID).Error)
+	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
+}

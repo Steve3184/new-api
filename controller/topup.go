@@ -763,8 +763,13 @@ func GetUserTopUps(c *gin.Context) {
 		return
 	}
 
+	records, err := model.BuildTopUpRecords(topups)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(topups)
+	pageInfo.SetItems(records)
 	common.ApiSuccess(c, pageInfo)
 }
 
@@ -788,13 +793,19 @@ func GetAllTopUps(c *gin.Context) {
 		return
 	}
 
+	records, err := model.BuildTopUpRecords(topups)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(topups)
+	pageInfo.SetItems(records)
 	common.ApiSuccess(c, pageInfo)
 }
 
 type AdminCompleteTopupRequest struct {
-	TradeNo string `json:"trade_no"`
+	TradeNo        string `json:"trade_no"`
+	ReceivedAmount string `json:"received_amount"`
 }
 
 // AdminCompleteTopUp 管理员补单接口
@@ -809,7 +820,17 @@ func AdminCompleteTopUp(c *gin.Context) {
 	LockOrder(req.TradeNo)
 	defer UnlockOrder(req.TradeNo)
 
-	if err := model.ManualCompleteTopUp(req.TradeNo, c.ClientIP()); err != nil {
+	var err error
+	topUp := model.GetTopUpByTradeNo(req.TradeNo)
+	switch {
+	case topUp != nil && topUp.PaymentProvider == model.PaymentProviderNowPayments:
+		err = service.CompleteNowPaymentsTopUpByAdmin(c.Request.Context(), topUp, req.ReceivedAmount, c.ClientIP())
+	case topUp != nil && topUp.PaymentProvider == model.PaymentProviderMonero:
+		err = service.CompleteMoneroTopUpByAdmin(c.Request.Context(), topUp, req.ReceivedAmount, c.ClientIP())
+	default:
+		err = model.ManualCompleteTopUp(req.TradeNo, c.ClientIP())
+	}
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}

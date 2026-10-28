@@ -8462,6 +8462,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Order Number": "注文番号",
+    "Continue Payment": "支払いを続行",
+    "Failed to continue payment": "支払いを続行できませんでした",
+    "Back to Wallet": "ウォレットに戻る",
+    "Waffo Pancake": "Waffo Pancake",
+    "Creem": "Creem",
+    "Monero": "Monero",
+    "The gateway is checked first and the confirmed amount is credited. Enter the received amount only if the gateway has no confirmed payment.": "まず決済ゲートウェイを確認し、確認済みの金額を入金します。ゲートウェイに確認済みの支払いがない場合のみ、実際の受取数量を入力してください。",
+    "Received amount ({{currency}})": "受取数量（{{currency}}）",
+    "Order is not pending payment": "注文は支払い待ちではありません",
+    "This payment has expired": "この支払いは期限切れです",
+    "Crypto payment record not found": "暗号資産の支払い記録が見つかりません",
+    "The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.": "この注文の支払いはゲートウェイで確認されていません。受取数量を入力して手動で完了してください。",
+    "Invalid received amount": "受取数量が無効です",
+    "Redemption purchases require the full quoted amount": "引換コードの購入には見積もり全額のお支払いが必要です",
+    "Crypto orders must be completed through gateway reconciliation": "暗号資産の注文はゲートウェイとの照合で完了する必要があります"
   }
 }

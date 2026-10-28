@@ -59,6 +59,7 @@ import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_aut
 import { Route as AuthenticatedUsageLogsAuditRouteImport } from './routes/_authenticated/usage-logs/audit'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
+import { Route as AuthenticatedWalletOrdersRouteImport } from './routes/_authenticated/wallet/orders'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedCustomTabTabIdIndexRouteImport } from './routes/_authenticated/custom-tab/$tabId/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
@@ -349,6 +350,12 @@ const AuthenticatedWalletIndexRoute =
     path: '/wallet/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedWalletOrdersRoute =
+  AuthenticatedWalletOrdersRouteImport.update({
+    id: '/wallet/orders',
+    path: '/wallet/orders',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   id: '/pricing/$modelId/',
   path: '/pricing/$modelId/',
@@ -488,6 +495,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/referrals': typeof AuthenticatedSystemSettingsReferralsRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
+  '/wallet/orders': typeof AuthenticatedWalletOrdersRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -555,6 +563,7 @@ export interface FileRoutesByTo {
   '/system-settings/referrals': typeof AuthenticatedSystemSettingsReferralsRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
+  '/wallet/orders': typeof AuthenticatedWalletOrdersRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -626,6 +635,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/referrals': typeof AuthenticatedSystemSettingsReferralsRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
+  '/_authenticated/wallet/orders': typeof AuthenticatedWalletOrdersRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -696,6 +706,7 @@ export interface FileRouteTypes {
     | '/system-settings/referrals'
     | '/usage-logs/$section'
     | '/usage-logs/audit'
+    | '/wallet/orders'
     | '/channels/'
     | '/dashboard/'
     | '/keys/'
@@ -763,6 +774,7 @@ export interface FileRouteTypes {
     | '/system-settings/referrals'
     | '/usage-logs/$section'
     | '/usage-logs/audit'
+    | '/wallet/orders'
     | '/channels'
     | '/dashboard'
     | '/keys'
@@ -833,6 +845,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/referrals'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/usage-logs/audit'
+    | '/_authenticated/wallet/orders'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
@@ -1242,6 +1255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWalletIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/wallet/orders': {
+      id: '/_authenticated/wallet/orders'
+      path: '/wallet/orders'
+      fullPath: '/wallet/orders'
+      preLoaderRoute: typeof AuthenticatedWalletOrdersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/pricing/$modelId/': {
       id: '/pricing/$modelId/'
       path: '/pricing/$modelId'
@@ -1472,6 +1492,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedUsageLogsAuditRoute: typeof AuthenticatedUsageLogsAuditRoute
+  AuthenticatedWalletOrdersRoute: typeof AuthenticatedWalletOrdersRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
@@ -1502,6 +1523,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedUsageLogsAuditRoute: AuthenticatedUsageLogsAuditRoute,
+  AuthenticatedWalletOrdersRoute: AuthenticatedWalletOrdersRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,

@@ -393,3 +393,71 @@ func TestNowPaymentsSubscriptionCompletesAfterFinishedPayment(t *testing.T) {
 	require.NoError(t, model.DB.Where("payment_id = ?", invoice.PaymentID).First(&payment).Error)
 	assert.Equal(t, model.NowPaymentsPaymentStatusSuccess, payment.Status)
 }
+
+func TestNowPaymentsRepeatedDepositCreditsChildPaymentOnce(t *testing.T) {
+	setupNowPaymentsServiceTest(t)
+	topUp := &model.TopUp{
+		UserId: 992, Amount: 10, Money: 10, TradeNo: "nowpayments-repeat",
+		PaymentMethod: model.PaymentMethodNowPayments, PaymentProvider: model.PaymentProviderNowPayments,
+		CreateTime: common.GetTimestamp(), Status: common.TopUpStatusPending,
+	}
+	payment := &model.NowPaymentsPayment{
+		PaymentID: "parent-id", OrderID: topUp.TradeNo, PayCurrency: "btc", PriceCurrency: "usd",
+		PriceAmount: "10", PayAmount: "0.001", CreditedQuota: 5_000_000, PayAddress: "bc1repeat",
+		GatewayStatus: "waiting", Status: model.NowPaymentsPaymentStatusPending, CreateTime: common.GetTimestamp(),
+	}
+	require.NoError(t, model.CreateNowPaymentsTopUp(topUp, payment))
+
+	finishedPayload := []byte(`{"payment_id":"parent-id","payment_status":"finished","pay_address":"bc1repeat","price_amount":10,"price_currency":"usd","pay_amount":0.001,"actually_paid":0.001,"pay_currency":"btc","order_id":"nowpayments-repeat"}`)
+	require.NoError(t, HandleNowPaymentsWebhook(finishedPayload, "127.0.0.1"))
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 992).Error)
+	assert.Equal(t, 5_000_000, user.Quota)
+
+	repeatPayload := []byte(`{"payment_id":"child-id","parent_payment_id":"parent-id","payment_status":"finished","pay_address":"bc1repeat","price_amount":10,"price_currency":"usd","pay_amount":0.001,"actually_paid":0.0005,"pay_currency":"btc","order_id":"nowpayments-repeat"}`)
+	for range 2 {
+		require.NoError(t, HandleNowPaymentsWebhook(repeatPayload, "127.0.0.1"))
+		require.NoError(t, model.DB.First(&user, 992).Error)
+		assert.Equal(t, 7_500_000, user.Quota)
+	}
+	var settled model.TopUp
+	require.NoError(t, model.DB.Where("trade_no = ?", topUp.TradeNo).First(&settled).Error)
+	assert.Equal(t, common.TopUpStatusSuccess, settled.Status)
+	assert.Equal(t, 15.0, settled.Money)
+}
+
+func TestNowPaymentsAdminCompletionUsesEnteredAmountAfterGatewayExpiry(t *testing.T) {
+	setupNowPaymentsServiceTest(t)
+	apiServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer apiServer.Close()
+	setting.NowPaymentsAPIBaseURL = apiServer.URL
+
+	topUp := &model.TopUp{
+		UserId: 992, Amount: 10, Money: 10, TradeNo: "nowpayments-admin",
+		PaymentMethod: model.PaymentMethodNowPayments, PaymentProvider: model.PaymentProviderNowPayments,
+		CreateTime: common.GetTimestamp(), Status: common.TopUpStatusPending,
+	}
+	payment := &model.NowPaymentsPayment{
+		PaymentID: "admin-id", OrderID: topUp.TradeNo, PayCurrency: "btc", PriceCurrency: "usd",
+		PriceAmount: "10", PayAmount: "0.001", CreditedQuota: 5_000_000, PayAddress: "bc1admin",
+		GatewayStatus: "waiting", Status: model.NowPaymentsPaymentStatusPending, CreateTime: common.GetTimestamp(),
+	}
+	require.NoError(t, model.CreateNowPaymentsTopUp(topUp, payment))
+	require.NoError(t, model.FailNowPaymentsPayment("admin-id", "expired", "0", "{}", model.NowPaymentsPaymentStatusExpired))
+
+	stored := model.GetTopUpByTradeNo(topUp.TradeNo)
+	require.NotNil(t, stored)
+	require.Error(t, CompleteNowPaymentsTopUpByAdmin(context.Background(), stored, "", "127.0.0.1"))
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 992).Error)
+	assert.Zero(t, user.Quota)
+
+	require.NoError(t, CompleteNowPaymentsTopUpByAdmin(context.Background(), stored, "0.0005", "127.0.0.1"))
+	require.NoError(t, model.DB.First(&user, 992).Error)
+	assert.Equal(t, 2_500_000, user.Quota)
+	var settled model.TopUp
+	require.NoError(t, model.DB.Where("trade_no = ?", topUp.TradeNo).First(&settled).Error)
+	assert.Equal(t, common.TopUpStatusSuccess, settled.Status)
+}

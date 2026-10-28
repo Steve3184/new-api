@@ -8462,6 +8462,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Order Number": "Numéro de commande",
+    "Continue Payment": "Continuer le paiement",
+    "Failed to continue payment": "Impossible de continuer le paiement",
+    "Back to Wallet": "Retour au portefeuille",
+    "Waffo Pancake": "Waffo Pancake",
+    "Creem": "Creem",
+    "Monero": "Monero",
+    "The gateway is checked first and the confirmed amount is credited. Enter the received amount only if the gateway has no confirmed payment.": "La passerelle est consultée en premier et le montant confirmé est crédité. Saisissez le montant reçu uniquement si la passerelle n’a confirmé aucun paiement.",
+    "Received amount ({{currency}})": "Montant reçu ({{currency}})",
+    "Order is not pending payment": "La commande n’est pas en attente de paiement",
+    "This payment has expired": "Ce paiement a expiré",
+    "Crypto payment record not found": "Enregistrement du paiement crypto introuvable",
+    "The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.": "La passerelle n’a confirmé aucun paiement pour cette commande. Saisissez le montant reçu pour la finaliser manuellement.",
+    "Invalid received amount": "Montant reçu invalide",
+    "Redemption purchases require the full quoted amount": "L’achat de codes de remboursement exige le montant intégral du devis",
+    "Crypto orders must be completed through gateway reconciliation": "Les commandes crypto doivent être finalisées par rapprochement avec la passerelle"
   }
 }

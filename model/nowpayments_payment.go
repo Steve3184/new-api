@@ -34,21 +34,24 @@ type NowPaymentsPayment struct {
 	PaymentID           string `json:"payment_id" gorm:"type:varchar(64);uniqueIndex"`
 	OrderID             string `json:"order_id" gorm:"type:varchar(255);uniqueIndex"`
 	OrderType           string `json:"order_type" gorm:"type:varchar(24);index"`
-	PayCurrency         string `json:"pay_currency" gorm:"type:varchar(32);index"`
-	PriceCurrency       string `json:"price_currency" gorm:"type:varchar(16)"`
-	PriceAmount         string `json:"price_amount" gorm:"type:varchar(64)"`
-	PayAmount           string `json:"pay_amount" gorm:"type:varchar(64)"`
-	ActuallyPaidAmount  string `json:"actually_paid_amount" gorm:"type:varchar(64)"`
-	CreditedQuota       int    `json:"credited_quota"`
-	SettledQuota        int    `json:"settled_quota"`
-	PayAddress          string `json:"pay_address" gorm:"type:varchar(255)"`
-	PayinExtraID        string `json:"payin_extra_id" gorm:"type:varchar(255)"`
-	GatewayStatus       string `json:"gateway_status" gorm:"type:varchar(32);index"`
-	Status              string `json:"status" gorm:"type:varchar(16);index"`
-	IPNPayload          string `json:"ipn_payload" gorm:"column:ipn_payload;type:text"`
-	ExpiresAt           int64  `json:"expires_at" gorm:"index"`
-	SettledAt           int64  `json:"settled_at"`
-	CreateTime          int64  `json:"create_time" gorm:"index"`
+	// ParentPaymentID links a repeated deposit, which NOWPayments reports as a
+	// new payment to the original address, back to the invoice it pays.
+	ParentPaymentID    string `json:"parent_payment_id" gorm:"type:varchar(64);index"`
+	PayCurrency        string `json:"pay_currency" gorm:"type:varchar(32);index"`
+	PriceCurrency      string `json:"price_currency" gorm:"type:varchar(16)"`
+	PriceAmount        string `json:"price_amount" gorm:"type:varchar(64)"`
+	PayAmount          string `json:"pay_amount" gorm:"type:varchar(64)"`
+	ActuallyPaidAmount string `json:"actually_paid_amount" gorm:"type:varchar(64)"`
+	CreditedQuota      int    `json:"credited_quota"`
+	SettledQuota       int    `json:"settled_quota"`
+	PayAddress         string `json:"pay_address" gorm:"type:varchar(255)"`
+	PayinExtraID       string `json:"payin_extra_id" gorm:"type:varchar(255)"`
+	GatewayStatus      string `json:"gateway_status" gorm:"type:varchar(32);index"`
+	Status             string `json:"status" gorm:"type:varchar(16);index"`
+	IPNPayload         string `json:"ipn_payload" gorm:"column:ipn_payload;type:text"`
+	ExpiresAt          int64  `json:"expires_at" gorm:"index"`
+	SettledAt          int64  `json:"settled_at"`
+	CreateTime         int64  `json:"create_time" gorm:"index"`
 }
 
 func CreateNowPaymentsTopUp(topUp *TopUp, payment *NowPaymentsPayment) error {
@@ -210,7 +213,21 @@ func FailNowPaymentsPayment(paymentID, gatewayStatus, actuallyPaid, payload, tar
 	})
 }
 
+var ErrNowPaymentsRepeatedDepositUnsupported = errors.New("NOWPayments repeated deposit can only top up a wallet order")
+
+// SettleNowPaymentsTopUp credits a verified gateway status in proportion to
+// the received crypto amount.
 func SettleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, callerIP string) (bool, error) {
+	return settleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, callerIP, false)
+}
+
+// SettleNowPaymentsTopUpByAdmin credits an administrator-confirmed amount,
+// including for an invoice the gateway already expired or failed.
+func SettleNowPaymentsTopUpByAdmin(paymentID, actuallyPaid, callerIP string) (bool, error) {
+	return settleNowPaymentsTopUp(paymentID, "admin", actuallyPaid, "", callerIP, true)
+}
+
+func settleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, callerIP string, byAdmin bool) (bool, error) {
 	var topUp *TopUp
 	quotaToAdd := 0
 	alreadySettled := false
@@ -236,9 +253,21 @@ func SettleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, cal
 			return nil
 		}
 		validPending := payment.Status == NowPaymentsPaymentStatusPending && topUp.Status == common.TopUpStatusPending
+		if byAdmin {
+			validPending = payment.Status != NowPaymentsPaymentStatusSuccess && topUp.Status != common.TopUpStatusSuccess
+		}
 		validIncrement := payment.Status == NowPaymentsPaymentStatusSuccess && topUp.Status == common.TopUpStatusSuccess
 		if !validPending && !validIncrement {
 			return ErrTopUpStatusInvalid
+		}
+		if validIncrement && topUp.IsRedemptionPurchase() {
+			// The codes were minted on the first settlement; extra funds on the
+			// same invoice must not mint another batch.
+			alreadySettled = true
+			return nil
+		}
+		if payload == "" {
+			payload = payment.IPNPayload
 		}
 		if payment.CreditedQuota <= 0 {
 			return ErrInvalidTopUpQuota
@@ -259,10 +288,12 @@ func SettleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, cal
 			return errors.New("NOWPayments redemption payment is below the quoted amount")
 		}
 		ratio := paid.Div(quotedCrypto)
-		creditedQuotaDecimal := decimal.NewFromInt(int64(payment.CreditedQuota)).Mul(ratio)
-		targetQuota, err := common.WalletQuotaFromDecimalStrict(creditedQuotaDecimal)
-		if err != nil || targetQuota <= 0 {
-			return ErrInvalidTopUpQuota
+		targetQuota := payment.CreditedQuota
+		if !topUp.IsRedemptionPurchase() {
+			targetQuota, err = common.WalletQuotaFromDecimalStrict(decimal.NewFromInt(int64(payment.CreditedQuota)).Mul(ratio))
+			if err != nil || targetQuota <= 0 {
+				return ErrInvalidTopUpQuota
+			}
 		}
 		quotaToAdd = targetQuota - payment.SettledQuota
 		if quotaToAdd <= 0 {
@@ -295,6 +326,10 @@ func SettleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, cal
 	if alreadySettled || topUp == nil {
 		return true, nil
 	}
+	if topUp.IsRedemptionPurchase() {
+		recordRedemptionPurchaseTopUpLog(topUp, callerIP, PaymentProviderNowPayments)
+		return false, nil
+	}
 	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "NOWPayments topup")
 	RecordTopupLog(
 		topUp.UserId,
@@ -304,6 +339,121 @@ func SettleNowPaymentsTopUp(paymentID, gatewayStatus, actuallyPaid, payload, cal
 		PaymentProviderNowPayments,
 	)
 	return false, nil
+}
+
+// SettleNowPaymentsRepeatedDeposit credits a deposit NOWPayments reported as
+// a child payment of an existing wallet invoice. The child row makes repeated
+// callbacks idempotent and lets a later status add only the difference.
+func SettleNowPaymentsRepeatedDeposit(parentPaymentID, childPaymentID, gatewayStatus, actuallyPaid, payload, callerIP string) error {
+	var topUp *TopUp
+	quotaToAdd := 0
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		parent := &NowPaymentsPayment{}
+		if err := lockForUpdate(tx).Where("payment_id = ?", parentPaymentID).First(parent).Error; err != nil {
+			return err
+		}
+		if parent.OrderType != NowPaymentsOrderTypeTopUp || parent.TopUpID == nil || parent.ParentPaymentID != "" {
+			return ErrNowPaymentsRepeatedDepositUnsupported
+		}
+		topUp = &TopUp{}
+		if err := lockForUpdate(tx).Where("id = ?", *parent.TopUpID).First(topUp).Error; err != nil {
+			return err
+		}
+		if topUp.PaymentProvider != PaymentProviderNowPayments {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.IsRedemptionPurchase() {
+			return ErrNowPaymentsRepeatedDepositUnsupported
+		}
+		paid, err := decimal.NewFromString(actuallyPaid)
+		if err != nil || !paid.IsPositive() {
+			return errors.New("invalid NOWPayments paid amount")
+		}
+		price, err := decimal.NewFromString(parent.PriceAmount)
+		if err != nil || !price.IsPositive() {
+			return errors.New("invalid NOWPayments price amount")
+		}
+		quotedCrypto, err := decimal.NewFromString(parent.PayAmount)
+		if err != nil || !quotedCrypto.IsPositive() || parent.CreditedQuota <= 0 {
+			return errors.New("invalid NOWPayments quoted crypto amount")
+		}
+		ratio := paid.Div(quotedCrypto)
+		targetQuota, err := common.WalletQuotaFromDecimalStrict(decimal.NewFromInt(int64(parent.CreditedQuota)).Mul(ratio))
+		if err != nil || targetQuota <= 0 {
+			return ErrInvalidTopUpQuota
+		}
+
+		now := common.GetTimestamp()
+		child := &NowPaymentsPayment{}
+		childErr := tx.Where("payment_id = ?", childPaymentID).First(child).Error
+		switch {
+		case errors.Is(childErr, gorm.ErrRecordNotFound):
+			child = &NowPaymentsPayment{
+				PaymentID:       childPaymentID,
+				OrderID:         parent.OrderID + "#" + childPaymentID,
+				OrderType:       NowPaymentsOrderTypeTopUp,
+				ParentPaymentID: parent.PaymentID,
+				PayCurrency:     parent.PayCurrency,
+				PriceCurrency:   parent.PriceCurrency,
+				PayAddress:      parent.PayAddress,
+				PayinExtraID:    parent.PayinExtraID,
+				CreditedQuota:   parent.CreditedQuota,
+				CreateTime:      now,
+			}
+		case childErr != nil:
+			return childErr
+		case child.ParentPaymentID != parent.PaymentID:
+			return ErrNowPaymentsPaymentConflict
+		}
+		quotaToAdd = targetQuota - child.SettledQuota
+		if quotaToAdd <= 0 {
+			quotaToAdd = 0
+			return nil
+		}
+		previousPrice, _ := decimal.NewFromString(child.PriceAmount)
+		childPrice := price.Mul(ratio).Round(8)
+		child.PriceAmount = childPrice.String()
+		child.PayAmount = paid.String()
+		child.ActuallyPaidAmount = paid.String()
+		child.SettledQuota = targetQuota
+		child.GatewayStatus = gatewayStatus
+		child.Status = NowPaymentsPaymentStatusSuccess
+		child.IPNPayload = payload
+		child.SettledAt = now
+		if err := tx.Save(child).Error; err != nil {
+			return err
+		}
+		topUp.Money = decimal.NewFromFloat(topUp.Money).Add(childPrice.Sub(previousPrice)).InexactFloat64()
+		if topUp.Status != common.TopUpStatusSuccess {
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = now
+		}
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		_, err = settleTopUp(tx, topUp, quotaToAdd, nil)
+		return err
+	})
+	if err != nil || quotaToAdd == 0 {
+		return err
+	}
+	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "NOWPayments repeated deposit")
+	RecordTopupLog(
+		topUp.UserId,
+		common.NewMessage("{{provider}} top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"provider": "NOWPayments", "quota": logger.FormatQuota(quotaToAdd), "amount": fmt.Sprintf("%s %s", actuallyPaid, strings.ToUpper(topUp.PaymentMethod))}),
+		callerIP,
+		PaymentMethodNowPayments,
+		PaymentProviderNowPayments,
+	)
+	return nil
+}
+
+func GetNowPaymentsPaymentByTopUpID(topUpID int) (*NowPaymentsPayment, error) {
+	payment := &NowPaymentsPayment{}
+	if err := DB.Where("top_up_id = ?", topUpID).First(payment).Error; err != nil {
+		return nil, err
+	}
+	return payment, nil
 }
 
 // CompleteNowPaymentsSubscription settles the gateway payment and activates

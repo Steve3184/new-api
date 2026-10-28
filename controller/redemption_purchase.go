@@ -365,6 +365,7 @@ func requestRedemptionStripePurchase(c *gin.Context, ctx *redemptionPurchaseCont
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}
+	_ = model.SaveTopUpPayURL(referenceID, payLink, time.Now().Unix()+23*60*60)
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"pay_link": payLink}})
 }
 
@@ -432,6 +433,7 @@ func requestRedemptionWaffoPurchase(c *gin.Context, ctx *redemptionPurchaseConte
 	if paymentURL == "" {
 		paymentURL = orderData.OrderAction
 	}
+	_ = model.SaveTopUpPayURL(tradeNo, paymentURL, 0)
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"payment_url": paymentURL, "order_id": tradeNo}})
 }
 
@@ -463,6 +465,7 @@ func requestRedemptionWaffoPancakePurchase(c *gin.Context, ctx *redemptionPurcha
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
+	_ = model.SaveTopUpPayURL(tradeNo, session.CheckoutURL, time.Now().Unix()+int64(expiresInSeconds)-60)
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{
 		"checkout_url":     session.CheckoutURL,
 		"session_id":       session.SessionID,

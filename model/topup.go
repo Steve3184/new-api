@@ -30,7 +30,16 @@ type TopUp struct {
 	RedemptionCount  int     `json:"redemption_count"`
 	RedemptionAmount int64   `json:"redemption_amount"`
 	RedemptionName   string  `json:"redemption_name" gorm:"type:varchar(20)"`
+	// PayURL is the hosted checkout page of a redirect gateway, kept so the
+	// buyer can resume an unpaid order. It may embed a session token, so it is
+	// only returned by the owner-scoped resume endpoint.
+	PayURL          string `json:"-" gorm:"type:text"`
+	PayURLExpiresAt int64  `json:"-"`
 }
+
+// TopUpPayURLLifetime bounds how long a stored checkout link is offered when
+// the gateway does not report its own session expiry.
+const TopUpPayURLLifetime int64 = 24 * 60 * 60
 
 const (
 	PaymentMethodStripe       = "stripe"
@@ -231,6 +240,115 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 		return nil
 	}
 	return topUp
+}
+
+// SaveTopUpPayURL records the checkout link of a pending order. expiresAt of
+// zero applies TopUpPayURLLifetime.
+func SaveTopUpPayURL(tradeNo string, payURL string, expiresAt int64) error {
+	if tradeNo == "" || payURL == "" {
+		return nil
+	}
+	if expiresAt <= 0 {
+		expiresAt = common.GetTimestamp() + TopUpPayURLLifetime
+	}
+	return DB.Model(&TopUp{}).
+		Where("trade_no = ? AND status = ?", tradeNo, common.TopUpStatusPending).
+		Updates(map[string]any{"pay_url": payURL, "pay_url_expires_at": expiresAt}).Error
+}
+
+func GetUserTopUpByTradeNo(userId int, tradeNo string) (*TopUp, error) {
+	topUp := &TopUp{}
+	if err := DB.Where("trade_no = ? AND user_id = ?", tradeNo, userId).First(topUp).Error; err != nil {
+		return nil, err
+	}
+	return topUp, nil
+}
+
+// TopUpCryptoPayment exposes the quoted and received crypto amounts of a
+// NOWPayments or Monero order next to its top-up record.
+type TopUpCryptoPayment struct {
+	PayCurrency   string `json:"pay_currency"`
+	PayAmount     string `json:"pay_amount"`
+	ActuallyPaid  string `json:"actually_paid"`
+	GatewayStatus string `json:"gateway_status,omitempty"`
+	ExpiresAt     int64  `json:"expires_at"`
+}
+
+type TopUpRecord struct {
+	*TopUp
+	CanContinuePayment bool                `json:"can_continue_payment"`
+	CryptoPayment      *TopUpCryptoPayment `json:"crypto_payment,omitempty"`
+}
+
+// BuildTopUpRecords attaches resume availability and crypto payment details
+// to a page of top-up rows with one query per crypto provider.
+func BuildTopUpRecords(topUps []*TopUp) ([]*TopUpRecord, error) {
+	records := make([]*TopUpRecord, 0, len(topUps))
+	var nowPaymentsIDs, moneroIDs []int
+	for _, topUp := range topUps {
+		switch topUp.PaymentProvider {
+		case PaymentProviderNowPayments:
+			nowPaymentsIDs = append(nowPaymentsIDs, topUp.Id)
+		case PaymentProviderMonero:
+			moneroIDs = append(moneroIDs, topUp.Id)
+		}
+	}
+	nowPayments := make(map[int]NowPaymentsPayment, len(nowPaymentsIDs))
+	if len(nowPaymentsIDs) > 0 {
+		var payments []NowPaymentsPayment
+		if err := DB.Where("top_up_id IN ?", nowPaymentsIDs).Find(&payments).Error; err != nil {
+			return nil, err
+		}
+		for _, payment := range payments {
+			nowPayments[*payment.TopUpID] = payment
+		}
+	}
+	moneroPayments := make(map[int]MoneroPayment, len(moneroIDs))
+	if len(moneroIDs) > 0 {
+		var payments []MoneroPayment
+		if err := DB.Where("top_up_id IN ?", moneroIDs).Find(&payments).Error; err != nil {
+			return nil, err
+		}
+		for _, payment := range payments {
+			moneroPayments[payment.TopUpID] = payment
+		}
+	}
+
+	now := common.GetTimestamp()
+	for _, topUp := range topUps {
+		record := &TopUpRecord{TopUp: topUp}
+		pending := topUp.Status == common.TopUpStatusPending
+		switch topUp.PaymentProvider {
+		case PaymentProviderNowPayments:
+			if payment, ok := nowPayments[topUp.Id]; ok {
+				record.CryptoPayment = &TopUpCryptoPayment{
+					PayCurrency:   payment.PayCurrency,
+					PayAmount:     payment.PayAmount,
+					ActuallyPaid:  payment.ActuallyPaidAmount,
+					GatewayStatus: payment.GatewayStatus,
+					ExpiresAt:     payment.ExpiresAt,
+				}
+				record.CanContinuePayment = pending && payment.Status == NowPaymentsPaymentStatusPending && payment.ExpiresAt > now
+			}
+		case PaymentProviderMonero:
+			if payment, ok := moneroPayments[topUp.Id]; ok {
+				record.CryptoPayment = &TopUpCryptoPayment{
+					PayCurrency:  "xmr",
+					PayAmount:    moneroAtomicToXMR(payment.ExpectedAtomic),
+					ActuallyPaid: moneroAtomicToXMR(payment.ReceivedAtomic),
+					ExpiresAt:    payment.ExpiresAt,
+				}
+				record.CanContinuePayment = pending && payment.Status == MoneroPaymentStatusPending && payment.ExpiresAt > now
+			}
+		case PaymentProviderEpay:
+			// Epay links are re-signed on demand, so only the order age matters.
+			record.CanContinuePayment = pending && topUp.CreateTime+TopUpPayURLLifetime > now
+		default:
+			record.CanContinuePayment = pending && topUp.PayURL != "" && topUp.PayURLExpiresAt > now
+		}
+		records = append(records, record)
+	}
+	return records, nil
 }
 
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
@@ -595,21 +713,26 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return common.NewMessage("Order is not pending payment and cannot be completed")
 		}
 		if topUp.PaymentProvider == PaymentProviderMonero || topUp.PaymentProvider == PaymentProviderNowPayments {
-			return errors.New("加密货币订单只能在支付网关确认后自动入账")
+			return common.NewMessage("Crypto orders must be completed through gateway reconciliation")
 		}
 
 		// 计算应充值额度：
 		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
+		// - Creem 订单：Amount 即商品配置的额度
 		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
 		if topUp.IsRedemptionPurchase() {
 			quotaToAdd = 1
 		} else {
 			var quotaErr error
-			if topUp.PaymentProvider == PaymentProviderStripe {
+			switch topUp.PaymentProvider {
+			case PaymentProviderStripe:
 				quotaToAdd, quotaErr = common.QuotaFromDecimalStrict(
 					decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
 				)
-			} else {
+			case PaymentProviderCreem:
+				// Creem orders store the product quota itself, matching RechargeCreem.
+				quotaToAdd, quotaErr = common.QuotaFromDecimalStrict(decimal.NewFromInt(topUp.Amount))
+			default:
 				quotaToAdd, quotaErr = common.QuotaFromDecimalStrict(
 					decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
 				)

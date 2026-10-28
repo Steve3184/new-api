@@ -26,8 +26,11 @@ import (
 )
 
 const (
-	moneroAtomicUnits          = int32(12)
-	moneroInvoiceExpiry        = 3 * time.Hour
+	moneroAtomicUnits   = int32(12)
+	moneroInvoiceExpiry = 3 * time.Hour
+	// moneroLatePaymentGrace keeps scanning expired invoices so a transfer
+	// broadcast near the deadline still settles once it confirms.
+	moneroLatePaymentGrace     = 24 * time.Hour
 	moneroMonitorInterval      = 30 * time.Second
 	moneroAddressAuditInterval = 24 * time.Hour
 	defaultMoneroUSDPriceURL   = "https://api.coingecko.com/api/v3/simple/price?ids=monero&vs_currencies=usd"
@@ -715,7 +718,7 @@ func MonitorMoneroPayments(ctx context.Context) error {
 	if err := model.ExpirePendingMoneroPayments(now); err != nil {
 		return err
 	}
-	payments, err := model.ListPendingMoneroPayments(strings.ToLower(setting.MoneroNetwork))
+	payments, err := model.ListScannableMoneroPayments(strings.ToLower(setting.MoneroNetwork), now-int64(moneroLatePaymentGrace/time.Second))
 	if err != nil {
 		return err
 	}
@@ -731,61 +734,14 @@ func MonitorMoneroPayments(ctx context.Context) error {
 		logger.LogWarn(ctx, fmt.Sprintf("Monero outgoing payment scan failed error=%q", outgoingTransfersErr.Error()))
 	}
 	for _, payment := range payments {
-		if payment.ExpiresAt > 0 && payment.ExpiresAt <= now {
-			continue
-		}
-		transferResults, err := rpc.incomingTransfers(ctx, payment.AddressIndex)
+		received, transactionIDs, err := scanMoneroPaymentReceived(ctx, rpc, &payment, outgoingTransferResults)
 		if err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("Monero payment scan failed payment_id=%d address_index=%d error=%q", payment.ID, payment.AddressIndex, err.Error()))
 			continue
 		}
-		received := decimal.Zero
-		transactionIDs := make([]string, 0)
-		incomingTransactionIDs := make(map[string]struct{})
-		for _, transferResult := range transferResults {
-			for _, transfer := range transferResult.In {
-				confirmations, confirmationsErr := transfer.Confirmations.Int64()
-				atomicAmount, amountErr := decimal.NewFromString(transfer.Amount.String())
-				if confirmationsErr != nil || amountErr != nil || !atomicAmount.IsPositive() || transfer.DoubleSpendSeen || confirmations < int64(setting.MoneroConfirmations) {
-					continue
-				}
-				received = received.Add(atomicAmount)
-				if transfer.TxID != "" {
-					transactionIDs = append(transactionIDs, transfer.TxID)
-					incomingTransactionIDs[transfer.TxID] = struct{}{}
-				}
-			}
-		}
-		for _, transferResult := range outgoingTransferResults {
-			for _, transfer := range transferResult.Out {
-				confirmations, confirmationsErr := transfer.Confirmations.Int64()
-				if confirmationsErr != nil || transfer.DoubleSpendSeen || confirmations < int64(setting.MoneroConfirmations) {
-					continue
-				}
-				if _, alreadyReceived := incomingTransactionIDs[transfer.TxID]; transfer.TxID != "" && alreadyReceived {
-					continue
-				}
-				matchedPayment := false
-				for _, destination := range transfer.Destinations {
-					if destination.Address != payment.Address {
-						continue
-					}
-					atomicAmount, amountErr := decimal.NewFromString(destination.Amount.String())
-					if amountErr != nil || !atomicAmount.IsPositive() {
-						continue
-					}
-					received = received.Add(atomicAmount)
-					matchedPayment = true
-				}
-				if matchedPayment && transfer.TxID != "" {
-					transactionIDs = append(transactionIDs, transfer.TxID)
-				}
-			}
-		}
 		if received.IsZero() {
 			continue
 		}
-		sort.Strings(transactionIDs)
 		if _, quota, err := model.SettleMoneroPayment(payment.ID, received.StringFixed(0), transactionIDs); err != nil {
 			if !strings.Contains(err.Error(), "below the expected amount") {
 				logger.LogWarn(ctx, fmt.Sprintf("Monero payment settlement failed payment_id=%d error=%q", payment.ID, err.Error()))
@@ -796,6 +752,99 @@ func MonitorMoneroPayments(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// scanMoneroPaymentReceived sums the confirmed atomic XMR that reached an
+// invoice subaddress, including transfers the wallet sent to itself.
+func scanMoneroPaymentReceived(ctx context.Context, rpc *moneroRPCClient, payment *model.MoneroPayment, outgoingTransferResults []moneroTransferResult) (decimal.Decimal, []string, error) {
+	transferResults, err := rpc.incomingTransfers(ctx, payment.AddressIndex)
+	if err != nil {
+		return decimal.Zero, nil, err
+	}
+	received := decimal.Zero
+	transactionIDs := make([]string, 0)
+	incomingTransactionIDs := make(map[string]struct{})
+	for _, transferResult := range transferResults {
+		for _, transfer := range transferResult.In {
+			confirmations, confirmationsErr := transfer.Confirmations.Int64()
+			atomicAmount, amountErr := decimal.NewFromString(transfer.Amount.String())
+			if confirmationsErr != nil || amountErr != nil || !atomicAmount.IsPositive() || transfer.DoubleSpendSeen || confirmations < int64(setting.MoneroConfirmations) {
+				continue
+			}
+			received = received.Add(atomicAmount)
+			if transfer.TxID != "" {
+				transactionIDs = append(transactionIDs, transfer.TxID)
+				incomingTransactionIDs[transfer.TxID] = struct{}{}
+			}
+		}
+	}
+	for _, transferResult := range outgoingTransferResults {
+		for _, transfer := range transferResult.Out {
+			confirmations, confirmationsErr := transfer.Confirmations.Int64()
+			if confirmationsErr != nil || transfer.DoubleSpendSeen || confirmations < int64(setting.MoneroConfirmations) {
+				continue
+			}
+			if _, alreadyReceived := incomingTransactionIDs[transfer.TxID]; transfer.TxID != "" && alreadyReceived {
+				continue
+			}
+			matchedPayment := false
+			for _, destination := range transfer.Destinations {
+				if destination.Address != payment.Address {
+					continue
+				}
+				atomicAmount, amountErr := decimal.NewFromString(destination.Amount.String())
+				if amountErr != nil || !atomicAmount.IsPositive() {
+					continue
+				}
+				received = received.Add(atomicAmount)
+				matchedPayment = true
+			}
+			if matchedPayment && transfer.TxID != "" {
+				transactionIDs = append(transactionIDs, transfer.TxID)
+			}
+		}
+	}
+	sort.Strings(transactionIDs)
+	return received, transactionIDs, nil
+}
+
+// CompleteMoneroTopUpByAdmin first rescans the invoice subaddress and credits
+// what the wallet confirmed. Only when nothing is confirmed does it fall back
+// to the administrator-entered XMR amount.
+func CompleteMoneroTopUpByAdmin(ctx context.Context, topUp *model.TopUp, receivedXMR string, callerIP string) error {
+	payment, err := model.GetMoneroPaymentByTopUpID(topUp.Id)
+	if err != nil {
+		return common.NewMessage("Crypto payment record not found")
+	}
+	received := decimal.Zero
+	transactionIDs := []string{}
+	if isMoneroGatewayConfigured() {
+		rpc, rpcErr := newMoneroRPCClient()
+		if rpcErr == nil {
+			outgoing, _ := rpc.outgoingTransfers(ctx)
+			received, transactionIDs, err = scanMoneroPaymentReceived(ctx, rpc, payment, outgoing)
+			if err != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("Monero admin reconciliation scan failed payment_id=%d error=%q", payment.ID, err.Error()))
+				received = decimal.Zero
+			}
+		}
+	}
+	if received.IsZero() {
+		manual, parseErr := decimal.NewFromString(strings.TrimSpace(receivedXMR))
+		if strings.TrimSpace(receivedXMR) == "" {
+			return common.NewMessage("The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.")
+		}
+		if parseErr != nil || !manual.IsPositive() {
+			return common.NewMessage("Invalid received amount")
+		}
+		received = manual.Shift(moneroAtomicUnits).Truncate(0)
+		transactionIDs = []string{"admin"}
+	}
+	_, _, err = model.SettleMoneroPaymentByAdmin(payment.ID, received.StringFixed(0), transactionIDs, callerIP)
+	if err != nil && strings.Contains(err.Error(), "below the expected amount") {
+		return common.NewMessage("Redemption purchases require the full quoted amount")
+	}
+	return err
 }
 
 // AuditMoneroTerminalAddresses verifies that terminal invoices do not have

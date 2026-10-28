@@ -8462,6 +8462,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Order Number": "Order Number",
+    "Continue Payment": "Continue Payment",
+    "Failed to continue payment": "Failed to continue payment",
+    "Back to Wallet": "Back to Wallet",
+    "Waffo Pancake": "Waffo Pancake",
+    "Creem": "Creem",
+    "Monero": "Monero",
+    "The gateway is checked first and the confirmed amount is credited. Enter the received amount only if the gateway has no confirmed payment.": "The gateway is checked first and the confirmed amount is credited. Enter the received amount only if the gateway has no confirmed payment.",
+    "Received amount ({{currency}})": "Received amount ({{currency}})",
+    "Order is not pending payment": "Order is not pending payment",
+    "This payment has expired": "This payment has expired",
+    "Crypto payment record not found": "Crypto payment record not found",
+    "The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.": "The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.",
+    "Invalid received amount": "Invalid received amount",
+    "Redemption purchases require the full quoted amount": "Redemption purchases require the full quoted amount",
+    "Crypto orders must be completed through gateway reconciliation": "Crypto orders must be completed through gateway reconciliation"
   }
 }

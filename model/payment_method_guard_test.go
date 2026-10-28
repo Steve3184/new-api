@@ -400,3 +400,32 @@ func TestRechargeEpayEnforcesFinalWalletQuotaLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestManualCompleteCreemOrderCreditsProductQuotaWithoutScaling(t *testing.T) {
+	truncateTables(t)
+
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	user := insertUserForPaymentGuardTest(t, 505, 0)
+	order := createEpayTestOrder(t, user.Id, "CREEMTESTMANUAL", PaymentProviderCreem, common.TopUpStatusPending)
+	require.NoError(t, DB.Model(&TopUp{}).Where("id = ?", order.Id).Update("amount", 1_000_000).Error)
+
+	require.NoError(t, ManualCompleteTopUp(order.TradeNo, "127.0.0.1"))
+	assert.Equal(t, 1_000_000, getUserQuotaForPaymentGuardTest(t, user.Id))
+
+	require.NoError(t, ManualCompleteTopUp(order.TradeNo, "127.0.0.1"))
+	assert.Equal(t, 1_000_000, getUserQuotaForPaymentGuardTest(t, user.Id))
+}
+
+func TestManualCompleteTopUpRejectsCryptoOrders(t *testing.T) {
+	truncateTables(t)
+	user := insertUserForPaymentGuardTest(t, 506, 0)
+	for _, provider := range []string{PaymentProviderNowPayments, PaymentProviderMonero} {
+		order := createEpayTestOrder(t, user.Id, "CRYPTOMANUAL-"+provider, provider, common.TopUpStatusPending)
+		require.Error(t, ManualCompleteTopUp(order.TradeNo, "127.0.0.1"))
+		assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, order.TradeNo))
+	}
+	assert.Zero(t, getUserQuotaForPaymentGuardTest(t, user.Id))
+}

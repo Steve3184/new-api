@@ -140,6 +140,8 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 		return
 	}
 
+	_ = model.SaveTopUpPayURL(referenceId, checkoutUrl, 0)
+
 	logger.LogInfo(c.Request.Context(), common.LogText("Creem top-up order created user_id=%d trade_no=%s product_id=%s product_name=%q quota=%d money=%.2f", id, referenceId, selectedProduct.ProductId, selectedProduct.Name, selectedProduct.Quota, selectedProduct.Price))
 
 	c.JSON(http.StatusOK, gin.H{

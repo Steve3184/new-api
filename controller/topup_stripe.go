@@ -133,6 +133,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		paymentError(c, common.NewMessage("Failed to create order"))
 		return
 	}
+	_ = model.SaveTopUpPayURL(referenceId, payLink, time.Now().Unix()+23*60*60)
 	logger.LogInfo(c.Request.Context(), common.LogText("Stripe top-up order created user_id=%d trade_no=%s amount=%d money=%.2f", id, referenceId, req.Amount, chargedMoney))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",

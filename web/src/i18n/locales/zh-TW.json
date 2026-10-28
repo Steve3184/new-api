@@ -8462,6 +8462,22 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Order Number": "訂單號",
+    "Continue Payment": "繼續支付",
+    "Failed to continue payment": "繼續支付失敗",
+    "Back to Wallet": "返回錢包",
+    "Waffo Pancake": "Waffo Pancake",
+    "Creem": "Creem",
+    "Monero": "Monero",
+    "The gateway is checked first and the confirmed amount is credited. Enter the received amount only if the gateway has no confirmed payment.": "將先向支付閘道核對，並按已確認的金額入帳。僅當閘道沒有已確認的付款時，才填寫實際收到的數量。",
+    "Received amount ({{currency}})": "實收數量（{{currency}}）",
+    "Order is not pending payment": "訂單不處於待支付狀態",
+    "This payment has expired": "該支付已過期",
+    "Crypto payment record not found": "找不到加密貨幣支付記錄",
+    "The gateway has not confirmed a payment for this order. Enter the received amount to complete it manually.": "閘道尚未確認該訂單的付款，請填寫實收數量以手動完成訂單。",
+    "Invalid received amount": "實收數量無效",
+    "Redemption purchases require the full quoted amount": "購買兌換碼需要支付完整的報價金額",
+    "Crypto orders must be completed through gateway reconciliation": "加密貨幣訂單需透過閘道對帳完成"
   }
 }
