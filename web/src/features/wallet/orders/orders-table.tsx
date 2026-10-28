@@ -26,7 +26,11 @@ import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getAllBillingHistory, getUserBillingHistory, isApiSuccess } from '../api'
+import {
+  getAllBillingHistory,
+  getUserBillingHistory,
+  isApiSuccess,
+} from '../api'
 import { MoneroPaymentDialog } from '../components/dialogs/monero-payment-dialog'
 import { NowPaymentsPaymentDialog } from '../components/dialogs/nowpayments-payment-dialog'
 import { useOrderActions } from '../hooks/use-order-actions'
@@ -42,13 +46,20 @@ export function OrdersTable() {
   const currentUserId = useAuthStore((s) => s.auth.user?.id)
   const [completeTarget, setCompleteTarget] = useState<TopupRecord | null>(null)
 
-  const { globalFilter, onGlobalFilterChange, pagination, onPaginationChange, ensurePageInRange } =
-    useTableUrlState({
-      search: route.useSearch(),
-      navigate: route.useNavigate(),
-      pagination: { defaultPage: 1, defaultPageSize: 10 },
-      globalFilter: { enabled: true, key: 'filter' },
-    })
+  const {
+    globalFilter,
+    onGlobalFilterChange,
+    columnFilters,
+    onColumnFiltersChange,
+    pagination,
+    onPaginationChange,
+    ensurePageInRange,
+  } = useTableUrlState({
+    search: route.useSearch(),
+    navigate: route.useNavigate(),
+    pagination: { defaultPage: 1, defaultPageSize: 10 },
+    globalFilter: { enabled: true, key: 'filter' },
+  })
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: [
@@ -93,8 +104,10 @@ export function OrdersTable() {
     columns,
     pagination,
     globalFilter,
+    columnFilters,
     onPaginationChange,
     onGlobalFilterChange,
+    onColumnFiltersChange,
     manualPagination: true,
     manualFiltering: true,
     totalCount: data?.total ?? 0,
