@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils'
 
 import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
-import { getUsageLogsAutoRefreshOptions } from '../lib/auto-refresh'
+import { getUsageLogsStatsRefreshOptions } from '../lib/auto-refresh'
 import { buildApiParams } from '../lib/utils'
 import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
 
@@ -60,12 +60,8 @@ export function CommonLogsStats() {
   const searchParams = route.useSearch()
   const { sensitiveVisible, autoRefreshEnabled } = useUsageLogsContext()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const page = Number(searchParams.page ?? 1)
-  const autoRefreshOptions = getUsageLogsAutoRefreshOptions(
-    autoRefreshEnabled,
-    'common',
-    page - 1
-  )
+  const statsRefreshOptions =
+    getUsageLogsStatsRefreshOptions(autoRefreshEnabled)
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['usage-logs-stats', isAdmin, searchParams],
@@ -87,7 +83,7 @@ export function CommonLogsStats() {
         : DEFAULT_LOG_STATS
     },
     placeholderData: (previousData) => previousData,
-    ...autoRefreshOptions,
+    ...statsRefreshOptions,
   })
 
   if (isLoading) {
@@ -113,11 +109,17 @@ export function CommonLogsStats() {
       <StatBadge
         label={t('RPM')}
         value={stats?.rpm || 0}
+        description={t(
+          'Requests in the last 60 seconds matching the current filters.'
+        )}
         accent='bg-rose-500/65'
       />
       <StatBadge
         label={t('TPM')}
         value={formatTokenCount(stats?.tpm || 0, locale)}
+        description={t(
+          'Prompt and completion tokens in the last 60 seconds matching the current filters.'
+        )}
         accent='bg-slate-400/70'
       />
       <StatBadge

@@ -97,6 +97,16 @@ it.each([1, 10])(
     const total = await screen.findByTitle(
       'Total tokens in filtered logs: input + output, with cache tokens counted once.'
     )
+    expect(
+      screen.getByTitle(
+        'Requests in the last 60 seconds matching the current filters.'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByTitle(
+        'Prompt and completion tokens in the last 60 seconds matching the current filters.'
+      )
+    ).toBeVisible()
     const usage = screen.getByText('Usage').parentElement
     if (!usage) throw new Error('Usage badge was not rendered')
     expect(within(usage).getByText('$0.01')).toBeVisible()
