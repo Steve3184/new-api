@@ -84,7 +84,7 @@ it.each([1, 10])(
       data: {
         success: true,
         data: {
-          quota: 0,
+          quota: 5000,
           rpm: 1,
           tpm: 12345,
           total_tokens: String(url).includes('model_name=model-a')
@@ -97,12 +97,17 @@ it.each([1, 10])(
     const total = await screen.findByTitle(
       'Total tokens in filtered logs: input + output, with cache tokens counted once.'
     )
+    const usage = screen.getByText('Usage').parentElement
+    if (!usage) throw new Error('Usage badge was not rendered')
+    expect(within(usage).getByText('$0.01')).toBeVisible()
     expect(within(total).getByText('1.23M')).toBeVisible()
     await act(() => i18next.changeLanguage('fr'))
+    expect(within(usage).getByText(/0,01/)).toBeVisible()
     expect(within(total).getByText('1,23M')).toBeVisible()
     expect(screen.getByText('12,35K')).toBeVisible()
     await act(() => i18next.changeLanguage('en'))
     expect(within(total).getByText('Total Tokens')).toBeVisible()
+    expect(within(usage).getByText('$0.01')).toBeVisible()
     expect(screen.getByText('12.35K')).toBeVisible()
     expect(total.parentElement).toHaveClass('flex-wrap')
     expect(request).toHaveBeenCalledWith(

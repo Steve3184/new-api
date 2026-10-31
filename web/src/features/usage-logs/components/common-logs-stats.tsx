@@ -59,6 +59,7 @@ export function CommonLogsStats() {
   const { isAdminView: isAdmin } = useLogsViewScope()
   const searchParams = route.useSearch()
   const { sensitiveVisible, autoRefreshEnabled } = useUsageLogsContext()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const page = Number(searchParams.page ?? 1)
   const autoRefreshOptions = getUsageLogsAutoRefreshOptions(
     autoRefreshEnabled,
@@ -104,7 +105,9 @@ export function CommonLogsStats() {
     <div className='flex flex-wrap items-center gap-2'>
       <StatBadge
         label={t('Usage')}
-        value={sensitiveVisible ? formatLogQuota(stats?.quota || 0) : '••••'}
+        value={
+          sensitiveVisible ? formatLogQuota(stats?.quota || 0, locale) : '••••'
+        }
         accent='bg-sky-500/70'
       />
       <StatBadge
@@ -114,20 +117,14 @@ export function CommonLogsStats() {
       />
       <StatBadge
         label={t('TPM')}
-        value={formatTokenCount(
-          stats?.tpm || 0,
-          toIntlLocale(i18n.resolvedLanguage || i18n.language)
-        )}
+        value={formatTokenCount(stats?.tpm || 0, locale)}
         accent='bg-slate-400/70'
       />
       <StatBadge
         label={t('Total Tokens')}
         value={
           sensitiveVisible
-            ? formatTokenCount(
-                stats?.total_tokens || 0,
-                toIntlLocale(i18n.resolvedLanguage || i18n.language)
-              )
+            ? formatTokenCount(stats?.total_tokens || 0, locale)
             : '••••'
         }
         description={t(
