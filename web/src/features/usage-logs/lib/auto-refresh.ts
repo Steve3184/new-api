@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import type { LogCategory } from '../types'
 
 export const USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS = 5_000
-export const USAGE_LOGS_STATS_REFRESH_INTERVAL_MS = 15_000
 
 export function getUsageLogsAutoRefreshInterval(
   enabled: boolean,
@@ -46,18 +45,6 @@ export function getUsageLogsAutoRefreshOptions(
       category,
       pageIndex
     ),
-    refetchIntervalInBackground: false,
-  }
-}
-
-export function getUsageLogsStatsRefreshOptions(enabled: boolean): {
-  refetchInterval: number
-  refetchIntervalInBackground: false
-} {
-  return {
-    refetchInterval: enabled
-      ? USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS
-      : USAGE_LOGS_STATS_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: false,
   }
 }

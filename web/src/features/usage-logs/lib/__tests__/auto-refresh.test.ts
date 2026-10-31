@@ -21,9 +21,7 @@ import { describe, expect, test } from 'vitest'
 import {
   getUsageLogsAutoRefreshOptions,
   getUsageLogsAutoRefreshInterval,
-  getUsageLogsStatsRefreshOptions,
   USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS,
-  USAGE_LOGS_STATS_REFRESH_INTERVAL_MS,
 } from '../auto-refresh'
 
 describe('usage logs auto refresh interval', () => {
@@ -46,19 +44,6 @@ describe('usage logs auto refresh interval', () => {
     })
     expect(getUsageLogsAutoRefreshOptions(true, 'common', 1)).toEqual({
       refetchInterval: false,
-      refetchIntervalInBackground: false,
-    })
-  })
-})
-
-describe('usage logs statistics refresh interval', () => {
-  test('refreshes live statistics independently of the log table page', () => {
-    expect(getUsageLogsStatsRefreshOptions(false)).toEqual({
-      refetchInterval: USAGE_LOGS_STATS_REFRESH_INTERVAL_MS,
-      refetchIntervalInBackground: false,
-    })
-    expect(getUsageLogsStatsRefreshOptions(true)).toEqual({
-      refetchInterval: USAGE_LOGS_AUTO_REFRESH_INTERVAL_MS,
       refetchIntervalInBackground: false,
     })
   })
