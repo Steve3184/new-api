@@ -29,6 +29,14 @@ import {
 // Number Formatting
 // ============================================================================
 
+/**
+ * Locale used by Intl number formatters when no locale is supplied.
+ * Reuse it when related values need to share the same decimal separator.
+ */
+export function getDefaultNumberLocale(): string {
+  return new Intl.NumberFormat().resolvedOptions().locale
+}
+
 export function formatNumber(
   value: number | null | undefined,
   locales?: Intl.LocalesArgument

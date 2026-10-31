@@ -21,8 +21,11 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
-import { toIntlLocale } from '@/i18n/languages'
-import { formatLogQuota, formatTokenCount } from '@/lib/format'
+import {
+  formatLogQuota,
+  formatTokenCount,
+  getDefaultNumberLocale,
+} from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -55,11 +58,11 @@ function StatBadge(props: {
 }
 
 export function CommonLogsStats() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { isAdminView: isAdmin } = useLogsViewScope()
   const searchParams = route.useSearch()
   const { sensitiveVisible, autoRefreshEnabled } = useUsageLogsContext()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const locale = getDefaultNumberLocale()
   const page = Number(searchParams.page ?? 1)
   const autoRefreshOptions = getUsageLogsAutoRefreshOptions(
     autoRefreshEnabled,

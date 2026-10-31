@@ -20,6 +20,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
+import { getDefaultNumberLocale } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CommonLogsStats } from '../common-logs-stats'
@@ -80,6 +81,9 @@ afterEach(async () => {
 it.each([1, 10])(
   'shows filtered totals beside TPM and refreshes them after filtering for role %s',
   async (role) => {
+    vi.spyOn(Intl.NumberFormat.prototype, 'resolvedOptions').mockReturnValue({
+      locale: 'ru-RU',
+    } as Intl.ResolvedNumberFormatOptions)
     const request = vi.spyOn(api, 'get').mockImplementation(async (url) => ({
       data: {
         success: true,
@@ -99,16 +103,19 @@ it.each([1, 10])(
     )
     const usage = screen.getByText('Usage').parentElement
     if (!usage) throw new Error('Usage badge was not rendered')
-    expect(within(usage).getByText('$0.01')).toBeVisible()
-    expect(within(total).getByText('1.23M')).toBeVisible()
-    await act(() => i18next.changeLanguage('fr'))
+    const locale = getDefaultNumberLocale()
+    expect(locale).toBe('ru-RU')
+    expect(within(usage).getByText(/0,01/)).toBeVisible()
+    expect(within(total).getByText('1,23M')).toBeVisible()
+    expect(screen.getByText('12,35K')).toBeVisible()
+    await act(() => i18next.changeLanguage('zhCN'))
     expect(within(usage).getByText(/0,01/)).toBeVisible()
     expect(within(total).getByText('1,23M')).toBeVisible()
     expect(screen.getByText('12,35K')).toBeVisible()
     await act(() => i18next.changeLanguage('en'))
     expect(within(total).getByText('Total Tokens')).toBeVisible()
-    expect(within(usage).getByText('$0.01')).toBeVisible()
-    expect(screen.getByText('12.35K')).toBeVisible()
+    expect(within(usage).getByText(/0,01/)).toBeVisible()
+    expect(screen.getByText('12,35K')).toBeVisible()
     expect(total.parentElement).toHaveClass('flex-wrap')
     expect(request).toHaveBeenCalledWith(
       expect.stringContaining(
