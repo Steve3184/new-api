@@ -641,6 +641,19 @@ export const CLAUDE_FIELD_PASSTHROUGH_TYPES = new Set([
   CHANNEL_TYPE_SGLANG,
 ])
 
+/**
+ * Channel types that can serve Claude Messages, so the Claude Code client
+ * restriction makes sense there. Meshy2API (59) is excluded: it is a 3D task
+ * channel that forwards the passthrough fields but never sees this traffic.
+ */
+export const CLAUDE_CODE_CLIENT_TYPES = new Set([
+  14,
+  58,
+  CHANNEL_TYPE_NEW_API,
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
+])
+
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   15: 'Format: APIKey|SecretKey',
   18: 'Format: APPID|APISecret|APIKey',

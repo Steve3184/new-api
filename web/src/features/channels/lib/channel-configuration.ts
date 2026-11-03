@@ -83,6 +83,7 @@ const CONFIGURATION_BLOCKS = {
       'allow_speed',
       'claude_beta_query',
       'claude_cache_control',
+      'claude_code_only',
     ],
   },
   extraSettings: {
@@ -187,7 +188,8 @@ export function getChannelConfigurationState(
       (claudePassthrough &&
         (values.allow_speed ||
           (values.type === 14 &&
-            (values.claude_beta_query || values.claude_cache_control))))
+            (values.claude_beta_query || values.claude_cache_control)) ||
+          values.claude_code_only))
     ),
     extraSettings: Boolean(
       values.proxy?.trim() ||

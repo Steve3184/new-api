@@ -12,6 +12,7 @@ var filterEvalOrder = []dto.ChannelFilterKind{
 	dto.FilterTaskPluginEndpoint,
 	dto.FilterTaskPluginIdentity,
 	dto.FilterResponsesWebSocket,
+	dto.FilterClaudeCodeClient,
 }
 
 // ChannelSatisfiesFilters reports whether ch passes every filter.
@@ -143,6 +144,12 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		default:
 			return false
 		}
+	case dto.FilterClaudeCodeClient:
+		// Channels that do not opt in accept every client.
+		if !ch.GetOtherSettings().ClaudeCodeOnly {
+			return true
+		}
+		return filter.ClaudeCodeClient
 	default:
 		return true
 	}

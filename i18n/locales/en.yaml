@@ -26,6 +26,7 @@ distributor.get_channel_failed: "Failed to get available channel for model {{.Mo
 distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
 distributor.no_available_channel_task_plugin: "No available channel for model {{.Model}} under group {{.Group}}: the model is claimed by a task plugin, which has no enabled channel serving it (distributor)"
 distributor.invalid_request_parse_model: "unable to parse model"
+distributor.claude_code_client_required: "No available channel for model {{.Model}} under group {{.Group}}: the channel only accepts Claude Code clients (distributor)"
 quota.user_insufficient: "Insufficient user quota, remaining quota: {{.Remaining}}"
 quota.pre_consume_insufficient: "Not enough quota to pre-consume for this request: {{.Remaining}} remaining, {{.Required}} required"
 quota.subscription_insufficient: "Subscription quota is insufficient or no subscription is configured: {{.Error}}"

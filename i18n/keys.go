@@ -34,6 +34,7 @@ const (
 	MsgDistributorNoAvailableChannel           = "distributor.no_available_channel"
 	MsgDistributorNoAvailableChannelTaskPlugin = "distributor.no_available_channel_task_plugin"
 	MsgDistributorInvalidParseModel            = "distributor.invalid_request_parse_model"
+	MsgDistributorClaudeCodeClientRequired     = "distributor.claude_code_client_required"
 
 	MsgQuotaUserInsufficient             = "quota.user_insufficient"
 	MsgQuotaPreConsumeInsufficient       = "quota.pre_consume_insufficient"

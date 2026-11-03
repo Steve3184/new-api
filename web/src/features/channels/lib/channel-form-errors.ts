@@ -59,6 +59,7 @@ const ADVANCED_SETTINGS_FIELDS = new Set<FieldPath<ChannelFormValues>>([
   'responses_to_chat_completions',
   'claude_beta_query',
   'claude_cache_control',
+  'claude_code_only',
   'ollama_openai_chat',
   'disable_task_polling_sleep',
   'upstream_model_update_check_enabled',

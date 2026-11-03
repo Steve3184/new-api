@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 
 import {
+  CLAUDE_CODE_CLIENT_TYPES,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_TYPE_AGNES,
   CHANNEL_TYPE_NEW_API,
@@ -346,6 +347,7 @@ export const channelFormSchema = z
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
     claude_cache_control: z.boolean().optional(), // Anthropic: stable prefix cache control
+    claude_code_only: z.boolean().optional(), // Anthropic: only accept Claude Code clients
     ollama_openai_chat: z.boolean().optional(), // Ollama: OpenAI-compatible /v1/chat/completions instead of native /api/chat
     disable_task_polling_sleep: z.boolean().optional(),
     agnes_auto_image_url: z.boolean().optional(),
@@ -555,6 +557,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_speed: false,
   claude_beta_query: false,
   claude_cache_control: false,
+  claude_code_only: false,
   ollama_openai_chat: false,
   disable_task_polling_sleep: false,
   agnes_auto_image_url: false,
@@ -654,6 +657,7 @@ export function transformChannelToFormDefaults(
   let allowSpeed = false
   let claudeBetaQuery = false
   let claudeCacheControl = false
+  let claudeCodeOnly = false
   let ollamaOpenAIChat = false
   let disableTaskPollingSleep = false
   let agnesAutoImageURL = false
@@ -679,6 +683,7 @@ export function transformChannelToFormDefaults(
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
       claudeCacheControl = parsed.claude_cache_control === true
+      claudeCodeOnly = parsed.claude_code_only === true
       ollamaOpenAIChat = parsed.ollama_openai_chat === true
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
       agnesAutoImageURL = parsed.agnes_auto_image_url === true
@@ -761,6 +766,7 @@ export function transformChannelToFormDefaults(
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
     claude_cache_control: claudeCacheControl,
+    claude_code_only: claudeCodeOnly,
     ollama_openai_chat: ollamaOpenAIChat,
     disable_task_polling_sleep: disableTaskPollingSleep,
     agnes_auto_image_url: agnesAutoImageURL,
@@ -942,6 +948,13 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     if ('claude_cache_control' in settingsObj) {
       delete settingsObj.claude_cache_control
     }
+  }
+
+  // Only channels that can serve Claude Messages enforce the client gate.
+  if (CLAUDE_CODE_CLIENT_TYPES.has(formData.type)) {
+    settingsObj.claude_code_only = formData.claude_code_only === true
+  } else if ('claude_code_only' in settingsObj) {
+    delete settingsObj.claude_code_only
   }
 
   // Only the Ollama adaptor can switch chat completions to the OpenAI-compatible endpoint.

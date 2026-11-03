@@ -50,6 +50,13 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		// Resolved once per request and reused by retries. Channels that opt
+		// into the Claude Code restriction refuse every other client on all
+		// relay paths, not only Messages.
+		constraints.AddFilter(taskdto.ChannelFilter{
+			Kind:             taskdto.FilterClaudeCodeClient,
+			ClaudeCodeClient: service.IsClaudeCodeClient(c),
+		})
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {
 			// Select a channel for the user
@@ -118,7 +125,9 @@ func Distribute() func(c *gin.Context) {
 					logTaskPluginChannelDecision(c, selectErr.Channel, modelRequest.Model, "channel_rejected", "identity_mismatch")
 				}
 				message := selectErr.Message
-				if selectErr.NoAvailableChannel {
+				if selectErr.FilterKind == taskdto.FilterClaudeCodeClient {
+					message = i18n.T(c, i18n.MsgDistributorClaudeCodeClientRequired, selectErr.Params)
+				} else if selectErr.NoAvailableChannel {
 					message = noAvailableChannelMessage(c, usingGroup, modelRequest.Model)
 				} else if selectErr.MessageID != "" {
 					message = i18n.T(c, selectErr.MessageID, selectErr.Params)

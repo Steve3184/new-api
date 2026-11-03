@@ -248,3 +248,78 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, dto.FilterRequestPath, kind)
 }
+
+func TestClaudeCodeClientFilter(t *testing.T) {
+	restrictedSetting := kitdto.ChannelOtherSettings{ClaudeCodeOnly: true}
+	restricted := &Channel{Id: 900100, Type: constant.ChannelTypeAnthropic, Status: common.ChannelStatusEnabled}
+	restricted.SetOtherSettings(restrictedSetting)
+	open := &Channel{Id: 900101, Type: constant.ChannelTypeAnthropic, Status: common.ChannelStatusEnabled}
+
+	claudeFilter := func(isClaudeCode bool) []dto.ChannelFilter {
+		return []dto.ChannelFilter{{Kind: dto.FilterClaudeCodeClient, ClaudeCodeClient: isClaudeCode}}
+	}
+
+	tests := []struct {
+		name       string
+		channel    *Channel
+		isClaude   bool
+		want       bool
+		wantKind   dto.ChannelFilterKind
+		annotation string
+	}{
+		{
+			name:     "restricted channel accepts a Claude Code client",
+			channel:  restricted,
+			isClaude: true,
+			want:     true,
+		},
+		{
+			name:     "restricted channel refuses any other client",
+			channel:  restricted,
+			isClaude: false,
+			want:     false,
+			wantKind: dto.FilterClaudeCodeClient,
+		},
+		{
+			name:     "channel without the switch accepts any client",
+			channel:  open,
+			isClaude: false,
+			want:     true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, kind := ChannelSatisfiesFilters(tc.channel, "claude-sonnet-4-5", claudeFilter(tc.isClaude))
+			assert.Equal(t, tc.want, ok)
+			assert.Equal(t, tc.wantKind, kind)
+		})
+	}
+
+	// The restriction is not limited to Messages: any relay path is refused.
+	t.Run("restriction applies to every relay path", func(t *testing.T) {
+		for _, path := range []string{"/v1/messages", "/v1/chat/completions", "/v1/responses", "/v1/embeddings"} {
+			filters := append(claudeFilter(false), dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: path})
+			ok, kind := ChannelSatisfiesFilters(restricted, "claude-sonnet-4-5", filters)
+			assert.False(t, ok, path)
+			assert.Equal(t, dto.FilterClaudeCodeClient, kind, path)
+		}
+	})
+
+	t.Run("cache filtering keeps only allowed candidates", func(t *testing.T) {
+		oldChannels := channelsIDM
+		t.Cleanup(func() { channelsIDM = oldChannels })
+		channelsIDM = map[int]*Channel{900100: restricted, 900101: open}
+
+		kept, emptiedBy := filterCandidateIDs([]int{900100, 900101}, "claude-sonnet-4-5", claudeFilter(false))
+		assert.Equal(t, []int{900101}, kept)
+		assert.Equal(t, dto.ChannelFilterKind(""), emptiedBy)
+
+		kept, emptiedBy = filterCandidateIDs([]int{900100}, "claude-sonnet-4-5", claudeFilter(true))
+		assert.Equal(t, []int{900100}, kept)
+		assert.Equal(t, dto.ChannelFilterKind(""), emptiedBy)
+
+		kept, emptiedBy = filterCandidateIDs([]int{900100}, "claude-sonnet-4-5", claudeFilter(false))
+		assert.Empty(t, kept)
+		assert.Equal(t, dto.FilterClaudeCodeClient, emptiedBy)
+	})
+}

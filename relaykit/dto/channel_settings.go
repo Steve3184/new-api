@@ -129,6 +129,7 @@ type ChannelOtherSettings struct {
 	OpenRouterEnterprise                  *bool                 `json:"openrouter_enterprise,omitempty"`
 	ClaudeBetaQuery                       bool                  `json:"claude_beta_query,omitempty"`          // Claude 渠道是否强制追加 ?beta=true
 	ClaudeCacheControl                    bool                  `json:"claude_cache_control,omitempty"`       // Claude 渠道是否为稳定前缀和最后一条用户消息自动添加 cache_control
+	ClaudeCodeOnly                        bool                  `json:"claude_code_only,omitempty"`           // 是否仅允许 Claude Code 客户端访问该渠道（探测请求始终放行）
 	AllowServiceTier                      bool                  `json:"allow_service_tier,omitempty"`         // 是否允许 service_tier 透传（默认过滤以避免额外计费）
 	AllowInferenceGeo                     bool                  `json:"allow_inference_geo,omitempty"`        // 是否允许 inference_geo 透传（仅 Claude，默认过滤以满足数据驻留合规
 	AllowSpeed                            bool                  `json:"allow_speed,omitempty"`                // 是否允许 speed 透传（仅 Claude，默认过滤以避免意外切换推理速度模式）

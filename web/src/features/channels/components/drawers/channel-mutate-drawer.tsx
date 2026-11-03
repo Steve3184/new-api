@@ -137,6 +137,7 @@ import {
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
+  CLAUDE_CODE_CLIENT_TYPES,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
   CHANNEL_TYPE_AGNES,
@@ -329,6 +330,7 @@ const SENSITIVE_FORM_FIELDS = [
   'allow_speed',
   'claude_beta_query',
   'claude_cache_control',
+  'claude_code_only',
   'ollama_openai_chat',
   'disable_task_polling_sleep',
   'agnes_auto_image_url',
@@ -3355,6 +3357,34 @@ export function ChannelMutateDrawer({
                         <FormDescription>
                           {t(
                             'Add cache_control type ephemeral to the stable system, tools, and last user message, replacing request cache controls'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {CLAUDE_CODE_CLIENT_TYPES.has(currentType) && (
+                <FormField
+                  control={form.control}
+                  name='claude_code_only'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Only allow Claude Code clients')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Reject requests on every path that do not come from a Claude Code client. Connectivity probes always pass so the desktop app keeps working'
                           )}
                         </FormDescription>
                       </div>
