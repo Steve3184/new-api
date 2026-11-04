@@ -8,54 +8,75 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ownerBalance reads the remaining and used quota of a user. An unlimited key
+// has no balance of its own: it spends from the account that owns it, so both
+// billing endpoints report that account instead of a fixed placeholder.
+func ownerBalance(userId int) (remainQuota int, usedQuota int, err error) {
+	remainQuota, err = model.GetUserQuota(userId, false)
+	if err != nil {
+		return 0, 0, err
+	}
+	usedQuota, err = model.GetUserUsedQuota(userId)
+	if err != nil {
+		return 0, 0, err
+	}
+	return remainQuota, usedQuota, nil
+}
+
+// quotaDisplayAmount converts a quota value to the site's display unit. The
+// OpenAI compatible *_USD fields keep those semantics: USD divides by
+// QuotaPerUnit, CNY converts and applies the exchange rate, TOKENS keeps the
+// raw token count.
+func quotaDisplayAmount(quota int) float64 {
+	amount := float64(quota)
+	switch operation_setting.GetQuotaDisplayType() {
+	case operation_setting.QuotaDisplayTypeCNY:
+		return amount / common.QuotaPerUnit * operation_setting.USDExchangeRate
+	case operation_setting.QuotaDisplayTypeTokens:
+		return amount
+	default:
+		return amount / common.QuotaPerUnit
+	}
+}
+
+func writeOpenAIError(c *gin.Context, errorType string, err error) {
+	c.JSON(200, gin.H{
+		"error": types.OpenAIError{
+			Message: err.Error(),
+			Type:    errorType,
+		},
+	})
+}
+
 func GetSubscription(c *gin.Context) {
 	var remainQuota int
 	var usedQuota int
 	var err error
-	var token *model.Token
 	var expiredTime int64
+	userId := c.GetInt("id")
 	if common.DisplayTokenStatEnabled {
-		tokenId := c.GetInt("token_id")
-		token, err = model.GetTokenById(tokenId)
+		token, tokenErr := model.GetTokenById(c.GetInt("token_id"))
+		if tokenErr != nil {
+			writeOpenAIError(c, "upstream_error", tokenErr)
+			return
+		}
 		expiredTime = token.ExpiredTime
 		remainQuota = token.RemainQuota
 		usedQuota = token.UsedQuota
+		if token.UnlimitedQuota {
+			remainQuota, usedQuota, err = ownerBalance(userId)
+		}
 	} else {
-		userId := c.GetInt("id")
-		remainQuota, err = model.GetUserQuota(userId, false)
-		usedQuota, err = model.GetUserUsedQuota(userId)
+		remainQuota, usedQuota, err = ownerBalance(userId)
+	}
+	if err != nil {
+		writeOpenAIError(c, "upstream_error", err)
+		return
 	}
 	if expiredTime <= 0 {
 		expiredTime = 0
 	}
-	if err != nil {
-		openAIError := types.OpenAIError{
-			Message: err.Error(),
-			Type:    "upstream_error",
-		}
-		c.JSON(200, gin.H{
-			"error": openAIError,
-		})
-		return
-	}
-	quota := remainQuota + usedQuota
-	amount := float64(quota)
-	// OpenAI 兼容接口中的 *_USD 字段含义保持“额度单位”对应值：
-	// 我们将其解释为以“站点展示类型”为准：
-	// - USD: 直接除以 QuotaPerUnit
-	// - CNY: 先转 USD 再乘汇率
-	// - TOKENS: 直接使用 tokens 数量
-	switch operation_setting.GetQuotaDisplayType() {
-	case operation_setting.QuotaDisplayTypeCNY:
-		amount = amount / common.QuotaPerUnit * operation_setting.USDExchangeRate
-	case operation_setting.QuotaDisplayTypeTokens:
-		// amount 保持 tokens 数值
-	default:
-		amount = amount / common.QuotaPerUnit
-	}
-	if token != nil && token.UnlimitedQuota {
-		amount = 100000000
-	}
+	amount := quotaDisplayAmount(remainQuota + usedQuota)
 	subscription := OpenAISubscriptionResponse{
 		Object:             "billing_subscription",
 		HasPaymentMethod:   true,
@@ -71,37 +92,26 @@ func GetSubscription(c *gin.Context) {
 func GetUsage(c *gin.Context) {
 	var quota int
 	var err error
-	var token *model.Token
 	if common.DisplayTokenStatEnabled {
-		tokenId := c.GetInt("token_id")
-		token, err = model.GetTokenById(tokenId)
+		token, tokenErr := model.GetTokenById(c.GetInt("token_id"))
+		if tokenErr != nil {
+			writeOpenAIError(c, "new_api_error", tokenErr)
+			return
+		}
 		quota = token.UsedQuota
+		if token.UnlimitedQuota {
+			_, quota, err = ownerBalance(c.GetInt("id"))
+		}
 	} else {
-		userId := c.GetInt("id")
-		quota, err = model.GetUserUsedQuota(userId)
+		quota, err = model.GetUserUsedQuota(c.GetInt("id"))
 	}
 	if err != nil {
-		openAIError := types.OpenAIError{
-			Message: err.Error(),
-			Type:    "new_api_error",
-		}
-		c.JSON(200, gin.H{
-			"error": openAIError,
-		})
+		writeOpenAIError(c, "new_api_error", err)
 		return
-	}
-	amount := float64(quota)
-	switch operation_setting.GetQuotaDisplayType() {
-	case operation_setting.QuotaDisplayTypeCNY:
-		amount = amount / common.QuotaPerUnit * operation_setting.USDExchangeRate
-	case operation_setting.QuotaDisplayTypeTokens:
-		// tokens 保持原值
-	default:
-		amount = amount / common.QuotaPerUnit
 	}
 	usage := OpenAIUsageResponse{
 		Object:     "list",
-		TotalUsage: amount * 100,
+		TotalUsage: quotaDisplayAmount(quota) * 100,
 	}
 	c.JSON(200, usage)
 	return
