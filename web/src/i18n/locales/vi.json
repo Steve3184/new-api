@@ -8499,6 +8499,17 @@
     "This chat preset does not create API keys automatically": "Cài đặt sẵn trò chuyện này không tự động tạo khóa API",
     "The API key {{name}} for this chat preset is not enabled": "Khóa API {{name}} của cài đặt sẵn trò chuyện này chưa được bật",
     "API token key access for a chat preset": "Truy cập khóa token API của cài đặt sẵn trò chuyện",
-    "Get chat preset API key": "Lấy khóa API của cài đặt sẵn trò chuyện"
+    "Get chat preset API key": "Lấy khóa API của cài đặt sẵn trò chuyện",
+    "Usage calendar": "Lịch sử dụng",
+    "Usage view": "Chế độ xem sử dụng",
+    "Usage by day": "Sử dụng theo ngày",
+    "Loading usage data": "Đang tải dữ liệu sử dụng",
+    "Failed to load usage data": "Không thể tải dữ liệu sử dụng",
+    "{{date}}: No statistics available": "{{date}}: Không có dữ liệu thống kê",
+    "{{date}}: {{tokens}} tokens": "{{date}}: {{tokens}} token",
+    "Select a day to view token usage.": "Chọn một ngày để xem lượng token đã sử dụng.",
+    "Statistics available from {{date}} due to the site query limit.": "Do giới hạn truy vấn của trang web, dữ liệu thống kê chỉ có từ {{date}}.",
+    "No usage recorded in this period.": "Không có dữ liệu sử dụng trong khoảng thời gian này.",
+    "3D is unavailable on this device. Showing 2D instead.": "Thiết bị này không hỗ trợ 3D. Đang hiển thị ở chế độ 2D."
   }
 }

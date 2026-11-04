@@ -8499,6 +8499,17 @@
     "This chat preset does not create API keys automatically": "Ce préréglage de chat ne crée pas de clé API automatiquement",
     "The API key {{name}} for this chat preset is not enabled": "La clé API {{name}} de ce préréglage de chat n'est pas activée",
     "API token key access for a chat preset": "Accès à la clé de jeton API d'un préréglage de chat",
-    "Get chat preset API key": "Obtenir la clé API du préréglage de chat"
+    "Get chat preset API key": "Obtenir la clé API du préréglage de chat",
+    "Usage calendar": "Calendrier d’utilisation",
+    "Usage view": "Vue d’utilisation",
+    "Usage by day": "Utilisation par jour",
+    "Loading usage data": "Chargement de l’utilisation",
+    "Failed to load usage data": "Échec du chargement de l’utilisation",
+    "{{date}}: No statistics available": "{{date}} : aucune statistique disponible",
+    "{{date}}: {{tokens}} tokens": "{{date}} : {{tokens}} tokens",
+    "Select a day to view token usage.": "Sélectionnez un jour pour consulter l’utilisation des tokens.",
+    "Statistics available from {{date}} due to the site query limit.": "En raison de la limite de requête du site, les statistiques sont disponibles à partir du {{date}}.",
+    "No usage recorded in this period.": "Aucune utilisation enregistrée sur cette période.",
+    "3D is unavailable on this device. Showing 2D instead.": "La 3D n’est pas disponible sur cet appareil. Affichage en 2D."
   }
 }

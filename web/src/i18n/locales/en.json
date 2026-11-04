@@ -8499,6 +8499,17 @@
     "This chat preset does not create API keys automatically": "This chat preset does not create API keys automatically",
     "The API key {{name}} for this chat preset is not enabled": "The API key {{name}} for this chat preset is not enabled",
     "API token key access for a chat preset": "API token key access for a chat preset",
-    "Get chat preset API key": "Get chat preset API key"
+    "Get chat preset API key": "Get chat preset API key",
+    "Usage calendar": "Usage calendar",
+    "Usage view": "Usage view",
+    "Usage by day": "Usage by day",
+    "Loading usage data": "Loading usage data",
+    "Failed to load usage data": "Failed to load usage data",
+    "{{date}}: No statistics available": "{{date}}: No statistics available",
+    "{{date}}: {{tokens}} tokens": "{{date}}: {{tokens}} tokens",
+    "Select a day to view token usage.": "Select a day to view token usage.",
+    "Statistics available from {{date}} due to the site query limit.": "Statistics available from {{date}} due to the site query limit.",
+    "No usage recorded in this period.": "No usage recorded in this period.",
+    "3D is unavailable on this device. Showing 2D instead.": "3D is unavailable on this device. Showing 2D instead."
   }
 }

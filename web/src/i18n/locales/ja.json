@@ -8499,6 +8499,17 @@
     "This chat preset does not create API keys automatically": "このチャットプリセットは API キーを自動作成しません",
     "The API key {{name}} for this chat preset is not enabled": "このチャットプリセットの API キー {{name}} は有効になっていません",
     "API token key access for a chat preset": "チャットプリセットの API トークンキーへのアクセス",
-    "Get chat preset API key": "チャットプリセットの API キーを取得"
+    "Get chat preset API key": "チャットプリセットの API キーを取得",
+    "Usage calendar": "使用量カレンダー",
+    "Usage view": "使用量の表示",
+    "Usage by day": "日別使用量",
+    "Loading usage data": "使用量を読み込み中",
+    "Failed to load usage data": "使用量の読み込みに失敗しました",
+    "{{date}}: No statistics available": "{{date}}：統計データがありません",
+    "{{date}}: {{tokens}} tokens": "{{date}}：{{tokens}} トークン",
+    "Select a day to view token usage.": "日付を選択してトークン使用量を表示します。",
+    "Statistics available from {{date}} due to the site query limit.": "サイトのクエリ制限により、{{date}} 以降の統計データのみ表示できます。",
+    "No usage recorded in this period.": "この期間の使用記録はありません。",
+    "3D is unavailable on this device. Showing 2D instead.": "このデバイスでは 3D を利用できないため、2D で表示しています。"
   }
 }

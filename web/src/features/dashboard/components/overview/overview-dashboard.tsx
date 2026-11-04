@@ -65,6 +65,7 @@ import {
 } from '../../hooks/use-status-data'
 import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
+import { ContributionsCard } from './contributions/contributions-card'
 import { FAQPanel } from './faq-panel'
 import { PerformanceHealthPanel } from './performance-health-panel'
 import { SummaryCards } from './summary-cards'
@@ -788,6 +789,7 @@ export function OverviewDashboard() {
           )}
 
           <SummaryCards />
+          <ContributionsCard />
 
           {showContentPanels && (
             <CardStaggerContainer

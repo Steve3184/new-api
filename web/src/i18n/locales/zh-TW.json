@@ -8499,6 +8499,17 @@
     "This chat preset does not create API keys automatically": "此聊天預設不會自動建立 API 金鑰",
     "The API key {{name}} for this chat preset is not enabled": "此聊天預設的 API 金鑰 {{name}} 未啟用",
     "API token key access for a chat preset": "聊天預設的 API 權杖金鑰檢視",
-    "Get chat preset API key": "取得聊天預設 API 金鑰"
+    "Get chat preset API key": "取得聊天預設 API 金鑰",
+    "Usage calendar": "用量日曆",
+    "Usage view": "用量檢視",
+    "Usage by day": "每日用量",
+    "Loading usage data": "正在載入用量資料",
+    "Failed to load usage data": "載入用量資料失敗",
+    "{{date}}: No statistics available": "{{date}}：暫無統計資料",
+    "{{date}}: {{tokens}} tokens": "{{date}}：{{tokens}} 個 token",
+    "Select a day to view token usage.": "選擇一天以查看 token 用量。",
+    "Statistics available from {{date}} due to the site query limit.": "受網站查詢限制，僅提供 {{date}} 起的統計資料。",
+    "No usage recorded in this period.": "此期間沒有用量記錄。",
+    "3D is unavailable on this device. Showing 2D instead.": "此裝置不支援 3D，已切換為 2D。"
   }
 }

@@ -8499,6 +8499,17 @@
     "This chat preset does not create API keys automatically": "Этот пресет чата не создаёт API-ключи автоматически",
     "The API key {{name}} for this chat preset is not enabled": "API-ключ {{name}} для этого пресета чата не включён",
     "API token key access for a chat preset": "Доступ к ключу API-токена для пресета чата",
-    "Get chat preset API key": "Получить API-ключ пресета чата"
+    "Get chat preset API key": "Получить API-ключ пресета чата",
+    "Usage calendar": "Календарь использования",
+    "Usage view": "Вид использования",
+    "Usage by day": "Использование по дням",
+    "Loading usage data": "Загрузка данных об использовании",
+    "Failed to load usage data": "Не удалось загрузить данные об использовании",
+    "{{date}}: No statistics available": "{{date}}: статистика недоступна",
+    "{{date}}: {{tokens}} tokens": "{{date}}: {{tokens}} токенов",
+    "Select a day to view token usage.": "Выберите день, чтобы посмотреть расход токенов.",
+    "Statistics available from {{date}} due to the site query limit.": "Из-за ограничения запросов на сайте статистика доступна с {{date}}.",
+    "No usage recorded in this period.": "За этот период использование не зафиксировано.",
+    "3D is unavailable on this device. Showing 2D instead.": "3D недоступен на этом устройстве. Используется 2D."
   }
 }
