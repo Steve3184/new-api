@@ -343,6 +343,50 @@ export function hasAnyCacheTokens(
   )
 }
 
+/**
+ * Share of the input side that was served from the prompt cache, or `undefined`
+ * when the request reported no cache read at all.
+ *
+ * The denominator depends on the usage semantic of the upstream: Anthropic
+ * reports `input_tokens` without the cached part, so cache reads and writes are
+ * separate, while OpenAI-style usage already folds cached tokens into
+ * `prompt_tokens`. `other.claude` marks the former.
+ */
+export function cacheHitRate(
+  log: Pick<UsageLog, 'prompt_tokens' | 'other'>
+): number | undefined {
+  const other = parseLogOther(log.other)
+  const cacheRead = other?.cache_tokens || 0
+  if (!(cacheRead > 0)) return undefined
+
+  const promptTokens = log.prompt_tokens || 0
+  const splitCacheWrite =
+    (other?.cache_creation_tokens_5m || 0) +
+    (other?.cache_creation_tokens_1h || 0)
+  const cacheWrite = other?.claude
+    ? splitCacheWrite || other.cache_creation_tokens || 0
+    : 0
+  // OpenAI-style prompt tokens already contain the cached part; Anthropic's do
+  // not, so only the Claude semantic adds the cache back to the input side.
+  const inputTokens =
+    promptTokens + (other?.claude ? cacheRead + cacheWrite : 0)
+  if (!(inputTokens > 0)) return undefined
+
+  return Math.min(1, cacheRead / inputTokens)
+}
+
+/** Locale-aware percentage for a cache hit rate, or `-` without cache usage. */
+export function formatCacheHitRate(
+  rate: number | undefined,
+  locale?: string
+): string {
+  if (rate === undefined) return '-'
+  return new Intl.NumberFormat(locale, {
+    style: 'percent',
+    maximumFractionDigits: 1,
+  }).format(rate)
+}
+
 export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {
