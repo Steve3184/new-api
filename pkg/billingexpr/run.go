@@ -9,9 +9,9 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	"github.com/tidwall/gjson"
 )
 
 // RunExpr compiles (with cache) and executes an expression string.
@@ -124,7 +124,7 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 			if path == "" || len(request.Body) == 0 {
 				return nil
 			}
-			result := gjson.GetBytes(request.Body, path)
+			result := ojson.GetBytes(request.Body, path)
 			if !result.Exists() {
 				return nil
 			}
@@ -174,7 +174,7 @@ func normalizedImageResolution(body []byte) string {
 	}
 
 	for _, path := range []string{"quality", "size"} {
-		value := strings.TrimSpace(gjson.GetBytes(body, path).String())
+		value := strings.TrimSpace(ojson.GetBytes(body, path).String())
 		if value == "" {
 			continue
 		}

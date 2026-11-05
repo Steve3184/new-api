@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -182,4 +183,50 @@ func TestSharedTaskPluginIdentityFilterContainsAllCandidateKeys(t *testing.T) {
 	assert.Equal(t, "alpha", filters[0].TaskPluginKey)
 	assert.Equal(t, []string{"alpha", "beta"}, filters[0].TaskPluginKeys)
 	assert.Empty(t, filters[0].TaskPluginChannelTypes)
+}
+
+func TestSharedNativeRouteIdentityFilterContainsAllCandidateKeys(t *testing.T) {
+	registry := jsplugin.NewRegistry()
+	for _, key := range []string{"route-alpha", "route-beta"} {
+		_, err := registry.Register(fmt.Sprintf(`
+export const meta = {apiVersion: 1, key: %q, name: %q, version: "1.0.0", author: {name: "Test"}, models: ["task-model"], fetchMode: "per_task",
+	routes: [{method: "POST", path: "/probe/v1/jobs", type: "submit", decode: "decode", render: "render"}]};
+export const native = {decode() { return {}; }, render() { return {}; }};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, key, key), jsplugin.Options{})
+		require.NoError(t, err)
+	}
+	generation := registry.Generation()
+	candidates := generation.LookupDeclaredRoutes("POST", "/probe/v1/jobs")
+	require.Len(t, candidates, 2)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Generation: generation, Plugin: candidates[0].Plugin, Route: candidates[0].Route, Candidates: candidates})
+	AppendTaskPluginIdentityFilter(c, "route-alpha")
+	filters := GetChannelConstraints(c).Filters
+	require.Len(t, filters, 1)
+	assert.Equal(t, "route-alpha", filters[0].TaskPluginKey)
+	assert.Equal(t, []string{"route-alpha", "route-beta"}, filters[0].TaskPluginKeys)
+}
+
+func TestChannelSupportsRequestPathUsesInferencePresets(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		path        string
+		want        bool
+	}{
+		{name: "vLLM chat route", channelType: constant.ChannelTypeVLLM, path: "/v1/chat/completions", want: true},
+		{name: "vLLM rejects SGLang rerank route", channelType: constant.ChannelTypeVLLM, path: "/v1/rerank", want: false},
+		{name: "SGLang rerank route", channelType: constant.ChannelTypeSGLang, path: "/v1/rerank", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			channel := &model.Channel{Type: tt.channelType}
+			assert.Equal(t, tt.want, channelSupportsRequestPath(channel, tt.path, "served-model"))
+		})
+	}
 }

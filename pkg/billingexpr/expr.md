@@ -132,7 +132,8 @@ Ali JSON 和 multipart 请求都明确发送该生效数量。每次渠道重试
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
-| `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
+| `fixed` | `fixed(amount) → float64` | A USD price per request, used only as the complete price in `tier(name, fixed(amount))` |
+| `param` | `param(path) → any` | Reads a JSON path from the request body (uses ojson, gjson path syntax) |
 | `header` | `header(key) → string` | Reads a request header value |
 | `image_resolution` | `image_resolution() → string` | Normalizes the requested image size to `1K`, `2K`, `4K`, or `8K`; an explicit K-valued `quality` takes precedence over `size` |
 | `has` | `has(source, substr) → bool` | Substring check |

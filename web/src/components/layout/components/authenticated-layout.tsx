@@ -25,6 +25,7 @@ import { SearchProvider } from '@/context/search-provider'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { consoleSurfaceStyles } from '../lib/console-surface'
 import { AppHeader } from './app-header'
@@ -45,6 +46,10 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
     backgroundImage,
     appearance.backgroundBlurOpacity
   )
+  const signedIn = useAuthStore((s) => !!s.auth.user)
+  // Unmount pages on sign-out, otherwise their queries refetch and toast
+  // "Session expired!" / "invalid access token".
+  if (!signedIn) return null
 
   return (
     <div
