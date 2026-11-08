@@ -20,22 +20,51 @@ import i18next from 'i18next'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import type { SystemStatus } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
 
-type CaptchaPurpose = 'auth' | 'checkin' | 'redemption'
+type CaptchaPurpose =
+  | 'login'
+  | 'register'
+  | 'reset_password'
+  | 'checkin'
+  | 'redemption'
 
-export function useCaptcha(purpose: CaptchaPurpose = 'auth') {
+type CaptchaType = 'none' | 'turnstile' | 'hcaptcha' | 'cap'
+
+function toCaptchaType(value: string | undefined): CaptchaType {
+  if (value === 'cap' || value === 'hcaptcha' || value === 'turnstile') {
+    return value
+  }
+  return 'none'
+}
+
+/**
+ * Resolve the provider protecting one form. A form-specific option wins; an
+ * empty value follows the global provider, which is what an older site
+ * returns.
+ */
+function providerFor(status: SystemStatus | null, purpose: CaptchaPurpose) {
+  if (purpose === 'login' && status?.login_captcha_type) {
+    return toCaptchaType(status.login_captcha_type)
+  }
+  if (purpose === 'register' && status?.register_captcha_type) {
+    return toCaptchaType(status.register_captcha_type)
+  }
+  if (purpose === 'reset_password' && status?.reset_password_captcha_type) {
+    return toCaptchaType(status.reset_password_captcha_type)
+  }
+  return toCaptchaType(status?.captcha_type)
+}
+
+export function useCaptcha(purpose: CaptchaPurpose = 'login') {
   const { status } = useStatus()
   const [captchaToken, setCaptchaToken] = useState('')
-  let captchaType: 'none' | 'turnstile' | 'hcaptcha' | 'cap' = 'none'
-  if (status?.captcha_type === 'cap') {
-    captchaType = 'cap'
-  } else if (status?.captcha_type === 'hcaptcha') {
-    captchaType = 'hcaptcha'
-  } else if (status?.captcha_type === 'turnstile') {
-    captchaType = 'turnstile'
-  }
-  let isRequired = purpose === 'auth'
+  const captchaType = providerFor(status, purpose)
+  let isRequired =
+    purpose === 'login' ||
+    purpose === 'register' ||
+    purpose === 'reset_password'
   if (purpose === 'checkin') {
     isRequired = Boolean(status?.force_checkin_captcha)
   } else if (purpose === 'redemption') {

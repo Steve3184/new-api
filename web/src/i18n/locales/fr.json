@@ -2848,7 +2848,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Pour les canaux personnalisés avancés, ceci ne s’applique qu’aux routes /v1/responses sans conversion de protocole.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
@@ -8527,6 +8527,13 @@
     "Select a day to view token usage.": "Sélectionnez un jour pour consulter l’utilisation des tokens.",
     "Statistics available from {{date}} due to the site query limit.": "En raison de la limite de requête du site, les statistiques sont disponibles à partir du {{date}}.",
     "No usage recorded in this period.": "Aucune utilisation enregistrée sur cette période.",
-    "3D is unavailable on this device. Showing 2D instead.": "La 3D n’est pas disponible sur cet appareil. Affichage en 2D."
+    "3D is unavailable on this device. Showing 2D instead.": "La 3D n’est pas disponible sur cet appareil. Affichage en 2D.",
+    "Captcha by purpose": "Captcha par usage",
+    "Choose which provider protects each form. Login, registration and password recovery can use different providers, or none at all.": "Choisissez le fournisseur qui protège chaque formulaire. La connexion, l’inscription et la récupération de mot de passe peuvent utiliser des fournisseurs différents, ou aucun.",
+    "Login captcha": "Captcha de connexion",
+    "Registration captcha": "Captcha d’inscription",
+    "Password recovery captcha": "Captcha de récupération",
+    "No captcha": "Aucun captcha",
+    "Follow the global provider ({{provider}})": "Suivre le fournisseur global ({{provider}})"
   }
 }

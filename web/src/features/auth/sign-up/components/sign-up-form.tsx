@@ -83,7 +83,7 @@ export function SignUpForm({
     setCaptchaToken,
     validateCaptcha,
     tokenQueryParam,
-  } = useCaptcha()
+  } = useCaptcha('register')
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,

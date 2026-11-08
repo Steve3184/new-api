@@ -45,7 +45,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
 		apiRouter.GET("/rankings/users", middleware.HeaderNavModuleAuth("rankings"), controller.GetUserRankings)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.CaptchaCheck(), controller.SendEmailVerification)
-		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.CaptchaCheck(), controller.SendPasswordResetEmail)
+		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.CaptchaCheckFor(middleware.CaptchaPurposePasswordReset), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
 		// OAuth routes - specific routes must come before :provider wildcard
 		apiRouter.POST("/oauth/state", middleware.OAuthRateLimit(), middleware.DisableCache(), middleware.TryUserAuth(), anonymousRequestBodyLimit, controller.GenerateOAuthCode)
@@ -80,7 +80,7 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.POST("/auth/logout", middleware.SessionCookieOriginGuard(), middleware.DisableCache(), controller.AuthLogout)
 			userRoute.POST("/register", middleware.RegisterRateLimit(), anonymousRequestBodyLimit, middleware.CaptchaCheckRegister(), controller.Register)
 			userRoute.GET("/login/encryption-key", middleware.DisableCache(), controller.GetPasswordEncryptionKey)
-			userRoute.POST("/login", middleware.LoginRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, middleware.CaptchaCheck(), controller.Login)
+			userRoute.POST("/login", middleware.LoginRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, middleware.CaptchaCheckFor(middleware.CaptchaPurposeLogin), controller.Login)
 			userRoute.POST("/login/2fa", middleware.LoginRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.Verify2FALogin)
 			userRoute.POST("/login/verify", middleware.LoginRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.VerifyLogin)
 			userRoute.POST("/login/passkey/begin", middleware.LoginRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.LoginPasskeyBegin)

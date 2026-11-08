@@ -54,6 +54,15 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const botProtectionSchema = z
   .object({
     CaptchaType: z.enum(['none', 'turnstile', 'hcaptcha', 'cap']),
+    LoginCaptchaType: z.enum(['', 'none', 'turnstile', 'hcaptcha', 'cap']),
+    RegisterCaptchaType: z.enum(['', 'none', 'turnstile', 'hcaptcha', 'cap']),
+    ResetPasswordCaptchaType: z.enum([
+      '',
+      'none',
+      'turnstile',
+      'hcaptcha',
+      'cap',
+    ]),
     TurnstileCheckEnabled: z.boolean(),
     TurnstileSiteKey: z.string().optional(),
     TurnstileSecretKey: z.string().optional(),
@@ -259,11 +268,56 @@ function captchaProviderLabel(
   }
 }
 
+// A per-purpose select shows the resolved provider plus an explicit "follow the
+// global choice" option, which is what an older payload maps to.
+function PerPurposeCaptchaSelect(props: {
+  value: string
+  onChange: (value: string) => void
+  globalLabel: string
+}) {
+  // The shared Select reports a nullable value; an empty choice means "follow
+  // the global provider".
+  const handleChange = (next: string | null) => props.onChange(next ?? '')
+  const { t } = useTranslation()
+  return (
+    <Select value={props.value} onValueChange={handleChange}>
+      <FormControl>
+        <SelectTrigger>
+          <SelectValue>
+            {props.value === ''
+              ? t('Follow the global provider ({{provider}})', {
+                  provider: props.globalLabel,
+                })
+              : captchaProviderLabel(
+                  props.value as BotProtectionFormValues['CaptchaType'],
+                  t
+                )}
+          </SelectValue>
+        </SelectTrigger>
+      </FormControl>
+      <SelectContent alignItemWithTrigger={false}>
+        <SelectItem value=''>
+          {t('Follow the global provider ({{provider}})', {
+            provider: props.globalLabel,
+          })}
+        </SelectItem>
+        <SelectItem value='none'>{t('No captcha')}</SelectItem>
+        <SelectItem value='turnstile'>Cloudflare Turnstile</SelectItem>
+        <SelectItem value='cap'>Cap (PoW)</SelectItem>
+        <SelectItem value='hcaptcha'>hCaptcha</SelectItem>
+      </SelectContent>
+    </Select>
+  )
+}
+
 type BotProtectionSectionProps = {
   defaultValues: BotProtectionFormValues
 }
 
 const SAVE_ORDER: Array<keyof BotProtectionFormValues> = [
+  'LoginCaptchaType',
+  'RegisterCaptchaType',
+  'ResetPasswordCaptchaType',
   'TurnstileSiteKey',
   'TurnstileSecretKey',
   'HCaptchaSiteKey',
@@ -368,6 +422,73 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
               </FormItem>
             )}
           />
+
+          <div className='space-y-4 border-t pt-5'>
+            <div className='space-y-1'>
+              <h3 className='text-sm font-semibold'>
+                {t('Captcha by purpose')}
+              </h3>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Choose which provider protects each form. Login, registration and password recovery can use different providers, or none at all.'
+                )}
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name='LoginCaptchaType'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Login captcha')}</FormLabel>
+                  <PerPurposeCaptchaSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    globalLabel={captchaProviderLabel(
+                      form.watch('CaptchaType'),
+                      t
+                    )}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='RegisterCaptchaType'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Registration captcha')}</FormLabel>
+                  <PerPurposeCaptchaSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    globalLabel={captchaProviderLabel(
+                      form.watch('CaptchaType'),
+                      t
+                    )}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='ResetPasswordCaptchaType'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Password recovery captcha')}</FormLabel>
+                  <PerPurposeCaptchaSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    globalLabel={captchaProviderLabel(
+                      form.watch('CaptchaType'),
+                      t
+                    )}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <div className='space-y-5 border-t pt-5'>
             <h3 className='text-sm font-semibold'>Cloudflare Turnstile</h3>

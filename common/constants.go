@@ -154,7 +154,16 @@ var ForceCheckinCaptcha = false
 var ForceRedemptionCaptcha = false
 
 // CaptchaType selects the active captcha provider: "none", "turnstile", "hcaptcha", or "cap".
+// It is the fallback for every purpose that has no dedicated override.
 var CaptchaType = "turnstile"
+
+// Per-purpose captcha providers. An empty value follows CaptchaType, so an
+// existing deployment keeps a single provider until an operator opts in.
+// LoginCaptchaType = "none" turns the login captcha off while other purposes
+// keep protecting their own forms.
+var LoginCaptchaType = ""
+var RegisterCaptchaType = ""
+var ResetPasswordCaptchaType = ""
 
 // Difficulty values are synchronized to the corresponding Cap Standalone keys.
 var LoginCaptchaDifficulty = 4

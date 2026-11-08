@@ -2848,7 +2848,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Với kênh tùy chỉnh nâng cao, thiết lập này chỉ áp dụng cho các route /v1/responses không chuyển đổi giao thức.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
@@ -8527,6 +8527,13 @@
     "Select a day to view token usage.": "Chọn một ngày để xem lượng token đã sử dụng.",
     "Statistics available from {{date}} due to the site query limit.": "Do giới hạn truy vấn của trang web, dữ liệu thống kê chỉ có từ {{date}}.",
     "No usage recorded in this period.": "Không có dữ liệu sử dụng trong khoảng thời gian này.",
-    "3D is unavailable on this device. Showing 2D instead.": "Thiết bị này không hỗ trợ 3D. Đang hiển thị ở chế độ 2D."
+    "3D is unavailable on this device. Showing 2D instead.": "Thiết bị này không hỗ trợ 3D. Đang hiển thị ở chế độ 2D.",
+    "Captcha by purpose": "Captcha theo mục đích",
+    "Choose which provider protects each form. Login, registration and password recovery can use different providers, or none at all.": "Chọn nhà cung cấp bảo vệ từng biểu mẫu. Đăng nhập, đăng ký và khôi phục mật khẩu có thể dùng nhà cung cấp khác nhau, hoặc không cần.",
+    "Login captcha": "Captcha đăng nhập",
+    "Registration captcha": "Captcha đăng ký",
+    "Password recovery captcha": "Captcha khôi phục mật khẩu",
+    "No captcha": "Không captcha",
+    "Follow the global provider ({{provider}})": "Theo cài đặt chung ({{provider}})"
   }
 }

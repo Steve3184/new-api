@@ -111,7 +111,7 @@ export function UserAuthForm({
     captchaToken,
     setCaptchaToken,
     validateCaptcha,
-  } = useCaptcha()
+  } = useCaptcha('login')
   const { handleLoginResult } = useAuthRedirect()
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)

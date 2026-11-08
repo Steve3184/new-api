@@ -282,6 +282,9 @@ export type AuthSettings = {
   TurnstileSiteKey: string
   TurnstileSecretKey: string
   CaptchaType: 'none' | 'turnstile' | 'hcaptcha' | 'cap'
+  LoginCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
+  RegisterCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
+  ResetPasswordCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
   HCaptchaEnabled: boolean
   HCaptchaSiteKey: string
   HCaptchaSecretKey: string

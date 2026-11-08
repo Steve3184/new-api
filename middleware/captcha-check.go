@@ -7,12 +7,44 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CaptchaCheck routes to the appropriate captcha middleware depending on
-// the operator's configured CaptchaType.
-// For routes that require a fresh captcha, use their purpose-specific wrapper.
-func CaptchaCheck() gin.HandlerFunc {
+// CaptchaPurpose names the form a captcha protects. Each purpose resolves its
+// own provider, so an operator can protect registration while leaving login
+// open, or give login and registration different captcha services.
+type CaptchaPurpose string
+
+const (
+	// CaptchaPurposeLogin covers password login.
+	CaptchaPurposeLogin CaptchaPurpose = "login"
+	// CaptchaPurposeRegister covers account registration.
+	CaptchaPurposeRegister CaptchaPurpose = "register"
+	// CaptchaPurposePasswordReset covers the forgot-password flow.
+	CaptchaPurposePasswordReset CaptchaPurpose = "reset_password"
+)
+
+// captchaProviderFor returns the provider a purpose must use. An empty
+// per-purpose value follows the global CaptchaType, which keeps existing
+// deployments on their single configured provider.
+func captchaProviderFor(purpose CaptchaPurpose) string {
+	var configured string
+	switch purpose {
+	case CaptchaPurposeLogin:
+		configured = common.LoginCaptchaType
+	case CaptchaPurposeRegister:
+		configured = common.RegisterCaptchaType
+	case CaptchaPurposePasswordReset:
+		configured = common.ResetPasswordCaptchaType
+	}
+	if configured != "" {
+		return configured
+	}
+	return common.CaptchaType
+}
+
+// captchaCheckWith enforces whichever provider the resolver reports. The
+// provider is read per request, so an option change applies without a restart.
+func captchaCheckWith(resolve func() string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		switch common.CaptchaType {
+		switch resolve() {
 		case "cap":
 			CapCheck()(c)
 		case "hcaptcha":
@@ -26,6 +58,18 @@ func CaptchaCheck() gin.HandlerFunc {
 	}
 }
 
+// CaptchaCheck routes to the appropriate captcha middleware depending on
+// the operator's configured CaptchaType.
+// For routes that require a fresh captcha, use their purpose-specific wrapper.
+func CaptchaCheck() gin.HandlerFunc {
+	return captchaCheckWith(func() string { return common.CaptchaType })
+}
+
+// CaptchaCheckFor enforces the provider configured for one purpose.
+func CaptchaCheckFor(purpose CaptchaPurpose) gin.HandlerFunc {
+	return captchaCheckWith(func() string { return captchaProviderFor(purpose) })
+}
+
 // CaptchaCheckRegister skips the registration captcha when email verification
 // is enabled. The registration controller then requires and validates the
 // email verification code, while registrations without email verification
@@ -37,7 +81,7 @@ func CaptchaCheckRegister() gin.HandlerFunc {
 			return
 		}
 
-		CaptchaCheck()(c)
+		CaptchaCheckFor(CaptchaPurposeRegister)(c)
 	}
 }
 

@@ -2848,7 +2848,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高度なカスタムチャネルでは、プロトコル変換を行わない /v1/responses ルートにのみ適用されます。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
@@ -8527,6 +8527,13 @@
     "Select a day to view token usage.": "日付を選択してトークン使用量を表示します。",
     "Statistics available from {{date}} due to the site query limit.": "サイトのクエリ制限により、{{date}} 以降の統計データのみ表示できます。",
     "No usage recorded in this period.": "この期間の使用記録はありません。",
-    "3D is unavailable on this device. Showing 2D instead.": "このデバイスでは 3D を利用できないため、2D で表示しています。"
+    "3D is unavailable on this device. Showing 2D instead.": "このデバイスでは 3D を利用できないため、2D で表示しています。",
+    "Captcha by purpose": "用途別キャプチャ",
+    "Choose which provider protects each form. Login, registration and password recovery can use different providers, or none at all.": "フォームごとに検証プロバイダーを選択します。ログイン、登録、パスワード再設定で別々のものを使用することも、検証なしにすることもできます。",
+    "Login captcha": "ログインのキャプチャ",
+    "Registration captcha": "登録のキャプチャ",
+    "Password recovery captcha": "パスワード再設定のキャプチャ",
+    "No captcha": "キャプチャなし",
+    "Follow the global provider ({{provider}})": "グローバル設定に従う（{{provider}}）"
   }
 }

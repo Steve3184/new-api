@@ -2848,7 +2848,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
@@ -8527,6 +8527,13 @@
     "Select a day to view token usage.": "Select a day to view token usage.",
     "Statistics available from {{date}} due to the site query limit.": "Statistics available from {{date}} due to the site query limit.",
     "No usage recorded in this period.": "No usage recorded in this period.",
-    "3D is unavailable on this device. Showing 2D instead.": "3D is unavailable on this device. Showing 2D instead."
+    "3D is unavailable on this device. Showing 2D instead.": "3D is unavailable on this device. Showing 2D instead.",
+    "Captcha by purpose": "Captcha by purpose",
+    "Choose which provider protects each form. Login, registration and password recovery can use different providers, or none at all.": "Choose which provider protects each form. Login, registration and password recovery can use different providers, or none at all.",
+    "Login captcha": "Login captcha",
+    "Registration captcha": "Registration captcha",
+    "Password recovery captcha": "Password recovery captcha",
+    "No captcha": "No captcha",
+    "Follow the global provider ({{provider}})": "Follow the global provider ({{provider}})"
   }
 }

@@ -65,7 +65,7 @@ export function ForgotPasswordForm({
     setCaptchaToken,
     validateCaptcha,
     tokenQueryParam,
-  } = useCaptcha()
+  } = useCaptcha('reset_password')
   const {
     secondsLeft,
     isActive,

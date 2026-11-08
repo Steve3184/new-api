@@ -2848,7 +2848,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高级自定义渠道仅对 /v1/responses 且不做协议转换的路由生效。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
@@ -8527,6 +8527,13 @@
     "Select a day to view token usage.": "选择一天以查看 token 用量。",
     "Statistics available from {{date}} due to the site query limit.": "受站点查询限制，仅提供 {{date}} 起的统计数据。",
     "No usage recorded in this period.": "此期间没有用量记录。",
-    "3D is unavailable on this device. Showing 2D instead.": "此设备不支持 3D，已切换为 2D。"
+    "3D is unavailable on this device. Showing 2D instead.": "此设备不支持 3D，已切换为 2D。",
+    "Captcha by purpose": "验证码用途",
+    "Choose which provider protects each form. Login, registration and password recovery can use different providers, or none at all.": "为每个表单选择验证方式。登录、注册和找回密码可以各自使用不同的验证服务，也可以完全不验证。",
+    "Login captcha": "登录验证",
+    "Registration captcha": "注册验证",
+    "Password recovery captcha": "找回密码验证",
+    "No captcha": "不验证",
+    "Follow the global provider ({{provider}})": "跟随全局设置（{{provider}}）"
   }
 }

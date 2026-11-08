@@ -44,6 +44,9 @@ import {
 // the full section contract rather than upstream's Turnstile-only shape.
 const defaults: BotProtectionFormValues = {
   CaptchaType: 'turnstile',
+  LoginCaptchaType: '',
+  RegisterCaptchaType: '',
+  ResetPasswordCaptchaType: '',
   TurnstileCheckEnabled: false,
   TurnstileSiteKey: '',
   TurnstileSecretKey: '',
