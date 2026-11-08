@@ -344,6 +344,19 @@ func GetModelPricingSnapshot(names []string) (*ModelPricingSnapshot, error) {
 	return result, nil
 }
 
+// servedModelNames returns the models at least one enabled channel carries,
+// which is the set the gateway can actually route. Pricing is only demanded for
+// these, never for the full catalogue a plugin declares.
+func servedModelNames() map[string]bool {
+	names := make(map[string]bool)
+	for _, name := range GetEnabledModels() {
+		if name != "" {
+			names[name] = true
+		}
+	}
+	return names
+}
+
 // Reasons a plugin provider cannot charge a task model with the saved prices.
 const (
 	ModelPricingIssueUnconfigured = "unconfigured"
@@ -359,28 +372,35 @@ type ModelPricingIssue struct {
 }
 
 // GetModelPricingIssues reads the provider variants of the pricing snapshot for
-// every model a live plugin declares or a saved provider price names. A
-// provider with neither an expression nor a per-call price is unconfigured, one
-// whose expression reads usage its schema lacks is incompatible, and a saved
-// provider price whose plugin is not installed or whose installed version no
-// longer declares the model is stale. A plugin switched off keeps its prices
-// for when it is switched back on. An empty pluginKey covers every plugin.
+// the models the gateway can actually serve: a live plugin declares the model
+// and an enabled channel carries it. A model no channel carries is not priced
+// here, because a plugin ships models an operator never routes and demanding a
+// price for them is noise. A provider with neither an expression nor a per-call
+// price is unconfigured, one whose expression reads usage its schema lacks is
+// incompatible, and a saved provider price whose plugin is not installed or
+// whose installed version no longer declares the model is stale. A plugin
+// switched off keeps its prices for when it is switched back on. An empty
+// pluginKey covers every plugin.
 func GetModelPricingIssues(pluginKey string) ([]ModelPricingIssue, error) {
 	generation := jsplugin.DefaultRegistry.Generation()
+	served := servedModelNames()
 	names := make(map[string]bool)
 	for _, plugin := range generation.Plugins() {
 		if pluginKey == "" || plugin.Meta.Key == pluginKey {
 			for _, name := range plugin.Meta.Models {
-				names[name] = true
+				if served[name] {
+					names[name] = true
+				}
 			}
 		}
 	}
 	// Models of the installed versions of plugins with saved prices that are
-	// missing from the live generation, such as plugins switched off.
+	// missing from the live generation, such as plugins switched off. Only a
+	// model an enabled channel carries is worth reporting.
 	stopped := make(map[string][]string)
 	for key := range billing_setting.GetPluginBillingExprCopy() {
 		plugin, name, ok := billing_setting.SplitPluginBillingExprKey(key)
-		if !ok || (pluginKey != "" && plugin != pluginKey) {
+		if !ok || (pluginKey != "" && plugin != pluginKey) || !served[name] {
 			continue
 		}
 		names[name] = true

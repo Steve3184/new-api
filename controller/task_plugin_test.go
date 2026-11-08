@@ -658,6 +658,10 @@ func TestTaskPluginChangesReportPricingIssuesOfServingPlugin(t *testing.T) {
 		require.NoError(t, err)
 		return string(body)
 	}
+	// Pricing is only demanded for models an enabled channel serves.
+	require.NoError(t, model.DB.AutoMigrate(&model.Ability{}))
+	require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: "doc-1", ChannelId: 91, Enabled: true}).Error)
+	t.Cleanup(func() { require.NoError(t, model.DB.Where("channel_id = ?", 91).Delete(&model.Ability{}).Error) })
 	unpriced := []model.ModelPricingIssue{{ModelName: "doc-1", PluginKey: key, PluginName: "Test", Reason: model.ModelPricingIssueUnconfigured}}
 	statusPath := "/api/plugin/task/" + key + "/status"
 	for _, step := range []struct {
@@ -754,8 +758,13 @@ func TestSwitchedOffPluginPricesAreNotPricingIssues(t *testing.T) {
 	unpricedKling := func(issue model.ModelPricingIssue) bool {
 		return issue.PluginKey == "kling" && issue.Reason == model.ModelPricingIssueUnconfigured
 	}
+	// A built-in only reports the models an enabled channel serves. Models[0] is
+	// already priced above, so serve the next one to see an unpriced entry.
 	if len(kling.Models) > 1 {
-		require.True(t, slices.ContainsFunc(readIssues(), unpricedKling), "a serving built-in reports its unpriced models")
+		require.NoError(t, model.DB.AutoMigrate(&model.Ability{}))
+		require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: kling.Models[1], ChannelId: 92, Enabled: true}).Error)
+		t.Cleanup(func() { require.NoError(t, model.DB.Where("channel_id = ?", 92).Delete(&model.Ability{}).Error) })
+		require.True(t, slices.ContainsFunc(readIssues(), unpricedKling), "a serving built-in reports the models a channel serves")
 	}
 
 	for _, plugin := range []string{key, "kling"} {
@@ -767,9 +776,15 @@ func TestSwitchedOffPluginPricesAreNotPricingIssues(t *testing.T) {
 	require.Equal(t, []string{"kling"}, setting.GetTaskPluginDisabledFactoryKeys())
 	_, serving := jsplugin.DefaultRegistry.Get("kling")
 	require.False(t, serving)
-	// A plugin missing from the live generation is named by its key.
+	// A plugin missing from the live generation is named by its key. Only models
+	// an enabled channel serves are reported, so the retired names get one.
 	stale := func(name, plugin string) model.ModelPricingIssue {
 		return model.ModelPricingIssue{ModelName: name, PluginKey: plugin, PluginName: plugin, Reason: model.ModelPricingIssueStale}
+	}
+	for i, name := range []string{"kling-retired-model", "retired-model"} {
+		require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: name, ChannelId: 93 + i, Enabled: true}).Error)
+		channelId := 93 + i
+		t.Cleanup(func() { require.NoError(t, model.DB.Where("channel_id = ?", channelId).Delete(&model.Ability{}).Error) })
 	}
 	assert.Equal(t, []model.ModelPricingIssue{stale("kling-retired-model", "kling"), stale("retired-model", key)}, readIssues())
 
@@ -779,6 +794,8 @@ func TestSwitchedOffPluginPricesAreNotPricingIssues(t *testing.T) {
 	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/"+key+"/versions/1.0.0", nil)
 	DeleteTaskPluginVersion(context)
 	require.Contains(t, remove.Body.String(), `"success":true`)
+	require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: "doc-1", ChannelId: 95, Enabled: true}).Error)
+	t.Cleanup(func() { require.NoError(t, model.DB.Where("channel_id = ?", 95).Delete(&model.Ability{}).Error) })
 	assert.Equal(t, []model.ModelPricingIssue{stale("doc-1", key), stale("kling-retired-model", "kling"), stale("retired-model", key)}, readIssues())
 }
 

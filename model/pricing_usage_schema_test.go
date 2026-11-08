@@ -335,6 +335,14 @@ func TestModelPricingIssuesFollowPluginChanges(t *testing.T) {
 		require.NoError(t, config.GlobalConfig.LoadFromDB(options))
 	}
 	const seconds = `{seconds:{type:"number",unit:"second"}}`
+	// Pricing is only demanded for models an enabled channel serves, so the
+	// fixture exposes the probe models through one.
+	require.NoError(t, DB.AutoMigrate(&Ability{}))
+	servedModels := []string{"issue-priced", "issue-per-call", "issue-unpriced", "issue-ordinary", "issue-shared", "issue-dropped"}
+	for _, name := range servedModels {
+		require.NoError(t, DB.Create(&Ability{Group: "default", Model: name, ChannelId: 1, Enabled: true}).Error)
+	}
+	t.Cleanup(func() { require.NoError(t, DB.Where("channel_id = ?", 1).Delete(&Ability{}).Error) })
 	_, err := jsplugin.DefaultRegistry.Register(pluginSource("issue-alpha", "Alpha", "1.0.0", `["issue-priced","issue-per-call","issue-unpriced","issue-ordinary","issue-shared","issue-dropped"]`, seconds), jsplugin.Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("issue-alpha") })
@@ -380,4 +388,42 @@ func TestModelPricingIssuesFollowPluginChanges(t *testing.T) {
 	issues, err = GetModelPricingIssues("issue-beta")
 	require.NoError(t, err)
 	assert.Empty(t, issues)
+}
+
+// A plugin ships models an operator never routes. Demanding a price for those
+// turns the pricing page into permanent noise, so only models an enabled
+// channel carries are reported.
+func TestModelPricingIssuesSkipModelsNoChannelServes(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Option{}, &Ability{}))
+	saved := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where(commonKeyCol+" IN ?", modelPricingOptionKeys).Delete(&Option{}).Error)
+		require.NoError(t, DB.Where("channel_id = ?", 2).Delete(&Ability{}).Error)
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+
+	source := strings.ReplaceAll(
+		pricingUsagePluginSource("1.0.0", `{seconds:{type:"number",unit:"second"}}`),
+		"pricing-usage-probe", "serve-scope",
+	)
+	source = strings.Replace(source, `["pricing-usage-model"]`, `["served-model","unserved-model"]`, 1)
+	_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("serve-scope") })
+
+	// Only one of the two declared models is exposed by a channel.
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "served-model", ChannelId: 2, Enabled: true}).Error)
+
+	issues, err := GetModelPricingIssues("serve-scope")
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, "served-model", issues[0].ModelName)
+	assert.Equal(t, ModelPricingIssueUnconfigured, issues[0].Reason)
+
+	// Serving both models reports both, so the filter is the channel set and not
+	// a hard-coded model list.
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "unserved-model", ChannelId: 2, Enabled: true}).Error)
+	issues, err = GetModelPricingIssues("serve-scope")
+	require.NoError(t, err)
+	assert.Len(t, issues, 2)
 }
