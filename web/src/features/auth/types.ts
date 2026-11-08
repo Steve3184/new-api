@@ -128,6 +128,8 @@ export interface SystemStatus {
     login_captcha_type?: string
     register_captcha_type?: string
     reset_password_captcha_type?: string
+    checkin_captcha_type?: string
+    redemption_captcha_type?: string
     cap_enabled?: boolean
     cap_api_endpoint?: string
     cap_checkin_api_endpoint?: string
@@ -198,6 +200,8 @@ export interface SystemStatus {
   login_captcha_type?: string
   register_captcha_type?: string
   reset_password_captcha_type?: string
+  checkin_captcha_type?: string
+  redemption_captcha_type?: string
   cap_enabled?: boolean
   cap_api_endpoint?: string
   cap_checkin_api_endpoint?: string

@@ -36,3 +36,22 @@ func TestUpdateOptionMapPerPurposeCaptchaTypes(t *testing.T) {
 	assert.Empty(t, common.LoginCaptchaType)
 	assert.Equal(t, "", common.OptionMap["LoginCaptchaType"])
 }
+
+func TestUpdateOptionMapCheckinAndRedemptionCaptchaTypes(t *testing.T) {
+	previousCheckin := common.CheckinCaptchaType
+	previousRedemption := common.RedemptionCaptchaType
+	previousOptionMap := common.OptionMap
+	common.OptionMap = make(map[string]string)
+	t.Cleanup(func() {
+		common.CheckinCaptchaType = previousCheckin
+		common.RedemptionCaptchaType = previousRedemption
+		common.OptionMap = previousOptionMap
+	})
+
+	require.NoError(t, updateOptionMap("CheckinCaptchaType", "hcaptcha"))
+	require.NoError(t, updateOptionMap("RedemptionCaptchaType", "none"))
+
+	assert.Equal(t, "hcaptcha", common.CheckinCaptchaType)
+	assert.Equal(t, "none", common.RedemptionCaptchaType)
+	assert.Equal(t, "hcaptcha", common.OptionMap["CheckinCaptchaType"])
+}

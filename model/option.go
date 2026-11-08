@@ -68,6 +68,8 @@ func InitOptionMap() {
 	common.OptionMap["LoginCaptchaType"] = common.LoginCaptchaType
 	common.OptionMap["RegisterCaptchaType"] = common.RegisterCaptchaType
 	common.OptionMap["ResetPasswordCaptchaType"] = common.ResetPasswordCaptchaType
+	common.OptionMap["CheckinCaptchaType"] = common.CheckinCaptchaType
+	common.OptionMap["RedemptionCaptchaType"] = common.RedemptionCaptchaType
 	common.OptionMap["LoginCaptchaDifficulty"] = strconv.Itoa(common.LoginCaptchaDifficulty)
 	common.OptionMap["CheckinCaptchaDifficulty"] = strconv.Itoa(common.CheckinCaptchaDifficulty)
 	common.OptionMap["PaymentAnnouncement"] = common.PaymentAnnouncement
@@ -905,6 +907,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.RegisterCaptchaType = value
 	case "ResetPasswordCaptchaType":
 		common.ResetPasswordCaptchaType = value
+	case "CheckinCaptchaType":
+		common.CheckinCaptchaType = value
+	case "RedemptionCaptchaType":
+		common.RedemptionCaptchaType = value
 	case "LoginCaptchaDifficulty":
 		if v, err := strconv.Atoi(value); err == nil {
 			common.LoginCaptchaDifficulty = v

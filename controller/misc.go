@@ -81,6 +81,8 @@ func GetStatus(c *gin.Context) {
 		"login_captcha_type":          common.LoginCaptchaType,
 		"register_captcha_type":       common.RegisterCaptchaType,
 		"reset_password_captcha_type": common.ResetPasswordCaptchaType,
+		"checkin_captcha_type":        common.CheckinCaptchaType,
+		"redemption_captcha_type":     common.RedemptionCaptchaType,
 		"login_captcha_difficulty":    common.LoginCaptchaDifficulty,
 		"checkin_captcha_difficulty":  common.CheckinCaptchaDifficulty,
 		"force_checkin_captcha":       common.ForceCheckinCaptcha,

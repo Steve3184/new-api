@@ -19,6 +19,10 @@ func useCaptchaOptions(t *testing.T, apply func()) {
 	previousReset := common.ResetPasswordCaptchaType
 	previousTurnstile := common.TurnstileCheckEnabled
 	previousHCaptcha := common.HCaptchaEnabled
+	previousCheckin := common.CheckinCaptchaType
+	previousRedemption := common.RedemptionCaptchaType
+	previousForceCheckin := common.ForceCheckinCaptcha
+	previousForceRedemption := common.ForceRedemptionCaptcha
 	t.Cleanup(func() {
 		common.CaptchaType = previousGlobal
 		common.LoginCaptchaType = previousLogin
@@ -26,6 +30,10 @@ func useCaptchaOptions(t *testing.T, apply func()) {
 		common.ResetPasswordCaptchaType = previousReset
 		common.TurnstileCheckEnabled = previousTurnstile
 		common.HCaptchaEnabled = previousHCaptcha
+		common.CheckinCaptchaType = previousCheckin
+		common.RedemptionCaptchaType = previousRedemption
+		common.ForceCheckinCaptcha = previousForceCheckin
+		common.ForceRedemptionCaptcha = previousForceRedemption
 	})
 	apply()
 }
@@ -52,6 +60,8 @@ func TestCaptchaProviderFallsBackToTheGlobalProvider(t *testing.T) {
 		CaptchaPurposeLogin,
 		CaptchaPurposeRegister,
 		CaptchaPurposePasswordReset,
+		CaptchaPurposeCheckin,
+		CaptchaPurposeRedemption,
 	} {
 		assert.Equal(t, "hcaptcha", captchaProviderFor(purpose), string(purpose))
 	}
@@ -63,11 +73,15 @@ func TestCaptchaProviderReadsEachPurposeIndependently(t *testing.T) {
 		common.LoginCaptchaType = "none"
 		common.RegisterCaptchaType = "cap"
 		common.ResetPasswordCaptchaType = "hcaptcha"
+		common.CheckinCaptchaType = "turnstile"
+		common.RedemptionCaptchaType = "none"
 	})
 
 	assert.Equal(t, "none", captchaProviderFor(CaptchaPurposeLogin))
 	assert.Equal(t, "cap", captchaProviderFor(CaptchaPurposeRegister))
 	assert.Equal(t, "hcaptcha", captchaProviderFor(CaptchaPurposePasswordReset))
+	assert.Equal(t, "turnstile", captchaProviderFor(CaptchaPurposeCheckin))
+	assert.Equal(t, "none", captchaProviderFor(CaptchaPurposeRedemption))
 }
 
 func TestLoginGuardDoesNotRequireACaptchaWhenItsProviderIsNone(t *testing.T) {
@@ -112,4 +126,41 @@ func TestPasswordResetGuardUsesItsOwnProvider(t *testing.T) {
 	recorder := runCaptchaGuard(t, CaptchaCheckFor(CaptchaPurposePasswordReset))
 
 	assert.NotContains(t, recorder.Body.String(), "Turnstile token is empty")
+}
+
+func TestRedemptionGuardUsesItsOwnProvider(t *testing.T) {
+	useCaptchaOptions(t, func() {
+		common.ForceRedemptionCaptcha = true
+		common.CaptchaType = "turnstile"
+		common.TurnstileCheckEnabled = true
+		common.HCaptchaEnabled = false
+		common.RedemptionCaptchaType = "hcaptcha"
+	})
+
+	recorder := runCaptchaGuard(t, CaptchaCheckRedemption())
+
+	// The global provider is Turnstile and would reject the token-less request;
+	// the redemption override resolves to hCaptcha, which is disabled here and
+	// therefore lets it through.
+	assert.NotContains(t, recorder.Body.String(), "Turnstile token is empty")
+}
+
+func TestCheckinGuardKeepsTheRequiredSwitchIndependentFromTheProvider(t *testing.T) {
+	useCaptchaOptions(t, func() {
+		common.CaptchaType = "turnstile"
+		common.TurnstileCheckEnabled = true
+		common.CheckinCaptchaType = "turnstile"
+	})
+
+	common.ForceCheckinCaptcha = false
+	assert.Empty(t, runCaptchaGuard(t, CaptchaCheckCheckin()).Body.String())
+
+	// The switch decides whether a captcha runs at all; the provider only picks
+	// which one.
+	common.ForceCheckinCaptcha = true
+	assert.Contains(
+		t,
+		runCaptchaGuard(t, CaptchaCheckCheckin()).Body.String(),
+		"Turnstile token is empty",
+	)
 }

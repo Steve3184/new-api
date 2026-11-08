@@ -285,6 +285,8 @@ export type AuthSettings = {
   LoginCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
   RegisterCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
   ResetPasswordCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
+  CheckinCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
+  RedemptionCaptchaType: '' | 'none' | 'turnstile' | 'hcaptcha' | 'cap'
   HCaptchaEnabled: boolean
   HCaptchaSiteKey: string
   HCaptchaSecretKey: string

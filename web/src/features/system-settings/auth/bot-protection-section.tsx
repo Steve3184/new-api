@@ -63,6 +63,8 @@ const botProtectionSchema = z
       'hcaptcha',
       'cap',
     ]),
+    CheckinCaptchaType: z.enum(['', 'none', 'turnstile', 'hcaptcha', 'cap']),
+    RedemptionCaptchaType: z.enum(['', 'none', 'turnstile', 'hcaptcha', 'cap']),
     TurnstileCheckEnabled: z.boolean(),
     TurnstileSiteKey: z.string().optional(),
     TurnstileSecretKey: z.string().optional(),
@@ -318,6 +320,8 @@ const SAVE_ORDER: Array<keyof BotProtectionFormValues> = [
   'LoginCaptchaType',
   'RegisterCaptchaType',
   'ResetPasswordCaptchaType',
+  'CheckinCaptchaType',
+  'RedemptionCaptchaType',
   'TurnstileSiteKey',
   'TurnstileSecretKey',
   'HCaptchaSiteKey',
@@ -476,6 +480,53 @@ export function BotProtectionSection(props: BotProtectionSectionProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Password recovery captcha')}</FormLabel>
+                  <PerPurposeCaptchaSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    globalLabel={captchaProviderLabel(
+                      form.watch('CaptchaType'),
+                      t
+                    )}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className='space-y-4 border-t pt-5'>
+            <div className='space-y-1'>
+              <h3 className='text-sm font-semibold'>{t('Additional forms')}</h3>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.'
+                )}
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name='CheckinCaptchaType'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Check-in captcha')}</FormLabel>
+                  <PerPurposeCaptchaSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    globalLabel={captchaProviderLabel(
+                      form.watch('CaptchaType'),
+                      t
+                    )}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='RedemptionCaptchaType'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Redemption captcha')}</FormLabel>
                   <PerPurposeCaptchaSelect
                     value={field.value}
                     onChange={field.onChange}

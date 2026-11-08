@@ -8534,6 +8534,10 @@
     "Registration captcha": "Капча при регистрации",
     "Password recovery captcha": "Капча при восстановлении пароля",
     "No captcha": "Без капчи",
-    "Follow the global provider ({{provider}})": "Как глобальный провайдер ({{provider}})"
+    "Follow the global provider ({{provider}})": "Как глобальный провайдер ({{provider}})",
+    "Additional forms": "Другие формы",
+    "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "Отметка и активация кода сохраняют собственный переключатель, решающий, нужна ли капча. Здесь выбирается провайдер, который работает при включённом переключателе.",
+    "Check-in captcha": "Капча при отметке",
+    "Redemption captcha": "Капча при активации кода"
   }
 }

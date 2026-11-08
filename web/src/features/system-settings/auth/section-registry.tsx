@@ -129,6 +129,8 @@ const AUTH_SECTIONS = [
           LoginCaptchaType: settings.LoginCaptchaType ?? '',
           RegisterCaptchaType: settings.RegisterCaptchaType ?? '',
           ResetPasswordCaptchaType: settings.ResetPasswordCaptchaType ?? '',
+          CheckinCaptchaType: settings.CheckinCaptchaType ?? '',
+          RedemptionCaptchaType: settings.RedemptionCaptchaType ?? '',
           HCaptchaEnabled: settings.HCaptchaEnabled,
           HCaptchaSiteKey: settings.HCaptchaSiteKey,
           HCaptchaSecretKey: settings.HCaptchaSecretKey,

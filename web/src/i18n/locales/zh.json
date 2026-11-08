@@ -8534,6 +8534,10 @@
     "Registration captcha": "注册验证",
     "Password recovery captcha": "找回密码验证",
     "No captcha": "不验证",
-    "Follow the global provider ({{provider}})": "跟随全局设置（{{provider}}）"
+    "Follow the global provider ({{provider}})": "跟随全局设置（{{provider}}）",
+    "Additional forms": "其他表单",
+    "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "签到和兑换各自有“是否验证”的开关，决定要不要验证；这里选择开关打开时使用哪种验证方式。",
+    "Check-in captcha": "签到验证",
+    "Redemption captcha": "兑换码验证"
   }
 }

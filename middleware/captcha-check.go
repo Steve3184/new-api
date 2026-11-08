@@ -19,6 +19,10 @@ const (
 	CaptchaPurposeRegister CaptchaPurpose = "register"
 	// CaptchaPurposePasswordReset covers the forgot-password flow.
 	CaptchaPurposePasswordReset CaptchaPurpose = "reset_password"
+	// CaptchaPurposeCheckin covers the daily check-in.
+	CaptchaPurposeCheckin CaptchaPurpose = "checkin"
+	// CaptchaPurposeRedemption covers redeeming a code for quota.
+	CaptchaPurposeRedemption CaptchaPurpose = "redemption"
 )
 
 // captchaProviderFor returns the provider a purpose must use. An empty
@@ -33,6 +37,10 @@ func captchaProviderFor(purpose CaptchaPurpose) string {
 		configured = common.RegisterCaptchaType
 	case CaptchaPurposePasswordReset:
 		configured = common.ResetPasswordCaptchaType
+	case CaptchaPurposeCheckin:
+		configured = common.CheckinCaptchaType
+	case CaptchaPurposeRedemption:
+		configured = common.RedemptionCaptchaType
 	}
 	if configured != "" {
 		return configured
@@ -88,26 +96,32 @@ func CaptchaCheckRegister() gin.HandlerFunc {
 // CaptchaCheckCheckin is like CaptchaCheck but only enforces the captcha when
 // ForceCheckinCaptcha is true; otherwise it passes through unconditionally.
 func CaptchaCheckCheckin() gin.HandlerFunc {
-	return captchaCheckFresh(func() bool {
-		return common.ForceCheckinCaptcha
-	}, CapCheckCheckin)
+	return captchaCheckFresh(
+		func() bool { return common.ForceCheckinCaptcha },
+		func() string { return captchaProviderFor(CaptchaPurposeCheckin) },
+		CapCheckCheckin,
+	)
 }
 
 // CaptchaCheckRedemption requires a fresh captcha for each redemption when the
 // operator enables ForceRedemptionCaptcha.
 func CaptchaCheckRedemption() gin.HandlerFunc {
-	return captchaCheckFresh(func() bool {
-		return common.ForceRedemptionCaptcha
-	}, CapCheck)
+	return captchaCheckFresh(
+		func() bool { return common.ForceRedemptionCaptcha },
+		func() string { return captchaProviderFor(CaptchaPurposeRedemption) },
+		CapCheck,
+	)
 }
 
-func captchaCheckFresh(required func() bool, capMiddleware func() gin.HandlerFunc) gin.HandlerFunc {
+// captchaCheckFresh enforces a captcha only when required() is true, using the
+// provider resolved for that purpose.
+func captchaCheckFresh(required func() bool, provider func() string, capMiddleware func() gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !required() {
 			c.Next()
 			return
 		}
-		switch common.CaptchaType {
+		switch provider() {
 		case "none":
 			c.Next()
 		case "cap":

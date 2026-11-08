@@ -164,6 +164,8 @@ var CaptchaType = "turnstile"
 var LoginCaptchaType = ""
 var RegisterCaptchaType = ""
 var ResetPasswordCaptchaType = ""
+var CheckinCaptchaType = ""
+var RedemptionCaptchaType = ""
 
 // Difficulty values are synchronized to the corresponding Cap Standalone keys.
 var LoginCaptchaDifficulty = 4

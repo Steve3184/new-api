@@ -8534,6 +8534,10 @@
     "Registration captcha": "Captcha đăng ký",
     "Password recovery captcha": "Captcha khôi phục mật khẩu",
     "No captcha": "Không captcha",
-    "Follow the global provider ({{provider}})": "Theo cài đặt chung ({{provider}})"
+    "Follow the global provider ({{provider}})": "Theo cài đặt chung ({{provider}})",
+    "Additional forms": "Biểu mẫu khác",
+    "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "Điểm danh và đổi mã có công tắc riêng quyết định có chạy captcha hay không. Các tùy chọn này chọn nhà cung cấp dùng khi công tắc đó bật.",
+    "Check-in captcha": "Captcha điểm danh",
+    "Redemption captcha": "Captcha đổi mã"
   }
 }

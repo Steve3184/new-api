@@ -8534,6 +8534,10 @@
     "Registration captcha": "Captcha d’inscription",
     "Password recovery captcha": "Captcha de récupération",
     "No captcha": "Aucun captcha",
-    "Follow the global provider ({{provider}})": "Suivre le fournisseur global ({{provider}})"
+    "Follow the global provider ({{provider}})": "Suivre le fournisseur global ({{provider}})",
+    "Additional forms": "Autres formulaires",
+    "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "La présence et l’échange conservent leur propre interrupteur qui décide si un captcha s’exécute. Ces options choisissent le fournisseur utilisé lorsque cet interrupteur est actif.",
+    "Check-in captcha": "Captcha de présence",
+    "Redemption captcha": "Captcha d’échange de code"
   }
 }

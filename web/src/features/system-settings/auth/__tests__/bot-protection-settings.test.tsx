@@ -47,6 +47,8 @@ const defaults: BotProtectionFormValues = {
   LoginCaptchaType: '',
   RegisterCaptchaType: '',
   ResetPasswordCaptchaType: '',
+  CheckinCaptchaType: '',
+  RedemptionCaptchaType: '',
   TurnstileCheckEnabled: false,
   TurnstileSiteKey: '',
   TurnstileSecretKey: '',

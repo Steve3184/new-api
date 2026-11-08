@@ -8534,6 +8534,10 @@
     "Registration captcha": "登録のキャプチャ",
     "Password recovery captcha": "パスワード再設定のキャプチャ",
     "No captcha": "キャプチャなし",
-    "Follow the global provider ({{provider}})": "グローバル設定に従う（{{provider}}）"
+    "Follow the global provider ({{provider}})": "グローバル設定に従う（{{provider}}）",
+    "Additional forms": "その他のフォーム",
+    "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "チェックインと引き換えには、キャプチャを実行するかどうかを決める独自のスイッチがあります。ここではそのスイッチが有効なときに使うプロバイダーを選びます。",
+    "Check-in captcha": "チェックインのキャプチャ",
+    "Redemption captcha": "引き換えコードのキャプチャ"
   }
 }

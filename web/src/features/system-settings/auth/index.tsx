@@ -71,6 +71,8 @@ const defaultAuthSettings: AuthSettings = {
   LoginCaptchaType: '',
   RegisterCaptchaType: '',
   ResetPasswordCaptchaType: '',
+  CheckinCaptchaType: '',
+  RedemptionCaptchaType: '',
   HCaptchaEnabled: false,
   HCaptchaSiteKey: '',
   HCaptchaSecretKey: '',

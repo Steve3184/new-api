@@ -8534,6 +8534,10 @@
     "Registration captcha": "Registration captcha",
     "Password recovery captcha": "Password recovery captcha",
     "No captcha": "No captcha",
-    "Follow the global provider ({{provider}})": "Follow the global provider ({{provider}})"
+    "Follow the global provider ({{provider}})": "Follow the global provider ({{provider}})",
+    "Additional forms": "Additional forms",
+    "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.",
+    "Check-in captcha": "Check-in captcha",
+    "Redemption captcha": "Redemption captcha"
   }
 }

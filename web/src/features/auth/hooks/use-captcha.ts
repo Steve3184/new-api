@@ -54,6 +54,12 @@ function providerFor(status: SystemStatus | null, purpose: CaptchaPurpose) {
   if (purpose === 'reset_password' && status?.reset_password_captcha_type) {
     return toCaptchaType(status.reset_password_captcha_type)
   }
+  if (purpose === 'checkin' && status?.checkin_captcha_type) {
+    return toCaptchaType(status.checkin_captcha_type)
+  }
+  if (purpose === 'redemption' && status?.redemption_captcha_type) {
+    return toCaptchaType(status.redemption_captcha_type)
+  }
   return toCaptchaType(status?.captcha_type)
 }
 
