@@ -403,7 +403,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                               {formatBytes(storage.used_bytes)}
                             </span>
                             <span className='text-muted-foreground'>
-                              {t('Free')}
+                              {t('Free space')}
                             </span>
                             <span className='font-mono'>
                               {formatBytes(storage.free_bytes)}

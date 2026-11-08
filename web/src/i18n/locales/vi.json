@@ -2880,7 +2880,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "Chuyển tiếp các yêu cầu trực tiếp đến các nhà cung cấp ngược dòng mà không cần xử lý hậu kỳ nào.",
     "Forwarding Routes": "Route chuyển tiếp",
     "Frames per second": "Khung hình / giây",
-    "Free": "Trống",
+    "Free": "Miễn phí",
     "Free: {{free}} / Total: {{total}}": "Còn trống: {{free}} / Tổng: {{total}}",
     "Frequency Penalty": "Phạt tần suất",
     "Friendly name to identify this channel": "Tên thân thiện để nhận dạng kênh này",
@@ -8538,6 +8538,7 @@
     "Additional forms": "Biểu mẫu khác",
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "Điểm danh và đổi mã có công tắc riêng quyết định có chạy captcha hay không. Các tùy chọn này chọn nhà cung cấp dùng khi công tắc đó bật.",
     "Check-in captcha": "Captcha điểm danh",
-    "Redemption captcha": "Captcha đổi mã"
+    "Redemption captcha": "Captcha đổi mã",
+    "Free space": "Dung lượng trống"
   }
 }

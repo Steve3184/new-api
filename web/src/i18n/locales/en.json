@@ -8538,6 +8538,7 @@
     "Additional forms": "Additional forms",
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.",
     "Check-in captcha": "Check-in captcha",
-    "Redemption captcha": "Redemption captcha"
+    "Redemption captcha": "Redemption captcha",
+    "Free space": "Free space"
   }
 }

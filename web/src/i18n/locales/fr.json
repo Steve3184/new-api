@@ -2880,7 +2880,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "Transférer les requêtes directement aux fournisseurs amont sans aucun post-traitement.",
     "Forwarding Routes": "Routes de transfert",
     "Frames per second": "Images par seconde",
-    "Free": "Libre",
+    "Free": "Gratuit",
     "Free: {{free}} / Total: {{total}}": "Disponible : {{free}} / Total : {{total}}",
     "Frequency Penalty": "Pénalité de fréquence",
     "Friendly name to identify this channel": "Nom convivial pour identifier ce canal",
@@ -8538,6 +8538,7 @@
     "Additional forms": "Autres formulaires",
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "La présence et l’échange conservent leur propre interrupteur qui décide si un captcha s’exécute. Ces options choisissent le fournisseur utilisé lorsque cet interrupteur est actif.",
     "Check-in captcha": "Captcha de présence",
-    "Redemption captcha": "Captcha d’échange de code"
+    "Redemption captcha": "Captcha d’échange de code",
+    "Free space": "Espace libre"
   }
 }

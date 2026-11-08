@@ -2880,7 +2880,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "Перенаправлять запросы напрямую upstream-провайдерам без какой-либо постобработки.",
     "Forwarding Routes": "Маршруты пересылки",
     "Frames per second": "Кадров в секунду",
-    "Free": "Свободно",
+    "Free": "Бесплатно",
     "Free: {{free}} / Total: {{total}}": "Свободно: {{free}} / Всего: {{total}}",
     "Frequency Penalty": "Штраф за частоту",
     "Friendly name to identify this channel": "Дружественное имя для идентификации этого канала",
@@ -8538,6 +8538,7 @@
     "Additional forms": "Другие формы",
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "Отметка и активация кода сохраняют собственный переключатель, решающий, нужна ли капча. Здесь выбирается провайдер, который работает при включённом переключателе.",
     "Check-in captcha": "Капча при отметке",
-    "Redemption captcha": "Капча при активации кода"
+    "Redemption captcha": "Капча при активации кода",
+    "Free space": "Свободное место"
   }
 }

@@ -2880,7 +2880,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "將請求直接轉發給上游供應商，不進行任何後處理。",
     "Forwarding Routes": "路由轉發",
     "Frames per second": "幀率",
-    "Free": "可用",
+    "Free": "免費",
     "Free: {{free}} / Total: {{total}}": "可用空間: {{free}} / 總空間: {{total}}",
     "Frequency Penalty": "頻率懲罰",
     "Friendly name to identify this channel": "用於識別此渠道的友好名稱",
@@ -8538,6 +8538,7 @@
     "Additional forms": "其他表單",
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "簽到和兌換各自有「是否驗證」的開關，決定要不要驗證；這裡選擇開關開啟時使用哪種驗證方式。",
     "Check-in captcha": "簽到驗證",
-    "Redemption captcha": "兌換碼驗證"
+    "Redemption captcha": "兌換碼驗證",
+    "Free space": "可用空間"
   }
 }

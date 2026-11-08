@@ -2880,7 +2880,7 @@
     "Forward requests directly to upstream providers without any post-processing.": "ポストプロセスなしで、リクエストをアップストリームプロバイダーに直接転送します。",
     "Forwarding Routes": "転送ルート",
     "Frames per second": "フレームレート",
-    "Free": "空き",
+    "Free": "無料",
     "Free: {{free}} / Total: {{total}}": "空き容量: {{free}} / 合計: {{total}}",
     "Frequency Penalty": "頻度ペナルティ",
     "Friendly name to identify this channel": "このチャネルを識別するための表示名",
@@ -8538,6 +8538,7 @@
     "Additional forms": "その他のフォーム",
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "チェックインと引き換えには、キャプチャを実行するかどうかを決める独自のスイッチがあります。ここではそのスイッチが有効なときに使うプロバイダーを選びます。",
     "Check-in captcha": "チェックインのキャプチャ",
-    "Redemption captcha": "引き換えコードのキャプチャ"
+    "Redemption captcha": "引き換えコードのキャプチャ",
+    "Free space": "空き容量"
   }
 }
