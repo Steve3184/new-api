@@ -376,6 +376,16 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, types.NewError(errors.New(i18n.T(c, i18n.MsgRelayRetryGetChannelFailed, map[string]any{"Group": selectGroup, "Model": info.OriginModelName, "Error": err.Error()})), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
+		// The retry chain ran out of candidates. Name the request filter that
+		// rejected them, so a Claude Code-only channel reports the client
+		// requirement instead of a generic "no available channel".
+		filterGroup := selectGroup
+		if filterGroup == "" {
+			filterGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		}
+		if kind := model.ChannelFilterEmptiedBy(filterGroup, info.OriginModelName, service.GetChannelConstraints(c).Filters); kind == taskdto.FilterClaudeCodeClient {
+			return nil, types.NewError(errors.New(i18n.T(c, i18n.MsgDistributorClaudeCodeClientRequired, nil)), types.ErrorCode(kind), types.ErrOptionWithSkipRetry())
+		}
 		return nil, types.NewError(errors.New(i18n.T(c, i18n.MsgRelayRetryNoAvailableChannel, map[string]any{"Group": selectGroup, "Model": info.OriginModelName})), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 

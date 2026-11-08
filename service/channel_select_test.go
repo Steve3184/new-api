@@ -2,11 +2,16 @@ package service
 
 import (
 	"fmt"
+	"net/http"
+	"path/filepath"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -229,4 +234,55 @@ func TestChannelSupportsRequestPathUsesInferencePresets(t *testing.T) {
 			assert.Equal(t, tt.want, channelSupportsRequestPath(channel, tt.path, "served-model"))
 		})
 	}
+}
+
+// A group whose only channel is restricted to Claude Code clients must answer
+// with that policy instead of a generic "no available channel": the caller can
+// only act on the difference.
+func TestSelectChannelForRequestNamesTheFilterThatEmptiedTheGroup(t *testing.T) {
+	previousCache := common.MemoryCacheEnabled
+	previousDB := model.DB
+	previousPath := common.SQLitePath
+	previousType := common.MainDatabaseType()
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = previousCache
+		model.DB = previousDB
+		common.SQLitePath = previousPath
+		common.SetMainDatabaseType(previousType)
+	})
+	common.MemoryCacheEnabled = false
+	common.SQLitePath = filepath.Join(t.TempDir(), "channel-select.db")
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	// InitDB initialises the dialect-aware column names, which the ability
+	// query relies on.
+	require.NoError(t, model.InitDB())
+	db := model.DB
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}))
+
+	channel := &model.Channel{
+		Name: "claude-only", Type: constant.ChannelTypeAnthropic, Status: common.ChannelStatusEnabled,
+		Group: "vip", Models: "claude-sonnet-4-5",
+	}
+	channel.SetOtherSettings(kitdto.ChannelOtherSettings{ClaudeCodeOnly: true})
+	require.NoError(t, db.Create(channel).Error)
+	require.NoError(t, db.Create(&model.Ability{Group: "vip", Model: "claude-sonnet-4-5", ChannelId: channel.Id, Enabled: true}).Error)
+
+	selectWith := func(isClaudeCode bool) (*model.Channel, *ChannelSelectError) {
+		c, _ := gin.CreateTestContext(nil)
+		GetChannelConstraints(c).AddFilter(dto.ChannelFilter{Kind: dto.FilterClaudeCodeClient, ClaudeCodeClient: isClaudeCode})
+		group := "vip"
+		selected, _, selectErr := SelectChannelForRequest(c, "claude-sonnet-4-5", &RetryParam{Ctx: c, TokenGroup: group, ModelName: "claude-sonnet-4-5", Retry: common.GetPointer(0)})
+		return selected, selectErr
+	}
+
+	selected, selectErr := selectWith(false)
+	require.Nil(t, selected)
+	require.NotNil(t, selectErr)
+	assert.Equal(t, dto.FilterClaudeCodeClient, selectErr.FilterKind)
+	assert.Equal(t, http.StatusBadRequest, selectErr.StatusCode)
+
+	selected, selectErr = selectWith(true)
+	assert.Nil(t, selectErr)
+	require.NotNil(t, selected)
+	assert.Equal(t, channel.Id, selected.Id)
 }

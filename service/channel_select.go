@@ -465,6 +465,17 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			}
 		}
 		if channel == nil {
+			// No channel was eligible. When a request filter rejected every
+			// candidate, the caller must see which rule did it: a channel that
+			// only serves Claude Code clients is a policy answer, not a missing
+			// model.
+			if kind := model.ChannelFilterEmptiedBy(selectGroup, modelName, constraints.Filters); kind != "" {
+				return nil, selectGroup, &ChannelSelectError{
+					StatusCode: http.StatusBadRequest, Code: types.ErrorCode(kind), MessageID: i18n.MsgDistributorNoAvailableChannel,
+					Params:     map[string]any{"Group": usingGroup, "Model": modelName},
+					FilterKind: kind, NoAvailableChannel: true,
+				}
+			}
 			return nil, selectGroup, &ChannelSelectError{
 				StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorNoAvailableChannel,
 				Params: map[string]any{"Group": usingGroup, "Model": modelName}, NoAvailableChannel: true,

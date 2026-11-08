@@ -7,8 +7,10 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestFilterCandidateIDs(t *testing.T) {
@@ -321,5 +323,64 @@ func TestClaudeCodeClientFilter(t *testing.T) {
 		kept, emptiedBy = filterCandidateIDs([]int{900100}, "claude-sonnet-4-5", claudeFilter(false))
 		assert.Empty(t, kept)
 		assert.Equal(t, dto.FilterClaudeCodeClient, emptiedBy)
+	})
+}
+
+// A caller that received no channel needs to know which request filter rejected
+// every candidate: a channel that only serves Claude Code clients is a policy
+// answer, not a missing model. Both the memory cache and the database path must
+// report it.
+func TestChannelFilterEmptiedByNamesTheRejectingFilter(t *testing.T) {
+	restrictedSetting := kitdto.ChannelOtherSettings{ClaudeCodeOnly: true}
+	restricted := &Channel{Id: 900200, Type: constant.ChannelTypeAnthropic, Status: common.ChannelStatusEnabled}
+	restricted.SetOtherSettings(restrictedSetting)
+	claudeOnly := func(isClaudeCode bool) []dto.ChannelFilter {
+		return []dto.ChannelFilter{{Kind: dto.FilterClaudeCodeClient, ClaudeCodeClient: isClaudeCode}}
+	}
+
+	t.Run("no filter never blames a rule", func(t *testing.T) {
+		assert.Equal(t, dto.ChannelFilterKind(""), ChannelFilterEmptiedBy("vip", "claude-sonnet-4-5", nil))
+	})
+
+	t.Run("memory cache", func(t *testing.T) {
+		previousCache := common.MemoryCacheEnabled
+		previousChannels := channelsIDM
+		previousIndex := group2model2channels
+		t.Cleanup(func() {
+			common.MemoryCacheEnabled = previousCache
+			channelsIDM = previousChannels
+			group2model2channels = previousIndex
+		})
+		common.MemoryCacheEnabled = true
+		channelsIDM = map[int]*Channel{restricted.Id: restricted}
+		group2model2channels = map[string]map[string][]int{"vip": {"claude-sonnet-4-5": {restricted.Id}}}
+
+		assert.Equal(t, dto.FilterClaudeCodeClient, ChannelFilterEmptiedBy("vip", "claude-sonnet-4-5", claudeOnly(false)))
+		assert.Equal(t, dto.ChannelFilterKind(""), ChannelFilterEmptiedBy("vip", "claude-sonnet-4-5", claudeOnly(true)))
+		// A group with no candidate at all is a routing gap, not a policy answer.
+		assert.Equal(t, dto.ChannelFilterKind(""), ChannelFilterEmptiedBy("empty", "claude-sonnet-4-5", claudeOnly(false)))
+	})
+
+	t.Run("database", func(t *testing.T) {
+		previousCache := common.MemoryCacheEnabled
+		previousDB := DB
+		t.Cleanup(func() {
+			common.MemoryCacheEnabled = previousCache
+			DB = previousDB
+		})
+		common.MemoryCacheEnabled = false
+		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		require.NoError(t, err)
+		DB = db
+		require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
+
+		channel := &Channel{Name: "claude-only", Type: constant.ChannelTypeAnthropic, Status: common.ChannelStatusEnabled, Group: "vip", Models: "claude-sonnet-4-5"}
+		channel.SetOtherSettings(restrictedSetting)
+		require.NoError(t, db.Create(channel).Error)
+		require.NoError(t, db.Create(&Ability{Group: "vip", Model: "claude-sonnet-4-5", ChannelId: channel.Id, Enabled: true}).Error)
+
+		assert.Equal(t, dto.FilterClaudeCodeClient, ChannelFilterEmptiedBy("vip", "claude-sonnet-4-5", claudeOnly(false)))
+		assert.Equal(t, dto.ChannelFilterKind(""), ChannelFilterEmptiedBy("vip", "claude-sonnet-4-5", claudeOnly(true)))
+		assert.Equal(t, dto.ChannelFilterKind(""), ChannelFilterEmptiedBy("empty", "claude-sonnet-4-5", claudeOnly(false)))
 	})
 }

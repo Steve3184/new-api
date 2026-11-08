@@ -3,8 +3,10 @@ package model
 import (
 	"slices"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 var filterEvalOrder = []dto.ChannelFilterKind{
@@ -62,6 +64,37 @@ func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter
 		kept = next
 	}
 	return kept, ""
+}
+
+// ChannelFilterEmptiedBy reports which filter kind rejected every candidate for
+// group+model, or "" when the set was already empty, no filter applies, or no
+// single kind is responsible. A caller that received no channel uses it to
+// explain the rejection instead of reporting a generic "no available channel".
+func ChannelFilterEmptiedBy(group, modelName string, filters []dto.ChannelFilter) dto.ChannelFilterKind {
+	if len(filters) == 0 || modelName == "" {
+		return ""
+	}
+	if common.MemoryCacheEnabled {
+		channelSyncLock.RLock()
+		defer channelSyncLock.RUnlock()
+		ids := group2model2channels[group][modelName]
+		if len(ids) == 0 {
+			if normalized := ratio_setting.RoutingMatchModelName(modelName); normalized != "" && normalized != modelName {
+				ids = group2model2channels[group][normalized]
+			}
+		}
+		if len(ids) == 0 {
+			return ""
+		}
+		_, emptiedBy := filterCandidateIDs(ids, modelName, filters)
+		return emptiedBy
+	}
+	abilities, err := abilitiesForModel(group, modelName)
+	if err != nil || len(abilities) == 0 {
+		return ""
+	}
+	_, emptiedBy := filterAbilitiesByConstraints(abilities, modelName, filters)
+	return emptiedBy
 }
 
 func filtersByKind(filters []dto.ChannelFilter, kind dto.ChannelFilterKind) []dto.ChannelFilter {

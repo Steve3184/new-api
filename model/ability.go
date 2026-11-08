@@ -116,7 +116,7 @@ func GetChannel(
 	if err != nil {
 		return nil, err
 	}
-	abilities = filterAbilitiesByConstraints(abilities, model, filters)
+	abilities, _ = filterAbilitiesByConstraints(abilities, model, filters)
 	// Like the memory cache, retry with the routing name (for example without
 	// @ modifiers) when no channel serves the exact name.
 	if normalized := ratio_setting.RoutingMatchModelName(model); len(abilities) == 0 && normalized != "" && normalized != model {
@@ -124,7 +124,7 @@ func GetChannel(
 		if err != nil {
 			return nil, err
 		}
-		abilities = filterAbilitiesByConstraints(abilities, model, filters)
+		abilities, _ = filterAbilitiesByConstraints(abilities, model, filters)
 	}
 	if len(abilities) > 0 {
 		priorities := make([]int64, 0)
@@ -172,14 +172,48 @@ func GetChannel(
 	return &channel, err
 }
 
-// filterAbilitiesByConstraints applies the same ChannelSatisfiesFilters
-// predicate used by the memory-cache path. A failed channel lookup fails
-// closed when a task-plugin identity is required and fails open otherwise.
-func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters []dto.ChannelFilter) []Ability {
+// filterAbilitiesByConstraints applies the same per-kind predicate used by the
+// memory-cache path, and reports the filter kind that emptied the set so a
+// caller with no channel can explain which rule rejected every candidate. A
+// failed channel lookup fails closed when a task-plugin identity is required
+// and fails open otherwise.
+func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters []dto.ChannelFilter) ([]Ability, dto.ChannelFilterKind) {
 	if len(abilities) == 0 {
-		return nil
+		return nil, ""
 	}
 
+	channelsByID, err := channelsForAbilities(abilities)
+	if err != nil {
+		if identityFilterRequiresKey(filters) {
+			return nil, ""
+		}
+		return abilities, ""
+	}
+
+	kept := abilities
+	for _, kind := range filterEvalOrder {
+		kindFilters := filtersByKind(filters, kind)
+		if len(kindFilters) == 0 {
+			continue
+		}
+		next := make([]Ability, 0, len(kept))
+		for _, ability := range kept {
+			channel := channelsByID[ability.ChannelId]
+			if candidatePassesKindFilters(channel, channel != nil, modelName, kind, kindFilters) {
+				next = append(next, ability)
+			}
+		}
+		if len(kept) > 0 && len(next) == 0 {
+			return next, kind
+		}
+		kept = next
+	}
+	return kept, ""
+}
+
+// channelsForAbilities loads the channels an ability slice points at, keyed by
+// channel id.
+func channelsForAbilities(abilities []Ability) (map[int]*Channel, error) {
 	channelIds := make([]int, 0, len(abilities))
 	seen := make(map[int]struct{}, len(abilities))
 	for _, ability := range abilities {
@@ -192,25 +226,34 @@ func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters
 
 	var channels []*Channel
 	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
-		if identityFilterRequiresKey(filters) {
-			return nil
-		}
-		return abilities
+		return nil, err
 	}
-
 	channelsByID := make(map[int]*Channel, len(channels))
 	for _, channel := range channels {
 		channelsByID[channel.Id] = channel
 	}
+	return channelsByID, nil
+}
 
-	filtered := make([]Ability, 0, len(abilities))
-	for _, ability := range abilities {
-		channel := channelsByID[ability.ChannelId]
-		if ok, _ := ChannelSatisfiesFilters(channel, modelName, filters); ok {
-			filtered = append(filtered, ability)
+// abilitiesForModel reads the enabled abilities that serve a model in a group,
+// falling back to the routing name the way the selector does.
+func abilitiesForModel(group, model string) ([]Ability, error) {
+	var abilities []Ability
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC, weight DESC").Find(&abilities).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		if normalized := ratio_setting.RoutingMatchModelName(model); normalized != "" && normalized != model {
+			err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, normalized, true).
+				Order("priority DESC, weight DESC").Find(&abilities).Error
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-	return filtered
+	return abilities, nil
 }
 
 func identityFilterRequiresKey(filters []dto.ChannelFilter) bool {
