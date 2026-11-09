@@ -8540,10 +8540,6 @@
     "Check-in captcha": "Check-in captcha",
     "Redemption captcha": "Redemption captcha",
     "Free space": "Free space",
-    "Per-image": "Per-image",
-    "per image": "per image",
-    "Enter the price per image": "Enter the price per image",
-    "Fixed price per image": "Fixed price per image",
-    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns."
+    "Multiply by image_count to bill per generated image.": "Multiply by image_count to bill per generated image."
   }
 }

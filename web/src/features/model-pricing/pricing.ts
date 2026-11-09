@@ -29,7 +29,6 @@ import {
   buildModelSnapshots,
   type ModelPricingSnapshot,
 } from '@/features/system-settings/models/model-pricing-snapshots'
-import { readPerImagePrice } from '@/features/system-settings/models/per-image-pricing'
 
 import type { ModelPricingEntry } from './api'
 
@@ -204,14 +203,8 @@ export function pricingRow(
   ) as PricingOptions
   const row = pricingRows(options).find((entry) => entry.name === name)
   let billingMode: ModelRatioData['billingMode'] = 'per-token'
-  if (row?.billingMode === 'tiered_expr') {
-    // A per-image price is stored as its expression; report it as its own mode
-    // so the table and the editor both show the unit price.
-    billingMode =
-      readPerImagePrice(row.billingExpr ?? '') === undefined
-        ? 'tiered_expr'
-        : 'per-image'
-  } else if (row?.price) billingMode = 'per-request'
+  if (row?.billingMode === 'tiered_expr') billingMode = 'tiered_expr'
+  else if (row?.price) billingMode = 'per-request'
   return {
     ...row,
     name,

@@ -8540,10 +8540,6 @@
     "Check-in captcha": "簽到驗證",
     "Redemption captcha": "兌換碼驗證",
     "Free space": "可用空間",
-    "Per-image": "按張計費",
-    "per image": "每張",
-    "Enter the price per image": "請輸入每張價格",
-    "Fixed price per image": "按張固定價格",
-    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "按每張生成圖片計費，單位為 {{currency}}。圖片生成與編輯按上游實際回傳的圖片數量結算。"
+    "Multiply by image_count to bill per generated image.": "乘以 image_count 即可按產生的圖片張數計費。"
   }
 }

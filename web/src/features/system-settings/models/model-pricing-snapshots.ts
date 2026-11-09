@@ -84,7 +84,6 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 }
 
 export const getModeLabel = (mode?: string) => {
-  if (mode === 'per-image') return 'Per-image'
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
   return 'Per-token'
@@ -93,7 +92,7 @@ export const getModeLabel = (mode?: string) => {
 export const getModeVariant = (
   mode?: string
 ): 'warning' | 'info' | 'success' => {
-  if (mode === 'per-image' || mode === 'per-request') return 'warning'
+  if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
   return 'success'
 }
@@ -116,9 +115,6 @@ export const getPriceSummary = (
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
   }
-  if (row.billingMode === 'per-image') {
-    return row.price ? `$${row.price} / ${t('image')}` : t('Unset price')
-  }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
   }
@@ -137,9 +133,6 @@ export const getPriceDetail = (
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
-  }
-  if (row.billingMode === 'per-image') {
-    return t('Fixed price per image')
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')

@@ -103,7 +103,6 @@ import {
   type PricingMode,
 } from './model-pricing-core'
 import { PriceInput, PriceLane } from './model-pricing-inputs'
-import { buildPerImageExpression, readPerImagePrice } from './per-image-pricing'
 import { formatPricingNumber } from './pricing-format'
 import { TaskPluginPricingEditor } from './task-plugin-pricing-editor'
 import { TaskUsagePricingEditor } from './task-usage-pricing-editor'
@@ -237,15 +236,6 @@ export const ModelPricingEditorPanel = forwardRef<
   } else if (hasValue(editData?.price)) {
     initialPricingMode = 'per-request'
   }
-  // A stored per-image price is an expression, so it reopens on its own tab with
-  // the unit price filled in rather than in the raw expression editor.
-  const initialPerImagePrice =
-    editData?.billingMode === 'tiered_expr'
-      ? readPerImagePrice(editData.billingExpr ?? '')
-      : undefined
-  if (initialPerImagePrice !== undefined) {
-    initialPricingMode = 'per-image'
-  }
   const initialBillingExpr = editData?.billingExpr ?? ''
   const { models: pricingModels } = usePricingData()
 
@@ -356,9 +346,6 @@ export const ModelPricingEditorPanel = forwardRef<
       })
       setPricingMode(initialPricingMode)
       setBillingExpr(initialBillingExpr)
-      if (initialPerImagePrice !== undefined) {
-        form.setValue('price', initialPerImagePrice)
-      }
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
       form.reset({
@@ -382,13 +369,7 @@ export const ModelPricingEditorPanel = forwardRef<
     setLaneEnabled(nextLaneState.enabled)
     setEditorReloadToken((token) => token + 1)
     autoSwitchedForRef.current = null
-  }, [
-    editData,
-    form,
-    initialPricingMode,
-    initialBillingExpr,
-    initialPerImagePrice,
-  ])
+  }, [editData, form, initialPricingMode, initialBillingExpr])
 
   useEffect(() => {
     if (!editData) return
@@ -666,14 +647,6 @@ export const ModelPricingEditorPanel = forwardRef<
       return false
     }
 
-    if (
-      pricingMode === 'per-image' &&
-      toNumberOrNull(form.getValues('price') ?? '') === null
-    ) {
-      form.setError('price', { message: t('Enter the price per image') })
-      return false
-    }
-
     return true
   }, [form, laneEnabled, lanePrices, pricingMode, promptPrice, t])
 
@@ -700,14 +673,6 @@ export const ModelPricingEditorPanel = forwardRef<
       if (pricingMode === 'tiered_expr') {
         data.billingExpr = resolvedBillingExpr
         data.requestRuleExpr = requestRuleExpr
-      }
-
-      if (pricingMode === 'per-image') {
-        // Stored as an expression so settlement can charge the images the
-        // upstream actually returned.
-        data.billingMode = 'tiered_expr'
-        data.billingExpr = buildPerImageExpression(values.price ?? '')
-        data.requestRuleExpr = ''
       }
 
       return data
@@ -885,9 +850,7 @@ export const ModelPricingEditorPanel = forwardRef<
                     requestRuleExpr
                   )}
                   modelBillingMode={
-                    pricingMode === 'tiered_expr' || pricingMode === 'per-image'
-                      ? 'tiered_expr'
-                      : 'ratio'
+                    pricingMode === 'tiered_expr' ? 'tiered_expr' : 'ratio'
                   }
                   currency={currency}
                   ordinaryPricing={!usesTaskPricing}
@@ -905,9 +868,6 @@ export const ModelPricingEditorPanel = forwardRef<
                       </TabsTrigger>
                       <TabsTrigger value='per-request'>
                         {t('Per-request')}
-                      </TabsTrigger>
-                      <TabsTrigger value='per-image'>
-                        {t('Per-image')}
                       </TabsTrigger>
                       <TabsTrigger value='tiered_expr'>
                         {t('Expression')}
@@ -1050,47 +1010,6 @@ export const ModelPricingEditorPanel = forwardRef<
                                 <FormDescription>
                                   {t(
                                     'Cost in {{currency}} per request, regardless of tokens used.',
-                                    { currency: currency.label }
-                                  )}
-                                </FormDescription>
-                                <FormMessage />
-                              </Field>
-                            </FormItem>
-                          )}
-                        />
-                      </FieldGroup>
-                    </TabsContent>
-
-                    <TabsContent value='per-image' className='pt-0'>
-                      <FieldGroup className='gap-5'>
-                        <FormField
-                          control={form.control}
-                          name='price'
-                          render={({ field }) => (
-                            <FormItem className='contents'>
-                              <Field>
-                                <FormLabel>{t('Price per image')}</FormLabel>
-                                <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
-                                  <InputGroupAddon>
-                                    {currency.symbol}
-                                  </InputGroupAddon>
-                                  <FormControl>
-                                    <PricingAmountInput
-                                      {...field}
-                                      value={field.value ?? ''}
-                                      currency={currency}
-                                      grouped
-                                      placeholder='0.04'
-                                      onChange={field.onChange}
-                                    />
-                                  </FormControl>
-                                  <InputGroupAddon align='inline-end'>
-                                    {t('per image')}
-                                  </InputGroupAddon>
-                                </InputGroup>
-                                <FormDescription>
-                                  {t(
-                                    'Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.',
                                     { currency: currency.label }
                                   )}
                                 </FormDescription>

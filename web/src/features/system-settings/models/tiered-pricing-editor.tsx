@@ -217,6 +217,11 @@ const PRESET_GROUPS: PresetGroup[] = [
         label: 'Qwen3 Omni Flash',
         expr: 'tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)',
       },
+      {
+        key: 'per-image-billing',
+        label: 'Per-image billing',
+        expr: 'tier("image", fixed(0.04)) * image_count',
+      },
     ],
   },
   {
@@ -352,7 +357,8 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
             {t('Variables')}: <code>len</code>, <code>p</code>, <code>c</code>,{' '}
             <code>cr</code>, <code>cc</code>, <code>cc1h</code>,{' '}
             <code>cc12h</code>, <code>img</code>, <code>img_cr</code>,{' '}
-            <code>img_o</code>, <code>ai</code>, <code>ao</code>
+            <code>img_o</code>, <code>ai</code>, <code>ao</code>,{' '}
+            <code>image_count</code>
           </div>
           <div>
             {t('Functions')}: <code>tier(name, value)</code>,{' '}
@@ -365,6 +371,9 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
             {t(
               'Use tier(name, fixed(amount)) for a USD price per request. Group and request multipliers still apply.'
             )}
+          </div>
+          <div>
+            {t('Multiply by image_count to bill per generated image.')}
           </div>
         </AlertDescription>
       </Alert>
@@ -1032,6 +1041,10 @@ p and c are fallback variables representing all tokens not separately priced in 
 
 Important: len is NOT affected by auto-exclusion. Tier conditions should use len instead of p to prevent cache hits from lowering p and misidentifying the tier.
 
+### Request Variables
+
+- image_count — number of images the upstream returned for an image generation or editing request (defaults to 1). Multiply a fixed price by it to bill per generated image.
+
 ### Built-in Functions
 
 - tier(name, value) — labels the billing tier; must wrap the cost expression
@@ -1065,6 +1078,9 @@ tier("base", p * 2 + c * 8 + img * 2.5)
 
 Multimodal with audio:
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
+
+Per-image pricing (billed by the images the upstream returned):
+tier("image", fixed(0.04)) * image_count
 
 Three-tier example:
 len <= 128000

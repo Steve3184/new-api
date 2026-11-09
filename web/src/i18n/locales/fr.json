@@ -8540,10 +8540,6 @@
     "Check-in captcha": "Captcha de présence",
     "Redemption captcha": "Captcha d’échange de code",
     "Free space": "Espace libre",
-    "Per-image": "Par image",
-    "per image": "par image",
-    "Enter the price per image": "Saisissez le prix par image",
-    "Fixed price per image": "Prix fixe par image",
-    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "Coût en {{currency}} par image générée. La génération et l’édition d’images sont facturées selon le nombre d’images renvoyées par l’amont."
+    "Multiply by image_count to bill per generated image.": "Multipliez par image_count pour facturer chaque image générée."
   }
 }

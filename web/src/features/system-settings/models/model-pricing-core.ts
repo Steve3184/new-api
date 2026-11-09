@@ -56,11 +56,7 @@ export type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-export type PricingMode =
-  | 'per-token'
-  | 'per-request'
-  | 'per-image'
-  | 'tiered_expr'
+export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
 
 export type LaneKey =
   | 'completion'
@@ -282,14 +278,14 @@ export function buildPreviewRows(
     ]
   }
 
-  if (mode === 'per-request' || mode === 'per-image') {
-    const perImage =
-      mode === 'per-image' || Boolean(billingDetails?.image_count)
+  if (mode === 'per-request') {
     return [
       {
         key: 'price',
-        label: perImage ? t('Price per image') : t('Fixed price'),
-        ...(perImage ? { unit: 'image' as const } : {}),
+        label: billingDetails?.image_count
+          ? t('Price per image')
+          : t('Fixed price'),
+        ...(billingDetails?.image_count ? { unit: 'image' as const } : {}),
         value: values.price
           ? formatPricingAmount(values.price, currency)
           : t('Empty'),

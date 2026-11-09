@@ -8540,10 +8540,6 @@
     "Check-in captcha": "Captcha điểm danh",
     "Redemption captcha": "Captcha đổi mã",
     "Free space": "Dung lượng trống",
-    "Per-image": "Theo ảnh",
-    "per image": "mỗi ảnh",
-    "Enter the price per image": "Nhập giá mỗi ảnh",
-    "Fixed price per image": "Giá cố định mỗi ảnh",
-    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "Chi phí tính bằng {{currency}} cho mỗi ảnh được tạo. Tạo và chỉnh sửa ảnh được tính theo số ảnh mà upstream trả về."
+    "Multiply by image_count to bill per generated image.": "Nhân với image_count để tính phí theo từng ảnh được tạo."
   }
 }
