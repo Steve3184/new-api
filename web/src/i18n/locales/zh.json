@@ -8539,6 +8539,11 @@
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "签到和兑换各自有“是否验证”的开关，决定要不要验证；这里选择开关打开时使用哪种验证方式。",
     "Check-in captcha": "签到验证",
     "Redemption captcha": "兑换码验证",
-    "Free space": "可用空间"
+    "Free space": "可用空间",
+    "Per-image": "按张计费",
+    "per image": "每张",
+    "Enter the price per image": "请输入每张价格",
+    "Fixed price per image": "按张固定价格",
+    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "按每张生成图片计费，单位为 {{currency}}。图片生成与编辑按上游实际返回的图片数量结算。"
   }
 }

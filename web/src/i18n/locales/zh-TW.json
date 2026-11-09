@@ -8539,6 +8539,11 @@
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "簽到和兌換各自有「是否驗證」的開關，決定要不要驗證；這裡選擇開關開啟時使用哪種驗證方式。",
     "Check-in captcha": "簽到驗證",
     "Redemption captcha": "兌換碼驗證",
-    "Free space": "可用空間"
+    "Free space": "可用空間",
+    "Per-image": "按張計費",
+    "per image": "每張",
+    "Enter the price per image": "請輸入每張價格",
+    "Fixed price per image": "按張固定價格",
+    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "按每張生成圖片計費，單位為 {{currency}}。圖片生成與編輯按上游實際回傳的圖片數量結算。"
   }
 }

@@ -39,6 +39,22 @@ func TestFixedPriceBranches(t *testing.T) {
 		_, _, err := billingexpr.RunExprWithRequest(`tier("image", fixed(0.04)) * image_count`, billingexpr.TokenParams{}, billingexpr.RequestInput{ImageCount: &count})
 		require.ErrorContains(t, err, "image_count")
 	}
+
+	// Per-image pricing multiplies the validated output image count, which the
+	// model pricing editor writes as this exact expression. Costs come back in
+	// quota units, so one USD is 1,000,000.
+	for count, wantUSD := range map[int]float64{1: 0.04, 3: 0.12} {
+		cost, trace, err := billingexpr.RunExprWithRequest(`tier("image", fixed(0.04)) * image_count`, billingexpr.TokenParams{}, billingexpr.RequestInput{ImageCount: &count})
+		require.NoError(t, err)
+		assert.InDelta(t, wantUSD*1_000_000, cost, 1e-6, count)
+		require.NotNil(t, trace.ImageCount)
+		assert.Equal(t, count, *trace.ImageCount)
+	}
+
+	// Without a request quantity the single-image default applies.
+	cost, _, err = billingexpr.RunExpr(`tier("image", fixed(0.04)) * image_count`, billingexpr.TokenParams{})
+	require.NoError(t, err)
+	assert.InDelta(t, 40000, cost, 1e-6)
 }
 
 func TestFixedPriceRejectsInvalidLeavesIncludingUnselectedBranches(t *testing.T) {

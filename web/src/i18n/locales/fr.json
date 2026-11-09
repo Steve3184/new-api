@@ -8539,6 +8539,11 @@
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "La présence et l’échange conservent leur propre interrupteur qui décide si un captcha s’exécute. Ces options choisissent le fournisseur utilisé lorsque cet interrupteur est actif.",
     "Check-in captcha": "Captcha de présence",
     "Redemption captcha": "Captcha d’échange de code",
-    "Free space": "Espace libre"
+    "Free space": "Espace libre",
+    "Per-image": "Par image",
+    "per image": "par image",
+    "Enter the price per image": "Saisissez le prix par image",
+    "Fixed price per image": "Prix fixe par image",
+    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "Coût en {{currency}} par image générée. La génération et l’édition d’images sont facturées selon le nombre d’images renvoyées par l’amont."
   }
 }

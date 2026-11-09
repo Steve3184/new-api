@@ -8539,6 +8539,11 @@
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "チェックインと引き換えには、キャプチャを実行するかどうかを決める独自のスイッチがあります。ここではそのスイッチが有効なときに使うプロバイダーを選びます。",
     "Check-in captcha": "チェックインのキャプチャ",
     "Redemption captcha": "引き換えコードのキャプチャ",
-    "Free space": "空き容量"
+    "Free space": "空き容量",
+    "Per-image": "画像単位",
+    "per image": "1 枚あたり",
+    "Enter the price per image": "画像 1 枚あたりの価格を入力してください",
+    "Fixed price per image": "画像単位の固定価格",
+    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "生成した画像 1 枚あたりの {{currency}} 単位の料金です。画像生成と編集は、上流が返した画像の枚数で課金されます。"
   }
 }

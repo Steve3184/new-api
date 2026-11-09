@@ -8539,6 +8539,11 @@
     "Check-in and redemption keep their own switch that decides whether a captcha runs at all. These options choose which provider runs when that switch is on.": "Отметка и активация кода сохраняют собственный переключатель, решающий, нужна ли капча. Здесь выбирается провайдер, который работает при включённом переключателе.",
     "Check-in captcha": "Капча при отметке",
     "Redemption captcha": "Капча при активации кода",
-    "Free space": "Свободное место"
+    "Free space": "Свободное место",
+    "Per-image": "За изображение",
+    "per image": "за изображение",
+    "Enter the price per image": "Введите цену за изображение",
+    "Fixed price per image": "Фиксированная цена за изображение",
+    "Cost in {{currency}} per generated image. Image generation and editing are billed by the number of images the upstream returns.": "Стоимость в {{currency}} за каждое сгенерированное изображение. Генерация и редактирование изображений оплачиваются по числу изображений, возвращённых вышестоящим сервисом."
   }
 }
