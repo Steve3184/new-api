@@ -156,8 +156,8 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheFields(t *t
 
 	encoded, err := kitutil.Marshal(got)
 	require.NoError(t, err)
-	assert.Equal(t, "stable-conversation-key", gjson.GetBytes(encoded, "prompt_cache_key").String())
-	assert.Equal(t, "24h", gjson.GetBytes(encoded, "prompt_cache_retention").String())
+	assert.Equal(t, "stable-conversation-key", ojson.GetBytes(encoded, "prompt_cache_key").String())
+	assert.Equal(t, "24h", ojson.GetBytes(encoded, "prompt_cache_retention").String())
 }
 
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {
