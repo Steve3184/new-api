@@ -8540,6 +8540,8 @@
     "Check-in captcha": "Captcha điểm danh",
     "Redemption captcha": "Captcha đổi mã",
     "Free space": "Dung lượng trống",
-    "Multiply by image_count to bill per generated image.": "Nhân với image_count để tính phí theo từng ảnh được tạo."
+    "Multiply by image_count to bill per generated image.": "Nhân với image_count để tính phí theo từng ảnh được tạo.",
+    "Bill per generated image": "Tính phí theo ảnh tạo ra",
+    "Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.": "Tính mỗi mức giá một lần cho từng ảnh mà upstream trả về thay vì mỗi yêu cầu. Dùng cho tạo và chỉnh sửa ảnh, vốn quyết toán theo số ảnh trả về."
   }
 }

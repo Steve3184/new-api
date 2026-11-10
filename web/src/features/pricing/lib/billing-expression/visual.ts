@@ -497,14 +497,7 @@ export function serializeVisualBillingDocument(
   document: VisualBillingDocument
 ): VisualBillingSerialization {
   const issues: VisualBillingIssue[] = []
-  let body = writeVisualPricing(document.root, document.source, issues)
-  if (
-    document.imageCount &&
-    document.root.kind === 'branch' &&
-    document.root.origin?.kind !== 'conditional'
-  ) {
-    body = `(${body})`
-  }
+  const body = writeVisualPricing(document.root, document.source, issues)
   if (issues.length > 0) return { ok: false, issues }
   const original = compileBillingExpression(document.source)
   if (original.status !== 'ready') {
@@ -519,25 +512,26 @@ export function serializeVisualBillingDocument(
       ],
     }
   }
-  const pricingOrigin = document.imageCount
-    ? imageCountPricingRoot(original.ast)
-    : original.ast
-  if (!pricingOrigin) {
-    return {
-      ok: false,
-      issues: [
-        {
-          id: document.root.id,
-          message:
-            'This expression cannot be edited visually without losing information.',
-        },
-      ],
-    }
-  }
+  const quantityRoot = imageCountPricingRoot(original.ast)
+  const perImage = Boolean(document.imageCount)
+  const keepsQuantity = perImage === Boolean(quantityRoot)
+  // The multiplier sits outside the price it scales, so a branch price needs
+  // parentheses or the factor would scale only its last branch. An unchanged
+  // multiplier keeps the parentheses already in the source.
+  const needsParens =
+    perImage &&
+    document.root.kind === 'branch' &&
+    (!keepsQuantity || document.root.origin?.kind !== 'conditional')
+  // Turning the multiplier on or off rewrites the whole expression, because the
+  // factor lives beside the price; otherwise only the price span is replaced.
+  const [start, end] = keepsQuantity
+    ? [(quantityRoot ?? original.ast).start, (quantityRoot ?? original.ast).end]
+    : [original.ast.start, original.ast.end]
+  const priced = needsParens ? `(${body})` : body
   const source =
-    document.source.slice(0, pricingOrigin.start) +
-    body +
-    document.source.slice(pricingOrigin.end)
+    document.source.slice(0, start) +
+    (perImage && !keepsQuantity ? `${priced} * image_count` : priced) +
+    document.source.slice(end)
   if (compileBillingExpression(source).status !== 'ready') {
     return {
       ok: false,

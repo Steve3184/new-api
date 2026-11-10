@@ -752,6 +752,50 @@ describe('visual time billing editor', () => {
   })
 })
 
+test('bills per generated image from a switch inside the expression editor', async () => {
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr='tier("base", p * 2 + c * 8)'
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const user = userEvent.setup()
+  const perImage = screen.getByRole('switch', {
+    name: 'Bill per generated image',
+  })
+  expect(perImage).toHaveAttribute('aria-checked', 'false')
+  await user.click(perImage)
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    'tier("base", p * 2 + c * 8) * image_count'
+  )
+  expect(perImage).toHaveAttribute('aria-checked', 'true')
+  await user.click(perImage)
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    'tier("base", p * 2 + c * 8)'
+  )
+  expect(perImage).toHaveAttribute('aria-checked', 'false')
+})
+
+test('reopens a stored per-image expression with per-image billing on', () => {
+  render(
+    <TieredPricingEditor
+      billingExpr='tier("image", fixed(0.04)) * image_count'
+      requestRuleExpr=''
+      onBillingExprChange={vi.fn()}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  expect(
+    screen.getByRole('switch', { name: 'Bill per generated image' })
+  ).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByRole('textbox', { name: 'Price per image' })).toHaveValue(
+    '0.04'
+  )
+})
+
 test('keeps exact source and independent request rules through mode and currency changes', async () => {
   const onBillingExprChange = vi.fn()
   const onRequestRuleExprChange = vi.fn()

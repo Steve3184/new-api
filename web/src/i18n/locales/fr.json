@@ -8540,6 +8540,8 @@
     "Check-in captcha": "Captcha de présence",
     "Redemption captcha": "Captcha d’échange de code",
     "Free space": "Espace libre",
-    "Multiply by image_count to bill per generated image.": "Multipliez par image_count pour facturer chaque image générée."
+    "Multiply by image_count to bill per generated image.": "Multipliez par image_count pour facturer chaque image générée.",
+    "Bill per generated image": "Facturer par image générée",
+    "Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.": "Facture chaque prix une fois par image renvoyée par l’amont, et non une fois par requête. À utiliser pour la génération et l’édition d’images, réglées sur le nombre d’images renvoyées."
   }
 }

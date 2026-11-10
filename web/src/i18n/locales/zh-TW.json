@@ -8540,6 +8540,8 @@
     "Check-in captcha": "簽到驗證",
     "Redemption captcha": "兌換碼驗證",
     "Free space": "可用空間",
-    "Multiply by image_count to bill per generated image.": "乘以 image_count 即可按產生的圖片張數計費。"
+    "Multiply by image_count to bill per generated image.": "乘以 image_count 即可按產生的圖片張數計費。",
+    "Bill per generated image": "按生成圖片計費",
+    "Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.": "按上游實際回傳的圖片數量計費，而不是每次請求計一次。適用於圖片生成與編輯，它們按實際回傳的圖片數量結算。"
   }
 }

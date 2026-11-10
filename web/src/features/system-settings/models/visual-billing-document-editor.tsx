@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronDown } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableRowActionMenu } from '@/components/data-table'
@@ -29,7 +29,14 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   formatPricingAmount,
   type PricingCurrency,
@@ -385,8 +392,29 @@ export function VisualBillingDocumentEditor(props: {
   onChange: (document: VisualBillingDocument) => void
 }) {
   const { t } = useTranslation()
+  const imageQuantityId = useId()
+  const perImage = Boolean(props.document.imageCount)
   return (
     <div className='space-y-3'>
+      <Field orientation='horizontal'>
+        <FieldContent>
+          <FieldLabel htmlFor={imageQuantityId}>
+            {t('Bill per generated image')}
+          </FieldLabel>
+          <FieldDescription>
+            {t(
+              'Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.'
+            )}
+          </FieldDescription>
+        </FieldContent>
+        <Switch
+          id={imageQuantityId}
+          checked={perImage}
+          onCheckedChange={(checked) =>
+            props.onChange({ ...props.document, imageCount: checked })
+          }
+        />
+      </Field>
       {props.document.root.kind === 'branch' && (
         <p className='text-muted-foreground text-xs'>
           {t(
@@ -395,7 +423,7 @@ export function VisualBillingDocumentEditor(props: {
         </p>
       )}
       <PricingRuleList
-        imageCount={props.document.imageCount}
+        imageCount={perImage}
         node={props.document.root}
         prefix=''
         source={props.document.source}

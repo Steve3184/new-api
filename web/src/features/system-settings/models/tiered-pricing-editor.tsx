@@ -37,7 +37,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Field, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -86,6 +86,7 @@ import {
   type TimeCondition,
   type TimeFunc,
 } from '@/features/pricing/lib/billing-expr'
+import { compileBillingExpression } from '@/features/pricing/lib/billing-expression/parser'
 import {
   parseVisualBillingDocument,
   serializeVisualBillingDocument,
@@ -823,6 +824,12 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
   const [group, setGroup] = useState('default')
   const groupId = useId()
   const [completionTokens, setCompletionTokens] = useState(0)
+  const [imageCount, setImageCount] = useState(1)
+  const imageCountId = useId()
+  const usesImageCount = useMemo(() => {
+    const compiled = compileBillingExpression(effectiveExpr)
+    return compiled.status === 'ready' && compiled.variables.has('image_count')
+  }, [effectiveExpr])
   const [extras, setExtras] = useState<ExtraTokenValues>({
     cacheReadTokens: 0,
     cacheCreateTokens: 0,
@@ -856,12 +863,14 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
       evalExprLocally(effectiveExpr, promptTokens, completionTokens, extras, {
         group,
         tokens,
+        imageCount,
         now: billingTime === undefined ? undefined : new Date(billingTime),
       }),
     [
       effectiveExpr,
       promptTokens,
       completionTokens,
+      imageCount,
       extras,
       tokens,
       billingTime,
@@ -941,6 +950,22 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
           placeholder={t('Use the existing token total')}
         />
       </Field>
+      {usesImageCount && (
+        <Field>
+          <FieldLabel htmlFor={imageCountId}>
+            {t('Billable image count')}
+          </FieldLabel>
+          <DraftNumberInput
+            id={imageCountId}
+            min={1}
+            value={imageCount}
+            onValueChange={setImageCount}
+          />
+          <FieldDescription>
+            {t('Reserve requested images; settle returned images.')}
+          </FieldDescription>
+        </Field>
+      )}
       {usesExtras && (
         <div className='grid grid-cols-2 gap-3'>
           {BILLING_EXTRA_VARS.map((variable) => {
@@ -987,8 +1012,15 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
             <span className='font-medium'>
               {t('Estimated cost')}:{' '}
               {formatPricingAmount(result.cost / 1_000_000, currency)}
-              {result.billingUnit === 'request' && `/${t('request')}`}
+              {result.billingUnit === 'request' &&
+                !usesImageCount &&
+                `/${t('request')}`}
             </span>
+            {usesImageCount && (
+              <span className='text-muted-foreground text-xs tabular-nums'>
+                × {imageCount}
+              </span>
+            )}
             {result.matchedTier && (
               <Badge variant='outline' className='text-xs'>
                 {t('Hit tier')}: {result.matchedTier}
