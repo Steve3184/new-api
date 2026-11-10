@@ -7495,7 +7495,6 @@
     "Cap Server URL": "Cap サーバー URL",
     "Cap server URL is required": "Cap サーバー URL は必須です",
     "Cap supports difficulty values from 1 to 8.": "Cap の難易度は 1 から 8 まで設定できます。",
-    "Captcha is enabled but site key is empty.": "Captcha は有効ですが、サイトキーが空です。",
     "Captcha Provider": "Captcha サービス",
     "Card": "カード",
     "Cartoon": "カートゥーン",
@@ -8542,6 +8541,11 @@
     "Free space": "空き容量",
     "Multiply by image_count to bill per generated image.": "image_count を掛けると、生成された画像ごとに課金できます。",
     "Bill per generated image": "生成画像ごとに課金",
-    "Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.": "リクエストごとではなく、上流が返した画像1枚ごとに料金を計上します。返した画像数で精算される画像生成・編集に適しています。"
+    "Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.": "リクエストごとではなく、上流が返した画像1枚ごとに料金を計上します。返した画像数で精算される画像生成・編集に適しています。",
+    "Enable {{provider}} in bot protection before redeeming.": "引き換える前に、ボット対策で {{provider}} を有効にしてください。",
+    "Enable {{provider}} in bot protection before checking in.": "チェックインする前に、ボット対策で {{provider}} を有効にしてください。",
+    "{{provider}} is missing its site key or endpoint.": "{{provider}} のサイトキーまたはエンドポイントが未設定です。",
+    "hCaptcha site key is required": "hCaptcha のサイトキーは必須です",
+    "hCaptcha secret key is required": "hCaptcha のシークレットキーは必須です"
   }
 }

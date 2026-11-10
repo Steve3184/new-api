@@ -32,6 +32,16 @@ type CaptchaPurpose =
 
 type CaptchaType = 'none' | 'turnstile' | 'hcaptcha' | 'cap'
 
+/** Why a required captcha cannot run, so a caller can name the missing part. */
+export type CaptchaIssue = 'provider-disabled' | 'configuration-incomplete'
+
+/** Product names stay untranslated; they read the same in every locale. */
+export function captchaProviderName(type: CaptchaType): string {
+  if (type === 'hcaptcha') return 'hCaptcha'
+  if (type === 'cap') return 'Cap'
+  return 'Cloudflare Turnstile'
+}
+
 function toCaptchaType(value: string | undefined): CaptchaType {
   if (value === 'cap' || value === 'hcaptcha' || value === 'turnstile') {
     return value
@@ -98,8 +108,22 @@ export function useCaptcha(purpose: CaptchaPurpose = 'login') {
   const isCapEnabled = Boolean(
     isRequired && captchaType === 'cap' && status?.cap_enabled && capApiEndpoint
   )
+  // "none" is a deliberate choice, not a broken setup: the gateway accepts the
+  // request without a token, so callers must go ahead instead of standing by.
+  const skipsCaptcha = captchaType === 'none'
   const isCaptchaEnabled =
     isTurnstileEnabled || isHCaptchaEnabled || isCapEnabled
+  // A required captcha that cannot run blocks the form; report which part of
+  // the configuration is missing so the message can name it.
+  let providerEnabled = status?.turnstile_check
+  if (captchaType === 'hcaptcha') providerEnabled = status?.hcaptcha_check
+  if (captchaType === 'cap') providerEnabled = status?.cap_enabled
+  let captchaIssue: CaptchaIssue | undefined
+  if (isRequired && !skipsCaptcha && !isCaptchaEnabled) {
+    captchaIssue = providerEnabled
+      ? 'configuration-incomplete'
+      : 'provider-disabled'
+  }
 
   let tokenQueryParam = 'turnstile'
   if (isCapEnabled) {
@@ -122,6 +146,8 @@ export function useCaptcha(purpose: CaptchaPurpose = 'login') {
     captchaType,
     isRequired,
     isCaptchaEnabled,
+    skipsCaptcha,
+    captchaIssue,
     isTurnstileEnabled,
     isHCaptchaEnabled,
     isCapEnabled,

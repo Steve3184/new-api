@@ -29,8 +29,12 @@ vi.mock('../../api', () => ({
 }))
 
 vi.mock('@/features/auth/hooks/use-captcha', () => ({
+  captchaProviderName: () => 'Cloudflare Turnstile',
   useCaptcha: () => ({
     isCaptchaEnabled: false,
+    skipsCaptcha: true,
+    captchaIssue: undefined,
+    captchaType: 'none',
     isTurnstileEnabled: false,
     isHCaptchaEnabled: false,
     isCapEnabled: false,

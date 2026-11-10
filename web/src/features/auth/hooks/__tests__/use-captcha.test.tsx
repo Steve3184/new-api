@@ -2,7 +2,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useCaptcha } from '../use-captcha'
+import { captchaProviderName, useCaptcha } from '../use-captcha'
 
 const status = vi.hoisted(() => ({ current: {} as Record<string, unknown> }))
 
@@ -117,5 +117,60 @@ describe('captcha purpose resolution', () => {
     expect(captchaFor('reset_password').captchaType).toBe('turnstile')
     expect(captchaFor('checkin').captchaType).toBe('turnstile')
     expect(captchaFor('redemption').captchaType).toBe('turnstile')
+  })
+
+  it('separates a deliberate "none" from a provider that cannot run yet', () => {
+    status.current = {
+      captcha_type: 'turnstile',
+      turnstile_check: false,
+      turnstile_site_key: '',
+      force_checkin_captcha: true,
+      force_redemption_captcha: true,
+      checkin_captcha_type: 'none',
+      redemption_captcha_type: 'turnstile',
+    }
+
+    // "none" is a choice: the gateway accepts the request without a token.
+    const checkin = captchaFor('checkin')
+    expect(checkin.skipsCaptcha).toBe(true)
+    expect(checkin.captchaIssue).toBeUndefined()
+
+    // Turnstile is selected but disabled, so redemption must say what is wrong.
+    const redemption = captchaFor('redemption')
+    expect(redemption.skipsCaptcha).toBe(false)
+    expect(redemption.captchaIssue).toBe('provider-disabled')
+  })
+
+  it('reports a missing site key separately from a disabled provider', () => {
+    status.current = {
+      captcha_type: 'turnstile',
+      turnstile_check: true,
+      turnstile_site_key: '',
+      force_redemption_captcha: true,
+    }
+
+    const redemption = captchaFor('redemption')
+    expect(redemption.isCaptchaEnabled).toBe(false)
+    expect(redemption.captchaIssue).toBe('configuration-incomplete')
+  })
+
+  it('does not report an issue when the captcha is not required', () => {
+    status.current = {
+      captcha_type: 'turnstile',
+      turnstile_check: false,
+      force_redemption_captcha: false,
+    }
+
+    const redemption = captchaFor('redemption')
+    expect(redemption.isRequired).toBe(false)
+    expect(redemption.captchaIssue).toBeUndefined()
+  })
+})
+
+describe('captcha provider names', () => {
+  it('names each provider for a message instead of leaking its identifier', () => {
+    expect(captchaProviderName('turnstile')).toBe('Cloudflare Turnstile')
+    expect(captchaProviderName('hcaptcha')).toBe('hCaptcha')
+    expect(captchaProviderName('cap')).toBe('Cap')
   })
 })

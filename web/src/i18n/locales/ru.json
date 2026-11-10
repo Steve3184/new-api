@@ -7495,7 +7495,6 @@
     "Cap Server URL": "URL сервера Cap",
     "Cap server URL is required": "Необходимо указать URL сервера Cap",
     "Cap supports difficulty values from 1 to 8.": "Cap поддерживает уровни сложности от 1 до 8.",
-    "Captcha is enabled but site key is empty.": "Captcha включена, но ключ сайта пуст.",
     "Captcha Provider": "Сервис captcha",
     "Card": "Карточки",
     "Cartoon": "Мультфильм",
@@ -8542,6 +8541,11 @@
     "Free space": "Свободное место",
     "Multiply by image_count to bill per generated image.": "Умножайте на image_count, чтобы выставлять счёт за каждое сгенерированное изображение.",
     "Bill per generated image": "Оплата за каждое изображение",
-    "Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.": "Начисляет каждую цену за каждое изображение, возвращённое вышестоящим сервисом, а не за запрос. Используйте для генерации и редактирования изображений: расчёт идёт по числу возвращённых изображений."
+    "Charges each price once per image the upstream returns instead of once per request. Use it for image generation and editing, which settle by their returned image count.": "Начисляет каждую цену за каждое изображение, возвращённое вышестоящим сервисом, а не за запрос. Используйте для генерации и редактирования изображений: расчёт идёт по числу возвращённых изображений.",
+    "Enable {{provider}} in bot protection before redeeming.": "Включите {{provider}} в защите от ботов, прежде чем использовать код.",
+    "Enable {{provider}} in bot protection before checking in.": "Включите {{provider}} в защите от ботов, прежде чем отмечаться.",
+    "{{provider}} is missing its site key or endpoint.": "У {{provider}} не указан ключ сайта или адрес эндпоинта.",
+    "hCaptcha site key is required": "Требуется ключ сайта hCaptcha",
+    "hCaptcha secret key is required": "Требуется секретный ключ hCaptcha"
   }
 }

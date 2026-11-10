@@ -43,7 +43,10 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
-import { useCaptcha } from '@/features/auth/hooks/use-captcha'
+import {
+  captchaProviderName,
+  useCaptcha,
+} from '@/features/auth/hooks/use-captcha'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -73,6 +76,8 @@ export function CheckinCalendarCard({
 
   const {
     isCaptchaEnabled,
+    captchaIssue,
+    captchaType,
     isTurnstileEnabled,
     isHCaptchaEnabled,
     isCapEnabled,
@@ -208,34 +213,33 @@ export function CheckinCalendarCard({
   const handleCheckinClick = useCallback(() => {
     if (!eligible || checkedToday) return
     if (!isCaptchaEnabled) {
+      // "none" is a deliberate choice and needs no token; anything else means
+      // the provider is not usable yet, so say which part is missing.
+      if (captchaIssue) {
+        const provider = captchaProviderName(captchaType)
+        toast.error(
+          captchaIssue === 'provider-disabled'
+            ? t('Enable {{provider}} in bot protection before checking in.', {
+                provider,
+              })
+            : t('{{provider}} is missing its site key or endpoint.', {
+                provider,
+              })
+        )
+        return
+      }
       void doCheckin()
-      return
-    }
-    if (isTurnstileEnabled && !turnstileSiteKey) {
-      toast.error(t('Captcha is enabled but site key is empty.'))
-      return
-    }
-    if (isHCaptchaEnabled && !hCaptchaSiteKey) {
-      toast.error(t('Captcha is enabled but site key is empty.'))
-      return
-    }
-    if (isCapEnabled && !capApiEndpoint) {
-      toast.error(t('Captcha is enabled but site key is empty.'))
       return
     }
     setCaptchaModalVisible(true)
   }, [
-    capApiEndpoint,
+    captchaIssue,
+    captchaType,
     doCheckin,
-    isCapEnabled,
     isCaptchaEnabled,
-    isHCaptchaEnabled,
-    isTurnstileEnabled,
-    hCaptchaSiteKey,
     eligible,
     checkedToday,
     t,
-    turnstileSiteKey,
   ])
 
   const handlePrevMonth = () => {

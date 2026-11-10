@@ -27,7 +27,10 @@ import { HCaptcha } from '@/components/hcaptcha'
 import { SectionPageLayout } from '@/components/layout'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
-import { useCaptcha } from '@/features/auth/hooks/use-captcha'
+import {
+  captchaProviderName,
+  useCaptcha,
+} from '@/features/auth/hooks/use-captcha'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
@@ -113,6 +116,9 @@ export function Wallet(props: WalletProps) {
   const {
     isRequired: isRedemptionCaptchaRequired,
     isCaptchaEnabled: isRedemptionCaptchaEnabled,
+    skipsCaptcha: redemptionSkipsCaptcha,
+    captchaIssue: redemptionCaptchaIssue,
+    captchaType: redemptionCaptchaType,
     isTurnstileEnabled,
     isHCaptchaEnabled,
     isCapEnabled,
@@ -351,12 +357,24 @@ export function Wallet(props: WalletProps) {
   // Handle redemption
   const handleRedeem = async () => {
     if (!redemptionCode) return
-    if (!isRedemptionCaptchaRequired) {
+    if (!isRedemptionCaptchaRequired || redemptionSkipsCaptcha) {
       await redeem()
       return
     }
     if (!isRedemptionCaptchaEnabled) {
-      toast.error(t('Captcha is enabled but site key is empty.'))
+      // Name the provider and the part of its configuration that is missing:
+      // the gateway rejects the request either way, and a generic message left
+      // the operator guessing which setting to fix.
+      const provider = captchaProviderName(redemptionCaptchaType)
+      toast.error(
+        redemptionCaptchaIssue === 'provider-disabled'
+          ? t('Enable {{provider}} in bot protection before redeeming.', {
+              provider,
+            })
+          : t('{{provider}} is missing its site key or endpoint.', {
+              provider,
+            })
+      )
       return
     }
     setRedemptionCaptchaOpen(true)

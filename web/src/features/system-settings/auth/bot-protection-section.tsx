@@ -140,7 +140,10 @@ const botProtectionSchema = z
     }
 
     if (values.ForceCheckinCaptcha) {
-      if (values.CaptchaType === 'cap') {
+      // Validate the provider this form actually runs, not the global choice:
+      // an empty value follows the global one, "none" needs nothing at all.
+      const checkinProvider = values.CheckinCaptchaType || values.CaptchaType
+      if (checkinProvider === 'cap') {
         if (!values.CapEnabled) {
           context.addIssue({
             code: 'custom',
@@ -162,7 +165,7 @@ const botProtectionSchema = z
             message: 'Check-in secret key is required',
           })
         }
-      } else if (values.CaptchaType === 'hcaptcha') {
+      } else if (checkinProvider === 'hcaptcha') {
         if (!values.HCaptchaEnabled) {
           context.addIssue({
             code: 'custom',
@@ -184,34 +187,83 @@ const botProtectionSchema = z
             message: 'hCaptcha secret key is required',
           })
         }
-      } else if (
-        values.CaptchaType === 'turnstile' &&
-        !values.TurnstileCheckEnabled
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['TurnstileCheckEnabled'],
-          message: 'Enable Turnstile before requiring it for check-in',
-        })
+      } else if (checkinProvider === 'turnstile') {
+        if (!values.TurnstileCheckEnabled) {
+          context.addIssue({
+            code: 'custom',
+            path: ['TurnstileCheckEnabled'],
+            message: 'Enable Turnstile before requiring it for check-in',
+          })
+        }
+        if (!values.TurnstileSiteKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['TurnstileSiteKey'],
+            message: 'Turnstile site key is required',
+          })
+        }
+        if (!values.TurnstileSecretKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['TurnstileSecretKey'],
+            message: 'Turnstile secret key is required',
+          })
+        }
       }
     }
 
     if (values.ForceRedemptionCaptcha) {
-      if (values.CaptchaType === 'cap' && !values.CapEnabled) {
-        context.addIssue({
-          code: 'custom',
-          path: ['CapEnabled'],
-          message: i18next.t('Enable Cap before requiring it for redemption'),
-        })
-      } else if (values.CaptchaType === 'hcaptcha' && !values.HCaptchaEnabled) {
-        context.addIssue({
-          code: 'custom',
-          path: ['HCaptchaEnabled'],
-          message: i18next.t(
-            'Enable hCaptcha before requiring it for redemption'
-          ),
-        })
-      } else if (values.CaptchaType === 'turnstile') {
+      // Same rule as check-in: validate the provider redemption runs, so a
+      // form-specific choice cannot save a configuration that fails at runtime.
+      const redemptionProvider =
+        values.RedemptionCaptchaType || values.CaptchaType
+      if (redemptionProvider === 'cap') {
+        if (!values.CapEnabled) {
+          context.addIssue({
+            code: 'custom',
+            path: ['CapEnabled'],
+            message: i18next.t('Enable Cap before requiring it for redemption'),
+          })
+        }
+        if (!values.CapSiteKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['CapSiteKey'],
+            message: i18next.t('Login and registration site key is required'),
+          })
+        }
+        if (!values.CapSecretKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['CapSecretKey'],
+            message: i18next.t('Login and registration secret key is required'),
+          })
+        }
+      } else if (redemptionProvider === 'hcaptcha') {
+        if (!values.HCaptchaEnabled) {
+          context.addIssue({
+            code: 'custom',
+            path: ['HCaptchaEnabled'],
+            message: i18next.t(
+              'Enable hCaptcha before requiring it for redemption'
+            ),
+          })
+        }
+        if (!values.HCaptchaSiteKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['HCaptchaSiteKey'],
+            message: i18next.t('hCaptcha site key is required'),
+          })
+        }
+        if (!values.HCaptchaSecretKey?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: ['HCaptchaSecretKey'],
+            message: i18next.t('hCaptcha secret key is required'),
+          })
+        }
+      } else if (redemptionProvider === 'turnstile') {
         if (!values.TurnstileCheckEnabled) {
           context.addIssue({
             code: 'custom',

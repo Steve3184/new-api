@@ -146,4 +146,28 @@ describe('Bot Protection settings saves', () => {
       TurnstileCheckEnabled: true,
     })
   })
+
+  it('validates the provider redemption runs, not the global one', async () => {
+    const put = vi.spyOn(api, 'put')
+    const user = userEvent.setup()
+    await renderSettings()
+
+    // Redemption alone switches to hCaptcha while the global provider stays
+    // Turnstile, so only the hCaptcha configuration can make redemption work.
+    await user.click(
+      screen.getByRole('combobox', { name: 'Redemption captcha' })
+    )
+    await user.click(screen.getByRole('option', { name: 'hCaptcha' }))
+    await user.click(
+      screen.getByRole('switch', { name: 'Require captcha for redemption' })
+    )
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    // The global provider's keys are complete here, so only the hCaptcha
+    // configuration it actually runs can stop the save.
+    expect(
+      await screen.findByText('hCaptcha site key is required')
+    ).toBeVisible()
+    expect(put).not.toHaveBeenCalled()
+  })
 })
