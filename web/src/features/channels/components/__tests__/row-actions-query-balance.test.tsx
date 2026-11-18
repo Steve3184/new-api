@@ -63,20 +63,20 @@ test.each([
   { name: 'a built-in channel', type: 1, plugin: '', shown: true },
   {
     name: 'a plugin that reports one',
-    type: 61,
+    type: 64,
     plugin: 'with-balance',
     shown: true,
   },
   {
     name: 'a plugin that does not',
-    type: 61,
+    type: 64,
     plugin: 'no-balance',
     shown: false,
   },
   {
     // Without the bind permission the plugin is unknown; the server answers.
     name: 'a plugin, to an admin who cannot read plugins',
-    type: 61,
+    type: 64,
     plugin: 'no-balance',
     admin: true,
     shown: true,

@@ -152,7 +152,9 @@ describe('Epay signature type', () => {
     await user.click(screen.getByRole('combobox', { name: 'Signature type' }))
     await user.click(screen.getByRole('option', { name: 'RSA' }))
 
-    expect(screen.queryByLabelText('Legacy Epay secret key')).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Legacy Epay secret key')
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('textbox', { name: 'Merchant private key' })
     ).toBeVisible()

@@ -981,9 +981,6 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.claude_beta_query = formData.claude_beta_query === true
     settingsObj.claude_cache_control = formData.claude_cache_control === true
   } else {
-    if ('allow_speed' in settingsObj) {
-      delete settingsObj.allow_speed
-    }
     if ('claude_beta_query' in settingsObj) {
       delete settingsObj.claude_beta_query
     }

@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,58 @@ import (
 // from that body, nil when the member is absent.
 type outboundImageCounter interface {
 	OutboundImageCount(body []byte) (*uint, error)
+}
+
+// outboundImageQuantity is the billable image count of the body sent upstream,
+// held in the member its channel reads it from.
+type outboundImageQuantity struct {
+	N *uint
+	// NSamples is NovelAI's native parameters.n_samples. Only that channel
+	// interprets the member; for every other channel the parameters object is
+	// opaque client payload and is forwarded without being parsed.
+	NSamples *uint
+}
+
+// readOutboundImageQuantity reads the image count of the body sent upstream:
+// the adaptor's own member when it has one, otherwise top-level n. NovelAI's
+// nested native count is read only for that channel.
+func readOutboundImageQuantity(body []byte, adaptor any, apiType int) (outboundImageQuantity, error) {
+	var quantity outboundImageQuantity
+	if counter, ok := adaptor.(outboundImageCounter); ok {
+		n, err := counter.OutboundImageCount(body)
+		if err != nil {
+			return quantity, err
+		}
+		quantity.N = n
+	} else {
+		var envelope struct {
+			N *uint `json:"n"`
+		}
+		if err := common.Unmarshal(body, &envelope); err != nil {
+			return quantity, err
+		}
+		quantity.N = envelope.N
+	}
+	if apiType != constant.APITypeNovelAI {
+		return quantity, nil
+	}
+	var novelAI struct {
+		Parameters json.RawMessage `json:"parameters"`
+	}
+	if err := common.Unmarshal(body, &novelAI); err != nil {
+		return quantity, err
+	}
+	if len(novelAI.Parameters) == 0 || string(novelAI.Parameters) == "null" {
+		return quantity, nil
+	}
+	var parameters struct {
+		NSamples *uint `json:"n_samples"`
+	}
+	if err := common.Unmarshal(novelAI.Parameters, &parameters); err != nil {
+		return quantity, err
+	}
+	quantity.NSamples = parameters.NSamples
+	return quantity, nil
 }
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
@@ -61,12 +114,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 	var jsonData []byte
-	var outbound struct {
-		N          *uint `json:"n"`
-		Parameters struct {
-			NSamples *uint `json:"n_samples"`
-		} `json:"parameters"`
-	}
+	var outbound outboundImageQuantity
 	validateQuantity := false
 
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
@@ -100,12 +148,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 			}
-			counter, countsOwnMember := adaptor.(outboundImageCounter)
-			if countsOwnMember {
-				outbound.N, err = counter.OutboundImageCount(jsonData)
-			} else {
-				err = common.Unmarshal(jsonData, &outbound)
-			}
+			outbound, err = readOutboundImageQuantity(jsonData, adaptor, info.ApiType)
 			if err != nil {
 				return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
@@ -167,10 +210,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		// This is a different trust boundary from ingress: channel overrides
 		// and request plugins can change the quantity actually submitted, in
 		// n or in the member the adaptor sends it in.
-		err := common.Unmarshal(jsonData, &outbound)
-		if counter, ok := adaptor.(outboundImageCounter); ok && err == nil {
-			outbound.N, err = counter.OutboundImageCount(jsonData)
-		}
+		outbound, err = readOutboundImageQuantity(jsonData, adaptor, info.ApiType)
 		if err != nil {
 			return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
@@ -179,11 +219,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if validateQuantity {
 		// Validate the count in the body sent upstream, including channel overrides.
 		quantityRequest := dto.ImageRequest{N: outbound.N}
-		if info.ApiType == constant.APITypeNovelAI && outbound.Parameters.NSamples != nil {
-			if *outbound.Parameters.NSamples == 0 || *outbound.Parameters.NSamples > dto.MaxImageN {
+		if info.ApiType == constant.APITypeNovelAI && outbound.NSamples != nil {
+			if *outbound.NSamples == 0 || *outbound.NSamples > dto.MaxImageN {
 				return types.NewErrorWithStatusCode(fmt.Errorf("parameters.n_samples must be an integer between 1 and %d", dto.MaxImageN), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
-			quantityRequest.N = outbound.Parameters.NSamples
+			quantityRequest.N = outbound.NSamples
 		}
 		if quantityRequest.N == nil {
 			quantityRequest.N = common.GetPointer(uint(imageCount))

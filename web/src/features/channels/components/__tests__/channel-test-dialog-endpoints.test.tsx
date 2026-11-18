@@ -101,7 +101,7 @@ test('a plugin channel offers only the endpoints its plugin relays', async () =>
   render(
     <QueryClientProvider client={new QueryClient()}>
       <ChannelsProvider>
-        <OpenDialog channel={channel(61, '{"task_plugin_key":"relay-x"}')} />
+        <OpenDialog channel={channel(64, '{"task_plugin_key":"relay-x"}')} />
       </ChannelsProvider>
     </QueryClientProvider>
   )

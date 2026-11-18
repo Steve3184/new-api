@@ -296,9 +296,7 @@ it('reviews the first affected model after clearing an unrelated search and mode
     .find((button) => button.getAttribute('aria-haspopup') === 'dialog')
   if (!modeFilter) throw new Error('Price mode filter not found')
   await user.click(modeFilter)
-  await user.click(
-    await screen.findByRole('option', { name: /Per-token \(deprecated\)/ })
-  )
+  await user.click(await screen.findByRole('option', { name: /^Per-token/ }))
   await user.keyboard('{Escape}')
 
   await user.click(screen.getByRole('button', { name: 'Review prices' }))

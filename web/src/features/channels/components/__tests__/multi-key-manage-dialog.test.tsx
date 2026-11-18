@@ -42,7 +42,7 @@ afterEach(async () => {
 
 const multiKeyChannel = {
   id: 7,
-  type: 61,
+  type: 64,
   key: '',
   name: 'Account Live',
   status: 1,

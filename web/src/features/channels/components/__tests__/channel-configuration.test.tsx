@@ -3793,12 +3793,10 @@ test('the NovelAI 28-step setting loads and saves through the channel drawer', a
     type: CHANNEL_TYPE_NOVELAI,
     settings: '{"novelai_max_28_steps":true}',
   }
-  const put = vi
-    .spyOn(api, 'put')
-    .mockImplementation(async (_url, payload) => {
-      editingChannel = { ...editingChannel, ...(payload as Partial<Channel>) }
-      return { data: { success: true } }
-    })
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_url, payload) => {
+    editingChannel = { ...editingChannel, ...(payload as Partial<Channel>) }
+    return { data: { success: true } }
+  })
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)
   await screen.findByDisplayValue('Existing channel')

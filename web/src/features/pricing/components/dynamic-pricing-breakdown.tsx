@@ -51,6 +51,10 @@ import { resolveGroupBillingExpression } from '../lib/billing-expression/display
 import { compileBillingExpression } from '../lib/billing-expression/parser'
 import { isBreakdownTierMatched } from '../lib/breakdown-tier-match'
 import {
+  getCachePriceLabels,
+  getTierCachePricingMode,
+} from '../lib/cache-pricing'
+import {
   formatTaskUsageUnitPrice,
   type DynamicPriceLabelKind,
   type DynamicPriceOptions,
@@ -66,6 +70,7 @@ import type { BillingUsageSchema, BillingUsageUnit } from '../types'
 
 type DynamicPricingBreakdownProps = {
   group?: string
+  modelName?: string
   billingExpr: string | null | undefined
   /**
    * Label of the tier that fired for the current request. When provided,
@@ -111,6 +116,7 @@ type BreakdownPriceField = {
   unit: BillingUsageUnit | 'request' | 'token' | 'image'
   unitLabel?: string | Record<string, string>
   showTokenUnit?: boolean
+  showZero?: boolean
   value: (tier: BreakdownTier) => number
 }
 
@@ -287,6 +293,7 @@ function nextOccurrenceKey(
 
 export function DynamicPricingBreakdown({
   group,
+  modelName,
   billingExpr,
   matchedTierLabel,
   matchedBillingUnit,
@@ -416,24 +423,29 @@ export function DynamicPricingBreakdown({
       }
       return fields
     }
+    const cacheMode = getTierCachePricingMode(
+      tiers.filter((tier): tier is ParsedTier => !isTaskBreakdownTier(tier)),
+      modelName
+    )
     const fields: BreakdownPriceField[] = BILLING_PRICING_VARS.filter(
       (variable) => {
         if (hideCacheColumns && variable.group === 'cache') return false
         return tiers.some(
           (tier) =>
             !isTaskBreakdownTier(tier) &&
-            Number(tier[variable.field as string as keyof ParsedTier] || 0) > 0
+            typeof tier[variable.field as keyof ParsedTier] === 'number'
         )
       }
     ).map((variable, index) => ({
       id: variable.field ?? `price-${index}`,
-      label: variable.shortLabel,
+      label: getCachePriceLabels(variable, cacheMode).shortLabel,
       labelKind: 'i18n' as const,
       unit: 'token',
+      showZero: true,
       value: (tier: BreakdownTier) =>
         isTaskBreakdownTier(tier)
-          ? 0
-          : Number(tier[variable.field as string as keyof ParsedTier] || 0),
+          ? Number.NaN
+          : Number(tier[variable.field as keyof ParsedTier]),
     }))
     if (
       tiers.some(
@@ -568,7 +580,8 @@ export function DynamicPricingBreakdown({
                             )}
                           >
                             {value > 0 ||
-                            ((field.unit === 'request' ||
+                            ((field.showZero ||
+                              field.unit === 'request' ||
                               field.unit === 'image') &&
                               Number.isFinite(value))
                               ? formatBreakdownPrice(
@@ -685,7 +698,9 @@ export function DynamicPricingBreakdown({
                 cell: (tier: BreakdownTier) => {
                   const value = field.value(tier)
                   return value > 0 ||
-                    ((field.unit === 'request' || field.unit === 'image') &&
+                    ((field.showZero ||
+                      field.unit === 'request' ||
+                      field.unit === 'image') &&
                       Number.isFinite(value)) ? (
                     <span className={cn(!compact && 'font-semibold')}>
                       {formatBreakdownPrice(

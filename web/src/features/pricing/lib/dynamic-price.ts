@@ -37,6 +37,11 @@ import {
 } from './billing-expr'
 import { resolveGroupBillingExpression } from './billing-expression/display'
 import { compileBillingExpression } from './billing-expression/parser'
+import {
+  getCachePriceLabels,
+  getTierCachePricingMode,
+  type CachePricingMode,
+} from './cache-pricing'
 import { getDisplayGroupRatio, getConfiguredGroupRatio } from './model-helpers'
 import { withPluginPricing } from './plugin-pricing'
 import { FREE_REQUEST_PRICE_THRESHOLD_USD } from './price'
@@ -49,6 +54,8 @@ import { getTaskPricingDisplayTiers } from './task-matrix-display'
 
 export type DynamicPriceOptions = {
   group?: string
+  modelName?: string
+  cachePricingMode?: CachePricingMode
   tokenUnit: TokenUnit
   showCurrencySymbol?: boolean
   showRechargePrice?: boolean
@@ -385,6 +392,9 @@ export function getDynamicPriceEntries(
     return usageEntries
   }
 
+  const cacheMode =
+    options.cachePricingMode ??
+    getTierCachePricingMode([tier as ParsedTier], options.modelName)
   return BILLING_PRICING_VARS.flatMap((variable) => {
     if (!variable.field) return []
     const value = Number((tier as ParsedTier)[variable.field])
@@ -400,17 +410,7 @@ export function getDynamicPriceEntries(
       return []
     }
 
-    let label = variable.label
-    let shortLabel = variable.shortLabel
-    if (variable.key === 'cc') {
-      if (typeof (tier as ParsedTier).cacheCreate1hPrice === 'number') {
-        label = 'Cache Creation (5m)'
-        shortLabel = 'Cache Write (5m)'
-      } else if (typeof (tier as ParsedTier).cacheCreate12hPrice === 'number') {
-        label = 'Cache Creation (30m)'
-        shortLabel = 'Cache Write (30m)'
-      }
-    }
+    const { label, shortLabel } = getCachePriceLabels(variable, cacheMode)
     return [
       {
         key: variable.key,
@@ -591,10 +591,18 @@ export function getDynamicPricingSummary(
   const tier = isTaskUsage
     ? (summaryTiers.at(-1) ?? null)
     : (summaryTiers[0] ?? null)
-  let entries = getDynamicPriceEntries(tier, {
+  const priceOptions = {
     ...options,
+    modelName: model.model_name,
+    cachePricingMode: getTierCachePricingMode(
+      summaryTiers.filter(
+        (item): item is ParsedTier => !isTaskPricingTier(item)
+      ),
+      model.model_name
+    ),
     usageSchema: model.billing_usage_schema,
-  })
+  }
+  let entries = getDynamicPriceEntries(tier, priceOptions)
   let isMixedBilling = false
   if (!isTaskUsage) {
     const tokenTier = summaryTiers.find(
@@ -606,8 +614,8 @@ export function getDynamicPricingSummary(
     if (tokenTier && requestTier) {
       isMixedBilling = true
       entries = [
-        ...getDynamicPriceEntries(tokenTier, options),
-        ...getDynamicPriceEntries(requestTier, options),
+        ...getDynamicPriceEntries(tokenTier, priceOptions),
+        ...getDynamicPriceEntries(requestTier, priceOptions),
       ]
     }
   }

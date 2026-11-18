@@ -63,6 +63,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 		// OpenAI, gpt-image-2 and n when empty.
 		channelType   int
 		model, member string
+		overridePath  string
 	}{
 		{name: "top-level count", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2},
 		{name: "vendor count from the client body", body: `{"model":"flux","prompt":"cat","batch_size":4}`, count: 4,
@@ -83,6 +84,9 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 		{name: "large pass-through file", body: `{"model":"gpt-image-2","image":"` + strings.Repeat("A", 1<<20) + `","n":2}`, count: 2, passThrough: true},
 		{name: "pass-through duplicate quantity uses last value", body: `{"model":"gpt-image-2","n":1,"n":2}`, count: 2, passThrough: true},
 		{name: "pass-through zero quantity", body: `{"model":"gpt-image-2","n":0}`, count: 1, passThrough: true},
+		{name: "pass-through final non-object parameters", body: `{"model":"gpt-image-2","prompt":"a cat","n":2}`, storedBody: `{"model":"gpt-image-2","prompt":"a cat","n":2,"parameters":["legacy"]}`, count: 2, passThrough: true},
+		{name: "pass-through foreign n_samples member does not gate the count", body: `{"model":"gpt-image-2","prompt":"a cat","n":2,"parameters":{"n_samples":"many"}}`, count: 2, passThrough: true},
+		{name: "converted non-object parameters keep the count", body: `{"model":"gpt-image-2","prompt":"a cat","n":3}`, overridePath: "parameters", override: []string{"legacy"}, count: 3},
 		{name: "pass-through file quantity revalidated", body: `{"model":"gpt-image-2","n":1}`, storedBody: `{"model":"gpt-image-2","n":129}`, passThrough: true, status: http.StatusBadRequest},
 		{name: "pass-through vendor count", body: `{"model":"flux","prompt":"cat","batch_size":3}`, count: 3, passThrough: true,
 			channelType: constant.ChannelTypeSiliconFlow, model: "flux", member: "batch_size"},
@@ -115,7 +119,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			common.SetContextKey(c, constant.ContextKeyOriginalModel, model)
 			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passThrough})
 			if tc.override != nil {
-				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": member, "mode": "set", "value": tc.override}}})
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": cmp.Or(tc.overridePath, member), "mode": "set", "value": tc.override}}})
 			}
 			if tc.deleted {
 				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": member, "mode": "delete"}}})
@@ -161,7 +165,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			case tc.deleted:
 				assert.False(t, ojson.GetBytes(body, member).Exists(), string(body))
 			case tc.passThrough:
-				assert.Equal(t, tc.body, string(body))
+				assert.Equal(t, cmp.Or(tc.storedBody, tc.body), string(body))
 			default:
 				assert.Equal(t, int64(tc.count), ojson.GetBytes(body, member).Int())
 			}
@@ -193,6 +197,8 @@ func TestNovelAIImageHelperValidatesFinalBody(t *testing.T) {
 		{name: "step override remains allowed when limit is disabled", body: `{"model":"nai-diffusion-3","prompt":"a cat","steps":28}`, overridePath: "parameters.steps", overrideValue: 29, wantStatus: http.StatusBadGateway, wantImageCount: 1},
 		{name: "pass-through nested sample count drives preconsume", body: `{"model":"nai-diffusion-3","prompt":"a cat","n":1,"parameters":{"n_samples":3}}`, passThrough: true, wantStatus: http.StatusBadGateway, wantImageCount: 3},
 		{name: "pass-through oversized nested sample count is rejected", body: fmt.Sprintf(`{"model":"nai-diffusion-3","prompt":"a cat","parameters":{"n_samples":%d}}`, dto.MaxImageN+1), passThrough: true, wantStatus: http.StatusBadRequest},
+		{name: "pass-through non-integer nested sample count is rejected", body: `{"model":"nai-diffusion-3","prompt":"a cat","parameters":{"n_samples":"many"}}`, passThrough: true, wantStatus: http.StatusBadRequest},
+		{name: "pass-through zero nested sample count is rejected", body: `{"model":"nai-diffusion-3","prompt":"a cat","parameters":{"n_samples":0}}`, passThrough: true, wantStatus: http.StatusBadRequest},
 		{name: "pass-through steps are checked after mapping", body: `{"model":"nai-diffusion-3","prompt":"a cat","parameters":{"steps":29}}`, passThrough: true, max28Steps: true, wantStatus: http.StatusBadRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

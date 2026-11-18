@@ -63,7 +63,7 @@ export function getChannelTypeIcon(type: number): string {
     [CHANNEL_TYPE_NEW_API]: 'NewAPI', // New API
     [CHANNEL_TYPE_VLLM]: 'Vllm', // vLLM
     [CHANNEL_TYPE_SGLANG]: 'SGLang', // SGLang
-	[CHANNEL_TYPE_TYPESAFE]: 'OpenAI',
+    [CHANNEL_TYPE_TYPESAFE]: 'OpenAI',
     3: 'Azure', // Azure
 
     // Anthropic

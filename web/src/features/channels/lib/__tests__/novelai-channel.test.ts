@@ -18,10 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
-import {
-  CHANNEL_TYPE_NOVELAI,
-  CHANNEL_TYPE_OPTIONS,
-} from '../../constants'
+import { CHANNEL_TYPE_NOVELAI, CHANNEL_TYPE_OPTIONS } from '../../constants'
 import { channelSchema } from '../../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,

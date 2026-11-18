@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -73,7 +73,9 @@ func NovelAIProxy(c *gin.Context) {
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"message": fmt.Sprintf("NovelAI upstream request failed: %s", err), "type": "upstream_error"}})
+		// Transport errors can include the administrator's upstream URL and
+		// query parameters. Do not expose them in responses or logs.
+		c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"message": "NovelAI upstream request failed", "type": "upstream_error"}})
 		return
 	}
 	defer response.Body.Close()

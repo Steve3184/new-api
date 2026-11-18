@@ -2374,7 +2374,9 @@ export function ChannelMutateDrawer({
           <div className='space-y-0.5'>
             <FormLabel>{t('Limit image generation to 28 steps')}</FormLabel>
             <FormDescription>
-              {t('Reject requests that specify more than 28 NovelAI image steps.')}
+              {t(
+                'Reject requests that specify more than 28 NovelAI image steps.'
+              )}
             </FormDescription>
           </div>
           <FormControl>

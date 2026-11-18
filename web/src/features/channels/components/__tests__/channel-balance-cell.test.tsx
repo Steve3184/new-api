@@ -45,7 +45,7 @@ function pluginChannel(
   return channelSchema.parse({
     id: 5,
     name: 'Plugin channel',
-    type: 61,
+    type: 64,
     key: '',
     status: 1,
     created_time: 1,

@@ -1752,7 +1752,9 @@ export function PaymentSettingsSection({
                             name='EpayMerchantPrivateKey'
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>{t('Merchant private key')}</FormLabel>
+                                <FormLabel>
+                                  {t('Merchant private key')}
+                                </FormLabel>
                                 <FormControl>
                                   <Textarea
                                     rows={4}
@@ -1775,7 +1777,9 @@ export function PaymentSettingsSection({
                             name='EpayPlatformPublicKey'
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>{t('Platform public key')}</FormLabel>
+                                <FormLabel>
+                                  {t('Platform public key')}
+                                </FormLabel>
                                 <FormControl>
                                   <Textarea
                                     rows={4}
@@ -1797,7 +1801,9 @@ export function PaymentSettingsSection({
                           name='EpayKey'
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>{t('Legacy Epay secret key')}</FormLabel>
+                              <FormLabel>
+                                {t('Legacy Epay secret key')}
+                              </FormLabel>
                               <FormControl>
                                 <Input
                                   type='password'
