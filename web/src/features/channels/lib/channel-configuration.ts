@@ -222,7 +222,8 @@ export function getChannelConfigurationState(
       (values.max_retry_times ?? 0) > 0 ||
       values.disable_task_polling_sleep ||
       (values.type === CHANNEL_TYPE_AGNES && values.agnes_auto_image_url) ||
-      (values.type === CHANNEL_TYPE_NOVELAI && values.novelai_max_28_steps)
+      (values.type === CHANNEL_TYPE_NOVELAI &&
+        (values.novelai_max_28_steps || values.novelai_force_generate_image))
     ),
     upstreamModelDetection:
       (MODEL_FETCHABLE_TYPES.has(values.type) ||

@@ -3825,3 +3825,33 @@ test('the NovelAI 28-step setting loads and saves through the channel drawer', a
     })
   ).not.toBeChecked()
 })
+
+test('the NovelAI ordinary generate-image setting loads and saves through the channel drawer', async () => {
+  editingChannel = {
+    ...editingChannel,
+    type: CHANNEL_TYPE_NOVELAI,
+    settings: '{"novelai_force_generate_image":true}',
+  }
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_url, payload) => {
+    editingChannel = { ...editingChannel, ...(payload as Partial<Channel>) }
+    return { data: { success: true } }
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
+
+  const forceGenerateImage = screen.getByRole('switch', {
+    name: 'Use the ordinary NovelAI generate-image endpoint',
+  })
+  expect(forceGenerateImage).toBeChecked()
+  await user.click(forceGenerateImage)
+  expect(forceGenerateImage).not.toBeChecked()
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+  const payload = put.mock.calls[0]?.[1] as Channel | undefined
+  expect(JSON.parse(payload?.settings ?? '{}')).toMatchObject({
+    novelai_force_generate_image: false,
+  })
+})

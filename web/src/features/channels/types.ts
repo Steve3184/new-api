@@ -149,6 +149,7 @@ export interface ChannelSettings {
 export interface ChannelOtherSettings {
   agnes_auto_image_url?: boolean
   novelai_max_28_steps?: boolean
+  novelai_force_generate_image?: boolean
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
   vertex_project_id?: string

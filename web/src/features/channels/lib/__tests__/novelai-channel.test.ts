@@ -85,6 +85,13 @@ describe('NovelAI channel form', () => {
     ).toMatchObject({ novelai_max_28_steps: true })
   })
 
+  test('defaults ordinary generate-image conversion to off and persists an enabled value', () => {
+    expect(CHANNEL_FORM_DEFAULT_VALUES.novelai_force_generate_image).toBe(false)
+    expect(
+      savedSettings(novelAIForm({ novelai_force_generate_image: true }))
+    ).toMatchObject({ novelai_force_generate_image: true })
+  })
+
   test('loads the saved 28-step limit when editing a NovelAI channel', () => {
     const channel = channelSchema.parse({
       id: 68,
@@ -98,33 +105,47 @@ describe('NovelAI channel form', () => {
       balance_updated_time: 0,
       models: NOVELAI_MODELS.join(','),
       group: 'default',
-      settings: JSON.stringify({ novelai_max_28_steps: true }),
+      settings: JSON.stringify({
+        novelai_max_28_steps: true,
+        novelai_force_generate_image: true,
+      }),
     })
 
     expect(transformChannelToFormDefaults(channel).novelai_max_28_steps).toBe(
       true
     )
+    expect(
+      transformChannelToFormDefaults(channel).novelai_force_generate_image
+    ).toBe(true)
   })
 
   test('removes the NovelAI-only setting after switching provider types', () => {
     const settings = savedSettings(
       novelAIForm({
         type: 1,
-        settings: JSON.stringify({ novelai_max_28_steps: true }),
+        settings: JSON.stringify({
+          novelai_max_28_steps: true,
+          novelai_force_generate_image: true,
+        }),
       })
     )
 
     expect(settings).not.toHaveProperty('novelai_max_28_steps')
+    expect(settings).not.toHaveProperty('novelai_force_generate_image')
   })
 
   test('persists the enabled NovelAI setting in update payloads', () => {
     const payload = transformFormDataToUpdatePayload(
-      novelAIForm({ novelai_max_28_steps: true }),
+      novelAIForm({
+        novelai_max_28_steps: true,
+        novelai_force_generate_image: true,
+      }),
       68
     )
 
     expect(JSON.parse(payload.settings ?? '{}')).toMatchObject({
       novelai_max_28_steps: true,
+      novelai_force_generate_image: true,
     })
   })
 })

@@ -8997,6 +8997,8 @@
     "By creating an account, you agree to our": "アカウントを作成すると、以下に同意したことになります：",
     "Limit image generation to 28 steps": "画像生成を28ステップに制限",
     "Reject requests that specify more than 28 NovelAI image steps.": "NovelAIの画像生成で28ステップを超えるリクエストを拒否します。",
+    "Use the ordinary NovelAI generate-image endpoint": "通常の NovelAI generate-image エンドポイントを使用",
+    "Convert NovelAI image requests to /ai/generate-image for relays that do not support the streaming endpoint.": "ストリーミングエンドポイントに対応しないリレーでは、NovelAI の画像リクエストを /ai/generate-image に変換します。",
     "NovelAI": "NovelAI",
     "30 minutes / 12 hours": "30分 / 12時間",
     "5 minutes / 1 hour": "5分 / 1時間",

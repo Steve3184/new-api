@@ -52,6 +52,26 @@ func TestDoResponseStreamEndpointAcceptsZipImageResponse(t *testing.T) {
 	assert.Equal(t, archive, recorder.Body.Bytes())
 }
 
+func TestForcedOrdinaryEndpointAcceptsZipResponseFromNativeStreamPath(t *testing.T) {
+	archive := novelAIArchive(t, map[string][]byte{"image.png": []byte("png-image")})
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/ai/generate-image-stream", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesGenerations,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				NovelAIForceGenerateImage: true,
+			},
+		},
+	}
+	response := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/zip"}}, Body: io.NopCloser(bytes.NewReader(archive))}
+
+	_, apiErr := (&Adaptor{}).DoResponse(c, response, info)
+	require.Nil(t, apiErr)
+	assert.Equal(t, archive, recorder.Body.Bytes())
+}
+
 func TestNativeImageRequestPreservesTopLevelFields(t *testing.T) {
 	request := dto.ImageRequest{Extra: map[string]json.RawMessage{
 		"novelai_native_request": json.RawMessage(`{"input":"a blue cup","model":"nai-diffusion-3","action":"generate","parameters":{"steps":20},"url":"https://image.novelai.net/reference.png"}`),
@@ -132,6 +152,21 @@ func TestNativeGenerateImageKeepsRequestedV4Endpoint(t *testing.T) {
 	assert.Equal(t, "https://image.novelai.net/ai/generate-image", got)
 }
 
+func TestGetRequestURLForcesOrdinaryGenerateImageWhenConfigured(t *testing.T) {
+	got, err := (&Adaptor{}).GetRequestURL(&relaycommon.RelayInfo{
+		RelayMode:      relayconstant.RelayModeImagesGenerations,
+		RequestURLPath: "/v1/ai/generate-image-stream",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "nai-diffusion-4-5-full",
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				NovelAIForceGenerateImage: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://image.novelai.net/ai/generate-image", got)
+}
+
 func TestConvertImageRequestMapsOpenAIFieldsToNovelAI(t *testing.T) {
 	steps := json.RawMessage(`24`)
 	request := dto.ImageRequest{
@@ -155,6 +190,26 @@ func TestConvertImageRequestMapsOpenAIFieldsToNovelAI(t *testing.T) {
 	body, err := common.Marshal(got)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"input":"moonlit city","model":"nai-diffusion-4-5-full","action":"generate","parameters":{"params_version":3,"width":832,"height":1216,"n_samples":2,"scale":6,"sampler":"k_euler_ancestral","steps":24,"stream":"msgpack","v4_prompt":{"caption":{"base_caption":"moonlit city","char_captions":[]},"use_coords":false,"use_order":true},"v4_negative_prompt":{"caption":{"base_caption":"blurry","char_captions":[]},"use_coords":false,"use_order":false}}}`, string(body))
+}
+
+func TestConvertImageRequestRemovesV4StreamParameterWhenOrdinaryEndpointIsForced(t *testing.T) {
+	request := dto.ImageRequest{Model: "nai-diffusion-4-5-full", Prompt: "moonlit city"}
+	context := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	context.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	got, err := (&Adaptor{}).ConvertImageRequest(context, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesGenerations,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "nai-diffusion-4-5-full",
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				NovelAIForceGenerateImage: true,
+			},
+		},
+	}, request)
+	require.NoError(t, err)
+	body, err := common.Marshal(got)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), `"stream"`)
+	assert.Contains(t, string(body), `"v4_prompt"`)
 }
 
 func TestDoResponseConvertsNovelAIZipToOpenAIImage(t *testing.T) {

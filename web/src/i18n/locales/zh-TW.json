@@ -8997,6 +8997,8 @@
     "By creating an account, you agree to our": "建立帳戶即表示您同意我們的",
     "Limit image generation to 28 steps": "將圖片生成步數限制為 28 步",
     "Reject requests that specify more than 28 NovelAI image steps.": "拒絕步數超過 28 的 NovelAI 圖片生成請求。",
+    "Use the ordinary NovelAI generate-image endpoint": "使用普通 NovelAI generate-image 端點",
+    "Convert NovelAI image requests to /ai/generate-image for relays that do not support the streaming endpoint.": "對於不支援串流端點的中轉，將 NovelAI 圖片請求轉換到 /ai/generate-image。",
     "NovelAI": "NovelAI",
     "30 minutes / 12 hours": "30 分鐘 / 12 小時",
     "5 minutes / 1 hour": "5 分鐘 / 1 小時",

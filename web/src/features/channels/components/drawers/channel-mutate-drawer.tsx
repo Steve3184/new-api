@@ -374,6 +374,7 @@ const SENSITIVE_FORM_FIELDS = [
   'disable_task_polling_sleep',
   'agnes_auto_image_url',
   'novelai_max_28_steps',
+  'novelai_force_generate_image',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
@@ -2376,6 +2377,35 @@ export function ChannelMutateDrawer({
             <FormDescription>
               {t(
                 'Reject requests that specify more than 28 NovelAI image steps.'
+              )}
+            </FormDescription>
+          </div>
+          <FormControl>
+            <Switch
+              disabled={sensitiveLocked}
+              checked={field.value === true}
+              onCheckedChange={field.onChange}
+            />
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+
+  const novelAIForceGenerateImageFields = currentType ===
+    CHANNEL_TYPE_NOVELAI && (
+    <FormField
+      control={form.control}
+      name='novelai_force_generate_image'
+      render={({ field }) => (
+        <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+          <div className='space-y-0.5'>
+            <FormLabel>
+              {t('Use the ordinary NovelAI generate-image endpoint')}
+            </FormLabel>
+            <FormDescription>
+              {t(
+                'Convert NovelAI image requests to /ai/generate-image for relays that do not support the streaming endpoint.'
               )}
             </FormDescription>
           </div>
@@ -5447,6 +5477,7 @@ export function ChannelMutateDrawer({
                 {taskPollingFields}
                 {agnesImageFields}
                 {novelAIMaxStepsFields}
+                {novelAIForceGenerateImageFields}
                 {proxyFields}
                 {httpProtocolFields}
                 {httpShardsFields}

@@ -355,6 +355,7 @@ export const channelFormSchema = z
     disable_task_polling_sleep: z.boolean().optional(),
     agnes_auto_image_url: z.boolean().optional(),
     novelai_max_28_steps: z.boolean().optional(),
+    novelai_force_generate_image: z.boolean().optional(),
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -575,6 +576,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   disable_task_polling_sleep: false,
   agnes_auto_image_url: false,
   novelai_max_28_steps: false,
+  novelai_force_generate_image: false,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -685,6 +687,7 @@ export function transformChannelToFormDefaults(
   let disableTaskPollingSleep = false
   let agnesAutoImageURL = false
   let novelAIMax28Steps = false
+  let novelAIForceGenerateImage = false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -715,6 +718,7 @@ export function transformChannelToFormDefaults(
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
       agnesAutoImageURL = parsed.agnes_auto_image_url === true
       novelAIMax28Steps = parsed.novelai_max_28_steps === true
+      novelAIForceGenerateImage = parsed.novelai_force_generate_image === true
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -803,6 +807,7 @@ export function transformChannelToFormDefaults(
     disable_task_polling_sleep: disableTaskPollingSleep,
     agnes_auto_image_url: agnesAutoImageURL,
     novelai_max_28_steps: novelAIMax28Steps,
+    novelai_force_generate_image: novelAIForceGenerateImage,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -1012,8 +1017,11 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   }
   if (formData.type === CHANNEL_TYPE_NOVELAI) {
     settingsObj.novelai_max_28_steps = formData.novelai_max_28_steps === true
-  } else if ('novelai_max_28_steps' in settingsObj) {
+    settingsObj.novelai_force_generate_image =
+      formData.novelai_force_generate_image === true
+  } else {
     delete settingsObj.novelai_max_28_steps
+    delete settingsObj.novelai_force_generate_image
   }
 
   // Upstream model update settings (for model-fetchable channel types; a

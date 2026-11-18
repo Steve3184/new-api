@@ -78,6 +78,10 @@ func paramsVersion(model string) int {
 	return 3
 }
 
+func forceOrdinaryGenerateImage(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ChannelMeta != nil && info.ChannelOtherSettings.NovelAIForceGenerateImage
+}
+
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info == nil {
 		return "", errors.New("NovelAI adaptor: relay info is nil")
@@ -88,6 +92,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	}
 	if info.RelayMode != relayconstant.RelayModeImagesGenerations {
 		return "", fmt.Errorf("unsupported NovelAI relay mode: %d", info.RelayMode)
+	}
+	if forceOrdinaryGenerateImage(info) {
+		return baseURL + "/ai/generate-image", nil
 	}
 	if strings.HasSuffix(info.RequestURLPath, "/generate-image-stream") {
 		return baseURL + "/ai/generate-image-stream", nil
@@ -140,7 +147,25 @@ func nativeImagePayload(request dto.ImageRequest, info *relaycommon.RelayInfo) (
 		}
 		payload["model"] = encodedModel
 	}
+	if forceOrdinaryGenerateImage(info) {
+		removeNovelAIStreamParameter(payload)
+	}
 	return payload, nil
+}
+
+func removeNovelAIStreamParameter(payload map[string]json.RawMessage) {
+	parametersRaw, ok := payload["parameters"]
+	if !ok {
+		return
+	}
+	var parameters map[string]json.RawMessage
+	if common.Unmarshal(parametersRaw, &parameters) != nil {
+		return
+	}
+	delete(parameters, "stream")
+	if encoded, err := common.Marshal(parameters); err == nil {
+		payload["parameters"] = encoded
+	}
 }
 
 func openAIImagePayload(request dto.ImageRequest, info *relaycommon.RelayInfo) (imagePayload, error) {
@@ -182,7 +207,9 @@ func openAIImagePayload(request dto.ImageRequest, info *relaycommon.RelayInfo) (
 		"n_samples":      rawJSON(n),
 	}
 	if isStreamModel(model) {
-		parameters["stream"] = rawJSON("msgpack")
+		if !forceOrdinaryGenerateImage(info) {
+			parameters["stream"] = rawJSON("msgpack")
+		}
 		parameters["v4_prompt"] = rawJSON(map[string]any{
 			"caption":    map[string]any{"base_caption": request.Prompt, "char_captions": []any{}},
 			"use_coords": false,
@@ -207,7 +234,7 @@ func openAIImagePayload(request dto.ImageRequest, info *relaycommon.RelayInfo) (
 			parameters[name] = raw
 		}
 	}
-	if isStreamModel(model) {
+	if isStreamModel(model) && !forceOrdinaryGenerateImage(info) {
 		parameters["stream"] = rawJSON("msgpack")
 	}
 	return imagePayload{Input: request.Prompt, Model: model, Action: "generate", Parameters: parameters}, nil

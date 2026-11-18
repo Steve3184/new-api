@@ -8997,6 +8997,8 @@
     "By creating an account, you agree to our": "By creating an account, you agree to our",
     "Limit image generation to 28 steps": "Limit image generation to 28 steps",
     "Reject requests that specify more than 28 NovelAI image steps.": "Reject requests that specify more than 28 NovelAI image steps.",
+    "Use the ordinary NovelAI generate-image endpoint": "Use the ordinary NovelAI generate-image endpoint",
+    "Convert NovelAI image requests to /ai/generate-image for relays that do not support the streaming endpoint.": "Convert NovelAI image requests to /ai/generate-image for relays that do not support the streaming endpoint.",
     "NovelAI": "NovelAI",
     "30 minutes / 12 hours": "30 minutes / 12 hours",
     "5 minutes / 1 hour": "5 minutes / 1 hour",
