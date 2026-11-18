@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -78,6 +79,9 @@ func prepareResponsesRequestBody(c *gin.Context, info *relaycommon.RelayInfo, pr
 	if prepared == nil || prepared.request == nil {
 		return nil, nil, nil, types.NewError(errors.New("responses request preparation is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	if info == nil || c == nil || c.Request == nil {
+		return nil, nil, nil, types.NewErrorWithStatusCode(errors.New("responses relay context is missing"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
@@ -88,6 +92,9 @@ func prepareResponsesRequestBody(c *gin.Context, info *relaycommon.RelayInfo, pr
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return nil, nil, nil, types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+		}
+		if apiErr := requestplugin.PassThrough(c, info, storage); apiErr != nil {
+			return nil, nil, nil, apiErr
 		}
 		body, closer, err := prepareMappedPassThroughBody(c, storage, info, true)
 		if err != nil {
@@ -119,6 +126,10 @@ func prepareResponsesRequestBody(c *gin.Context, info *relaycommon.RelayInfo, pr
 	if err != nil {
 		return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
+	jsonData, apiErr := requestplugin.Outbound(c, info, jsonData)
+	if apiErr != nil {
+		return nil, nil, nil, apiErr
+	}
 	if len(info.ParamOverride) > 0 {
 		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 		if err != nil {
@@ -128,6 +139,15 @@ func prepareResponsesRequestBody(c *gin.Context, info *relaycommon.RelayInfo, pr
 	jsonData, err = applyClaudeCacheControl(info, jsonData)
 	if err != nil {
 		return nil, nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	if finalizer, ok := adaptor.(relaychannel.ResponsesRequestFinalizer); ok {
+		jsonData, err = finalizer.FinalizeResponsesRequest(info, jsonData)
+		if err != nil {
+			return nil, nil, nil, newConvertRequestFailedError(c, info, err)
+		}
+	}
+	if apiErr = requestplugin.Egress(c, info, jsonData); apiErr != nil {
+		return nil, nil, nil, apiErr
 	}
 
 	logger.LogDebug(c, "requestBody: %s", jsonData)

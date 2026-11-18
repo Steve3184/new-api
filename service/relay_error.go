@@ -106,37 +106,45 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		})
 	}
 
-	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
-		userId := c.GetInt("id")
-		tokenName := c.GetString("token_name")
-		modelName := c.GetString("original_model")
-		tokenId := c.GetInt("token_id")
-		userGroup := c.GetString("group")
-		other := model.NewLogOther()
-		if c.Request != nil && c.Request.URL != nil {
-			other.SetPublic("request_path", c.Request.URL.Path)
-		}
-		other.SetPublic("error_type", err.GetErrorType())
-		other.SetPublic("error_code", err.GetErrorCode())
-		logContent := err.MaskSensitiveErrorWithStatusCode(upstreamURLs...)
-		logStatusCode := err.StatusCode
-		if rewriteSetting := operation_setting.GetErrorRewriteSetting(); rewriteSetting.AffectUsageLogs {
-			if rewrite, ok := operation_setting.GetErrorRewriteResult(err, modelName); ok {
-				other.SetAdmin("original_error", logContent)
-				other.SetAdmin("original_status_code", err.StatusCode)
-				logContent = fmt.Sprintf("status_code=%d, %s", rewrite.StatusCode, rewrite.Message)
-				logStatusCode = rewrite.StatusCode
-			}
-		}
-		other.SetPublic("status_code", logStatusCode)
-		AppendRelayLogAdminInfo(c, relayInfo, other)
-		AppendResponseModelLogInfo(relayInfo, other)
-		AppendTaskPluginContextAuditInfo(c, other)
-		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
-		if startTime.IsZero() {
-			startTime = time.Now()
-		}
-		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, logContent, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+	RecordRelayErrorLog(c, channelError.ChannelId, err, relayInfo)
+}
+
+// RecordRelayErrorLog writes an error log for a failed relay, including requests
+// rejected before channel selection.
+func RecordRelayErrorLog(c *gin.Context, channelId int, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {
+	if !constant.ErrorLogEnabled || !types.IsRecordErrorLog(err) {
+		return
 	}
+	userId := c.GetInt("id")
+	tokenName := c.GetString("token_name")
+	modelName := c.GetString("original_model")
+	tokenId := c.GetInt("token_id")
+	userGroup := c.GetString("group")
+	other := model.NewLogOther()
+	if c.Request != nil && c.Request.URL != nil {
+		other.SetPublic("request_path", c.Request.URL.Path)
+	}
+	other.SetPublic("error_type", err.GetErrorType())
+	other.SetPublic("error_code", err.GetErrorCode())
+	logContent := err.MaskSensitiveErrorWithStatusCode(common.UpstreamAddresses(c)...)
+	logStatusCode := err.StatusCode
+	if rewriteSetting := operation_setting.GetErrorRewriteSetting(); rewriteSetting.AffectUsageLogs {
+		if rewrite, ok := operation_setting.GetErrorRewriteResult(err, modelName); ok {
+			other.SetAdmin("original_error", logContent)
+			other.SetAdmin("original_status_code", err.StatusCode)
+			logContent = fmt.Sprintf("status_code=%d, %s", rewrite.StatusCode, rewrite.Message)
+			logStatusCode = rewrite.StatusCode
+		}
+	}
+	other.SetPublic("status_code", logStatusCode)
+	AppendRelayLogAdminInfo(c, relayInfo, other)
+	appendRequestPluginRecord(relayInfo, other)
+	AppendResponseModelLogInfo(relayInfo, other)
+	AppendTaskPluginContextAuditInfo(c, other)
+	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+	useTimeSeconds := int(time.Since(startTime).Seconds())
+	model.RecordErrorLog(c, userId, channelId, modelName, tokenName, logContent, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 }

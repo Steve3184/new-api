@@ -27,11 +27,13 @@ type LegacyPricingRule struct {
 // fixed-request pricing. Absolute audio prices cannot always be represented by
 // a ratio: Gemini audio can be billable with a zero text price.
 type LegacyBillingDetails struct {
-	AudioInputPrice   *float64            `json:"audio_input_price,omitempty"`
-	AudioOutputPrice  *float64            `json:"audio_output_price,omitempty"`
-	ImageCount        bool                `json:"image_count,omitempty"`
-	RequestRules      []LegacyPricingRule `json:"request_rules,omitempty"`
-	AudioTextBranches bool                `json:"audio_text_branches,omitempty"`
+	AudioInputPrice        *float64            `json:"audio_input_price,omitempty"`
+	AudioOutputPrice       *float64            `json:"audio_output_price,omitempty"`
+	ImageCount             bool                `json:"image_count,omitempty"`
+	RequestRules           []LegacyPricingRule `json:"request_rules,omitempty"`
+	AudioTextBranches      bool                `json:"audio_text_branches,omitempty"`
+	InvalidAudioPrice      bool                `json:"-"`
+	ConflictingAudioPrices bool                `json:"-"`
 }
 
 func ResolveLegacyBillingDetails(name string, effective, configured PricingValues) LegacyBillingDetails {
@@ -45,13 +47,28 @@ func ResolveLegacyBillingDetails(name string, effective, configured PricingValue
 		return details
 	}
 	ratio, priced := effective["ModelRatio"].(float64)
-	if !priced || common.QuotaPerUnit <= 0 || math.IsInf(common.QuotaPerUnit, 0) || math.IsNaN(common.QuotaPerUnit) ||
-		ratio < 0 || math.IsInf(ratio, 0) || math.IsNaN(ratio) {
+	if !priced {
 		return details
 	}
-	base := decimal.NewFromFloat(ratio).Mul(decimal.NewFromInt(1_000_000)).Div(decimal.NewFromFloat(common.QuotaPerUnit))
+	base, err := legacyInputPricePerMillion(ratio)
+	if err != nil {
+		return details
+	}
 	if price := operation_setting.GetGeminiInputAudioPricePerMillionTokens(name); price > 0 {
 		details.AudioInputPrice = &price
+		audio, hasInput := effective["AudioRatio"].(float64)
+		output, hasOutput := effective["AudioCompletionRatio"].(float64)
+		if hasInput || hasOutput {
+			if !hasInput {
+				audio = 1
+			}
+			if !hasOutput {
+				output = 1
+			}
+			audioPrice := base.Mul(decimal.NewFromFloat(audio))
+			textOutput := base.Mul(decimal.NewFromFloat(effective["CompletionRatio"].(float64)))
+			details.ConflictingAudioPrices = !audioPrice.Equal(decimal.NewFromFloat(price)) || !audioPrice.Mul(decimal.NewFromFloat(output)).Equal(textOutput)
+		}
 		return details
 	}
 	audioRatio, hasAudio := effective["AudioRatio"].(float64)
@@ -68,6 +85,7 @@ func ResolveLegacyBillingDetails(name string, effective, configured PricingValue
 	input := base.Mul(decimal.NewFromFloat(audioRatio))
 	inPrice, outPrice := input.InexactFloat64(), input.Mul(decimal.NewFromFloat(audioCompletionRatio)).InexactFloat64()
 	if math.IsInf(inPrice, 0) || math.IsInf(outPrice, 0) {
+		details.InvalidAudioPrice = true
 		return details
 	}
 	details.AudioInputPrice, details.AudioOutputPrice = &inPrice, &outPrice
@@ -81,6 +99,7 @@ const (
 	CacheWriteNone      CacheWriteMode = "none"
 	CacheWriteStandard  CacheWriteMode = "standard"
 	CacheWriteClaudeTTL CacheWriteMode = "claude_ttl"
+	CacheWriteOpenAITTL CacheWriteMode = "openai_ttl"
 )
 
 // ResolveCacheWriteMode describes legacy price display. A generic engine
@@ -91,6 +110,9 @@ func ResolveCacheWriteMode(name string, configured PricingValues) CacheWriteMode
 		return CacheWriteClaudeTTL
 	}
 	if _, exists := configured["CreateCacheRatio"]; exists {
+		if strings.Contains(strings.ToLower(name), "gpt") {
+			return CacheWriteOpenAITTL
+		}
 		return CacheWriteStandard
 	}
 	return CacheWriteNone

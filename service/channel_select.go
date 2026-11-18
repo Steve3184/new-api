@@ -35,12 +35,17 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 		return
 	}
 	channelTypes, pluginKeys := pinnedTaskPluginIdentities(c, pluginKey)
-	GetChannelConstraints(c).AddFilter(dto.ChannelFilter{
+	filter := dto.ChannelFilter{
 		Kind:                   dto.FilterTaskPluginIdentity,
 		TaskPluginKey:          pluginKey,
 		TaskPluginChannelTypes: channelTypes,
 		TaskPluginKeys:         pluginKeys,
-	})
+	}
+	if c.Request != nil && c.Request.URL != nil {
+		// An ordinary request may run on a plugin channel whose relay routes serve its path.
+		filter.RequestPath = c.Request.URL.Path
+	}
+	GetChannelConstraints(c).AddFilter(filter)
 }
 
 type RetryParam struct {
@@ -321,16 +326,11 @@ func pinnedTaskPluginIdentities(c *gin.Context, expected string) ([]int, []strin
 			}
 			pluginKeys = append(pluginKeys, candidate.Meta.Key)
 			for _, channelType := range candidate.Meta.ChannelTypes {
-				if channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
-					continue
-				}
 				if _, duplicate := seen[channelType]; duplicate {
 					continue
 				}
-				if plugin, indexed := generation.GetByChannelType(channelType); indexed && plugin == candidate {
-					seen[channelType] = struct{}{}
-					channelTypes = append(channelTypes, channelType)
-				}
+				seen[channelType] = struct{}{}
+				channelTypes = append(channelTypes, channelType)
 			}
 		}
 		if expectedFound {
@@ -470,6 +470,13 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			// only serves Claude Code clients is a policy answer, not a missing
 			// model.
 			if kind := model.ChannelFilterEmptiedBy(selectGroup, modelName, constraints.Filters); kind != "" {
+				if kind == dto.FilterTaskPluginIdentity {
+					return nil, selectGroup, &ChannelSelectError{
+						StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorNoAvailableChannel,
+						Params:     map[string]any{"Group": usingGroup, "Model": modelName},
+						FilterKind: kind, NoAvailableChannel: true,
+					}
+				}
 				return nil, selectGroup, &ChannelSelectError{
 					StatusCode: http.StatusBadRequest, Code: types.ErrorCode(kind), MessageID: i18n.MsgDistributorNoAvailableChannel,
 					Params:     map[string]any{"Group": usingGroup, "Model": modelName},

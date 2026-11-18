@@ -155,6 +155,11 @@ const BILLING_SECTIONS = [
           EpayId: settings.EpayId,
           EpayKey: settings.EpayKey,
           EpayGateways: settings.EpayGateways ?? '[]',
+          EpaySignType: settings['payment_setting.epay_sign_type'] ?? 'MD5',
+          EpayMerchantPrivateKey:
+            settings['payment_setting.epay_merchant_private_key'] ?? '',
+          EpayPlatformPublicKey:
+            settings['payment_setting.epay_platform_public_key'] ?? '',
           Price: settings.Price,
           MinTopUp: settings.MinTopUp,
           CustomCallbackAddress: settings.CustomCallbackAddress,

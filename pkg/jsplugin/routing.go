@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/MoeForge/moego/regexp"
 	"github.com/gin-gonic/gin"
 )
 
@@ -236,8 +235,8 @@ type RouteGroup struct {
 }
 
 // SkippedRoute is a declared top-level route the gateway does not register;
-// the plugin's /{key} copy still serves it. Reason is host_namespace,
-// host_route or key_namespace.
+// the plugin's /{key} copy still serves it. Reason is host_route or
+// key_namespace.
 type SkippedRoute struct {
 	PluginKey string
 	Route     Route
@@ -264,6 +263,10 @@ const (
 	// ContextKeyRelayEndpoint retains the shared endpoint candidates when an
 	// ordinary channel wins, so task USD expressions cannot become relay prices.
 	ContextKeyRelayEndpoint = "task_plugin_relay_endpoint"
+	// ContextKeyRequestRefreshed is set once a request plugin changed the
+	// stored body of a task submission: the task adaptor then runs the
+	// plugin's decoder again on every attempt.
+	ContextKeyRequestRefreshed = "task_plugin_request_refreshed"
 )
 
 type PinnedPlugin struct {
@@ -432,7 +435,7 @@ type RoutingGeneration struct {
 	byModel              map[string]*LoadedPlugin
 	modelPlugins         map[string][]*LoadedPlugin
 	canonicalModelByFold map[string]string
-	byChannelType        map[int]*LoadedPlugin
+	byChannelType        map[int][]*LoadedPlugin
 	routeIndex           map[string][]RouteBinding
 	protocolIndex        map[string][]ProtocolBinding
 	plugins              []*LoadedPlugin
@@ -482,6 +485,10 @@ var reservedRouteNamespaces = []string{
 	"/500",
 	"/503",
 	"/chat2link",
+	"/custom-tab",
+	"/referrals",
+	"/status",
+	"/support",
 	"/system-settings",
 	"/channels",
 	"/chat",
@@ -492,6 +499,8 @@ var reservedRouteNamespaces = []string{
 	"/playground",
 	"/profile",
 	"/redemption-codes",
+	"/request-processing",
+	"/security",
 	"/subscriptions",
 	"/system-info",
 	"/task-plugins",
@@ -508,12 +517,14 @@ func (g *RoutingGeneration) Get(key string) (*LoadedPlugin, bool) {
 	return plugin, ok
 }
 
-func (g *RoutingGeneration) GetByChannelType(channelType int) (*LoadedPlugin, bool) {
-	if g == nil || channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
-		return nil, false
+// PluginsByChannelType returns the plugins declaring a built-in channel type
+// in meta.channelTypes, in ascending key order. A channel of that type serves
+// each of them.
+func (g *RoutingGeneration) PluginsByChannelType(channelType int) []*LoadedPlugin {
+	if g == nil {
+		return nil
 	}
-	plugin, ok := g.byChannelType[channelType]
-	return plugin, ok
+	return slices.Clone(g.byChannelType[channelType])
 }
 
 // GetByModel returns the deterministic effective plugin metadata used for a
@@ -1127,7 +1138,7 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 		byModel:              make(map[string]*LoadedPlugin),
 		modelPlugins:         make(map[string][]*LoadedPlugin),
 		canonicalModelByFold: make(map[string]string),
-		byChannelType:        make(map[int]*LoadedPlugin),
+		byChannelType:        make(map[int][]*LoadedPlugin),
 		routeIndex:           make(map[string][]RouteBinding),
 		protocolIndex:        make(map[string][]ProtocolBinding),
 		plugins:              make([]*LoadedPlugin, 0, len(effective)),
@@ -1136,7 +1147,13 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 		plugin := effective[key]
 		generation.byKey[key] = plugin
 		generation.plugins = append(generation.plugins, plugin)
-		for _, model := range plugin.Meta.Models {
+		// The models of a plugin without a task part are its relay fallback
+		// list: ordinary models, not task models.
+		taskModels := plugin.Meta.Models
+		if !plugin.Meta.HasTaskPart() {
+			taskModels = nil
+		}
+		for _, model := range taskModels {
 			generation.modelPlugins[model] = append(generation.modelPlugins[model], plugin)
 			if _, exists := generation.byModel[model]; !exists {
 				generation.byModel[model] = plugin
@@ -1155,14 +1172,10 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 			generation.canonicalModelByFold[folded] = model
 		}
 
+		// Several plugins may declare a channel type; a channel of the type
+		// serves each of them.
 		for _, channelType := range plugin.Meta.ChannelTypes {
-			if channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
-				continue
-			}
-			if other, exists := generation.byChannelType[channelType]; exists {
-				return nil, fmt.Errorf("plugin %s channelType %d conflicts with plugin %s", plugin.Meta.Key, channelType, other.Meta.Key)
-			}
-			generation.byChannelType[channelType] = plugin
+			generation.byChannelType[channelType] = append(generation.byChannelType[channelType], plugin)
 		}
 
 		// Plugins may share a path shape; the request resolves which one
@@ -1207,8 +1220,8 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 }
 
 // PreflightRoutingConflict reports whether admitting candidate into the
-// current generation would collide on a channel type, a case-folded model
-// name, or a protocol-model binding. A same-key entry is replaced first so
+// current generation would collide on a case-folded model name or a
+// protocol-model binding. A same-key entry is replaced first so
 // re-uploading a plugin (or overriding a factory built-in) does not
 // self-conflict.
 func PreflightRoutingConflict(current *RoutingGeneration, candidate *LoadedPlugin) error {

@@ -117,6 +117,7 @@ export function getChannelTypeIcon(type: number): string {
     59: 'Meshy', // Meshy2API
     60: 'OpenAI', // UnrealSpeech
     [CHANNEL_TYPE_AGNES]: 'AgnesAI', // Agnes
+    68: 'OpenAI', // NovelAI
     [CHANNEL_TYPE_TASK_PLUGIN]: 'OpenAI', // Task Plugin
 
     // Tools & Platforms

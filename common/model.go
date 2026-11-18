@@ -27,8 +27,9 @@ var (
 		"wanx2.1-t2i-plus",
 		"wanx2.0-t2i-turbo",
 		"prefix:imagen-",
-		"flux-",
 		"flux.1-",
+		"flux-",
+		"nai-diffusion-",
 	}
 )
 

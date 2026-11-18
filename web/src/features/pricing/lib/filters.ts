@@ -30,11 +30,13 @@ import { compileBillingExpression } from './billing-expression/parser'
 import { visitExpression } from './billing-expression/types'
 import {
   getCardExamplePrice,
+  getDynamicDisplayGroupRatio,
   getDynamicPricingSummary,
   hasTaskUsageSchema,
   isUnconfiguredTaskUsageModel,
 } from './dynamic-price'
 import { isTokenBasedModel } from './model-helpers'
+import { withBasePricing } from './plugin-pricing'
 import { calculateTokenPrice } from './price'
 
 // ----------------------------------------------------------------------------
@@ -84,8 +86,9 @@ export function filterByGroup(
 
 /** Pricing category of the active configuration, shared by filters and counts. */
 export function getModelQuotaType(
-  model: PricingModel
+  listedModel: PricingModel
 ): Exclude<QuotaTypeOption, 'all'> | undefined {
+  const model = withBasePricing(listedModel)
   // Task-usage models retain their own category.
   if (hasTaskUsageSchema(model)) return QUOTA_TYPES.TASK
 
@@ -158,15 +161,20 @@ const PRICE_SORTS: Partial<
  * model has no price of that kind.
  */
 function getSortPrice(
-  model: PricingModel,
+  listedModel: PricingModel,
   kind: SortPriceKind,
   group?: string
 ): number | undefined {
+  const model = withBasePricing(listedModel)
   if (kind === 'request') {
     const example = getCardExamplePrice(model, { tokenUnit: 'M' })
     if (example) return example.total
   }
-  const summary = getDynamicPricingSummary(model, { tokenUnit: 'M', group })
+  const summary = getDynamicPricingSummary(model, {
+    tokenUnit: 'M',
+    group,
+    groupRatioMultiplier: getDynamicDisplayGroupRatio(model, group),
+  })
   if (kind === 'request') {
     if (summary) {
       return summary.entries.find(

@@ -1320,3 +1320,47 @@ func TestOAuthBindPaysRewardOnlyForFirstLink(t *testing.T) {
 	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("user_id = ? AND type = ?", user.Id, model.LogTypeSystem).Count(&logs).Error)
 	assert.EqualValues(t, 1, logs)
 }
+
+func TestOAuthRegistrationPersistsInviter(t *testing.T) {
+	db, dialect := openTaskDialectDatabase(t, &model.User{}, &model.Log{}, &model.OAuthBindReward{})
+	oldDB, oldLogDB := model.DB, model.LOG_DB
+	oldMain, oldLog := common.MainDatabaseType(), common.LogDatabaseType()
+	oldRedis, oldRegister := common.RedisEnabled, common.RegisterEnabled
+	oldNew, oldInvitee, oldInviter := common.QuotaForNewUser, common.QuotaForInvitee, common.QuotaForInviter
+	model.DB, model.LOG_DB = db, db
+	common.SetDatabaseTypes(dialect, dialect)
+	common.RedisEnabled, common.RegisterEnabled = false, true
+	common.QuotaForNewUser, common.QuotaForInvitee, common.QuotaForInviter = 0, 0, 0
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = oldDB, oldLogDB
+		common.SetDatabaseTypes(oldMain, oldLog)
+		common.RedisEnabled, common.RegisterEnabled = oldRedis, oldRegister
+		common.QuotaForNewUser, common.QuotaForInvitee, common.QuotaForInviter = oldNew, oldInvitee, oldInviter
+	})
+	inviter := model.User{Username: "inviter", AffCode: "valid-aff", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&inviter).Error)
+	for _, tc := range []struct {
+		name, code string
+		want       int
+	}{
+		{"valid", "valid-aff", inviter.Id}, {"missing", "", 0}, {"invalid", "unknown-aff", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test", nil)
+			provider := &oauth.GitHubProvider{}
+			identity := &oauth.OAuthUser{ProviderUserID: "inviter-test-" + tc.name, Username: "oauth-" + tc.name}
+			created, _, err := findOrCreateOAuthUser(ctx, provider, identity, &oauth.OAuthToken{}, tc.code)
+			require.NoError(t, err)
+			var stored model.User
+			require.NoError(t, db.First(&stored, created.Id).Error)
+			assert.Equal(t, tc.want, stored.InviterId)
+			assert.Equal(t, identity.ProviderUserID, stored.GitHubId)
+			existing, _, err := findOrCreateOAuthUser(ctx, provider, identity, &oauth.OAuthToken{}, "valid-aff")
+			require.NoError(t, err)
+			assert.Equal(t, created.Id, existing.Id)
+			require.NoError(t, db.First(&stored, created.Id).Error)
+			assert.Equal(t, tc.want, stored.InviterId, "login must not reassign the inviter")
+		})
+	}
+}

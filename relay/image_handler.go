@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -20,6 +21,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// outboundImageCounter is an image adaptor whose upstream body carries the
+// image count in a member other than n. OutboundImageCount reads the count
+// from that body, nil when the member is absent.
+type outboundImageCounter interface {
+	OutboundImageCount(body []byte) (*uint, error)
+}
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -53,26 +61,59 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 	var jsonData []byte
+	var outbound struct {
+		N          *uint `json:"n"`
+		Parameters struct {
+			NSamples *uint `json:"n_samples"`
+		} `json:"parameters"`
+	}
+	validateQuantity := false
 
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		mappedBody, closer, err := prepareMappedPassThroughBody(c, storage, info, false)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-		if closer != nil {
-			defer closer.Close()
+		if newAPIError = requestplugin.PassThrough(c, info, storage); newAPIError != nil {
+			return newAPIError
 		}
 		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
-			requestBody = mappedBody
+			requestBody = common.NewReplayableBodyReader(storage)
 		} else {
-			jsonData, err = io.ReadAll(mappedBody)
+			mappedBody, closer, err := prepareMappedPassThroughBody(c, storage, info, false)
 			if err != nil {
-				return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
+			if closer != nil {
+				defer closer.Close()
+			}
+			replayable, ok := mappedBody.(common.ReplayableBody)
+			if !ok {
+				return types.NewError(errors.New("image passthrough body is not replayable"), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			reader, err := replayable.NewReader()
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			jsonData, err = io.ReadAll(reader)
+			_ = reader.Close()
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			counter, countsOwnMember := adaptor.(outboundImageCounter)
+			if countsOwnMember {
+				outbound.N, err = counter.OutboundImageCount(jsonData)
+			} else {
+				err = common.Unmarshal(jsonData, &outbound)
+			}
+			if err != nil {
+				return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			validateQuantity = true
+			if common.DebugEnabled {
+				logger.LogDebug(c, "image request body: %s", jsonData)
+			}
+			requestBody = mappedBody
 		}
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
@@ -84,12 +125,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			if errors.As(err, &apiErr) {
 				return apiErr
 			}
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+			return newConvertRequestFailedError(c, info, err)
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
 		switch convertedRequest.(type) {
 		case *bytes.Buffer:
+			if newAPIError = requestplugin.PassThrough(c, info, nil); newAPIError != nil {
+				return newAPIError
+			}
 			requestBody = convertedRequest.(io.Reader)
 		default:
 			jsonData, err = common.Marshal(convertedRequest)
@@ -97,6 +141,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
 
+			if jsonData, newAPIError = requestplugin.Outbound(c, info, jsonData); newAPIError != nil {
+				return newAPIError
+			}
 			// apply param override
 			if len(info.ParamOverride) > 0 {
 				jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
@@ -104,19 +151,40 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 					return newAPIErrorFromParamOverride(err)
 				}
 			}
+			if newAPIError = requestplugin.Egress(c, info, jsonData); newAPIError != nil {
+				return newAPIError
+			}
 
 		}
 	}
 	if jsonData != nil {
-		// This is a different trust boundary from ingress: channel overrides
-		// and pass-through bodies can change the quantity actually submitted.
-		var outbound struct {
-			N *uint `json:"n"`
+		if info.ApiType == constant.APITypeNovelAI {
+			if err := relaycommon.ValidateNovelAISteps(jsonData, info.ChannelOtherSettings.NovelAIMax28Steps); err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
 		}
-		if err := common.Unmarshal(jsonData, &outbound); err != nil {
+
+		// This is a different trust boundary from ingress: channel overrides
+		// and request plugins can change the quantity actually submitted, in
+		// n or in the member the adaptor sends it in.
+		err := common.Unmarshal(jsonData, &outbound)
+		if counter, ok := adaptor.(outboundImageCounter); ok && err == nil {
+			outbound.N, err = counter.OutboundImageCount(jsonData)
+		}
+		if err != nil {
 			return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		validateQuantity = true
+	}
+	if validateQuantity {
+		// Validate the count in the body sent upstream, including channel overrides.
 		quantityRequest := dto.ImageRequest{N: outbound.N}
+		if info.ApiType == constant.APITypeNovelAI && outbound.Parameters.NSamples != nil {
+			if *outbound.Parameters.NSamples == 0 || *outbound.Parameters.NSamples > dto.MaxImageN {
+				return types.NewErrorWithStatusCode(fmt.Errorf("parameters.n_samples must be an integer between 1 and %d", dto.MaxImageN), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			quantityRequest.N = outbound.Parameters.NSamples
+		}
 		if quantityRequest.N == nil {
 			quantityRequest.N = common.GetPointer(uint(imageCount))
 		}
@@ -124,6 +192,8 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+	}
+	if jsonData != nil {
 		logger.LogDebug(c, "image request body: %s", jsonData)
 		body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 		if err != nil {
@@ -132,6 +202,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		defer closer.Close()
 		requestBody = body
 	}
+
 	if billingErr := service.PrepareImageBillingForRequest(c, info, imageCount); billingErr != nil {
 		return billingErr
 	}
@@ -147,7 +218,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
+			if httpResp.StatusCode == http.StatusCreated && (info.ApiType == constant.APITypeReplicate || info.ApiType == constant.APITypeNovelAI) {
 				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
 				httpResp.StatusCode = http.StatusOK
 			} else {

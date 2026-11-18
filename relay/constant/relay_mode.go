@@ -81,6 +81,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeEmbeddings
 	} else if strings.HasPrefix(path, "/v1/moderations") {
 		relayMode = RelayModeModerations
+	} else if path == "/v1/ai/generate-image" || path == "/v1/ai/generate-image-stream" {
+		relayMode = RelayModeImagesGenerations
 	} else if strings.HasPrefix(path, "/v1/images/generations") {
 		relayMode = RelayModeImagesGenerations
 	} else if strings.HasPrefix(path, "/v1/images/edits") {

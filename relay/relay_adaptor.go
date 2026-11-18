@@ -29,10 +29,12 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/mokaai"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
 	"github.com/QuantumNous/new-api/relay/channel/newapi"
+	"github.com/QuantumNous/new-api/relay/channel/novelai"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/channel/palm"
 	"github.com/QuantumNous/new-api/relay/channel/perplexity"
+	"github.com/QuantumNous/new-api/relay/channel/providerplugin"
 	"github.com/QuantumNous/new-api/relay/channel/replicate"
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/sub2api"
@@ -135,6 +137,10 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &agnes.Adaptor{}
 	case constant.APITypeTypeSafe:
 		return &typesafe.Adaptor{}
+	case constant.APITypeProviderPlugin:
+		return &providerplugin.Adaptor{}
+	case constant.APITypeNovelAI:
+		return &novelai.Adaptor{}
 	}
 	return nil
 }

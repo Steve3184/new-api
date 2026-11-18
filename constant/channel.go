@@ -68,6 +68,7 @@ const (
 	ChannelTypeVLLM     = 65
 	ChannelTypeSGLang   = 66
 	ChannelTypeTypeSafe = 67
+	ChannelTypeNovelAI  = 68
 	ChannelTypeDummy    // this one is only for count, do not add any channel after this
 
 )
@@ -142,7 +143,8 @@ var ChannelBaseURLs = []string{
 	"",                                          //64
 	"",                                          //65
 	"",                                          //66
-	"https://opencode.ai",                       //67
+	"https://opencode.ai",                       // 67
+	"https://image.novelai.net",                 // 68
 }
 
 func GetChannelBaseURL(channelType int) string {
@@ -220,6 +222,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeVLLM:           "vLLM",
 	ChannelTypeSGLang:         "SGLang",
 	ChannelTypeTypeSafe:       "TypeSafe",
+	ChannelTypeNovelAI:        "NovelAI",
 }
 
 func GetChannelTypeName(channelType int) string {

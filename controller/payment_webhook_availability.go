@@ -113,10 +113,13 @@ func isEpayWebhookConfigured() bool {
 	if len(gateways) == 0 {
 		gateways = operation_setting.GetEpayGateways()
 	}
+	paymentSetting := operation_setting.GetPaymentSetting()
+	rsaMode := paymentSetting.EpaySignType == operation_setting.EpaySignTypeRSA
 	for _, gateway := range gateways {
 		if strings.TrimSpace(gateway.Address) != "" &&
 			strings.TrimSpace(gateway.MerchantID) != "" &&
-			strings.TrimSpace(gateway.Key) != "" {
+			((rsaMode && strings.TrimSpace(paymentSetting.EpayMerchantPrivateKey) != "" && strings.TrimSpace(paymentSetting.EpayPlatformPublicKey) != "") ||
+				(!rsaMode && strings.TrimSpace(gateway.Key) != "")) {
 			return true
 		}
 	}

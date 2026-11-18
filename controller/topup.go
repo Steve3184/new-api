@@ -208,13 +208,21 @@ func GetEpayClient() *epay.Client {
 
 func getEpayClientForGateway(gatewayID string) *epay.Client {
 	gateway := operation_setting.GetEpayGateway(gatewayID)
-	if gateway == nil || gateway.Address == "" || gateway.MerchantID == "" || gateway.Key == "" {
+	if gateway == nil || gateway.Address == "" || gateway.MerchantID == "" {
 		return nil
 	}
-	withUrl, err := epay.NewClient(&epay.Config{
+	config := &epay.Config{
 		PartnerID: gateway.MerchantID,
 		Key:       gateway.Key,
-	}, gateway.Address)
+	}
+	if paymentSetting := operation_setting.GetPaymentSetting(); paymentSetting.EpaySignType == operation_setting.EpaySignTypeRSA {
+		config.SignType = epay.SignTypeRSA
+		config.MerchantPrivateKey = paymentSetting.EpayMerchantPrivateKey
+		config.PlatformPublicKey = paymentSetting.EpayPlatformPublicKey
+	} else if gateway.Key == "" {
+		return nil
+	}
+	withUrl, err := epay.NewClient(config, gateway.Address)
 	if err != nil {
 		return nil
 	}
@@ -228,14 +236,17 @@ func verifyEpayCallback(client *epay.Client, gateway *operation_setting.EpayGate
 	if params["pid"] != gateway.MerchantID {
 		return nil, errors.New("Epay callback merchant does not match the order gateway")
 	}
-	if !strings.EqualFold(strings.TrimSpace(params["sign_type"]), "MD5") {
+	paymentSetting := operation_setting.GetPaymentSetting()
+	if !strings.EqualFold(strings.TrimSpace(params["sign_type"]), paymentSetting.EpaySignType) {
 		return nil, errors.New("unsupported Epay callback signature type")
 	}
-	providedSignature := strings.ToLower(strings.TrimSpace(params["sign"]))
-	signedParams := maps.Clone(params)
-	expectedSignature := epay.GenerateParams(signedParams, gateway.Key)["sign"]
-	if len(providedSignature) != len(expectedSignature) || subtle.ConstantTimeCompare([]byte(providedSignature), []byte(expectedSignature)) != 1 {
-		return nil, errors.New("invalid Epay callback signature")
+	if paymentSetting.EpaySignType == operation_setting.EpaySignTypeMD5 {
+		providedSignature := strings.ToLower(strings.TrimSpace(params["sign"]))
+		signedParams := maps.Clone(params)
+		expectedSignature := epay.GenerateParams(signedParams, gateway.Key)["sign"]
+		if len(providedSignature) != len(expectedSignature) || subtle.ConstantTimeCompare([]byte(providedSignature), []byte(expectedSignature)) != 1 {
+			return nil, errors.New("invalid Epay callback signature")
+		}
 	}
 	verifyInfo, err := client.Verify(maps.Clone(params))
 	if err != nil || !verifyInfo.VerifyStatus {

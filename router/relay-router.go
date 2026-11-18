@@ -141,6 +141,13 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/chat/completions", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAI)
 		})
+		httpRouter.POST("/ai/generate-image", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIImage)
+		})
+		httpRouter.POST("/ai/generate-image-stream", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIImage)
+		})
+		httpRouter.GET("/ai/generate-image/suggest-tags", controller.NovelAIProxy)
 		httpRouter.POST("/systemone", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatSystemOne)
 		})

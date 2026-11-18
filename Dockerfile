@@ -35,7 +35,7 @@ COPY --from=builder /build/web/dist ./web/dist
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/cache/go-build \
     go mod download \
-    && pgo_dir="$(go list -m -f '{{.Dir}}' github.com/Calcium-Ion/moejs)" \
+    && pgo_dir="$(go list -m -f '{{.Dir}}' github.com/MoeForge/moejs)" \
     && test -s "$pgo_dir/default.pgo" \
     && GOCACHE=/cache/go-build go build -pgo="$pgo_dir/default.pgo" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 

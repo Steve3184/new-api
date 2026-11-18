@@ -42,5 +42,9 @@ const (
 	APITypeNewAPI
 	APITypeAgnes
 	APITypeTypeSafe
+	// APITypeProviderPlugin serves a task plugin channel (type 64) whose
+	// plugin has relay routes; ChannelType2APIType never returns it.
+	APITypeProviderPlugin
+	APITypeNovelAI
 	APITypeDummy // this one is only for count, do not add any channel after this
 )

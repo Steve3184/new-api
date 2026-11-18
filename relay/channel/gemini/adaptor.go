@@ -133,11 +133,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func buildGeminiNativeImageRequest(c *gin.Context, request dto.ImageRequest) (*dto.GeminiChatRequest, error) {
-	imageN := uint(1)
-	if request.N != nil {
-		imageN = *request.N
-	}
-	if imageN != 1 {
+	if request.N != nil && *request.N != 1 {
 		return nil, errors.New("Gemini native image generation supports n=1")
 	}
 
@@ -171,7 +167,7 @@ func buildGeminiNativeImageRequest(c *gin.Context, request dto.ImageRequest) (*d
 }
 
 func resolveGeminiInputImage(c *gin.Context, request dto.ImageRequest) (*dto.GeminiInlineData, error) {
-	if c.Request.MultipartForm != nil {
+	if c != nil && c.Request != nil && c.Request.MultipartForm != nil {
 		for _, fieldName := range []string{"image", "image[]"} {
 			files := c.Request.MultipartForm.File[fieldName]
 			if len(files) == 0 {
@@ -229,7 +225,6 @@ func resolveGeminiImageConfig(size, quality string) (string, string) {
 	if upperSize == "1K" || upperSize == "2K" || upperSize == "4K" {
 		return "", upperSize
 	}
-
 	parts := strings.Split(strings.ToLower(size), "x")
 	if len(parts) != 2 {
 		return "", imageSize
@@ -272,6 +267,29 @@ func nearestImageAspectRatio(width, height int) string {
 		}
 	}
 	return best.label
+}
+
+// imagenDefaultSampleCount is the number of images Imagen generates when a
+// request names none, as Google's GenAI SDK documents it ("currently 4").
+const imagenDefaultSampleCount = 4
+
+// OutboundImageCount reads the image count of an image request body:
+// Imagen generates parameters.sampleCount images, and its default without
+// one.
+func (a *Adaptor) OutboundImageCount(body []byte) (*uint, error) {
+	var request struct {
+		Instances  any `json:"instances"`
+		Parameters struct {
+			SampleCount *uint `json:"sampleCount"`
+		} `json:"parameters"`
+	}
+	if err := common.Unmarshal(body, &request); err != nil {
+		return nil, err
+	}
+	if request.Parameters.SampleCount == nil && request.Instances != nil {
+		return common.GetPointer(uint(imagenDefaultSampleCount)), nil
+	}
+	return request.Parameters.SampleCount, nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {

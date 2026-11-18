@@ -23,6 +23,7 @@ import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_TYPE_AGNES,
   CHANNEL_TYPE_NEW_API,
+  CHANNEL_TYPE_NOVELAI,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_VLLM,
@@ -235,6 +236,7 @@ export const channelFormSchema = z
     base_url: z.string().optional(),
     task_plugin_key: z.string().optional(),
     task_extend_plugin_keys: z.array(z.string()).optional(),
+    request_plugins: z.array(z.string()).optional(),
     key: z.string(),
     openai_organization: z.string().optional(),
     models: z.string().min(1, ERROR_MESSAGES.REQUIRED_MODELS),
@@ -352,10 +354,18 @@ export const channelFormSchema = z
     ollama_openai_chat: z.boolean().optional(), // Ollama: OpenAI-compatible /v1/chat/completions instead of native /api/chat
     disable_task_polling_sleep: z.boolean().optional(),
     agnes_auto_image_url: z.boolean().optional(),
+    novelai_max_28_steps: z.boolean().optional(),
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // The bound plugin's channel settings (type 61, stored in settings JSON)
+    plugin_config: z.record(z.string(), z.unknown()).optional(),
+    // Their values as typed, null until edited (not sent to backend)
+    plugin_config_draft: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -496,6 +506,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   base_url: '',
   task_plugin_key: '',
   task_extend_plugin_keys: [],
+  request_plugins: [],
   key: '',
   openai_organization: '',
   models: '',
@@ -563,10 +574,13 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   ollama_openai_chat: false,
   disable_task_polling_sleep: false,
   agnes_auto_image_url: false,
+  novelai_max_28_steps: false,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   advanced_custom: '',
+  plugin_config: {},
+  plugin_config_draft: null,
 }
 
 // ============================================================================
@@ -583,6 +597,7 @@ export function transformChannelToFormDefaults(
   let extraSettings = {
     task_plugin_key: '',
     task_extend_plugin_keys: [] as string[],
+    request_plugins: [] as string[],
     force_format: false,
     thinking_to_content: false,
     use_responses_api: false,
@@ -612,6 +627,11 @@ export function transformChannelToFormDefaults(
       extraSettings = {
         task_plugin_key: parsed.task_plugin_key || '',
         task_extend_plugin_keys: readTaskExtendPluginKeys(channel.type, parsed),
+        request_plugins: Array.isArray(parsed.request_plugins)
+          ? parsed.request_plugins.filter(
+              (id: unknown): id is string => typeof id === 'string'
+            )
+          : [],
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
         use_responses_api: parsed.use_responses_api || false,
@@ -664,10 +684,12 @@ export function transformChannelToFormDefaults(
   let ollamaOpenAIChat = false
   let disableTaskPollingSleep = false
   let agnesAutoImageURL = false
+  let novelAIMax28Steps = false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let pluginConfig: Record<string, unknown> = {}
 
   if (channel.settings) {
     try {
@@ -692,6 +714,7 @@ export function transformChannelToFormDefaults(
       ollamaOpenAIChat = parsed.ollama_openai_chat === true
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
       agnesAutoImageURL = parsed.agnes_auto_image_url === true
+      novelAIMax28Steps = parsed.novelai_max_28_steps === true
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -703,6 +726,9 @@ export function transformChannelToFormDefaults(
         : ''
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
+      }
+      if (isJsonObjectValue(parsed.plugin_config)) {
+        pluginConfig = parsed.plugin_config
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -776,11 +802,14 @@ export function transformChannelToFormDefaults(
     ollama_openai_chat: ollamaOpenAIChat,
     disable_task_polling_sleep: disableTaskPollingSleep,
     agnes_auto_image_url: agnesAutoImageURL,
+    novelai_max_28_steps: novelAIMax28Steps,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     advanced_custom: advancedCustom,
+    plugin_config: pluginConfig,
+    plugin_config_draft: null,
   }
 }
 
@@ -798,6 +827,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.task_extend_plugin_keys?.length
         ? formData.task_extend_plugin_keys
         : undefined,
+    request_plugins: formData.request_plugins?.length
+      ? formData.request_plugins
+      : undefined,
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     use_responses_api:
@@ -811,8 +843,10 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.proxy_image_urls === true,
     proxy: formData.proxy?.trim() || '',
     pass_through_body_enabled: formData.pass_through_body_enabled === true,
+    // A plugin channel shows the switch only when its plugin can serve it.
     responses_websocket_enabled:
-      supportsResponsesWebSocket(formData.type) &&
+      (supportsResponsesWebSocket(formData.type) ||
+        formData.type === CHANNEL_TYPE_TASK_PLUGIN) &&
       formData.responses_websocket_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
@@ -979,9 +1013,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   } else if ('agnes_auto_image_url' in settingsObj) {
     delete settingsObj.agnes_auto_image_url
   }
+  if (formData.type === CHANNEL_TYPE_NOVELAI) {
+    settingsObj.novelai_max_28_steps = formData.novelai_max_28_steps === true
+  } else if ('novelai_max_28_steps' in settingsObj) {
+    delete settingsObj.novelai_max_28_steps
+  }
 
-  // Upstream model update settings (for model-fetchable channel types)
-  if (MODEL_FETCHABLE_TYPES.has(formData.type)) {
+  // Upstream model update settings (for model-fetchable channel types; a
+  // plugin channel shows them when its plugin can list models)
+  if (
+    MODEL_FETCHABLE_TYPES.has(formData.type) ||
+    formData.type === CHANNEL_TYPE_TASK_PLUGIN
+  ) {
     settingsObj.upstream_model_update_check_enabled =
       formData.upstream_model_update_check_enabled === true
     settingsObj.upstream_model_update_auto_sync_enabled =
@@ -1015,6 +1058,16 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
+  }
+
+  // Only set values are kept; the plugin's defaults apply to the rest.
+  if (
+    formData.type === CHANNEL_TYPE_TASK_PLUGIN &&
+    Object.keys(formData.plugin_config ?? {}).length > 0
+  ) {
+    settingsObj.plugin_config = formData.plugin_config
+  } else {
+    delete settingsObj.plugin_config
   }
 
   return JSON.stringify(settingsObj)

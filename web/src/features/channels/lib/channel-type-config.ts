@@ -228,6 +228,26 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'agnes-video-v2.0,agnes-video-2.5,agnes-video-2.5-flash',
     },
   },
+  68: {
+    id: 68,
+    name: CHANNEL_TYPES[68],
+    icon: 'OpenAI',
+    supportedModels: [
+      'nai-diffusion-3',
+      'nai-diffusion-furry-3',
+      'nai-diffusion-4-curated-preview',
+      'nai-diffusion-4-full',
+      'nai-diffusion-4-5-curated',
+      'nai-diffusion-4-5-full',
+      'nai-diffusion-5-curated',
+      'nai-diffusion-5-full',
+    ],
+    hints: {
+      baseUrl: 'NovelAI image API base URL',
+      key: 'NovelAI API token',
+      models: 'NovelAI diffusion model names',
+    },
+  },
   64: {
     id: 64,
     name: CHANNEL_TYPES[64],
