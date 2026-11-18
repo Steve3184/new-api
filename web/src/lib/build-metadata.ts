@@ -151,6 +151,23 @@ export function installBuildMetadata(): void {
     // Storage can be unavailable (private mode, disabled cookies, …).
   }
 
+  // This fixed English notice identifies the fork without replacing upstream attribution.
+  try {
+    // eslint-disable-next-line no-console
+    console.info(`[Third-Party Fork Notice]
+This site runs Steve3184/new-api, a third-party fork of QuantumNous/new-api, not an official New API release.
+
+To report bugs, suggest improvements, or contribute code, please visit:
+https://github.com/Steve3184/new-api
+
+Submit an issue:
+https://github.com/Steve3184/new-api/issues/new
+
+Please report issues here first. Do not submit bugs caused by this fork's additions or modifications to the upstream repository.`)
+  } catch {
+    // A replaced console must not prevent application startup.
+  }
+
   // Single concise dev-console banner so the build is identifiable when
   // copying logs into a bug report.
   try {
