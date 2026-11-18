@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"archive/zip"
+	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +21,9 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -116,6 +121,95 @@ func TestChannelTestOpenAIChatCompatibility(t *testing.T) {
 			assert.JSONEq(t, string(wantJSON), string(encoded))
 		})
 	}
+}
+
+func TestNovelAIChannelTestDefaultsToImages(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeNovelAI}
+	endpoint := normalizeChannelTestEndpoint(channel, "")
+	require.Equal(t, string(constant.EndpointTypeImageGeneration), endpoint)
+	request, ok := buildTestRequest("nai-diffusion-3", endpoint, channel, false).(*dto.ImageRequest)
+	require.True(t, ok)
+	assert.Equal(t, "nai-diffusion-3", request.Model)
+	assert.Equal(t, uint(1), *request.N)
+	assert.Equal(t, string(constant.EndpointTypeImageGeneration), normalizeChannelTestEndpoint(channel, " image-generation "))
+	assert.Equal(t, string(constant.EndpointTypeOpenAI), normalizeChannelTestEndpoint(channel, string(constant.EndpointTypeOpenAI)))
+}
+
+func TestNovelAIChannelTestGeneratesAnImage(t *testing.T) {
+	user, _ := setupResponsesWSRequestTest(t)
+	service.InitHttpClient()
+	previousPrices := ratio_setting.ModelPrice2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"nai-diffusion-3":0.01,"nai-diffusion-4-5-full":0.01}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(previousPrices)) })
+	var archive bytes.Buffer
+	zw := zip.NewWriter(&archive)
+	file, err := zw.Create("image.png")
+	require.NoError(t, err)
+	_, err = file.Write([]byte("test-png"))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+	for _, tc := range []struct {
+		name, model, endpoint, upstreamPath string
+		stream                              bool
+	}{
+		{name: "automatic V3", model: "nai-diffusion-3", upstreamPath: "/ai/generate-image"},
+		{name: "automatic V4 ignores the chat stream flag", model: "nai-diffusion-4-5-full", upstreamPath: "/ai/generate-image-stream", stream: true},
+		{name: "explicit image endpoint", model: "nai-diffusion-3", endpoint: string(constant.EndpointTypeImageGeneration), upstreamPath: "/ai/generate-image"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, tc.upstreamPath, r.URL.Path)
+				assert.Equal(t, "Bearer fixture-key", r.Header.Get("Authorization"))
+				var payload struct {
+					Input      string `json:"input"`
+					Model      string `json:"model"`
+					Parameters struct {
+						Samples int `json:"n_samples"`
+						Steps   int `json:"steps"`
+					} `json:"parameters"`
+				}
+				if !assert.NoError(t, common.DecodeJson(r.Body, &payload)) {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				assert.Equal(t, tc.model, payload.Model)
+				assert.NotEmpty(t, payload.Input)
+				assert.Equal(t, 1, payload.Parameters.Samples)
+				assert.LessOrEqual(t, payload.Parameters.Steps, 28)
+				w.Header().Set("Content-Type", "application/zip")
+				_, _ = w.Write(archive.Bytes())
+			}))
+			defer upstream.Close()
+			channel := &model.Channel{Type: constant.ChannelTypeNovelAI, BaseURL: common.GetPointer(upstream.URL), Key: "fixture-key", Name: "novelai-test", Models: tc.model, Group: "default"}
+			result := testChannel(context.Background(), channel, user.Id, tc.model, tc.endpoint, tc.stream)
+			require.NoError(t, result.localErr)
+			require.Nil(t, result.newAPIError)
+			assert.Equal(t, "/v1/images/generations", result.context.Request.URL.Path)
+			var response dto.ImageResponse
+			require.NoError(t, common.Unmarshal(result.responseBody, &response))
+			require.Len(t, response.Data, 1)
+			assert.Equal(t, "data:image/png;base64,dGVzdC1wbmc=", response.Data[0].Url)
+		})
+	}
+
+	t.Run("28-step limit applies after overrides", func(t *testing.T) {
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Error("an over-limit test must not reach upstream")
+			w.WriteHeader(http.StatusBadRequest)
+		}))
+		defer upstream.Close()
+		channel := &model.Channel{
+			Type: constant.ChannelTypeNovelAI, BaseURL: common.GetPointer(upstream.URL),
+			Key: "fixture-key", Name: "novelai-test", Models: "nai-diffusion-3", Group: "default",
+			OtherSettings: `{"novelai_max_28_steps":true}`,
+			ParamOverride: common.GetPointer(`{"operations":[{"path":"parameters.steps","mode":"set","value":29}]}`),
+		}
+		result := testChannel(context.Background(), channel, user.Id, "nai-diffusion-3", "", false)
+		require.ErrorContains(t, result.localErr, "steps")
+		require.NotNil(t, result.newAPIError)
+		assert.Equal(t, http.StatusBadRequest, result.newAPIError.StatusCode)
+	})
 }
 
 func TestTypeSafeChannelTestDefaultsToSystemOne(t *testing.T) {

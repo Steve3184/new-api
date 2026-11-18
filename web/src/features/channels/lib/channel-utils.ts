@@ -23,6 +23,7 @@ import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPE_AGNES,
   CHANNEL_TYPE_NEW_API,
+  CHANNEL_TYPE_NOVELAI,
   CHANNEL_TYPE_SGLANG,
   CHANNEL_TYPE_SUB2API,
   CHANNEL_TYPE_TASK_PLUGIN,
@@ -117,7 +118,7 @@ export function getChannelTypeIcon(type: number): string {
     59: 'Meshy', // Meshy2API
     60: 'OpenAI', // UnrealSpeech
     [CHANNEL_TYPE_AGNES]: 'AgnesAI', // Agnes
-    68: 'OpenAI', // NovelAI
+    [CHANNEL_TYPE_NOVELAI]: 'NovelAI',
     [CHANNEL_TYPE_TASK_PLUGIN]: 'OpenAI', // Task Plugin
 
     // Tools & Platforms

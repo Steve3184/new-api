@@ -62,6 +62,8 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 		return string(constant.EndpointTypeOpenAIResponse)
 	case constant.ChannelTypeTypeSafe:
 		return string(constant.EndpointTypeSystemOne)
+	case constant.ChannelTypeNovelAI:
+		return string(constant.EndpointTypeImageGeneration)
 	}
 	return normalized
 }
@@ -166,6 +168,10 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, endpointType)
+	if channel.Type == constant.ChannelTypeNovelAI {
+		// NovelAI can use MessagePack upstream, but the image test returns JSON, not SSE.
+		isStream = false
+	}
 
 	requestPath := "/v1/chat/completions"
 
@@ -521,6 +527,16 @@ func testChannelWithKey(ctx context.Context, channel *model.Channel, testUserID 
 				context:     c,
 				localErr:    err,
 				newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+			}
+		}
+	}
+
+	if info.ApiType == constant.APITypeNovelAI {
+		if err := relaycommon.ValidateNovelAISteps(jsonData, info.ChannelOtherSettings.NovelAIMax28Steps); err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()),
 			}
 		}
 	}

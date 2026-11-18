@@ -27,7 +27,9 @@ import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import type { TaskPluginOption } from '../../api'
+import { CHANNEL_TYPE_NOVELAI } from '../../constants'
 import { channelSchema, type Channel } from '../../types'
+import { ChannelTypeLogo } from '../channel-type-badge'
 import { ChannelsProvider, useChannels } from '../channels-provider'
 import { ChannelTestDialog } from '../dialogs/channel-test-dialog'
 
@@ -129,4 +131,29 @@ test('a built-in channel offers every endpoint', async () => {
   expect(options).toHaveLength(9)
   expect(options).toContain('OpenAI (/v1/chat/completions)')
   expect(api.get).not.toHaveBeenCalledWith('/api/task_plugin_options')
+})
+
+test('a NovelAI channel offers only automatic and image tests with streaming disabled', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ChannelsProvider>
+        <OpenDialog channel={channel(CHANNEL_TYPE_NOVELAI)} />
+      </ChannelsProvider>
+    </QueryClientProvider>
+  )
+
+  expect(
+    await screen.findByRole('switch', { name: 'Stream Mode' })
+  ).toHaveAttribute('aria-disabled', 'true')
+  expect(await endpointOptions()).toEqual([
+    'Auto detect (default)',
+    'Image Generation (/v1/images/generations)',
+  ])
+})
+
+test('the NovelAI channel shows the installed NovelAI SVG', async () => {
+  render(<ChannelTypeLogo type={CHANNEL_TYPE_NOVELAI} size={18} />)
+
+  const title = await screen.findByText('NovelAI', { selector: 'svg title' })
+  expect(title.closest('svg')).toHaveAttribute('width', '18')
 })

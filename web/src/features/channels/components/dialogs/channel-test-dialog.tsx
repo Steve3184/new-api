@@ -82,7 +82,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { updateChannel } from '../../api'
-import { CHANNEL_TYPE_TASK_PLUGIN } from '../../constants'
+import { CHANNEL_TYPE_NOVELAI, CHANNEL_TYPE_TASK_PLUGIN } from '../../constants'
 import { useTaskPluginOption } from '../../hooks/use-task-plugin-option'
 import {
   channelsQueryKeys,
@@ -383,18 +383,23 @@ function ChannelTestDialogContent({
       : undefined
   )
   const relayPaths = plugin?.relayPaths
+  const isNovelAI = currentRow.type === CHANNEL_TYPE_NOVELAI
   const endpointSelectItems = useMemo(
     () =>
       endpointTypeOptions
-        .filter(
-          (option) =>
-            !relayPaths || !option.path || relayPaths.includes(option.path)
-        )
+        .filter((option) => {
+          if (isNovelAI) {
+            return (
+              option.value === 'auto' || option.value === 'image-generation'
+            )
+          }
+          return !relayPaths || !option.path || relayPaths.includes(option.path)
+        })
         .map((option) => ({
           value: option.value,
           label: t(option.label),
         })),
-    [relayPaths, t]
+    [isNovelAI, relayPaths, t]
   )
 
   const dismissBatchProgressToast = useCallback(() => {
@@ -448,7 +453,8 @@ function ChannelTestDialogContent({
     setPagination({ pageIndex: 0, pageSize: 30 })
   }, [])
 
-  const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
+  const streamDisabled =
+    isNovelAI || STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
   const effectiveStreamTest = !streamDisabled && isStreamTest
 
   const handleEndpointTypeChange = useCallback((value: string | null) => {
