@@ -1,7 +1,6 @@
 package model
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"sync"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,22 +33,20 @@ func TestSubscriptionPlanWalletOnlyGroupPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.plan.IsWalletOnlyForGroup(tt.group))
+			assert.Equal(t, tt.want, tt.plan.IsWalletOnlyForGroup(tt.group, false))
 		})
 	}
 }
 
 func TestSubscriptionPlanBoundGroupDoesNotChangeLegacyPlans(t *testing.T) {
-	require.NoError(t, ratio_setting.UpdateSubscriptionGroups(`{"subscriber":{}}`))
-	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateSubscriptionGroups(`{}`)) })
 	var scoped SubscriptionPlan
 	require.NoError(t, common.UnmarshalJsonStr(`{"subscription_group":"subscriber","wallet_only_groups_enabled":true,"wallet_only_groups_mode":"blacklist","wallet_only_groups":"subscriber"}`, &scoped))
 	legacy := SubscriptionPlan{WalletOnlyGroupsEnabled: true, WalletOnlyGroups: "blocked"}
 
-	assert.False(t, scoped.IsWalletOnlyForGroup("subscriber"), "explicit binding takes precedence over legacy wallet-group rules")
-	assert.True(t, scoped.IsWalletOnlyForGroup("default"), "a bound plan must not pay for an ordinary group")
-	assert.False(t, legacy.IsWalletOnlyForGroup("default"), "an unbound plan still covers its legacy groups")
-	assert.True(t, legacy.IsWalletOnlyForGroup("blocked"), "an unbound plan still respects its old exclusions")
+	assert.False(t, scoped.IsWalletOnlyForGroup("subscriber", true), "explicit binding takes precedence over legacy wallet-group rules")
+	assert.True(t, scoped.IsWalletOnlyForGroup("default", false), "a bound plan must not pay for an ordinary group")
+	assert.False(t, legacy.IsWalletOnlyForGroup("default", false), "an unbound plan still covers its legacy groups")
+	assert.True(t, legacy.IsWalletOnlyForGroup("blocked", false), "an unbound plan still respects its old exclusions")
 }
 
 func TestSubscriptionPurchaseCapacityDatabaseMatrix(t *testing.T) {
@@ -129,7 +125,7 @@ func TestSubscriptionPurchaseCapacityDatabaseMatrix(t *testing.T) {
 			assert.Empty(t, plan.SubscriptionGroup)
 			assert.Equal(t, legacy.UpgradeGroup, plan.UpgradeGroup)
 			assert.Equal(t, legacy.DowngradeGroup, plan.DowngradeGroup)
-			assert.True(t, plan.IsWalletOnlyForGroup("team"))
+			assert.True(t, plan.IsWalletOnlyForGroup("team", false))
 			plan.MaxActivePerUser = 1
 			require.NoError(t, db.Model(&plan).Update("max_active_per_user", 1).Error)
 			InvalidateSubscriptionPlanCache(plan.Id)
@@ -178,65 +174,6 @@ func TestSubscriptionPurchaseCapacityDatabaseMatrix(t *testing.T) {
 			}
 			plan.MaxPurchasePerUser = 1
 			require.Error(t, CheckSubscriptionPurchaseCapacity(db, user.Id, &plan))
-		})
-	}
-}
-
-func TestSubscriptionGroupBindingSurvivesStaleSnapshot(t *testing.T) {
-	for _, engine := range []struct {
-		dialect common.DatabaseType
-		dsnEnv  string
-	}{
-		{common.DatabaseTypeMySQL, "TEST_MYSQL_DSN"},
-		{common.DatabaseTypePostgreSQL, "TEST_POSTGRES_DSN"},
-	} {
-		t.Run(string(engine.dialect), func(t *testing.T) {
-			dsn := os.Getenv(engine.dsnEnv)
-			if dsn == "" {
-				t.Skip(engine.dsnEnv + " not configured")
-			}
-			var driver gorm.Dialector = mysql.Open(dsn)
-			if engine.dialect == common.DatabaseTypePostgreSQL {
-				driver = postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
-			}
-			prefix := fmt.Sprintf("subbind_%d_", time.Now().UnixNano())
-			db, err := gorm.Open(driver, &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: prefix}})
-			require.NoError(t, err)
-			conn, err := db.DB()
-			require.NoError(t, err)
-			conn.SetMaxOpenConns(2)
-			oldMain, oldLog := common.MainDatabaseType(), common.LogDatabaseType()
-			common.SetDatabaseTypes(engine.dialect, oldLog)
-			initCol()
-			tables := []any{&Option{}, &SubscriptionPlan{}, &UserSubscription{}}
-			t.Cleanup(func() {
-				require.NoError(t, db.Migrator().DropTable(tables...))
-				require.NoError(t, conn.Close())
-				common.SetDatabaseTypes(oldMain, oldLog)
-				initCol()
-			})
-			require.NoError(t, db.AutoMigrate(tables...))
-			require.NoError(t, db.Create(&Option{Key: ratio_setting.SubscriptionGroupsOptionKey, Value: `{"vip":{}}`}).Error)
-			plans := []SubscriptionPlan{{Title: "First", SubscriptionGroup: "vip"}, {Title: "Last", SubscriptionGroup: "vip"}}
-			require.NoError(t, db.Create(&plans).Error)
-			target := ""
-			unbind := func(tx *gorm.DB, id int) error {
-				if err := CheckSubscriptionPlanGroupChangeTx(tx, id, &target); err != nil {
-					return err
-				}
-				return tx.Model(&SubscriptionPlan{}).Where("id = ?", id).Update("subscription_group", target).Error
-			}
-			err = db.Transaction(func(stale *gorm.DB) error {
-				var snapshotCount int64
-				require.NoError(t, stale.Model(&SubscriptionPlan{}).Where("subscription_group = ?", "vip").Count(&snapshotCount).Error)
-				require.EqualValues(t, 2, snapshotCount)
-				require.NoError(t, db.Transaction(func(fresh *gorm.DB) error { return unbind(fresh, plans[0].Id) }))
-				return unbind(stale, plans[1].Id)
-			}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
-			require.Error(t, err, "a stale snapshot must not allow the last unbind to commit")
-			var count int64
-			require.NoError(t, db.Model(&SubscriptionPlan{}).Where("subscription_group = ?", "vip").Count(&count).Error)
-			assert.EqualValues(t, 1, count)
 		})
 	}
 }

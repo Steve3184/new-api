@@ -6,7 +6,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -78,32 +77,32 @@ func TestSubscriptionGroupEntitlementRequiresExactMatchUnderCaseInsensitiveColla
 	assert.Equal(t, []string{"VIP"}, groups)
 }
 
-func TestBulkOptionUpdateRejectsSubscriptionGroupWithoutPlan(t *testing.T) {
+func TestRetiredSubscriptionGroupsOptionCannotBeWritten(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, DB.AutoMigrate(&Option{}))
+	require.Error(t, UpdateOption("SubscriptionGroups", `{}`))
 	for _, values := range []map[string]string{
-		{ratio_setting.SubscriptionGroupsOptionKey: `{"vip":{}}`},
-		{ratio_setting.SubscriptionGroupsOptionKey: `{"vip":{}}`, "passkey.rp_id": ""},
+		{"SubscriptionGroups": `{}`},
+		{"SubscriptionGroups": `{}`, "passkey.rp_id": ""},
 	} {
-		require.ErrorContains(t, UpdateOptionsBulk(values), "Bind at least one subscription plan")
+		require.Error(t, UpdateOptionsBulk(values))
 	}
 	var count int64
-	require.NoError(t, DB.Model(&Option{}).Where(&Option{Key: ratio_setting.SubscriptionGroupsOptionKey}).Count(&count).Error)
+	require.NoError(t, DB.Model(&Option{}).Where(&Option{Key: "SubscriptionGroups"}).Count(&count).Error)
 	assert.Zero(t, count)
 }
 
 func TestScopedSubscriptionCreatesOneLocalizedKeyUnlessAlreadyCovered(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, i18n.Init())
-	require.NoError(t, ratio_setting.UpdateSubscriptionGroups(`{"vip":{"auto_create_key":true}}`))
-	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateSubscriptionGroups(`{}`)) })
-	plan := &SubscriptionPlan{Title: "Pro", TotalAmount: 100, SubscriptionGroup: "vip"}
+	plan := &SubscriptionPlan{}
+	require.NoError(t, common.UnmarshalJsonStr(`{"title":"Pro","total_amount":100,"subscription_group":"vip","auto_create_key":true}`, plan))
 	require.NoError(t, DB.Create(plan).Error)
-	for _, kind := range []string{"none", "active", "expired", "disabled"} {
+	for _, kind := range []string{"none", "active", "expired", "disabled", "exhausted", "plan_opt_out"} {
 		user := &User{Username: "auto-key-" + kind, AffCode: kind, Password: "password", Group: "default", Status: common.UserStatusEnabled}
 		user.SetSetting(dto.UserSetting{Language: "zh-CN"})
 		require.NoError(t, DB.Create(user).Error)
-		if kind != "none" {
+		if kind != "none" && kind != "plan_opt_out" {
 			key, err := common.GenerateKey()
 			require.NoError(t, err)
 			token := &Token{UserId: user.Id, Name: "Existing", Group: "auto", Key: key, UnlimitedQuota: true, Status: common.TokenStatusEnabled, ExpiredTime: -1}
@@ -113,8 +112,15 @@ func TestScopedSubscriptionCreatesOneLocalizedKeyUnlessAlreadyCovered(t *testing
 			if kind == "disabled" {
 				token.Status = common.TokenStatusDisabled
 			}
+			if kind == "exhausted" {
+				token.UnlimitedQuota = false
+			}
 			require.NoError(t, token.SetAutoGroups([]string{"default", "vip"}))
 			require.NoError(t, DB.Create(token).Error)
+		}
+		if kind == "plan_opt_out" {
+			plan = &SubscriptionPlan{Title: "No key", TotalAmount: 100, SubscriptionGroup: "vip"}
+			require.NoError(t, DB.Create(plan).Error)
 		}
 		for range 2 {
 			require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
@@ -123,8 +129,12 @@ func TestScopedSubscriptionCreatesOneLocalizedKeyUnlessAlreadyCovered(t *testing
 			}))
 		}
 		var keys []Token
-		require.NoError(t, DB.Where("user_id = ?", user.Id).Order("id").Find(&keys).Error)
-		if kind == "expired" || kind == "disabled" {
+		require.NoError(t, DB.Select("id", "name", "group", "unlimited_quota", "model_limits_enabled", "expired_time").Where("user_id = ?", user.Id).Order("id").Find(&keys).Error)
+		if kind == "plan_opt_out" {
+			require.Empty(t, keys)
+			continue
+		}
+		if kind == "expired" || kind == "disabled" || kind == "exhausted" {
 			require.Len(t, keys, 2, kind)
 			keys = keys[1:]
 		}

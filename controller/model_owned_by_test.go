@@ -88,6 +88,7 @@ func TestGetModelListGroupsUsesExplicitTokenGroup(t *testing.T) {
 }
 
 func TestGetModelListGroupsUsesFilteredTokenAutoGroupsSnapshot(t *testing.T) {
+	setupModelListControllerTestDB(t)
 	originalMax := setting.GetMaxTokenAutoGroups()
 	originalUsableGroups := setting.UserUsableGroups2JSONString()
 	originalRatios := ratio_setting.GroupRatio2JSONString()

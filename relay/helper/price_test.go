@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -19,11 +20,27 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
+func usePricingSubscriptionDB(t *testing.T) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	conn, err := db.DB()
+	require.NoError(t, err)
+	conn.SetMaxOpenConns(1)
+	old := model.DB
+	model.DB = db
+	t.Cleanup(func() { model.DB = old; require.NoError(t, conn.Close()) })
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}))
+}
+
 func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	saved := map[string]string{}
@@ -72,6 +89,7 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 }
 
 func TestFixedPricePreConsumeAndRealtimeRejection(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	saved := map[string]string{}
 	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
 		saved[key] = value
@@ -113,6 +131,7 @@ func TestFixedPricePreConsumeAndRealtimeRejection(t *testing.T) {
 }
 
 func TestModelPriceHelperTieredInputPreConsumeMultiplier(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	saved := map[string]string{}
@@ -184,6 +203,7 @@ func TestModelPriceHelperTieredInputPreConsumeMultiplier(t *testing.T) {
 }
 
 func TestModelPriceHelperTieredRejectsPreConsumeOverflow(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	saved := map[string]string{}
@@ -223,6 +243,7 @@ func TestModelPriceHelperTieredRejectsPreConsumeOverflow(t *testing.T) {
 }
 
 func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 	savedModelPrices := ratio_setting.ModelPrice2JSONString()
 	savedModelRatios := ratio_setting.ModelRatio2JSONString()
@@ -321,6 +342,7 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 // gemini-2.5-flash-thinking-* wildcard must keep the client origin as the
 // consume-log name.
 func TestModelPriceHelperUsesSuffixedOriginLikeMain(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -381,6 +403,7 @@ func TestModelPriceHelperUsesSuffixedOriginLikeMain(t *testing.T) {
 }
 
 func TestModelPriceHelperHonorsCustomClaudeThinkingAlias(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -418,6 +441,7 @@ func TestModelPriceHelperHonorsCustomClaudeThinkingAlias(t *testing.T) {
 }
 
 func TestModelPriceHelperCanonicalBillingLadder(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -511,6 +535,7 @@ func TestModelPriceHelperCanonicalBillingLadder(t *testing.T) {
 }
 
 func TestModelPriceHelperMigratesLegacyGeminiWildcardToCanonical(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -548,6 +573,7 @@ func TestModelPriceHelperMigratesLegacyGeminiWildcardToCanonical(t *testing.T) {
 }
 
 func TestModelPriceHelperModifierNameFallsBackToBase(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -578,6 +604,7 @@ func TestModelPriceHelperModifierNameFallsBackToBase(t *testing.T) {
 }
 
 func TestModelPriceHelperExemptAtNameBillsVerbatim(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	settings := model_setting.GetGlobalSettings()
@@ -615,6 +642,7 @@ func TestModelPriceHelperExemptAtNameBillsVerbatim(t *testing.T) {
 }
 
 func TestModelPriceHelperPreservesGpt51CodexMaxIdentity(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -650,6 +678,7 @@ func TestModelPriceHelperPreservesGpt51CodexMaxIdentity(t *testing.T) {
 // expression; a name on the thinking-suffix blacklist stays opaque and needs
 // its own price.
 func TestModelPriceHelperDeepSeekThinkingTailsBillAtBase(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 	require.NoError(t, i18n.Init())
 	saved := map[string]string{}
@@ -701,6 +730,7 @@ func TestModelPriceHelperDeepSeekThinkingTailsBillAtBase(t *testing.T) {
 }
 
 func TestModelPriceHelperNativeGeminiNoThinkingDoesNotAliasBillingModel(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	gin.SetMode(gin.TestMode)
 
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -747,6 +777,7 @@ func TestModelPriceHelperNativeGeminiNoThinkingDoesNotAliasBillingModel(t *testi
 }
 
 func TestInputPreConsumeMultiplierLegacyAndRequestPrices(t *testing.T) {
+	usePricingSubscriptionDB(t)
 	previous := config.GlobalConfig.ExportAllConfigs()
 	previousRatios, previousPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
 	t.Cleanup(func() {

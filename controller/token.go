@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -748,7 +747,12 @@ func DeleteToken(c *gin.Context) {
 }
 
 func validateTokenSubscriptionGroup(c *gin.Context, group string) bool {
-	if _, scoped := ratio_setting.GetSubscriptionGroup(group); !scoped {
+	scoped, err := model.IsSubscriptionGroup(group)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !scoped {
 		return true
 	}
 	userGroup, err := getTokenRequestUserGroup(c)

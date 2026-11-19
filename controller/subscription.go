@@ -366,7 +366,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Custom reset cycle must be greater than 0 seconds")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
+	if req.Plan.SubscriptionGroup == "" {
+		req.Plan.AutoCreateKey = false
+	}
+	err := model.CreateSubscriptionPlanWithBinding(&req.Plan)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -389,6 +392,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		Plan struct {
 			model.SubscriptionPlan
 			SubscriptionGroupInput *string `json:"subscription_group"`
+			AutoCreateKeyInput     *bool   `json:"auto_create_key"`
 		} `json:"plan"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -452,7 +456,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err := model.UpdateSubscriptionPlanTransaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]any{
 			"title":                      req.Plan.Title,
@@ -490,12 +494,26 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		if req.Plan.AllowBalancePay != nil {
 			updateMap["allow_balance_pay"] = *req.Plan.AllowBalancePay
 		}
-		// Older editors omit the field; only an explicit empty value unbinds it.
-		if req.Plan.SubscriptionGroupInput != nil {
-			if err := model.CheckSubscriptionPlanGroupChangeTx(tx, id, &req.Plan.SubscriptionGroup); err != nil {
+		// Older editors omit the binding and/or key switch. Keep an omitted
+		// value; use the locked row when deciding whether a switch is valid.
+		if req.Plan.SubscriptionGroupInput != nil || req.Plan.AutoCreateKeyInput != nil {
+			var target *string
+			if req.Plan.SubscriptionGroupInput != nil {
+				target = &req.Plan.SubscriptionGroup
+			}
+			group, err := model.CheckSubscriptionPlanGroupChangeTx(tx, id, target)
+			if err != nil {
 				return err
 			}
-			updateMap["subscription_group"] = req.Plan.SubscriptionGroup
+			if target != nil {
+				group = *target
+				updateMap["subscription_group"] = group
+			}
+			if group == "" {
+				updateMap["auto_create_key"] = false
+			} else if req.Plan.AutoCreateKeyInput != nil {
+				updateMap["auto_create_key"] = *req.Plan.AutoCreateKeyInput
+			}
 		}
 		if req.Plan.AllowWalletOverflow != nil {
 			updateMap["allow_wallet_overflow"] = *req.Plan.AllowWalletOverflow

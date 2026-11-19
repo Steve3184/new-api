@@ -41,7 +41,6 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
-	usableGroup := map[string]string{}
 	groupRatio := map[string]float64{}
 	maps.Copy(groupRatio, ratio_setting.GetGroupRatioCopy())
 	var group string
@@ -62,11 +61,15 @@ func GetPricing(c *gin.Context) {
 	if exists {
 		userID, _ = userId.(int)
 	}
-	usableGroup = service.GetUserUsableGroupsForUser(userID, group)
-	visibleGroups := console_setting.GetModelSquareVisibleGroups()
-	subscriptionGroups := ratio_setting.SubscriptionGroupNames()
-	slices.Sort(subscriptionGroups)
-	visibleGroups = slices.Clone(visibleGroups)
+	usableGroup, subscriptionGroups, err := service.GetUserGroupAccessSnapshot(userID, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	visibleGroups := slices.Clone(console_setting.GetModelSquareVisibleGroups())
+	subscriptionGroups = slices.DeleteFunc(subscriptionGroups, func(name string) bool {
+		return !ratio_setting.ContainsGroupRatio(name)
+	})
 	for _, name := range subscriptionGroups {
 		groupRatio[name] = 1
 		if !slices.Contains(visibleGroups, name) {

@@ -418,14 +418,10 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		return false
 	}
 
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
-	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
-	} else {
-		finalGroupRatio = groupRatio
+	finalGroupRatio, _, err := GetUserGroupRatio(group, group)
+	if err != nil {
+		logger.LogError(ctx, common.LogText("failed to resolve task billing group: %s", err))
+		return false
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）

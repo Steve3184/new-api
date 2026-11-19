@@ -41,7 +41,7 @@ func setupRelayChannelDB(t *testing.T) *gorm.DB {
 	sqlDB, err := database.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, database.AutoMigrate(&model.Channel{}))
+	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.SubscriptionPlan{}))
 	model.DB = database
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.MemoryCacheEnabled = false
@@ -350,6 +350,7 @@ func saveBillingConfig(t *testing.T) {
 }
 
 func TestRelayTaskSubmitAliasBillingIdentityAndExprFallback(t *testing.T) {
+	setupRelayChannelDB(t)
 	const mapping = `{"alias-model":"declared-model"}`
 	const aliasExpr = `tier("alias", 2)`
 	const tailExpr = `tier("tail", 3)`
@@ -451,6 +452,7 @@ export function extractUsage(){return {old_units:2};}
 }
 
 func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
+	setupRelayChannelDB(t)
 	const baseExpr = `tier("base", u("seconds") * 2)`
 	const alphaExpr = `tier("alpha", u("seconds") * 3)`
 	const betaExpr = `tier("beta", u("credits") * 5)`
@@ -533,6 +535,7 @@ func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 }
 
 func TestSharedEndpointBillingKeepsOrdinaryAndPluginPricesSeparate(t *testing.T) {
+	setupRelayChannelDB(t)
 	require.NoError(t, i18n.Init())
 	const taskExpr = `tier("images", u("image_count") * 0.05)`
 	const ordinaryExpr = `tier("images", fixed(0.04)) * image_count`
@@ -652,6 +655,7 @@ func TestSharedEndpointBillingKeepsOrdinaryAndPluginPricesSeparate(t *testing.T)
 // need the plugin's own price. Chat request quantities (token counts, bare
 // image_count) never price a task, for any model.
 func TestRelayTaskSubmitPricesModelsAPluginAlsoRelays(t *testing.T) {
+	setupRelayChannelDB(t)
 	require.NoError(t, i18n.Init())
 	const chatRoute = `[{incoming_path:"/v1/chat/completions",upstream_path:"/v1/chat/completions"}]`
 	const tokenExpr = `tier("tokens", p * 2 + c * 8)`
@@ -768,6 +772,7 @@ func TestRelayTaskSubmitPricesModelsAPluginAlsoRelays(t *testing.T) {
 // Every 2xx must reach parseSubmitResponse; only other statuses are upstream
 // failures that keep the upstream status and body.
 func TestRelayTaskSubmitAcceptsAnySuccessfulUpstreamStatus(t *testing.T) {
+	setupRelayChannelDB(t)
 	service.InitHttpClient()
 	const source = `
 export const meta = {apiVersion:1,key:"status-echo",name:"Status Echo",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task"};
@@ -826,6 +831,7 @@ export function parseTaskResult() { return {status:"SUCCESS"}; }
 }
 
 func TestRelayTaskSubmitErrorHandler(t *testing.T) {
+	setupRelayChannelDB(t)
 	service.InitHttpClient()
 	const source = `
 export const meta = {apiVersion:1,key:"submit-error-test",name:"Submit Error Test",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task",requiredCapabilities:["submit-error-handler@1"]};
@@ -931,6 +937,7 @@ export function parseTaskResult() { return {status:"SUCCESS"}; }
 // attempt; the retry runs on plugin B, pinned the way
 // SetupContextForSelectedChannel pins another candidate plugin's channel.
 func TestRelayTaskSubmitRetryRepricesAndReservesBeforeUpstream(t *testing.T) {
+	setupRelayChannelDB(t)
 	service.InitHttpClient()
 	const source = `
 export const meta = {apiVersion:1,key:"KEY",name:"KEY",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task",usageSchema:{seconds:{type:"number",unit:"second",description:"Video generation unit price"}}};

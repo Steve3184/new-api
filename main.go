@@ -5,6 +5,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -369,7 +370,16 @@ func InitResources() error {
 			common.SysError(common.LogText("failed to migrate sensitive words: %s", err.Error()))
 		}
 	}
-	model.InitOptionMap()
+	if err := model.InitOptionMap(); err != nil {
+		return fmt.Errorf("initialize options: %w", err)
+	}
+	if common.IsMasterNode {
+		if err := model.MigrateSubscriptionGroupAutoCreateKeys(); err != nil {
+			return fmt.Errorf("migrate subscription group bindings: %w", err)
+		}
+	} else if err := model.RequireSubscriptionBindingMigration(); err != nil {
+		return fmt.Errorf("check subscription group migration: %w", err)
+	}
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

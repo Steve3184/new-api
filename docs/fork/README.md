@@ -85,6 +85,36 @@ upstream conflict resolution auditable.
 
 ## Compatibility rules
 
+### Subscription binding migration
+
+This upgrade changes authorization and payment semantics and does not support
+a mixed-version rolling deployment. Stop all older application workers and
+remove them from load-balancer targets before starting the upgraded master.
+Keep the shared database and Redis running. Start the upgraded master first;
+it commits the old option conversion and the migration completion record in
+one transaction. Start only upgraded secondary nodes after it is healthy.
+Do not allow an older worker to serve requests or payment callbacks after the
+cutover. A secondary checks the committed migration record, not whether every
+order happens to contain the new entitlement snapshot column.
+
+Back up the database before cutover or rollback. For an immediate failed-cutover
+rollback, stop the upgraded workers and restore the saved `SubscriptionGroups`
+option only after verifying that no live subscription writes occurred and the
+exact plan bindings still match the pre-cutover snapshot.
+
+After serving live traffic, do not blindly restore the old option. The older
+application cannot represent per-plan key creation or retained legacy rights
+inside subscription-only groups. Prefer a forward fix. If rollback is required,
+stop all workers and reconcile the old `SubscriptionGroups` option against the
+current exact bindings: include each bound group (including those bound only by
+disabled plans), exclude unbound groups, and explicitly agree on one key policy
+per group where plans differ. Verify which existing entitlements and pending
+checkouts the old application can honor before resuming traffic; do not restart
+it with unresolved incompatibilities. Keep the additive columns and live order
+history. Restore or replace the option and remove the
+`derive_groups_from_plan_bindings_v1` row from `subscription_migrations` in one
+transaction before starting the older workers.
+
 - Existing option names and response fields are preserved.
 - New system settings are stored as additive rows in the existing `options`
   table. Subscription and redemption additions use the existing cross-database

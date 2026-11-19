@@ -102,6 +102,7 @@ func (*recordedSettlement) ReserveBeforeSubmit(int) error { return nil }
 // a channel that cannot relay the endpoint fails retryably without sending
 // anything.
 func TestDeepSeekToolsHelper(t *testing.T) {
+	setupRelayChannelDB(t)
 	service.InitHttpClient()
 	gin.SetMode(gin.TestMode)
 	batch, logConsume := common.BatchUpdateEnabled, common.LogConsumeEnabled

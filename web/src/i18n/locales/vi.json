@@ -1,13 +1,11 @@
 {
   "translation": {
     "Automatically create API key": "Tự động tạo khóa API",
-    "Automatically create API key: {{group}}": "Tự động tạo khóa API: {{group}}",
-    "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.": "Hãy liên kết một gói đăng ký trước khi bật nhóm. Các nhóm khác vẫn dùng quy tắc tính phí hiện tại.",
-    "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.": "Để trống để giữ cách tính phí cũ. Gói đã liên kết chỉ áp dụng cho nhóm sau khi bật đăng ký cho nhóm đó.",
+    "Leave unbound to keep legacy billing. A bound group becomes a subscription group automatically and is covered only by plans bound to it.": "Để trống để giữ cách tính phí cũ. Nhóm được liên kết sẽ tự động trở thành nhóm đăng ký và chỉ được bao phủ bởi các gói liên kết với nhóm đó.",
+    "Bind a subscription group to enable this option.": "Hãy liên kết một nhóm đăng ký để bật tùy chọn này.",
+    "Binding a plan makes its group a subscription group automatically. After a purchase, a key for that group is created only if the subscriber has no usable key covering it; the key limit still applies.": "Liên kết một gói sẽ tự động biến nhóm của gói thành nhóm đăng ký. Sau khi mua, khóa cho nhóm đó chỉ được tạo nếu người đăng ký chưa có khóa khả dụng nào bao phủ nhóm; giới hạn số khóa vẫn được áp dụng.",
     "Legacy subscription": "Gói đăng ký kiểu cũ",
     "Subscription group": "Nhóm đăng ký",
-    "Subscription group: {{group}}": "Nhóm đăng ký: {{group}}",
-    "Subscription groups": "Các nhóm đăng ký",
     "Subscription group does not exist: {{group}}": "Không tìm thấy nhóm đăng ký: {{group}}",
     "Bind at least one subscription plan to group {{group}}": "Hãy liên kết ít nhất một gói đăng ký với nhóm {{group}}",
     "360": "360",

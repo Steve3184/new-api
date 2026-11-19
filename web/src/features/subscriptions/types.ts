@@ -50,6 +50,7 @@ export const subscriptionPlanSchema = z.object({
   weekly_limit: z.number().optional(),
   monthly_limit: z.number().optional(),
   subscription_group: z.string().optional(),
+  auto_create_key: z.boolean().optional().default(false),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),

@@ -59,7 +59,6 @@ type GroupFormValues = {
   GroupSpecialUsableGroup: string
   GroupDefaultModel: string
   GroupRetryTimes: string
-  SubscriptionGroups: string
   ModelSquareVisibleGroups: string
 }
 
@@ -75,7 +74,6 @@ const values: GroupFormValues = {
   GroupSpecialUsableGroup: '{}',
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
-  SubscriptionGroups: '{}',
   ModelSquareVisibleGroups: '[]',
 }
 

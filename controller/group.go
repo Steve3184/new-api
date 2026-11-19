@@ -2,8 +2,10 @@ package controller
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -29,13 +31,24 @@ func GetUserGroups(c *gin.Context) {
 	userGroup := ""
 	userId := c.GetInt("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
-	userUsableGroups := service.GetUserUsableGroupsForUser(userId, userGroup)
-	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
-		// UserUsableGroups contains the groups that the user can use
+	userUsableGroups, subscriptionGroups, err := service.GetUserGroupAccessSnapshot(userId, userGroup)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	for groupName := range ratio_setting.GetGroupRatioCopy() {
 		if desc, ok := userUsableGroups[groupName]; ok {
-			_, subscription := ratio_setting.GetSubscriptionGroup(groupName)
+			_, subscription := slices.BinarySearch(subscriptionGroups, groupName)
+			ratio := 1.0
+			if !subscription {
+				if special, ok := ratio_setting.GetGroupGroupRatio(userGroup, groupName); ok {
+					ratio = special
+				} else {
+					ratio = ratio_setting.GetGroupRatio(groupName)
+				}
+			}
 			usableGroups[groupName] = map[string]interface{}{
-				"ratio":         service.GetUserGroupRatio(userGroup, groupName),
+				"ratio":         ratio,
 				"desc":          desc,
 				"default_model": ratio_setting.GetGroupDefaultModel(groupName),
 				"subscription":  subscription,

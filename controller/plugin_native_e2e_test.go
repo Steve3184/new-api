@@ -98,7 +98,7 @@ func TestKlingNativeRouteSubmitPollSettleAndQuery(t *testing.T) {
 	previousRedisEnabled := common.RedisEnabled
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}))
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}, &model.SubscriptionPlan{}))
 	model.DB = database
 	model.LOG_DB = database
 	common.MemoryCacheEnabled = false
@@ -286,7 +286,7 @@ func TestDoubaoRelayedImageStreamSettlement(t *testing.T) {
 	previousDeadline := constant.TaskPluginProtocolTimeoutSeconds
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}))
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}, &model.SubscriptionPlan{}))
 	model.DB = database
 	model.LOG_DB = database
 	common.MemoryCacheEnabled = false
@@ -447,7 +447,7 @@ func TestTaskSubmissionRunsRequestPlugins(t *testing.T) {
 	previousMemoryCache, previousBatchUpdate, previousLogConsume, previousRedis, previousErrorLog := common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled, constant.ErrorLogEnabled
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}))
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}, &model.SubscriptionPlan{}))
 	model.DB, model.LOG_DB = database, database
 	common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled, constant.ErrorLogEnabled = false, false, true, false, true
 	previousPrices := ratio_setting.ModelPrice2JSONString()
@@ -593,7 +593,7 @@ func TestNativeRouteDecodesTheIngressBody(t *testing.T) {
 	previousMemoryCache, previousBatchUpdate, previousLogConsume, previousRedis := common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}))
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}, &model.SubscriptionPlan{}))
 	model.DB, model.LOG_DB = database, database
 	common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled = false, false, false, false
 	previousModelRatios := ratio_setting.ModelRatio2JSONString()

@@ -359,7 +359,10 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (_ *TaskSubmit
 		} else {
 			facts = provider.ExtractUsageFacts(c, info)
 		}
-		groupRatioInfo := helper.HandleGroupRatio(c, info)
+		groupRatioInfo, ratioErr := helper.HandleGroupRatio(c, info)
+		if ratioErr != nil {
+			return nil, service.TaskErrorWrapperLocal(ratioErr, "group_ratio_error", http.StatusInternalServerError)
+		}
 		cost, trace, runErr := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts, Group: info.UsingGroup})
 		if runErr != nil || cost < 0 {
 			if runErr == nil {

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"database/sql"
+	"errors"
 	"slices"
 	"unicode/utf8"
 
@@ -8,104 +10,276 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
+
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
-// validateSubscriptionGroupsTx requires an existing plan binding independent of
-// its price tiers. Plans can be bound before the group is enabled.
-func validateSubscriptionGroupsTx(tx *gorm.DB, value string) error {
-	groups, err := ratio_setting.ParseSubscriptionGroups(value)
-	if err != nil || len(groups) == 0 {
+const retiredSubscriptionGroupsOptionKey = "SubscriptionGroups"
+const subscriptionBindingMigrationName = "derive_groups_from_plan_bindings_v1"
+
+// Internal database migration state, not a group setting or API option.
+type SubscriptionMigration struct {
+	Name string `gorm:"primaryKey;size:96"`
+}
+
+var errSubscriptionBindingMigrationPending = errors.New("subscription group migration is pending; bring up the upgraded master before this node")
+
+// Compare byte length rather than collation equality. MySQL can collate
+// nonempty names as empty, while SQLite's text length stops at a NUL byte.
+func subscriptionGroupByteLength() string {
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		return "LENGTH(CAST(subscription_group AS BLOB))"
+	}
+	return "OCTET_LENGTH(subscription_group)"
+}
+
+// Move the old group-level auto-key setting to each exactly matching plan.
+// Retire the old option and record completion in the same transaction.
+func MigrateSubscriptionGroupAutoCreateKeys() error {
+	return migrateSubscriptionGroupAutoCreateKeys(DB)
+}
+
+// Non-master nodes may not run schema migrations. They must not accept
+// checkouts or callbacks until the master has committed the entitlement copy.
+func RequireSubscriptionBindingMigration() error {
+	return requireSubscriptionBindingMigration(DB)
+}
+
+func requireSubscriptionBindingMigration(db *gorm.DB) error {
+	if err := db.Where(&SubscriptionMigration{Name: subscriptionBindingMigrationName}).Take(&SubscriptionMigration{}).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return errSubscriptionBindingMigrationPending
+	} else {
 		return err
 	}
-	names := make([]string, 0, len(groups))
-	for group := range groups {
-		if !ratio_setting.ContainsGroupRatio(group) {
-			return common.NewMessage("Subscription group does not exist: {{group}}", map[string]any{"group": group})
+}
+
+func migrateSubscriptionGroupAutoCreateKeys(db *gorm.DB) error {
+	return subscriptionPlanTransaction(db, func(tx *gorm.DB) error {
+		var option Option
+		err := lockForUpdate(tx).Where(&Option{Key: retiredSubscriptionGroupsOptionKey}).First(&option).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
 		}
-		names = append(names, group)
+		if err := requireSubscriptionBindingMigration(tx); !errors.Is(err, errSubscriptionBindingMigrationPending) {
+			return err
+		}
+		var old map[string]struct {
+			AutoCreateKey bool `json:"auto_create_key"`
+		}
+		if option.Value != "" {
+			if err := common.UnmarshalJsonStr(option.Value, &old); err != nil {
+				return err
+			}
+		}
+		var plans []SubscriptionPlan
+		if err := tx.Select("id", "subscription_group").Where(subscriptionGroupByteLength() + " > 0").Find(&plans).Error; err != nil {
+			return err
+		}
+		var enableKeys, disableKeys []int
+		newGroups := make(map[string]bool)
+		for _, plan := range plans {
+			group := plan.SubscriptionGroup
+			if group == "" || group == "auto" {
+				continue
+			}
+			config, wasScoped := old[group]
+			if !wasScoped {
+				newGroups[group] = true
+			}
+			if config.AutoCreateKey {
+				enableKeys = append(enableKeys, plan.Id)
+			} else {
+				disableKeys = append(disableKeys, plan.Id)
+			}
+		}
+		for _, batch := range []struct {
+			ids     []int
+			enabled bool
+		}{{enableKeys, true}, {disableKeys, false}} {
+			for start := 0; start < len(batch.ids); start += 500 {
+				if err := tx.Model(&SubscriptionPlan{}).Where("id IN ?", batch.ids[start:min(start+500, len(batch.ids))]).UpdateColumn("auto_create_key", batch.enabled).Error; err != nil {
+					return err
+				}
+			}
+		}
+		if err := snapshotLegacySubscriptionGroupsTx(tx, newGroups); err != nil {
+			return err
+		}
+		if err := tx.Model(&UserSubscription{}).Where("legacy_cycle_groups IS NULL").UpdateColumn("legacy_cycle_groups", "{}").Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&SubscriptionOrder{}).Where("legacy_cycle_groups IS NULL AND status = ?", common.TopUpStatusPending).UpdateColumn("legacy_cycle_groups", "{}").Error; err != nil {
+			return err
+		}
+		if option.Key != "" {
+			if err := tx.Delete(&option).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Create(&SubscriptionMigration{Name: subscriptionBindingMigrationName}).Error
+	})
+}
+
+// SubscriptionGroupNames derives membership from saved bindings, including
+// disabled plans: unlisting a plan does not revoke existing entitlements.
+func SubscriptionGroupNames() ([]string, error) {
+	return subscriptionGroupNamesTx(DB)
+}
+
+func subscriptionGroupNamesTx(db *gorm.DB) ([]string, error) {
+	if db == nil {
+		return nil, errors.New("subscription plan database is unavailable")
 	}
-	var bound []string
-	if err := lockForUpdate(tx).Model(&SubscriptionPlan{}).Where("subscription_group IN ?", names).Pluck("subscription_group", &bound).Error; err != nil {
+	var bindings []string
+	if err := db.Model(&SubscriptionPlan{}).Where(subscriptionGroupByteLength()+" > 0").Pluck("subscription_group", &bindings).Error; err != nil {
+		return nil, err
+	}
+	bindings = slices.DeleteFunc(bindings, func(group string) bool { return group == "" || group == "auto" })
+	slices.Sort(bindings)
+	return slices.Compact(bindings), nil
+}
+
+func IsSubscriptionGroup(group string) (bool, error) {
+	return isSubscriptionGroupTx(DB, group)
+}
+
+func isSubscriptionGroupTx(tx *gorm.DB, group string) (bool, error) {
+	if group == "" || group == "auto" {
+		return false, nil
+	}
+	if tx == nil {
+		return false, errors.New("subscription plan database is unavailable")
+	}
+	var bindings []string
+	if err := tx.Model(&SubscriptionPlan{}).Where("subscription_group = ?", group).Pluck("subscription_group", &bindings).Error; err != nil {
+		return false, err
+	}
+	// SQL can match case or accent variants; only the exact name is bound.
+	return slices.Contains(bindings, group), nil
+}
+
+// syncSubscriptionPlanEntitlementTx serializes a new order, grant, or renewal
+// with structural changes to the plan. PostgreSQL needs a new row version,
+// not just a lock: waiting repeatable-read transactions must not validate
+// against a snapshot that predates a newly committed order or grant.
+func syncSubscriptionPlanEntitlementTx(tx *gorm.DB, planID int) (*SubscriptionPlan, error) {
+	var plan SubscriptionPlan
+	if err := lockForUpdate(tx).First(&plan, planID).Error; err != nil {
+		return nil, err
+	}
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		if err := tx.Model(&plan).UpdateColumn("subscription_group", gorm.Expr("subscription_group")).Error; err != nil {
+			return nil, err
+		}
+	}
+	plan.NormalizeDefaults()
+	return &plan, nil
+}
+
+// Structural edits lock the same ordered set before examining bindings or
+// entitlement rows. Buyers only lock their own plan, then their order/cycle.
+func lockSubscriptionBindingSetTx(tx *gorm.DB) error {
+	if err := lockSubscriptionCatalogRevisionTx(tx); err != nil {
 		return err
 	}
-	for _, group := range bound {
-		delete(groups, group)
+	var ids []int
+	return lockForUpdate(tx).Model(&SubscriptionPlan{}).Order("id").Pluck("id", &ids).Error
+}
+
+// Lock the catalog separately from its rows: READ COMMITTED does not prevent
+// an insert just because the transaction locked all existing plans.
+func lockSubscriptionCatalogRevisionTx(tx *gorm.DB) error {
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+		return requireSubscriptionBindingMigration(lockForUpdate(tx))
 	}
-	for group := range groups {
-		return common.NewMessage("Bind at least one subscription plan to group {{group}}", map[string]any{"group": group})
+	if !common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		return nil
+	}
+	// Write a row version so older repeatable-read snapshots abort.
+	result := tx.Model(&SubscriptionMigration{}).Where("name = ?", subscriptionBindingMigrationName).
+		UpdateColumn("name", subscriptionBindingMigrationName)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errSubscriptionBindingMigrationPending
 	}
 	return nil
 }
 
-func lockAndValidateSubscriptionGroupOptionTx(tx *gorm.DB, values map[string]string) error {
-	value, ok := values[ratio_setting.SubscriptionGroupsOptionKey]
-	if !ok {
-		return nil
+// Binding locks plans before reading user identities. On MySQL, committed
+// reads keep those identities current without reversing checkout's lock order.
+func subscriptionPlanTransaction(db *gorm.DB, fn func(*gorm.DB) error) error {
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+		return db.Transaction(fn, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	}
-	if _, err := lockSubscriptionGroupOptionTx(tx); err != nil {
-		return err
-	}
-	return validateSubscriptionGroupsTx(tx, value)
+	return db.Transaction(fn)
 }
 
-// Take the same database lock for configuration edits and binding removal so
-// two concurrent admin changes cannot leave an enabled group without a plan.
-func lockSubscriptionGroupOptionTx(tx *gorm.DB) (Option, error) {
-	option := Option{Key: ratio_setting.SubscriptionGroupsOptionKey, Value: "{}"}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&option).Error; err != nil {
-		return option, err
-	}
-	if err := lockForUpdate(tx).Where(&Option{Key: option.Key}).First(&option).Error; err != nil {
-		return option, err
-	}
-	// PostgreSQL's repeatable-read snapshot is not refreshed by a lock.
-	// Create a new row version so a concurrent writer with an older snapshot
-	// must abort rather than validate bindings against stale plan data.
-	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
-		return option, tx.Model(&option).UpdateColumn("value", option.Value).Error
-	}
-	return option, nil
+func UpdateSubscriptionPlanTransaction(fn func(*gorm.DB) error) error {
+	return subscriptionPlanTransaction(DB, fn)
 }
 
-// CheckSubscriptionPlanGroupChangeTx must run in the transaction that updates
-// or deletes the plan. A nil target represents deletion.
-func CheckSubscriptionPlanGroupChangeTx(tx *gorm.DB, planID int, target *string) error {
-	option, err := lockSubscriptionGroupOptionTx(tx)
-	if err != nil {
-		return err
+// CheckSubscriptionPlanGroupChangeTx returns the locked plan's current group.
+// A nil target preserves it; a non-nil target may explicitly unbind it.
+func CheckSubscriptionPlanGroupChangeTx(tx *gorm.DB, planID int, target *string) (string, error) {
+	if target != nil && *target != "" {
+		var current SubscriptionPlan
+		if err := tx.Select("id", "subscription_group").First(&current, planID).Error; err != nil {
+			return "", err
+		}
+		if current.SubscriptionGroup == *target {
+			// A normal edit of an already-bound plan only needs its own lock.
+			if err := lockForUpdate(tx).Select("id", "subscription_group").First(&current, planID).Error; err != nil {
+				return "", err
+			}
+			if current.SubscriptionGroup != *target {
+				return "", common.NewMessage("The subscription plan changed; reload and try again")
+			}
+			return current.SubscriptionGroup, nil
+		}
+		if err := lockSubscriptionBindingSetTx(tx); err != nil {
+			return "", err
+		}
 	}
 	var plan SubscriptionPlan
 	if err := lockForUpdate(tx).Select("id", "subscription_group").First(&plan, planID).Error; err != nil {
-		return err
+		return "", err
 	}
-	group := plan.SubscriptionGroup
-	if group == "" || (target != nil && *target == group) {
-		return nil
+	if target != nil && *target != plan.SubscriptionGroup {
+		if err := checkSubscriptionPlanRetainEntitlementsTx(tx, planID); err != nil {
+			return "", err
+		}
+		if err := retainLegacyAccessBeforeBindingTx(tx, *target); err != nil {
+			return "", err
+		}
 	}
-	groups, err := ratio_setting.ParseSubscriptionGroups(option.Value)
-	if err != nil {
-		return err
-	}
-	if _, enabled := groups[group]; !enabled {
-		return nil
+	return plan.SubscriptionGroup, nil
+}
+
+func checkSubscriptionPlanRetainEntitlementsTx(tx *gorm.DB, planID int) error {
+	// MySQL locking reads see current records even if the caller already
+	// established an older repeatable-read snapshot. Checkout and settlement
+	// acquire the plan lock before locking or creating the protected rows.
+	read := func() *gorm.DB {
+		if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+			return lockForUpdate(tx)
+		}
+		return tx
 	}
 	var active []int
-	if err := lockForUpdate(tx).Model(&UserSubscription{}).Where("plan_id = ? AND status = ? AND end_time > ?", planID, "active", common.GetTimestamp()).Limit(1).Pluck("id", &active).Error; err != nil {
+	if err := read().Model(&UserSubscription{}).Where("plan_id = ? AND status = ? AND end_time > ?", planID, "active", common.GetTimestamp()).Limit(1).Pluck("id", &active).Error; err != nil {
 		return err
 	}
 	if len(active) > 0 {
-		return common.NewMessage("Cannot change the group of a plan with active subscriptions")
+		return common.NewMessage("Cannot change or delete a subscription plan with active subscriptions")
 	}
-	var alternatives []string
-	// MySQL locking reads use current rows even under repeatable read.
-	if err := lockForUpdate(tx).Model(&SubscriptionPlan{}).Where("id <> ? AND subscription_group = ?", planID, group).Pluck("subscription_group", &alternatives).Error; err != nil {
+	var pending []int
+	if err := read().Model(&SubscriptionOrder{}).Where("plan_id = ? AND status = ?", planID, common.TopUpStatusPending).Limit(1).Pluck("id", &pending).Error; err != nil {
 		return err
 	}
-	if !slices.Contains(alternatives, group) {
-		return common.NewMessage("Bind at least one subscription plan to group {{group}}", map[string]any{"group": group})
+	if len(pending) > 0 {
+		return common.NewMessage("Cannot change or delete a subscription plan with pending orders")
 	}
 	return nil
 }
@@ -144,8 +318,7 @@ func GetActiveUserSubscriptionGroups(userID int, groups []string) ([]string, err
 
 func ensureSubscriptionGroupKeyTx(tx *gorm.DB, userID int, plan *SubscriptionPlan) error {
 	group := plan.SubscriptionGroup
-	config, scoped := ratio_setting.GetSubscriptionGroup(group)
-	if !scoped || !config.AutoCreateKey {
+	if group == "" || group == "auto" || !plan.AutoCreateKey {
 		return nil
 	}
 	var user User

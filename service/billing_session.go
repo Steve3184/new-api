@@ -16,7 +16,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
@@ -446,7 +445,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return hasAny, hasEligible, nil
 	}
 
-	if _, scoped := ratio_setting.GetSubscriptionGroup(relayInfo.UsingGroup); scoped {
+	scoped, err := model.IsSubscriptionGroup(relayInfo.UsingGroup)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+	}
+	if scoped {
 		session, apiErr := trySubscription()
 		if apiErr == nil || pref == "subscription_only" || apiErr.GetErrorCode() != types.ErrorCodeInsufficientUserQuota {
 			return session, apiErr

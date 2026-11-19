@@ -7,7 +7,6 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -26,81 +25,57 @@ func (access UserGroupAccess) Allows(group string) bool {
 }
 
 func GetUserUsableGroups(userGroup string) map[string]string {
-	groupsCopy := setting.GetUserUsableGroupsCopy()
-	if userGroup != "" {
-		specialSettings, b := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup)
-		if b {
-			// 处理特殊可用分组
-			for specialGroup, desc := range specialSettings {
-				if after, ok := strings.CutPrefix(specialGroup, "-:"); ok {
-					// 移除分组
-					groupToRemove := after
-					delete(groupsCopy, groupToRemove)
-				} else if after, ok := strings.CutPrefix(specialGroup, "+:"); ok {
-					// 添加分组
-					groupToAdd := after
-					groupsCopy[groupToAdd] = desc
-				} else {
-					// 直接添加分组
-					groupsCopy[specialGroup] = desc
-				}
-			}
-		}
-		// 如果userGroup不在UserUsableGroups中，返回UserUsableGroups + userGroup。
-		// 描述是英文源文本，由 web 控制台翻译；管理员配置的描述原样显示。
-		if _, ok := groupsCopy[userGroup]; !ok {
-			description := console_setting.GetModelSquareVisibleGroupDescriptions()[userGroup]
-			if strings.TrimSpace(description) == "" {
-				description = "User group"
-			}
-			groupsCopy[userGroup] = description
-		}
-	}
-	return groupsCopy
+	return model.OrdinaryUserUsableGroups(userGroup)
 }
 
 // GetUserUsableGroupsForUser applies the optional per-group access expressions
 // after the existing user-group and special-group rules have been resolved.
 func GetUserUsableGroupsForUser(userID int, userGroup string) map[string]string {
+	groups, _, err := GetUserGroupAccessSnapshot(userID, userGroup)
+	if err != nil {
+		common.SysError(common.LogText("failed to resolve user group access: %s", err))
+	}
+	return groups
+}
+
+// GetUserGroupAccessSnapshot returns the authorized groups and their underlying
+// binding list together so callers can label groups without querying each one.
+func GetUserGroupAccessSnapshot(userID int, userGroup string) (map[string]string, []string, error) {
 	groups := GetUserUsableGroups(userGroup)
-	scoped := ratio_setting.SubscriptionGroupNames()
+	scoped, err := model.SubscriptionGroupNames()
+	if err != nil {
+		return map[string]string{}, nil, err
+	}
+	legacyGroups := make(map[string]string)
 	for _, group := range scoped {
+		if description, ok := groups[group]; ok && ratio_setting.ContainsGroupRatio(group) {
+			legacyGroups[group] = description
+		}
 		delete(groups, group)
+	}
+	retained, err := model.GetRetainedLegacySubscriptionGroups(userID, legacyGroups)
+	if err != nil {
+		common.SysError(common.LogText("failed to resolve legacy subscription access: %s", err))
+	}
+	for _, group := range retained {
+		groups[group] = legacyGroups[group]
 	}
 	entitled, err := model.GetActiveUserSubscriptionGroups(userID, scoped)
 	if err != nil {
 		common.SysError(common.LogText("failed to resolve subscription groups: %s", err))
 	}
 	for _, group := range entitled {
-		groups[group] = setting.GetUsableGroupDescription(group)
-	}
-	rules := GetGroupAccessRulesByGroup()
-	if len(rules) == 0 {
-		return groups
-	}
-	accessUser, err := loadGroupAccessUser(userID)
-	if err != nil {
-		for group := range rules {
-			delete(groups, group)
+		if ratio_setting.ContainsGroupRatio(group) {
+			groups[group] = setting.GetUsableGroupDescription(group)
 		}
-		return groups
 	}
-	for group, rule := range rules {
-		if !accessUser.evaluateRule(rule) {
+	check := model.NewGroupRuleCheck(model.DB)
+	for group := range groups {
+		if allowed, err := check(userID, group); err != nil || !allowed {
 			delete(groups, group)
 		}
 	}
-	return groups
-}
-
-func GetGroupAccessRulesByGroup() map[string]console_setting.GroupAccessRule {
-	rules := make(map[string]console_setting.GroupAccessRule)
-	for _, rule := range console_setting.GetGroupAccessRules() {
-		if rule.Group != "" {
-			rules[rule.Group] = rule
-		}
-	}
-	return rules
+	return groups, scoped, nil
 }
 
 func GroupInUserUsableGroups(userGroup, groupName string) bool {
@@ -280,10 +255,17 @@ func GetGroupsEnabledModels(groups []string) []string {
 // GetUserGroupRatio 获取用户使用某个分组的倍率
 // userGroup 用户分组
 // group 需要获取倍率的分组
-func GetUserGroupRatio(userGroup, group string) float64 {
+func GetUserGroupRatio(userGroup, group string) (float64, bool, error) {
+	scoped, err := model.IsSubscriptionGroup(group)
+	if err != nil {
+		return 0, false, err
+	}
+	if scoped {
+		return 1, false, nil
+	}
 	ratio, ok := ratio_setting.GetGroupGroupRatio(userGroup, group)
 	if ok {
-		return ratio
+		return ratio, true, nil
 	}
-	return ratio_setting.GetGroupRatio(group)
+	return ratio_setting.GetGroupRatio(group), false, nil
 }

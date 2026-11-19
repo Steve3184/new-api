@@ -161,6 +161,53 @@ describe('subscription plan billing mode form mapping', () => {
   })
 })
 
+describe('subscription plan automatic API key form mapping', () => {
+  test('defaults a new plan to not creating an API key', () => {
+    expect(PLAN_FORM_DEFAULTS.auto_create_key).toBe(false)
+    expect(
+      formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan.auto_create_key
+    ).toBe(false)
+  })
+
+  test('treats a persisted plan without the field as not creating an API key', () => {
+    const plan = subscriptionPlanSchema.parse({
+      ...formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan,
+      id: 3,
+      subscription_group: 'subscriber',
+      auto_create_key: undefined,
+    })
+    expect(planToFormValues(plan).auto_create_key).toBe(false)
+  })
+
+  test('round-trips automatic API key creation for a bound plan', () => {
+    const plan = subscriptionPlanSchema.parse({
+      ...formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan,
+      id: 4,
+      subscription_group: 'subscriber',
+      auto_create_key: true,
+    })
+    const values = planToFormValues(plan)
+    expect(values.auto_create_key).toBe(true)
+    expect(formValuesToPlanPayload(values).plan).toMatchObject({
+      subscription_group: 'subscriber',
+      auto_create_key: true,
+    })
+  })
+
+  test('sends false when a plan is unbound even if the switch was on', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      subscription_group: '',
+      auto_create_key: true,
+    })
+    expect(payload.plan).toMatchObject({
+      subscription_group: '',
+      auto_create_key: false,
+    })
+  })
+})
+
 describe('subscription plan tiers form mapping', () => {
   test('round-trips usage tiers, upgrade targets and renewal settings', () => {
     const payload = formValuesToPlanPayload({

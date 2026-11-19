@@ -513,7 +513,14 @@ export function SubscriptionsMutateDrawer({
                         })),
                       ]}
                       value={field.value}
-                      onValueChange={(value) => field.onChange(value ?? '')}
+                      onValueChange={(value) => {
+                        field.onChange(value ?? '')
+                        if (!value) {
+                          form.setValue('auto_create_key', false, {
+                            shouldDirty: true,
+                          })
+                        }
+                      }}
                     >
                       <FormControl>
                         <SelectTrigger className='w-full'>
@@ -533,10 +540,40 @@ export function SubscriptionsMutateDrawer({
                     </Select>
                     <FormDescription>
                       {t(
-                        'Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.'
+                        'Leave unbound to keep legacy billing. A bound group becomes a subscription group automatically and is covered only by plans bound to it.'
                       )}
                     </FormDescription>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='auto_create_key'
+                render={({ field }) => (
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='!mt-0'>
+                        {t('Automatically create API key')}
+                      </FormLabel>
+                      <FormDescription>
+                        {subscriptionGroup
+                          ? t(
+                              'Binding a plan makes its group a subscription group automatically. After a purchase, a key for that group is created only if the subscriber has no usable key covering it; the key limit still applies.'
+                            )
+                          : t(
+                              'Bind a subscription group to enable this option.'
+                            )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={Boolean(subscriptionGroup) && field.value}
+                        disabled={!subscriptionGroup}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />

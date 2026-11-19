@@ -13,7 +13,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,7 +62,7 @@ func TestSubscriptionGroupBindingIsOptIn(t *testing.T) {
 
 func TestLegacyPlanEditorDoesNotClearSubscriptionGroup(t *testing.T) {
 	db := setupManageUserTestDB(t)
-	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.SystemTask{}, &model.Option{}))
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionOrder{}, &model.SystemTask{}))
 	settings := operation_setting.GetPaymentSetting()
 	original := *settings
 	t.Cleanup(func() { *settings = original })
@@ -74,10 +73,16 @@ func TestLegacyPlanEditorDoesNotClearSubscriptionGroup(t *testing.T) {
 	router := gin.New()
 	router.PUT("/plans/:id", AdminUpdateSubscriptionPlan)
 	path := "/plans/" + strconv.Itoa(plan.Id)
-	for _, tc := range []struct{ body, wantGroup string }{
-		{`{"plan":{"title":"Edited by legacy client"}}`, "vip"},
-		{`{"plan":{"title":"Explicit legacy mode","subscription_group":""}}`, ""},
-		{`{"plan":{"title":"Scoped again","subscription_group":" vip "}}`, "vip"},
+	for _, tc := range []struct {
+		body, wantGroup string
+		wantKey         bool
+	}{
+		{`{"plan":{"title":"Enabled key","auto_create_key":true}}`, "vip", true},
+		{`{"plan":{"title":"Edited by legacy client"}}`, "vip", true},
+		{`{"plan":{"title":"Explicit legacy mode","subscription_group":""}}`, "", false},
+		{`{"plan":{"title":"Scoped again","subscription_group":" vip "}}`, "vip", false},
+		{`{"plan":{"title":"Bound and enabled","subscription_group":"vip","auto_create_key":true}}`, "vip", true},
+		{`{"plan":{"title":"Disabled key","auto_create_key":false}}`, "vip", false},
 	} {
 		response := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodPut, path, strings.NewReader(tc.body))
@@ -89,10 +94,15 @@ func TestLegacyPlanEditorDoesNotClearSubscriptionGroup(t *testing.T) {
 		var saved model.SubscriptionPlan
 		require.NoError(t, db.First(&saved, plan.Id).Error)
 		assert.Equal(t, tc.wantGroup, saved.SubscriptionGroup)
+		payload, err := common.Marshal(saved)
+		require.NoError(t, err)
+		var fields map[string]any
+		require.NoError(t, common.Unmarshal(payload, &fields))
+		assert.Equal(t, tc.wantKey, fields["auto_create_key"])
 	}
 }
 
-func TestCannotUnbindLastPlanFromEnabledSubscriptionGroup(t *testing.T) {
+func TestSubscriptionPlanUnbindProtectsActiveHolders(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionOrder{}, &model.SystemTask{}, &model.Option{}))
 	settings := operation_setting.GetPaymentSetting()
@@ -102,7 +112,6 @@ func TestCannotUnbindLastPlanFromEnabledSubscriptionGroup(t *testing.T) {
 	settings.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
 	plan := model.SubscriptionPlan{Title: "Scoped plan", SubscriptionGroup: "vip"}
 	require.NoError(t, db.Create(&plan).Error)
-	require.NoError(t, db.Create(&model.Option{Key: ratio_setting.SubscriptionGroupsOptionKey, Value: `{"vip":{}}`}).Error)
 	router := gin.New()
 	router.PUT("/plans/:id", AdminUpdateSubscriptionPlan)
 	path := "/plans/" + strconv.Itoa(plan.Id)
@@ -115,18 +124,20 @@ func TestCannotUnbindLastPlanFromEnabledSubscriptionGroup(t *testing.T) {
 		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
 		return result.Success
 	}
-	assert.False(t, update())
-	var saved model.SubscriptionPlan
-	require.NoError(t, db.First(&saved, plan.Id).Error)
-	require.Equal(t, "vip", saved.SubscriptionGroup)
-	require.Error(t, model.DeleteSubscriptionPlan(plan.Id))
-	other := model.SubscriptionPlan{Title: "Another scoped plan", SubscriptionGroup: "vip"}
-	require.NoError(t, db.Create(&other).Error)
 	sub := model.UserSubscription{PlanId: plan.Id, UserId: 1, Status: "active", EndTime: common.GetTimestamp() + 1000}
 	require.NoError(t, db.Create(&sub).Error)
-	assert.False(t, update(), "an alternate plan does not preserve existing holders' access")
+	assert.False(t, update(), "active holders must keep their access")
+	require.Error(t, model.DeleteSubscriptionPlan(plan.Id))
 	require.NoError(t, db.Model(&sub).Update("status", "cancelled").Error)
-	require.True(t, update())
+	order := model.SubscriptionOrder{PlanId: plan.Id, UserId: 1, TradeNo: "pending-bound-order", Status: common.TopUpStatusPending}
+	require.NoError(t, db.Create(&order).Error)
+	assert.False(t, update(), "an unsettled checkout must keep its plan binding")
+	require.Error(t, model.DeleteSubscriptionPlan(plan.Id))
+	require.NoError(t, db.Model(&order).Update("status", common.TopUpStatusExpired).Error)
+	require.True(t, update(), "removing the last binding is allowed without active holders")
+	var saved model.SubscriptionPlan
+	require.NoError(t, db.First(&saved, plan.Id).Error)
+	assert.Empty(t, saved.SubscriptionGroup)
 }
 
 func TestSubscriptionEpayQuoteHonorsPerGatewayMinimum(t *testing.T) {

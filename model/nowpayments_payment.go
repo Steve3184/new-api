@@ -89,8 +89,11 @@ func CreateNowPaymentsSubscription(order *SubscriptionOrder, payment *NowPayment
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&user).Error; err != nil {
 			return err
 		}
-		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
+		plan, err := syncSubscriptionPlanEntitlementTx(tx, order.PlanId)
 		if err != nil {
+			return err
+		}
+		if err := order.prepareLegacyCheckoutTx(tx, plan); err != nil {
 			return err
 		}
 		if err := CheckSubscriptionPurchaseCapacity(tx, order.UserId, plan); err != nil {

@@ -1,13 +1,11 @@
 {
   "translation": {
     "Automatically create API key": "Automatically create API key",
-    "Automatically create API key: {{group}}": "Automatically create API key: {{group}}",
-    "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.": "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.",
-    "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.": "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.",
+    "Leave unbound to keep legacy billing. A bound group becomes a subscription group automatically and is covered only by plans bound to it.": "Leave unbound to keep legacy billing. A bound group becomes a subscription group automatically and is covered only by plans bound to it.",
+    "Bind a subscription group to enable this option.": "Bind a subscription group to enable this option.",
+    "Binding a plan makes its group a subscription group automatically. After a purchase, a key for that group is created only if the subscriber has no usable key covering it; the key limit still applies.": "Binding a plan makes its group a subscription group automatically. After a purchase, a key for that group is created only if the subscriber has no usable key covering it; the key limit still applies.",
     "Legacy subscription": "Legacy subscription",
     "Subscription group": "Subscription group",
-    "Subscription group: {{group}}": "Subscription group: {{group}}",
-    "Subscription groups": "Subscription groups",
     "Subscription group does not exist: {{group}}": "Subscription group does not exist: {{group}}",
     "Bind at least one subscription plan to group {{group}}": "Bind at least one subscription plan to group {{group}}",
     "360": "360",

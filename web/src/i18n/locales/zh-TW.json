@@ -1,13 +1,11 @@
 {
   "translation": {
     "Automatically create API key": "自動建立 API 金鑰",
-    "Automatically create API key: {{group}}": "自動建立 API 金鑰：{{group}}",
-    "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.": "啟用訂閱群組前，請先綁定一個訂閱方案。其他群組保留原有計費規則。",
-    "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.": "未綁定時沿用舊版計費。綁定後，只有啟用該訂閱群組，方案才能用於該群組。",
+    "Leave unbound to keep legacy billing. A bound group becomes a subscription group automatically and is covered only by plans bound to it.": "不綁定分組即沿用舊版計費。綁定後，該分組會自動成為訂閱分組，且僅由綁定到該分組的方案覆蓋。",
+    "Bind a subscription group to enable this option.": "請先綁定訂閱分組以啟用此選項。",
+    "Binding a plan makes its group a subscription group automatically. After a purchase, a key for that group is created only if the subscriber has no usable key covering it; the key limit still applies.": "綁定方案後，其分組會自動成為訂閱分組。購買後，僅當訂閱者沒有涵蓋該分組的可用 Key 時才會為該分組建立 Key，且仍受 Key 數量上限限制。",
     "Legacy subscription": "舊版訂閱",
     "Subscription group": "訂閱群組",
-    "Subscription group: {{group}}": "訂閱群組：{{group}}",
-    "Subscription groups": "訂閱群組",
     "Subscription group does not exist: {{group}}": "訂閱群組不存在：{{group}}",
     "Bind at least one subscription plan to group {{group}}": "請至少綁定一個訂閱方案至群組 {{group}}",
     "360": "360",

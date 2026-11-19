@@ -1,13 +1,11 @@
 {
   "translation": {
     "Automatically create API key": "Créer automatiquement une clé API",
-    "Automatically create API key: {{group}}": "Créer automatiquement une clé API : {{group}}",
-    "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.": "Associez un abonnement avant d’activer son groupe. Les autres groupes conservent leurs règles de facturation.",
-    "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.": "Laissez le groupe vide pour conserver l’ancienne facturation. Un forfait associé ne couvre son groupe qu’une fois celui-ci activé pour les abonnements.",
+    "Leave unbound to keep legacy billing. A bound group becomes a subscription group automatically and is covered only by plans bound to it.": "Laissez le groupe vide pour conserver l’ancienne facturation. Un groupe associé devient automatiquement un groupe d’abonnement et n’est couvert que par les forfaits qui lui sont associés.",
+    "Bind a subscription group to enable this option.": "Associez un groupe d’abonnement pour activer cette option.",
+    "Binding a plan makes its group a subscription group automatically. After a purchase, a key for that group is created only if the subscriber has no usable key covering it; the key limit still applies.": "Associer un forfait fait automatiquement de son groupe un groupe d’abonnement. Après un achat, une clé pour ce groupe n’est créée que si l’abonné n’a aucune clé utilisable couvrant ce groupe ; la limite de clés s’applique toujours.",
     "Legacy subscription": "Abonnement historique",
     "Subscription group": "Groupe d’abonnement",
-    "Subscription group: {{group}}": "Groupe d’abonnement : {{group}}",
-    "Subscription groups": "Groupes d’abonnement",
     "Subscription group does not exist: {{group}}": "Le groupe d’abonnement {{group}} est introuvable",
     "Bind at least one subscription plan to group {{group}}": "Associez au moins un forfait d’abonnement au groupe {{group}}",
     "360": "360",

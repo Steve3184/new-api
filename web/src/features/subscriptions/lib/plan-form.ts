@@ -61,6 +61,7 @@ export function getPlanFormSchema(t: TFunction) {
     weekly_limit: z.coerce.number().min(0),
     monthly_limit: z.coerce.number().min(0),
     subscription_group: z.string(),
+    auto_create_key: z.boolean(),
     upgrade_group: z.string().optional(),
     downgrade_group: z.string().optional(),
     stripe_price_id: z.string().optional(),
@@ -121,6 +122,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   weekly_limit: 0,
   monthly_limit: 0,
   subscription_group: '',
+  auto_create_key: false,
   upgrade_group: '',
   downgrade_group: '',
   stripe_price_id: '',
@@ -179,6 +181,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     weekly_limit: quotaUnitsToDollars(Number(plan.weekly_limit || 0)),
     monthly_limit: quotaUnitsToDollars(Number(plan.monthly_limit || 0)),
     subscription_group: plan.subscription_group || '',
+    auto_create_key: plan.auto_create_key === true,
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
@@ -233,6 +236,9 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       monthly_limit: values.benefits_only
         ? 0
         : parseQuotaFromDollars(Number(values.monthly_limit || 0)),
+      // Automatic keys apply only to plans bound to a subscription group.
+      auto_create_key:
+        Boolean(values.subscription_group) && values.auto_create_key,
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
       usage_tiers: JSON.stringify(

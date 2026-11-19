@@ -41,7 +41,6 @@ const defaults = {
   GroupSpecialUsableGroup: '{}',
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
-  SubscriptionGroups: '{}',
   ModelSquareVisibleGroups: '{}',
 }
 
@@ -57,7 +56,6 @@ const schema = z.object({
   GroupSpecialUsableGroup: z.string(),
   GroupDefaultModel: z.string(),
   GroupRetryTimes: z.string(),
-  SubscriptionGroups: z.string(),
   ModelSquareVisibleGroups: z.string(),
 })
 
@@ -91,23 +89,20 @@ function Fixture(props: {
 }
 
 describe('group settings workspace', () => {
-  it('saves subscription settings by group without changing ordinary group ratios', async () => {
+  it('does not offer per-group subscription switches because plan bindings define subscription groups', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn(async (_values: typeof defaults) => {})
     render(<Fixture onSave={onSave} />)
-    await user.click(
-      screen.getByRole('switch', { name: 'Subscription group: vip' })
-    )
-    await user.click(
-      screen.getByRole('switch', { name: 'Automatically create API key: vip' })
-    )
+
+    expect(
+      screen.queryByRole('switch', { name: /^Subscription group: / })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('switch', { name: /^Automatically create API key/ })
+    ).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save group ratios' }))
     await waitFor(() => expect(onSave).toHaveBeenCalled())
-    const saved = onSave.mock.calls[0][0]
-    expect(JSON.parse(saved.SubscriptionGroups)).toEqual({
-      vip: { auto_create_key: true },
-    })
-    expect(JSON.parse(saved.GroupRatio)).toEqual({ default: 1, vip: 0.8 })
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty('SubscriptionGroups')
   })
 
   it('preserves pricing edits when switching between visual and JSON editors', async () => {

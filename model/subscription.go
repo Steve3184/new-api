@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -243,23 +243,13 @@ func DeleteSubscriptionPlan(planId int) error {
 	if planId <= 0 {
 		return errors.New("invalid plan id")
 	}
-	now := common.GetTimestamp()
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		if err := CheckSubscriptionPlanGroupChangeTx(tx, planId, nil); err != nil {
-			return err
-		}
 		var plan SubscriptionPlan
 		if err := lockForUpdate(tx).Where("id = ?", planId).First(&plan).Error; err != nil {
 			return err
 		}
-		var activeCount int64
-		if err := tx.Model(&UserSubscription{}).
-			Where("plan_id = ? AND status = ? AND end_time > ?", planId, "active", now).
-			Count(&activeCount).Error; err != nil {
+		if err := checkSubscriptionPlanRetainEntitlementsTx(tx, planId); err != nil {
 			return err
-		}
-		if activeCount > 0 {
-			return errors.New("cannot delete a plan with active subscriptions")
 		}
 		return tx.Delete(&plan).Error
 	})
@@ -318,6 +308,7 @@ type SubscriptionPlan struct {
 
 	// SubscriptionGroup opts the plan into scoped billing; empty preserves legacy billing.
 	SubscriptionGroup string `json:"subscription_group" gorm:"type:varchar(64);not null;default:''"`
+	AutoCreateKey     bool   `json:"auto_create_key" gorm:"not null;default:false"`
 
 	// Wallet-only group routing. In blacklist mode, listed groups bypass this
 	// subscription; in whitelist mode, only listed groups may use it.
@@ -418,15 +409,14 @@ func NormalizeWalletOnlyGroups(groups string) string {
 	return strings.Join(values, ",")
 }
 
-func (p *SubscriptionPlan) IsWalletOnlyForGroup(group string) bool {
+func (p *SubscriptionPlan) IsWalletOnlyForGroup(group string, subscriptionOnly bool) bool {
 	if p == nil {
 		return false
 	}
-	group = strings.TrimSpace(group)
-	_, subscriptionOnly := ratio_setting.GetSubscriptionGroup(group)
 	if p.SubscriptionGroup != "" {
 		return !subscriptionOnly || p.SubscriptionGroup != group
 	}
+	group = strings.TrimSpace(group)
 	if subscriptionOnly {
 		return true
 	}
@@ -515,7 +505,8 @@ type SubscriptionOrder struct {
 	// OrderType is purchase, renew or upgrade.
 	OrderType string `json:"order_type" gorm:"type:varchar(16);default:'purchase'"`
 
-	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+	ProviderPayload   string `json:"provider_payload" gorm:"type:text"`
+	LegacyCycleGroups string `json:"-" gorm:"type:text"`
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -527,8 +518,11 @@ func (o *SubscriptionOrder) Insert() error {
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", o.UserId).First(&user).Error; err != nil {
 			return err
 		}
-		plan, err := getSubscriptionPlanByIdTx(tx, o.PlanId)
+		plan, err := syncSubscriptionPlanEntitlementTx(tx, o.PlanId)
 		if err != nil {
+			return err
+		}
+		if err := o.prepareLegacyCheckoutTx(tx, plan); err != nil {
 			return err
 		}
 		if err := CheckSubscriptionPurchaseCapacity(tx, o.UserId, plan); err != nil {
@@ -567,6 +561,9 @@ type UserSubscription struct {
 	Status    string `json:"status" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:2"` // active/expired/cancelled
 
 	Source string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin/redemption
+
+	// Groups from the old billing policy retained for this period only.
+	LegacyCycleGroups string `json:"-" gorm:"type:text"`
 
 	LastResetTime int64 `json:"last_reset_time" gorm:"type:bigint;default:0"`
 	NextResetTime int64 `json:"next_reset_time" gorm:"type:bigint;default:0;index"`
@@ -787,6 +784,9 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 func CheckSubscriptionPurchaseCapacity(tx *gorm.DB, userId int, plan *SubscriptionPlan) error {
 	if tx == nil {
 		tx = DB
+		if err := checkNewLegacySubscriptionPurchaseTx(tx, plan, userId); err != nil {
+			return err
+		}
 	}
 	if plan.MaxPurchasePerUser > 0 {
 		var ids []int
@@ -816,11 +816,11 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	if tx == nil {
 		tx = DB
 	}
-	var group string
-	if err := lockForUpdate(tx).Model(&User{}).Where("id = ?", userId).Select(commonGroupCol).Find(&group).Error; err != nil {
+	var user User
+	if err := lockForUpdate(tx).Select("group").First(&user, userId).Error; err != nil {
 		return "", err
 	}
-	return group, nil
+	return user.Group, nil
 }
 
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
@@ -888,6 +888,16 @@ func createUserSubscriptionTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, s
 	if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
 		return nil, err
 	}
+	// Serialize with plan rebind/delete and use the saved binding and key
+	// policy even when the rest of this purchase uses a cached tier view.
+	currentBinding, err := syncSubscriptionPlanEntitlementTx(tx, plan.Id)
+	if err != nil {
+		return nil, err
+	}
+	currentPlan := *plan
+	currentPlan.SubscriptionGroup = currentBinding.SubscriptionGroup
+	currentPlan.AutoCreateKey = currentBinding.AutoCreateKey
+	plan = &currentPlan
 	if checkCapacity {
 		if err := CheckSubscriptionPurchaseCapacity(tx, userId, plan); err != nil {
 			return nil, err
@@ -952,6 +962,7 @@ func (s *UserSubscription) startBillingPeriod(plan *SubscriptionPlan, start time
 	}
 	s.Multiplier = max(plan.UsageMultiplier, 1)
 	s.PriceAmount = &paidPrice
+	s.LegacyCycleGroups = "{}"
 	s.AmountTotal = plan.TotalAmount
 	s.AmountUsed = 0
 	s.StartTime = start.Unix()
@@ -1047,9 +1058,33 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		refCol = `"trade_no"`
 	}
-	var order SubscriptionOrder
-	if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+	var initial SubscriptionOrder
+	if err := tx.Select("id", "user_id", "plan_id", "status", "payment_provider").Where(refCol+" = ?", tradeNo).First(&initial).Error; err != nil {
 		return result, ErrSubscriptionOrderNotFound
+	}
+	if expectedPaymentProvider != "" && initial.PaymentProvider != expectedPaymentProvider {
+		return result, ErrPaymentMethodMismatch
+	}
+	if initial.Status == common.TopUpStatusSuccess {
+		return result, nil
+	}
+	if initial.Status != common.TopUpStatusPending {
+		return result, ErrSubscriptionOrderStatusInvalid
+	}
+	var userRow User
+	if err := lockForUpdate(tx).Select("id").First(&userRow, initial.UserId).Error; err != nil {
+		return result, err
+	}
+	plan, err := syncSubscriptionPlanEntitlementTx(tx, initial.PlanId)
+	if err != nil {
+		return result, err
+	}
+	var order SubscriptionOrder
+	if err := lockForUpdate(tx).First(&order, initial.Id).Error; err != nil {
+		return result, err
+	}
+	if order.UserId != initial.UserId || order.PlanId != initial.PlanId || order.TradeNo != tradeNo {
+		return result, ErrSubscriptionOrderStatusInvalid
 	}
 	if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 		return result, ErrPaymentMethodMismatch
@@ -1060,16 +1095,6 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 	if order.Status != common.TopUpStatusPending {
 		return result, ErrSubscriptionOrderStatusInvalid
 	}
-	plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
-	if err != nil {
-		return result, err
-	}
-	// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
-	// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
-	var userRow User
-	if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
-		return result, err
-	}
 	tierPlan, err := plan.ForUsageTier(order.Multiplier)
 	if err != nil {
 		// The tier may have been removed after the order was placed; the
@@ -1079,6 +1104,17 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, tierPlan, "order")
 	if err != nil {
 		return result, err
+	}
+	if order.LegacyCycleGroups != "" && tierPlan.SubscriptionGroup == "" {
+		grant := decodeLegacyCycleGrant(order.LegacyCycleGroups)
+		grant.Checkout = nil
+		encoded, err := common.Marshal(grant)
+		if err != nil {
+			return result, err
+		}
+		if err := tx.Model(subscription).UpdateColumn("legacy_cycle_groups", string(encoded)).Error; err != nil {
+			return result, err
+		}
 	}
 	if subscription.PrevUserGroup != "" {
 		result.upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
@@ -1267,8 +1303,15 @@ func PurchaseSubscriptionWithBalance(userId int, planId int, multiplier int, aut
 	var chargedQuota int
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		basePlan, err := getSubscriptionPlanByIdTx(tx, planId)
+		var user User
+		if err := lockForUpdate(tx).First(&user, userId).Error; err != nil {
+			return err
+		}
+		basePlan, err := syncSubscriptionPlanEntitlementTx(tx, planId)
 		if err != nil {
+			return err
+		}
+		if err := checkNewLegacySubscriptionPurchaseTx(tx, basePlan, userId); err != nil {
 			return err
 		}
 		if !basePlan.Enabled {
@@ -1293,10 +1336,6 @@ func PurchaseSubscriptionWithBalance(userId int, planId int, multiplier int, aut
 			return err
 		}
 
-		var user User
-		if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
-			return err
-		}
 		if requiredQuota > 0 && user.Quota < requiredQuota {
 			return common.NewMessage("Insufficient balance")
 		}
@@ -1403,7 +1442,6 @@ func GetActiveSubscriptionAvailabilityForGroup(userId int, group string) (bool, 
 	if userId <= 0 {
 		return false, false, errors.New("invalid userId")
 	}
-	group = strings.TrimSpace(group)
 	if group == "" {
 		var err error
 		group, err = GetUserGroup(userId, false)
@@ -1420,6 +1458,11 @@ func GetActiveSubscriptionAvailabilityForGroup(userId int, group string) (bool, 
 	if len(subs) == 0 {
 		return false, false, nil
 	}
+	subscriptionOnly, err := IsSubscriptionGroup(group)
+	if err != nil {
+		return true, false, err
+	}
+	checkLegacyAccess := newLegacyCycleAccessCheck(DB, userId, group)
 	for _, sub := range subs {
 		if sub.AmountTotal < 0 {
 			continue
@@ -1428,7 +1471,16 @@ func GetActiveSubscriptionAvailabilityForGroup(userId int, group string) (bool, 
 		if err != nil {
 			return true, false, err
 		}
-		if !plan.IsWalletOnlyForGroup(group) {
+		if !sub.isWalletOnlyForGroup(plan, group, subscriptionOnly) {
+			if subscriptionOnly && plan.SubscriptionGroup == "" {
+				allowed, err := checkLegacyAccess()
+				if err != nil {
+					return true, false, err
+				}
+				if !allowed {
+					continue
+				}
+			}
 			return true, true, nil
 		}
 	}
@@ -1455,7 +1507,6 @@ func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, group string
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
-	group = strings.TrimSpace(group)
 	if group == "" {
 		var err error
 		group, err = GetUserGroup(userId, false)
@@ -1469,7 +1520,11 @@ func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, group string
 		Find(&subs).Error; err != nil {
 		return false, err
 	}
-	_, subscriptionOnly := ratio_setting.GetSubscriptionGroup(group)
+	subscriptionOnly, err := IsSubscriptionGroup(group)
+	if err != nil {
+		return false, err
+	}
+	checkLegacyAccess := newLegacyCycleAccessCheck(DB, userId, group)
 	eligible := false
 	for _, sub := range subs {
 		if sub.AmountTotal < 0 && !subscriptionOnly {
@@ -1479,12 +1534,28 @@ func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, group string
 		if err != nil {
 			return false, err
 		}
-		if plan.IsWalletOnlyForGroup(group) {
+		walletOnly := sub.isWalletOnlyForGroup(plan, group, subscriptionOnly)
+		if subscriptionOnly && plan.SubscriptionGroup == "" {
+			if !slices.Contains(sub.legacyCycleGrant().Access, group) {
+				continue
+			}
+			allowed, err := checkLegacyAccess()
+			if err != nil {
+				return false, err
+			}
+			if !allowed {
+				continue
+			}
+			if walletOnly {
+				eligible = true
+			}
+		}
+		if walletOnly {
 			continue
 		}
 		eligible = true
 		allowOverflow := sub.AllowWalletOverflow
-		if subscriptionOnly {
+		if subscriptionOnly && plan.SubscriptionGroup != "" {
 			allowOverflow = plan.AllowWalletOverflow != nil && *plan.AllowWalletOverflow
 		}
 		if !allowOverflow {
@@ -2123,7 +2194,7 @@ func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName 
 		}
 
 		var subs []UserSubscription
-		effectiveGroup := strings.TrimSpace(group)
+		effectiveGroup := group
 		if effectiveGroup == "" {
 			var err error
 			effectiveGroup, err = getUserGroupByIdTx(tx, userId)
@@ -2135,11 +2206,16 @@ func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName 
 			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
-			return errors.New("no active subscription")
+			return err
 		}
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		subscriptionOnly, err := isSubscriptionGroupTx(tx, effectiveGroup)
+		if err != nil {
+			return err
+		}
+		checkLegacyAccess := newLegacyCycleAccessCheck(tx, userId, effectiveGroup)
 		for _, candidate := range subs {
 			sub := candidate
 			if sub.AmountTotal < 0 {
@@ -2149,8 +2225,17 @@ func preConsumeUserSubscriptionForGroup(requestId string, userId int, modelName 
 			if err != nil {
 				return err
 			}
-			if plan.IsWalletOnlyForGroup(effectiveGroup) {
+			if sub.isWalletOnlyForGroup(plan, effectiveGroup, subscriptionOnly) {
 				continue
+			}
+			if subscriptionOnly && plan.SubscriptionGroup == "" {
+				allowed, err := checkLegacyAccess()
+				if err != nil {
+					return err
+				}
+				if !allowed {
+					continue
+				}
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err

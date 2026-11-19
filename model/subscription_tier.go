@@ -321,7 +321,11 @@ func UpgradeSubscriptionWithBalance(userId int, subscriptionId int, planId int, 
 		if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
-		var err error
+		// Serialize with activation snapshots before locking subscription rows.
+		targetPlan, err := syncSubscriptionPlanEntitlementTx(tx, planId)
+		if err != nil {
+			return err
+		}
 		upgrade, err = prepareSubscriptionUpgradeTx(tx, userId, subscriptionId, planId, multiplier)
 		if err != nil {
 			return err
@@ -350,6 +354,9 @@ func UpgradeSubscriptionWithBalance(userId int, subscriptionId int, planId int, 
 		}
 		reverted, err := downgradeUserGroupForSubscriptionTx(tx, current, now)
 		if err != nil {
+			return err
+		}
+		if err := checkNewLegacySubscriptionPurchaseTx(tx, targetPlan, userId); err != nil {
 			return err
 		}
 		next, err := createUserSubscriptionTx(tx, userId, upgrade.target, SubscriptionSourceUpgrade, !upgrade.samePlan)
@@ -516,26 +523,41 @@ func RenewDueSubscriptions(limit int, lead time.Duration) (int, error) {
 }
 
 func renewUserSubscription(userId int, subscriptionId int, dueBefore int64) (*subscriptionRenewal, error) {
+	eligible := func(db *gorm.DB) *gorm.DB {
+		return db.Where("id = ? AND user_id = ? AND status = ? AND auto_renew = ? AND end_time > 0 AND end_time <= ?", subscriptionId, userId, "active", true, dueBefore)
+	}
+	// Discover the immutable plan ID before opening the transaction. Under
+	// MySQL repeatable read, discovery inside it could freeze a pre-binding
+	// snapshot even after the plan/period locks return current versions.
+	var initial UserSubscription
+	if err := eligible(DB).Select("id", "plan_id").First(&initial).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	var renewal *subscriptionRenewal
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var user User
 		if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
+		currentPlan, err := syncSubscriptionPlanEntitlementTx(tx, initial.PlanId)
+		if err != nil {
+			return err
+		}
 		var sub UserSubscription
-		err := lockForUpdate(tx).
-			Where("id = ? AND user_id = ? AND status = ? AND auto_renew = ? AND end_time > 0 AND end_time <= ?", subscriptionId, userId, "active", true, dueBefore).
-			First(&sub).Error
+		err = eligible(lockForUpdate(tx)).First(&sub).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
-		if err != nil {
-			return err
+		if sub.PlanId != initial.PlanId {
+			return errors.New("subscription plan changed during renewal")
 		}
+		plan := currentPlan
 		renewal = &subscriptionRenewal{userId: userId, planTitle: plan.Title}
 		stopRenewal := func(reason string) error {
 			renewal.stopReason = reason
@@ -543,6 +565,12 @@ func renewUserSubscription(userId int, subscriptionId int, dueBefore int64) (*su
 		}
 		if !plan.Enabled || !plan.AllowAutoRenew {
 			return stopRenewal("unsupported")
+		}
+		if err := checkNewLegacySubscriptionPeriodTx(tx, plan, user.Group, strings.TrimSpace(sub.UpgradeGroup), sub.PrevUserGroup); err != nil {
+			if errors.Is(err, errLegacySubscriptionGroupsUnavailable) {
+				return stopRenewal("unsupported")
+			}
+			return err
 		}
 		multiplier := sub.Multiplier
 		if sub.RenewMultiplier > 0 {

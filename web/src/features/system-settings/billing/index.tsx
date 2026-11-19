@@ -64,7 +64,6 @@ const defaultBillingSettings: BillingSettings = {
   'group_ratio_setting.group_special_usable_group': '{}',
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
-  SubscriptionGroups: '{}',
   'console_setting.model_square_visible_groups': '[]',
   'console_setting.group_access_rules': '[]',
   PayAddress: '',
