@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -59,7 +60,7 @@ func TestSubscriptionOnlyBillingDatabaseMatrix(t *testing.T) {
 				model.DB = oldDB
 				common.SetDatabaseTypes(oldMainType, oldLogType)
 			})
-			require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}))
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}, &model.Option{}, &model.SystemTask{}))
 			versionQuery := "select version()"
 			if dialect.name == common.DatabaseTypeSQLite {
 				versionQuery = "select sqlite_version()"
@@ -147,8 +148,101 @@ func TestSubscriptionOnlyBillingDatabaseMatrix(t *testing.T) {
 					}
 				})
 			}
+			t.Run("scoped_and_legacy_subscriptions_coexist", verifyCoexistingSubscriptions)
 		})
 	}
+}
+
+func verifyCoexistingSubscriptions(t *testing.T) {
+	oldOptions := common.OptionMap
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() {
+		require.NoError(t, model.UpdateOption("SubscriptionGroups", `{}`))
+		common.OptionMap = oldOptions
+	})
+	user := &model.User{Username: "coexisting-subscriptions", Password: "password", Status: common.UserStatusEnabled, Group: "default", Quota: 100}
+	require.NoError(t, model.DB.Create(user).Error)
+	require.ErrorContains(t, model.UpdateOption("SubscriptionGroups", `{"vip":{"auto_create_key":false}}`), "Bind at least one subscription plan")
+	legacy := &model.SubscriptionPlan{Title: "Legacy", TotalAmount: 100, AllowWalletOverflow: common.GetPointer(true)}
+	scoped := &model.SubscriptionPlan{Title: "Scoped", TotalAmount: 100, UpgradeGroup: "vip", AllowWalletOverflow: common.GetPointer(false)}
+	require.NoError(t, common.UnmarshalJsonStr(`{"subscription_group":"vip"}`, scoped))
+	for _, plan := range []*model.SubscriptionPlan{legacy, scoped} {
+		require.NoError(t, model.DB.Create(plan).Error)
+		model.InvalidateSubscriptionPlanCache(plan.Id)
+	}
+	now := common.GetTimestamp()
+	legacySub := model.UserSubscription{UserId: user.Id, PlanId: legacy.Id, Status: "active", StartTime: now - 60, EndTime: now + 120, AmountTotal: 100, AllowWalletOverflow: true}
+	scopedSub := model.UserSubscription{UserId: user.Id, PlanId: scoped.Id, Status: "active", StartTime: now - 60, EndTime: now + 240, AmountTotal: 100}
+	require.NoError(t, model.DB.Create(&legacySub).Error)
+	require.NoError(t, model.DB.Create(&scopedSub).Error)
+	_, eligible, err := model.GetActiveSubscriptionAvailabilityForGroup(user.Id, "vip")
+	require.NoError(t, err)
+	assert.True(t, eligible, "legacy plans continue to cover an ordinary group before activation")
+	require.NoError(t, model.DB.Model(&legacySub).Update("status", "cancelled").Error)
+	_, eligible, err = model.GetActiveSubscriptionAvailabilityForGroup(user.Id, "vip")
+	require.NoError(t, err)
+	assert.False(t, eligible, "prebinding a scoped plan does not give subscription billing to an ordinary group")
+	require.NoError(t, model.DB.Model(&legacySub).Update("status", "active").Error)
+	legacyRatio := ratio_setting.GetGroupRatio("vip")
+	require.NoError(t, model.UpdateOption("SubscriptionGroups", `{"vip":{"auto_create_key":false}}`))
+	assert.Equal(t, 1.0, ratio_setting.GetGroupRatio("vip"))
+	require.NoError(t, model.DB.Model(&scopedSub).Update("status", "cancelled").Error)
+	_, allowed := GetUserUsableGroupsForUser(user.Id, user.Group)["vip"]
+	assert.False(t, allowed, "a legacy subscription alone does not grant access to a scoped group")
+	require.NoError(t, model.DB.Model(&scopedSub).Update("status", "active").Error)
+	_, allowed = GetUserUsableGroupsForUser(user.Id, user.Group)["vip"]
+	assert.True(t, allowed, "holding a scoped subscription grants access without replacing the user's group")
+	bill := func(group, preference, requestID string) (*relaycommon.RelayInfo, *types.NewAPIError) {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+		info := &relaycommon.RelayInfo{RequestId: requestID, UserId: user.Id, UserGroup: user.Group, UsingGroup: group, IsPlayground: true, ForcePreConsume: true, UserSetting: dto.UserSetting{BillingPreference: preference}}
+		session, apiErr := NewBillingSession(ctx, info, 10)
+		if apiErr == nil {
+			require.NoError(t, session.Settle(15))
+		}
+		return info, apiErr
+	}
+	ordinary, apiErr := bill("default", "subscription_first", "legacy-normal-group")
+	require.Nil(t, apiErr)
+	assert.Equal(t, legacySub.Id, ordinary.SubscriptionId)
+	vip, apiErr := bill("vip", "wallet_first", "scoped-subscription-group")
+	require.Nil(t, apiErr)
+	assert.Equal(t, scopedSub.Id, vip.SubscriptionId, "a subscription group must not consume from the wallet or the legacy plan first")
+	for _, sub := range []*model.UserSubscription{&legacySub, &scopedSub} {
+		require.NoError(t, model.DB.First(sub, sub.Id).Error)
+		assert.EqualValues(t, 15, sub.AmountUsed)
+	}
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("id = ?", scopedSub.Id).Update("amount_used", 100).Error)
+	_, apiErr = bill("vip", "wallet_only", "scoped-wallet-denied")
+	require.NotNil(t, apiErr, "without wallet overflow, neither the wallet preference nor the legacy plan may fund a subscription group")
+	assert.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+	var reloaded model.User
+	require.NoError(t, model.DB.First(&reloaded, user.Id).Error)
+	assert.Equal(t, 100, reloaded.Quota)
+
+	require.NoError(t, model.DB.Model(scoped).Update("allow_wallet_overflow", true).Error)
+	model.InvalidateSubscriptionPlanCache(scoped.Id)
+	_, apiErr = bill("vip", "subscription_only", "scoped-wallet-opt-out")
+	require.NotNil(t, apiErr)
+	assert.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+	vip, apiErr = bill("vip", "subscription_first", "scoped-wallet-permitted")
+	require.Nil(t, apiErr)
+	assert.Equal(t, BillingSourceWallet, vip.BillingSource)
+	assert.Zero(t, vip.SubscriptionId)
+
+	require.NoError(t, model.DB.Model(&scopedSub).Update("amount_total", -1).Error)
+	vip, apiErr = bill("vip", "subscription_first", "scoped-benefits-wallet")
+	require.Nil(t, apiErr)
+	assert.Equal(t, BillingSourceWallet, vip.BillingSource)
+
+	require.NoError(t, model.DB.Model(&scopedSub).Update("end_time", now-1).Error)
+	_, apiErr = bill("vip", "wallet_first", "scoped-entitlement-expired")
+	require.NotNil(t, apiErr, "an expired subscription does not authorize wallet fallback")
+	assert.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+	require.NoError(t, model.DB.First(&reloaded, user.Id).Error)
+	assert.Equal(t, 70, reloaded.Quota)
+	require.NoError(t, model.UpdateOption("SubscriptionGroups", `{}`))
+	assert.Equal(t, legacyRatio, ratio_setting.GetGroupRatio("vip"))
 }
 
 func TestNewBillingSessionUsesEffectiveRequestGroupForSubscriptionWhitelist(t *testing.T) {

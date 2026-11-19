@@ -34,6 +34,7 @@ import {
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { SYSTEM_SETTINGS_VIEW } from '@/components/layout/config/system-settings.config'
 import { checkIsActive } from '@/components/layout/lib/url-utils'
 import { invalidateModelPricing } from '@/features/model-pricing/api'
 import {
@@ -51,6 +52,23 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useSidebarConfig } from '../use-sidebar-config'
 import { useSidebarData } from '../use-sidebar-data'
 import { useSidebarView } from '../use-sidebar-view'
+
+it('nests invitation settings within billing and keeps the existing route', () => {
+  const [group] = SYSTEM_SETTINGS_VIEW.getNavGroups(
+    ((key: string) => key) as Parameters<
+      typeof SYSTEM_SETTINGS_VIEW.getNavGroups
+    >[0],
+    {}
+  )
+  const billing = group.items.find((item) => item.title === 'Billing & Payment')
+  expect(group.items.some((item) => item.title === 'Invitation settings')).toBe(
+    false
+  )
+  expect(billing && 'items' in billing ? billing.items : []).toContainEqual({
+    title: 'Invitation settings',
+    url: '/system-settings/referrals',
+  })
+})
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', {

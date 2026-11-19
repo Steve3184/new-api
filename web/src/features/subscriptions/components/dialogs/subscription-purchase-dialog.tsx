@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 import { CalendarClock, Crown, Package, WalletCards } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -138,37 +138,56 @@ export function SubscriptionPurchaseDialog(props: Props) {
   }, [props.open, props.nowPaymentsCurrencies, selectedNowPaymentsCurrency])
 
   const selectedEpayMethodConfig = selectedPayment.startsWith('epay-')
-    ? (props.epayMethods || [])[Number.parseInt(selectedPayment.slice(5), 10)]
+    ? props.epayMethods?.[Number.parseInt(selectedPayment.slice(5), 10)]
     : undefined
-  const quoteMethod = selectedEpayMethodConfig?.type || selectedPayment
-  const paymentQuote = useQuery({
-    queryKey: [
-      'subscription-payment-quote',
-      props.plan?.plan.id,
-      multiplier,
-      quoteMethod,
-      selectedEpayMethodConfig?.gateway,
-    ],
-    queryFn: async () => {
-      if (!props.plan) throw new Error(t('Payment request failed'))
-      const result = await quoteSubscriptionPayment({
-        plan_id: props.plan.plan.id,
-        multiplier,
-        payment_method: quoteMethod,
-        epay_gateway: selectedEpayMethodConfig?.gateway,
-      })
-      requireServerSuccess(result)
-      if (!result.data) throw new Error(t('Payment request failed'))
-      return result.data
-    },
-    enabled:
-      props.open &&
-      !!props.plan &&
-      !!quoteMethod &&
-      selectedPayment !== 'balance',
-    retry: false,
-    staleTime: 0,
+  const quoteOptions = [
+    ...(props.enableStripe ? [{ key: 'stripe', method: 'stripe' }] : []),
+    ...(props.enableCreem ? [{ key: 'creem', method: 'creem' }] : []),
+    ...(props.enableWaffoPancake
+      ? [{ key: 'waffo_pancake', method: 'waffo_pancake' }]
+      : []),
+    ...(props.enableNowPayments && props.nowPaymentsCurrencies?.length
+      ? [{ key: 'nowpayments', method: 'nowpayments' }]
+      : []),
+    ...(props.enableOnlineTopUp
+      ? (props.epayMethods || []).map((m, index) => ({
+          key: `epay-${index}`,
+          method: m.type,
+          gateway: m.gateway,
+        }))
+      : []),
+  ]
+  const quotes = useQueries({
+    queries: quoteOptions.map((option) => {
+      const gateway = 'gateway' in option ? option.gateway : undefined
+      return {
+        queryKey: [
+          'subscription-payment-quote',
+          props.plan?.plan.id,
+          multiplier,
+          option.method,
+          gateway,
+        ],
+        queryFn: async () => {
+          if (!props.plan) throw new Error(t('Payment request failed'))
+          const result = await quoteSubscriptionPayment({
+            plan_id: props.plan.plan.id,
+            multiplier,
+            payment_method: option.method,
+            epay_gateway: gateway,
+          })
+          requireServerSuccess(result)
+          if (!result.data) throw new Error(t('Payment request failed'))
+          return result.data
+        },
+        enabled: props.open && !!props.plan,
+        retry: false,
+      }
+    }),
   })
+  const quoteFor = (key: string) =>
+    quotes[quoteOptions.findIndex((option) => option.key === key)]
+  const paymentQuote = quoteFor(selectedPayment)
   const plan = props.plan?.plan
   if (!plan) return null
 
@@ -377,7 +396,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   let payableLabel = '—'
   if (selectedPayment === 'balance') payableLabel = price
   else if (
-    paymentQuote.data &&
+    paymentQuote?.data &&
     !paymentQuote.isFetching &&
     !paymentQuote.isError
   ) {
@@ -414,7 +433,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 paying ||
                 !selectedPayment ||
                 (selectedPayment !== 'balance' &&
-                  (!paymentQuote.data ||
+                  (!paymentQuote?.data ||
                     paymentQuote.isFetching ||
                     paymentQuote.isError)) ||
                 (selectedPayment === 'balance' &&
@@ -544,7 +563,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   }
                   selected={selectedPayment === 'stripe'}
                   onClick={() => setSelectedPayment('stripe')}
-                  disabled={blocked || paying}
+                  disabled={blocked || paying || quoteFor('stripe')?.isError}
                 />
               )}
               {hasCreem && (
@@ -559,7 +578,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   }
                   selected={selectedPayment === 'creem'}
                   onClick={() => setSelectedPayment('creem')}
-                  disabled={blocked || paying}
+                  disabled={blocked || paying || quoteFor('creem')?.isError}
                 />
               )}
               {hasWaffoPancake && (
@@ -577,7 +596,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   }
                   selected={selectedPayment === 'waffo_pancake'}
                   onClick={() => setSelectedPayment('waffo_pancake')}
-                  disabled={blocked || paying}
+                  disabled={
+                    blocked || paying || quoteFor('waffo_pancake')?.isError
+                  }
                 />
               )}
               {hasNowPayments && (
@@ -593,7 +614,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   }
                   selected={selectedPayment === 'nowpayments'}
                   onClick={() => setSelectedPayment('nowpayments')}
-                  disabled={blocked || paying}
+                  disabled={
+                    blocked || paying || quoteFor('nowpayments')?.isError
+                  }
                 />
               )}
               {hasEpay &&
@@ -607,12 +630,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     onClick={() => {
                       setSelectedPayment(`epay-${index}`)
                     }}
-                    disabled={blocked || paying}
+                    disabled={
+                      blocked || paying || quoteFor(`epay-${index}`)?.isError
+                    }
                   />
                 ))}
             </div>
           </div>
-          {selectedPayment !== 'balance' && paymentQuote.isError && (
+          {selectedPayment !== 'balance' && paymentQuote?.isError && (
             <Alert variant='destructive'>
               <AlertDescription>
                 {t(

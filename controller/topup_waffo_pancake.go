@@ -637,7 +637,7 @@ func WaffoPancakeWebhook(c *gin.Context) {
 			c.String(http.StatusInternalServerError, "retry")
 			return
 		}
-		if err := model.CompleteSubscriptionOrderWithPaymentAmount(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, "", settledMoney); err != nil {
+		if err := model.CompleteSubscriptionOrderWithPaymentAmount(tradeNo, string(bodyBytes), model.PaymentProviderWaffoPancake, "", settledMoney, event.Data.Currency); err != nil {
 			logger.LogError(c.Request.Context(), common.LogText("Waffo Pancake subscription completion failed trade_no=%s event_id=%s order_id=%s client_ip=%s error=%q", tradeNo, event.ID, event.Data.OrderID, c.ClientIP(), err.Error()))
 			c.String(http.StatusInternalServerError, "retry")
 			return

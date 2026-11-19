@@ -40,6 +40,7 @@ export function getRedemptionFormSchema(t: TFunction) {
       .max(REDEMPTION_VALIDATION.NAME_MAX_LENGTH, msg.NAME_LENGTH_INVALID),
     quota_dollars: z.number().min(0, t('Quota must be a positive number')),
     subscription_plan_id: z.number().int().positive().nullable(),
+    subscription_multiplier: z.number().int().positive(),
     expired_time: z.date().nullable(),
     count: z
       .number()
@@ -53,6 +54,7 @@ export type RedemptionFormValues = {
   name: string
   quota_dollars: number
   subscription_plan_id: number | null
+  subscription_multiplier: number
   expired_time: Date | null
   count?: number
 }
@@ -65,6 +67,7 @@ export const REDEMPTION_FORM_DEFAULT_VALUES: RedemptionFormValues = {
   name: '',
   quota_dollars: 10,
   subscription_plan_id: null,
+  subscription_multiplier: 1,
   expired_time: null,
   count: 1,
 }
@@ -83,6 +86,9 @@ export function transformFormDataToPayload(
     name: data.name,
     quota: parseQuotaFromDollars(data.quota_dollars),
     subscription_plan_id: data.subscription_plan_id ?? 0,
+    ...(data.subscription_plan_id
+      ? { subscription_multiplier: data.subscription_multiplier }
+      : {}),
     expired_time: data.expired_time
       ? Math.floor(data.expired_time.getTime() / 1000)
       : 0,
@@ -100,6 +106,7 @@ export function transformRedemptionToFormDefaults(
     name: redemption.name,
     quota_dollars: quotaUnitsToEditableAmount(redemption.quota),
     subscription_plan_id: redemption.subscription_plan_id || null,
+    subscription_multiplier: redemption.subscription_multiplier || 1,
     expired_time:
       redemption.expired_time > 0
         ? new Date(redemption.expired_time * 1000)

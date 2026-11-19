@@ -135,10 +135,15 @@ describe('subscription payment selection', () => {
   test('disables payment while quoting and after a quote failure', async () => {
     let rejectQuote!: (error: Error) => void
     vi.mocked(quoteSubscriptionPayment).mockImplementation(
-      () =>
-        new Promise((_, reject) => {
-          rejectQuote = reject
-        })
+      ({ payment_method }) =>
+        payment_method === 'stripe'
+          ? new Promise((_, reject) => {
+              rejectQuote = reject
+            })
+          : Promise.resolve({
+              success: true,
+              data: { amount: 11, currency: 'USD' },
+            })
     )
     renderPurchase()
     fireEvent.click(await screen.findByRole('button', { name: 'Stripe' }))
@@ -150,6 +155,22 @@ describe('subscription payment selection', () => {
       'Unable to calculate payment amount. Please choose another payment method.'
     )
     expect(pay).toBeDisabled()
+  })
+
+  test('disables an ineligible gateway without selecting it', async () => {
+    vi.mocked(quoteSubscriptionPayment).mockImplementation(
+      async ({ epay_gateway }) =>
+        epay_gateway === 'custom'
+          ? { success: false, message: 'Payment below minimum' }
+          : { success: true, data: { amount: 11, currency: 'USD' } }
+    )
+    renderPurchase()
+    const alipay = await screen.findByRole('button', { name: 'Alipay' })
+    await waitFor(() => expect(alipay).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Balance' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 
   test('blocks a second active subscription while allowing expired history', async () => {

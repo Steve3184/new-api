@@ -49,6 +49,7 @@ export const subscriptionPlanSchema = z.object({
   five_hour_limit: z.number().optional(),
   weekly_limit: z.number().optional(),
   monthly_limit: z.number().optional(),
+  subscription_group: z.string().optional(),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -174,6 +175,7 @@ export interface SubscriptionPayResponse {
 export interface CreateUserSubscriptionRequest {
   plan_id: number
   multiplier?: number
+  auto_renew?: boolean
 }
 
 export interface ResetUserSubscriptionsRequest {

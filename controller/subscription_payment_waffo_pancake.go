@@ -45,6 +45,10 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "获取 Waffo Pancake 商品价格失败")
 		return
 	}
+	if err := validateSubscriptionPaymentMinimum(price.Amount, price.Currency, model.PaymentMethodWaffoPancake, ""); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	// Plan targets its own Pancake product, so we only require credentials
 	// here — not the gateway-level WaffoPancakeProductID.
 	if strings.TrimSpace(setting.WaffoPancakeMerchantID) == "" ||
@@ -77,6 +81,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		PlanId:          plan.Id,
 		Multiplier:      plan.UsageMultiplier,
 		Money:           price.Amount,
+		PaymentCurrency: price.Currency,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
 		PaymentProvider: model.PaymentProviderWaffoPancake,

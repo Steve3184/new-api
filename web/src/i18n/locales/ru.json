@@ -1,5 +1,15 @@
 {
   "translation": {
+    "Automatically create API key": "Автоматически создавать ключ API",
+    "Automatically create API key: {{group}}": "Автоматически создавать ключ API: {{group}}",
+    "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.": "Привяжите тариф подписки перед включением его группы. Правила оплаты других групп не изменятся.",
+    "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.": "Не выбирайте группу, чтобы сохранить прежнюю оплату. Привязанный тариф действует в группе только после включения подписок для неё.",
+    "Legacy subscription": "Прежняя подписка",
+    "Subscription group": "Группа подписки",
+    "Subscription group: {{group}}": "Группа подписки: {{group}}",
+    "Subscription groups": "Группы подписок",
+    "Subscription group does not exist: {{group}}": "Группа подписки не найдена: {{group}}",
+    "Bind at least one subscription plan to group {{group}}": "Привяжите хотя бы один тариф подписки к группе {{group}}",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

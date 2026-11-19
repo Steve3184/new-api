@@ -97,11 +97,13 @@ export function useOrdersColumns(
       header: t('Amount'),
       cell: ({ row }) => (
         <span className='font-semibold'>
-          {formatCurrencyFromUSD(row.original.amount, {
-            digitsLarge: 2,
-            digitsSmall: 2,
-            abbreviate: false,
-          })}
+          {row.original.order_type === 'subscription'
+            ? t('Subscription')
+            : formatCurrencyFromUSD(row.original.amount, {
+                digitsLarge: 2,
+                digitsSmall: 2,
+                abbreviate: false,
+              })}
         </span>
       ),
       size: 110,
@@ -115,6 +117,9 @@ export function useOrdersColumns(
           return (
             <span className='font-semibold'>
               {formatNumber(row.original.money, locale)}
+              {row.original.payment_currency
+                ? ` ${row.original.payment_currency.toUpperCase()}`
+                : null}
             </span>
           )
         }
@@ -147,11 +152,13 @@ export function useOrdersColumns(
       header: '',
       cell: ({ row }) => {
         const record = row.original
-        const isOwner = !options.isAdmin || record.user_id === options.currentUserId
+        const isOwner =
+          !options.isAdmin || record.user_id === options.currentUserId
         const canContinue = Boolean(record.can_continue_payment) && isOwner
         const isCrypto = CRYPTO_PROVIDERS.has(record.payment_provider ?? '')
         const canComplete =
           options.isAdmin &&
+          !(isCrypto && record.order_type === 'subscription') &&
           (record.status === 'pending' ||
             (isCrypto && record.status !== 'success'))
         return (

@@ -180,6 +180,7 @@ const createGroupSchema = (t: Translate) =>
         ),
       predicateMessage: 'Expected retry counts from 0 to 10 by group',
     }),
+    SubscriptionGroups: createJsonStringField(t),
     ModelSquareVisibleGroups: createJsonStringField(t, {
       predicate: isModelSquareVisibleGroups,
       predicateMessage:
@@ -296,6 +297,7 @@ export function RatioSettingsCard({
     ),
     GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
     GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
+    SubscriptionGroups: normalizeJsonString(groupDefaults.SubscriptionGroups),
     ModelSquareVisibleGroups: normalizeJsonString(
       groupDefaults.ModelSquareVisibleGroups
     ),
@@ -341,6 +343,9 @@ export function RatioSettingsCard({
       ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
+      SubscriptionGroups: formatJsonForTextarea(
+        groupDefaults.SubscriptionGroups
+      ),
       ModelSquareVisibleGroups: formatJsonForTextarea(
         groupDefaults.ModelSquareVisibleGroups
       ),
@@ -399,6 +404,7 @@ export function RatioSettingsCard({
       ),
       GroupDefaultModel: normalizeJsonString(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: normalizeJsonString(groupDefaults.GroupRetryTimes),
+      SubscriptionGroups: normalizeJsonString(groupDefaults.SubscriptionGroups),
       ModelSquareVisibleGroups: normalizeJsonString(
         groupDefaults.ModelSquareVisibleGroups
       ),
@@ -418,6 +424,9 @@ export function RatioSettingsCard({
       ),
       GroupDefaultModel: formatJsonForTextarea(groupDefaults.GroupDefaultModel),
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
+      SubscriptionGroups: formatJsonForTextarea(
+        groupDefaults.SubscriptionGroups
+      ),
       ModelSquareVisibleGroups: formatJsonForTextarea(
         groupDefaults.ModelSquareVisibleGroups
       ),
@@ -498,6 +507,7 @@ export function RatioSettingsCard({
           )
         ),
         GroupRetryTimes: normalizeJsonString(values.GroupRetryTimes),
+        SubscriptionGroups: normalizeJsonString(values.SubscriptionGroups),
         ModelSquareVisibleGroups: normalizeJsonString(
           values.ModelSquareVisibleGroups
         ),

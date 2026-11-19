@@ -242,6 +242,14 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const subscriptionGroup = form.watch('subscription_group')
+  const subscriptionGroupOptions = [
+    ...new Set(
+      [...groupOptions, subscriptionGroup].filter(
+        (group) => group && group !== 'auto'
+      )
+    ),
+  ]
   const walletOnlyGroupsEnabled = form.watch('wallet_only_groups_enabled')
   const benefitsOnly = form.watch('benefits_only')
   const rateLimitGroups = form.watch('rate_limit_groups')
@@ -490,95 +498,149 @@ export function SubscriptionsMutateDrawer({
                 />
               </div>
 
+              <FormField
+                control={form.control}
+                name='subscription_group'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Subscription group')}</FormLabel>
+                    <Select
+                      items={[
+                        { value: '', label: t('Legacy subscription') },
+                        ...subscriptionGroupOptions.map((group) => ({
+                          value: group,
+                          label: group,
+                        })),
+                      ]}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value ?? '')}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='w-full'>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectItem value=''>
+                          {t('Legacy subscription')}
+                        </SelectItem>
+                        {subscriptionGroupOptions.map((group) => (
+                          <SelectItem key={group} value={group}>
+                            {group}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t(
+                        'Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-                <FormField
-                  control={form.control}
-                  name='upgrade_group'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Upgrade Group')}</FormLabel>
-                      <Select
-                        items={[
-                          { value: '__none__', label: t('No Upgrade') },
-                          ...groupOptions.map((g) => ({ value: g, label: g })),
-                        ]}
-                        onValueChange={(v) =>
-                          field.onChange(v === '__none__' ? '' : v)
-                        }
-                        value={field.value || ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('No Upgrade')} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent alignItemWithTrigger={false}>
-                          <SelectGroup>
-                            <SelectItem value='__none__'>
-                              {t('No Upgrade')}
-                            </SelectItem>
-                            {groupOptions.map((g) => (
-                              <SelectItem key={g} value={g}>
-                                {g}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {!subscriptionGroup && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='upgrade_group'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Upgrade Group')}</FormLabel>
+                          <Select
+                            items={[
+                              { value: '__none__', label: t('No Upgrade') },
+                              ...groupOptions.map((g) => ({
+                                value: g,
+                                label: g,
+                              })),
+                            ]}
+                            onValueChange={(v) =>
+                              field.onChange(v === '__none__' ? '' : v)
+                            }
+                            value={field.value || ''}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t('No Upgrade')} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='__none__'>
+                                  {t('No Upgrade')}
+                                </SelectItem>
+                                {groupOptions.map((g) => (
+                                  <SelectItem key={g} value={g}>
+                                    {g}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name='downgrade_group'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Downgrade Group')}</FormLabel>
-                      <Select
-                        items={[
-                          {
-                            value: '__none__',
-                            label: t('Downgrade to pre-purchase group'),
-                          },
-                          ...groupOptions.map((g) => ({ value: g, label: g })),
-                        ]}
-                        onValueChange={(v) =>
-                          field.onChange(v === '__none__' ? '' : v)
-                        }
-                        value={field.value || ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={t('Downgrade to pre-purchase group')}
-                            />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent alignItemWithTrigger={false}>
-                          <SelectGroup>
-                            <SelectItem value='__none__'>
-                              {t('Downgrade to pre-purchase group')}
-                            </SelectItem>
-                            {groupOptions.map((g) => (
-                              <SelectItem key={g} value={g}>
-                                {g}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        {t(
-                          'Downgrade to this group after the subscription expires'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+                    <FormField
+                      control={form.control}
+                      name='downgrade_group'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Downgrade Group')}</FormLabel>
+                          <Select
+                            items={[
+                              {
+                                value: '__none__',
+                                label: t('Downgrade to pre-purchase group'),
+                              },
+                              ...groupOptions.map((g) => ({
+                                value: g,
+                                label: g,
+                              })),
+                            ]}
+                            onValueChange={(v) =>
+                              field.onChange(v === '__none__' ? '' : v)
+                            }
+                            value={field.value || ''}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={t(
+                                    'Downgrade to pre-purchase group'
+                                  )}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='__none__'>
+                                  {t('Downgrade to pre-purchase group')}
+                                </SelectItem>
+                                {groupOptions.map((g) => (
+                                  <SelectItem key={g} value={g}>
+                                    {g}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'Downgrade to this group after the subscription expires'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
                 <FormField
                   control={form.control}
                   name='max_purchase_per_user'
@@ -896,25 +958,27 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name='wallet_only_groups_enabled'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <FormLabel className='!mt-0'>
-                        {t('Enable wallet-only groups')}
-                      </FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                {!subscriptionGroup && (
+                  <FormField
+                    control={form.control}
+                    name='wallet_only_groups_enabled'
+                    render={({ field }) => (
+                      <FormItem className={sideDrawerSwitchItemClassName()}>
+                        <FormLabel className='!mt-0'>
+                          {t('Enable wallet-only groups')}
+                        </FormLabel>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
 
-                {walletOnlyGroupsEnabled && (
+                {!subscriptionGroup && walletOnlyGroupsEnabled && (
                   <div className='space-y-3 rounded-md border p-3'>
                     <FormField
                       control={form.control}

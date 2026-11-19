@@ -126,7 +126,9 @@ export function OrdersTable() {
         skeletonKeyPrefix='wallet-orders-skeleton'
         applyHeaderSize
         toolbarProps={{
-          searchPlaceholder: t('Search by order number...'),
+          searchPlaceholder: isAdmin
+            ? t('Search by order number, username or user ID...')
+            : t('Search by order number...'),
           searchDebounceMs: 500,
         }}
       />

@@ -55,6 +55,7 @@ const getGroupDefaults = (settings: BillingSettings) => ({
     settings['group_ratio_setting.group_special_usable_group'],
   GroupDefaultModel: settings.GroupDefaultModel,
   GroupRetryTimes: settings.GroupRetryTimes,
+  SubscriptionGroups: settings.SubscriptionGroups,
   ModelSquareVisibleGroups:
     settings['console_setting.model_square_visible_groups'],
 })

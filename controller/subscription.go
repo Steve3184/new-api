@@ -54,6 +54,10 @@ func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
 	}
 	plan.WalletOnlyGroupsMode = model.NormalizeWalletOnlyGroupsMode(plan.WalletOnlyGroupsMode)
 	plan.WalletOnlyGroups = model.NormalizeWalletOnlyGroups(plan.WalletOnlyGroups)
+	plan.SubscriptionGroup = strings.TrimSpace(plan.SubscriptionGroup)
+	if plan.SubscriptionGroup != "" && (plan.SubscriptionGroup == "auto" || !ratio_setting.ContainsGroupRatio(plan.SubscriptionGroup)) {
+		return common.NewMessage("Subscription group does not exist: {{group}}", map[string]any{"group": plan.SubscriptionGroup})
+	}
 	if plan.TotalAmount < 0 {
 		plan.TotalAmount = -1
 		plan.FiveHourLimit = 0
@@ -381,7 +385,12 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid ID")
 		return
 	}
-	var req AdminUpsertSubscriptionPlanRequest
+	var req struct {
+		Plan struct {
+			model.SubscriptionPlan
+			SubscriptionGroupInput *string `json:"subscription_group"`
+		} `json:"plan"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
@@ -402,7 +411,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	if err := normalizeSubscriptionPlanInput(&req.Plan); err != nil {
+	if req.Plan.SubscriptionGroupInput != nil {
+		req.Plan.SubscriptionGroup = *req.Plan.SubscriptionGroupInput
+	}
+	if err := normalizeSubscriptionPlanInput(&req.Plan.SubscriptionPlan); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -477,6 +489,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		}
 		if req.Plan.AllowBalancePay != nil {
 			updateMap["allow_balance_pay"] = *req.Plan.AllowBalancePay
+		}
+		// Older editors omit the field; only an explicit empty value unbinds it.
+		if req.Plan.SubscriptionGroupInput != nil {
+			if err := model.CheckSubscriptionPlanGroupChangeTx(tx, id, &req.Plan.SubscriptionGroup); err != nil {
+				return err
+			}
+			updateMap["subscription_group"] = req.Plan.SubscriptionGroup
 		}
 		if req.Plan.AllowWalletOverflow != nil {
 			updateMap["allow_wallet_overflow"] = *req.Plan.AllowWalletOverflow
@@ -591,8 +610,9 @@ func AdminListUserSubscriptions(c *gin.Context) {
 }
 
 type AdminCreateUserSubscriptionRequest struct {
-	PlanId     int `json:"plan_id"`
-	Multiplier int `json:"multiplier"`
+	PlanId     int   `json:"plan_id"`
+	Multiplier int   `json:"multiplier"`
+	AutoRenew  *bool `json:"auto_renew"`
 }
 
 type AdminResetSubscriptionRequest struct {
@@ -659,12 +679,32 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
-	msg, err := model.AdminBindSubscription(userId, req.PlanId, req.Multiplier, "")
+	msg, err := model.AdminBindSubscription(userId, req.PlanId, req.Multiplier, "", req.AutoRenew == nil || *req.AutoRenew)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	subscriptionChangeSuccess(c, msg)
+}
+
+func AdminSetUserSubscriptionTier(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+	userID, _ := strconv.Atoi(c.Param("id"))
+	subscriptionID, _ := strconv.Atoi(c.Param("subscription_id"))
+	var req struct {
+		Multiplier int `json:"multiplier"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || userID <= 0 || subscriptionID <= 0 || req.Multiplier <= 0 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if err := model.AdminSetSubscriptionTier(userID, subscriptionID, req.Multiplier); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }
 
 func AdminResetUserSubscriptionsByPlan(c *gin.Context) {

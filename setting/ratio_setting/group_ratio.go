@@ -77,6 +77,9 @@ func UpdateGroupRatioByJSONString(jsonStr string) error {
 }
 
 func GetGroupRatio(name string) float64 {
+	if _, ok := GetSubscriptionGroup(name); ok {
+		return 1
+	}
 	ratio, ok := groupRatioMap.Get(name)
 	if !ok {
 		common.SysLog(common.LogText("group ratio not found: %s", name))
@@ -86,6 +89,9 @@ func GetGroupRatio(name string) float64 {
 }
 
 func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
+	if _, ok := GetSubscriptionGroup(usingGroup); ok {
+		return -1, false
+	}
 	gp, ok := groupGroupRatioMap.Get(userGroup)
 	if !ok {
 		return -1, false

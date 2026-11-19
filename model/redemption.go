@@ -14,24 +14,25 @@ import (
 )
 
 type Redemption struct {
-	Id                 int            `json:"id"`
-	UserId             int            `json:"user_id"`
-	Key                string         `json:"key" gorm:"type:char(32);uniqueIndex"`
-	Status             int            `json:"status" gorm:"default:1"`
-	Name               string         `json:"name" gorm:"index"`
-	Quota              int            `json:"quota" gorm:"default:100"`
-	SubscriptionPlanId int            `json:"subscription_plan_id" gorm:"index;default:0"`
-	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
-	RedeemedTime       int64          `json:"redeemed_time" gorm:"bigint"`
-	Count              int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId         int            `json:"used_user_id"`
-	CreatorType        string         `json:"creator_type" gorm:"type:varchar(16);index"`
-	OwnerId            int            `json:"owner_id" gorm:"index"`
-	PurchaseTradeNo    string         `json:"purchase_trade_no" gorm:"type:varchar(255);index"`
-	PurchaseAmount     int64          `json:"purchase_amount"`
-	RefundedTime       int64          `json:"refunded_time" gorm:"bigint"`
-	DeletedAt          gorm.DeletedAt `gorm:"index"`
-	ExpiredTime        int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	Id                     int            `json:"id"`
+	UserId                 int            `json:"user_id"`
+	Key                    string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Status                 int            `json:"status" gorm:"default:1"`
+	Name                   string         `json:"name" gorm:"index"`
+	Quota                  int            `json:"quota" gorm:"default:100"`
+	SubscriptionPlanId     int            `json:"subscription_plan_id" gorm:"index;default:0"`
+	SubscriptionMultiplier int            `json:"subscription_multiplier" gorm:"type:int;not null;default:1"`
+	CreatedTime            int64          `json:"created_time" gorm:"bigint"`
+	RedeemedTime           int64          `json:"redeemed_time" gorm:"bigint"`
+	Count                  int            `json:"count" gorm:"-:all"` // only for api request
+	UsedUserId             int            `json:"used_user_id"`
+	CreatorType            string         `json:"creator_type" gorm:"type:varchar(16);index"`
+	OwnerId                int            `json:"owner_id" gorm:"index"`
+	PurchaseTradeNo        string         `json:"purchase_trade_no" gorm:"type:varchar(255);index"`
+	PurchaseAmount         int64          `json:"purchase_amount"`
+	RefundedTime           int64          `json:"refunded_time" gorm:"bigint"`
+	DeletedAt              gorm.DeletedAt `gorm:"index"`
+	ExpiredTime            int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
 }
 
 const (
@@ -233,6 +234,12 @@ func RedeemWithResult(key string, userId int) (result *RedemptionResult, err err
 				if !plan.Enabled {
 					return errors.New("兑换码关联的订阅套餐已禁用")
 				}
+				basePlan := plan
+				plan, planErr = basePlan.ForUsageTier(redemption.SubscriptionMultiplier)
+				if planErr != nil {
+					// A removed tier does not devalue an already-issued code.
+					plan = basePlan.withUsageMultiplier(redemption.SubscriptionMultiplier)
+				}
 			}
 			// Compare-and-swap on status: only the transaction that flips
 			// enabled -> used may credit quota, so a concurrent redeem of the
@@ -319,21 +326,22 @@ func (redemption *Redemption) Insert() error {
 		status = common.RedemptionCodeStatusEnabled
 	}
 	return DB.Model(&Redemption{}).Create(map[string]interface{}{
-		"user_id":              redemption.UserId,
-		"key":                  redemption.Key,
-		"status":               status,
-		"name":                 redemption.Name,
-		"quota":                0,
-		"subscription_plan_id": redemption.SubscriptionPlanId,
-		"created_time":         redemption.CreatedTime,
-		"redeemed_time":        redemption.RedeemedTime,
-		"used_user_id":         redemption.UsedUserId,
-		"creator_type":         redemption.CreatorType,
-		"owner_id":             redemption.OwnerId,
-		"purchase_trade_no":    redemption.PurchaseTradeNo,
-		"purchase_amount":      redemption.PurchaseAmount,
-		"refunded_time":        redemption.RefundedTime,
-		"expired_time":         redemption.ExpiredTime,
+		"user_id":                 redemption.UserId,
+		"key":                     redemption.Key,
+		"status":                  status,
+		"name":                    redemption.Name,
+		"quota":                   0,
+		"subscription_plan_id":    redemption.SubscriptionPlanId,
+		"subscription_multiplier": max(1, redemption.SubscriptionMultiplier),
+		"created_time":            redemption.CreatedTime,
+		"redeemed_time":           redemption.RedeemedTime,
+		"used_user_id":            redemption.UsedUserId,
+		"creator_type":            redemption.CreatorType,
+		"owner_id":                redemption.OwnerId,
+		"purchase_trade_no":       redemption.PurchaseTradeNo,
+		"purchase_amount":         redemption.PurchaseAmount,
+		"refunded_time":           redemption.RefundedTime,
+		"expired_time":            redemption.ExpiredTime,
 	}).Error
 }
 
@@ -355,7 +363,7 @@ func (redemption *Redemption) Update() error {
 		}
 	}
 	var err error
-	err = DB.Model(redemption).Select("name", "status", "quota", "subscription_plan_id", "redeemed_time", "expired_time").Updates(redemption).Error
+	err = DB.Model(redemption).Select("name", "status", "quota", "subscription_plan_id", "subscription_multiplier", "redeemed_time", "expired_time").Updates(redemption).Error
 	return err
 }
 

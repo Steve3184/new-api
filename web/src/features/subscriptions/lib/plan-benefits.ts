@@ -136,11 +136,12 @@ export function describePlan(
       }
     }
   }
-  if (plan.upgrade_group) {
+  const accessGroup = plan.subscription_group || plan.upgrade_group
+  if (accessGroup) {
     features.push({
       key: 'group',
       icon: ShieldCheck,
-      label: t('Access to the {{group}} group', { group: plan.upgrade_group }),
+      label: t('Access to the {{group}} group', { group: accessGroup }),
     })
   }
   for (const limit of parseRateLimits(plan.rate_limit_groups)) {
@@ -153,7 +154,7 @@ export function describePlan(
       }),
     })
   }
-  if (plan.wallet_only_groups_enabled) {
+  if (!plan.subscription_group && plan.wallet_only_groups_enabled) {
     const groups = splitList(plan.wallet_only_groups)
     const list = groups.length > 0 ? groups.join(', ') : t('None')
     features.push({
@@ -198,7 +199,7 @@ export function describePlan(
       t('Up to {{count}} active at the same time', { count: activeLimit })
     )
   }
-  if (plan.downgrade_group) {
+  if (!plan.subscription_group && plan.downgrade_group) {
     notes.push(
       t('Your group changes to {{group}} when the plan ends', {
         group: plan.downgrade_group,

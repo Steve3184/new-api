@@ -621,6 +621,12 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
+		if tokenGroup == "" {
+			if _, scoped := ratio_setting.GetSubscriptionGroup(userGroup); scoped && !service.GetRequestUserGroupAccess(c).Allows(userGroup) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenGroupForbidden, map[string]any{"Group": userGroup}))
+				return
+			}
+		}
 		if tokenGroup != "" {
 			groupAccess := service.GetRequestUserGroupAccess(c)
 			if !groupAccess.Allows(tokenGroup) {

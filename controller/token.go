@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -588,6 +589,9 @@ func AddToken(c *gin.Context) {
 // itself and reports false when the token was not created.
 func insertUserToken(c *gin.Context, request tokenRequest) (*model.Token, bool) {
 	token := request.Token
+	if !validateTokenSubscriptionGroup(c, token.Group) {
+		return nil, false
+	}
 	// User API keys remain valid until explicitly reset; expiry is reserved for
 	// server-managed channel tokens.
 	token.ExpiredTime = -1
@@ -743,6 +747,22 @@ func DeleteToken(c *gin.Context) {
 	})
 }
 
+func validateTokenSubscriptionGroup(c *gin.Context, group string) bool {
+	if _, scoped := ratio_setting.GetSubscriptionGroup(group); !scoped {
+		return true
+	}
+	userGroup, err := getTokenRequestUserGroup(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !service.IsUserSelectableGroupForUser(c.GetInt("id"), userGroup, group) {
+		common.ApiErrorT(c, "Subscription group {{group}} is unavailable or unauthorized", map[string]any{"group": group})
+		return false
+	}
+	return true
+}
+
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")
@@ -787,6 +807,9 @@ func UpdateToken(c *gin.Context) {
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
+		if !validateTokenSubscriptionGroup(c, token.Group) {
+			return
+		}
 		// If you add more fields, please also update token.Update()
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime

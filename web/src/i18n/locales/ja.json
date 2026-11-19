@@ -1,5 +1,15 @@
 {
   "translation": {
+    "Automatically create API key": "API キーを自動作成",
+    "Automatically create API key: {{group}}": "API キーを自動作成：{{group}}",
+    "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.": "グループを有効にする前に、サブスクリプションプランを関連付けてください。他のグループの課金ルールは変わりません。",
+    "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.": "未設定の場合は従来の課金方式を使用します。関連付けたプランは、そのグループでサブスクリプションを有効にした場合にのみ適用されます。",
+    "Legacy subscription": "従来のサブスクリプション",
+    "Subscription group": "サブスクリプショングループ",
+    "Subscription group: {{group}}": "サブスクリプショングループ：{{group}}",
+    "Subscription groups": "サブスクリプショングループ",
+    "Subscription group does not exist: {{group}}": "サブスクリプショングループが見つかりません：{{group}}",
+    "Bind at least one subscription plan to group {{group}}": "グループ {{group}} に少なくとも 1 つのサブスクリプションプランを関連付けてください",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

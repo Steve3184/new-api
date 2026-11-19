@@ -380,6 +380,8 @@ export interface TopupRecord {
   amount: number
   /** Payment amount (actual money paid) */
   money: number
+  /** ISO currency code of the payment, when known */
+  payment_currency?: string
   /** Trade/order number */
   trade_no: string
   /** Payment method type */

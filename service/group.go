@@ -63,6 +63,17 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 // after the existing user-group and special-group rules have been resolved.
 func GetUserUsableGroupsForUser(userID int, userGroup string) map[string]string {
 	groups := GetUserUsableGroups(userGroup)
+	scoped := ratio_setting.SubscriptionGroupNames()
+	for _, group := range scoped {
+		delete(groups, group)
+	}
+	entitled, err := model.GetActiveUserSubscriptionGroups(userID, scoped)
+	if err != nil {
+		common.SysError(common.LogText("failed to resolve subscription groups: %s", err))
+	}
+	for _, group := range entitled {
+		groups[group] = setting.GetUsableGroupDescription(group)
+	}
 	rules := GetGroupAccessRulesByGroup()
 	if len(rules) == 0 {
 		return groups

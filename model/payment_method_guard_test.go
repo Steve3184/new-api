@@ -21,6 +21,52 @@ func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) *User {
 	return user
 }
 
+func TestAdminOrderSearchIncludesUnpaidSubscriptions(t *testing.T) {
+	truncateTables(t)
+	user := insertUserForPaymentGuardTest(t, 83142, 700)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 830)
+	insertSubscriptionOrderForPaymentGuardTest(t, "sub-unpaid-fixture", user.Id, plan.Id, PaymentProviderStripe)
+	require.NoError(t, DB.Model(&SubscriptionOrder{}).Where("trade_no = ?", "sub-unpaid-fixture").Update("payment_currency", "EUR").Error)
+	page := &common.PageInfo{Page: 1, PageSize: 10}
+	for _, query := range []string{"", "GUARD_US", "314", "unpaid-fixture"} {
+		rows, total, err := SearchAllTopUps(query, page)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, total, query)
+		require.Len(t, rows, 1, query)
+		assert.Equal(t, "sub-unpaid-fixture", rows[0].TradeNo)
+		assert.Equal(t, "EUR", rows[0].PaymentCurrency)
+		assert.Equal(t, common.TopUpStatusPending, rows[0].Status)
+	}
+	require.NoError(t, ManualCompleteTopUp("sub-unpaid-fixture", "127.0.0.1"))
+	require.NoError(t, ManualCompleteTopUp("sub-unpaid-fixture", "127.0.0.1"))
+	rows, total, err := SearchAllTopUps("GUARD_US", page)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, rows, 1)
+	assert.Equal(t, common.TopUpStatusSuccess, rows[0].Status)
+	assert.Equal(t, "EUR", rows[0].PaymentCurrency)
+	var grants int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ?", user.Id, plan.Id).Count(&grants).Error)
+	assert.EqualValues(t, 1, grants)
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, 700, user.Quota, "supplementing a subscription does not credit wallet balance")
+}
+
+func TestAdminOrderSearchClassifiesLegacySubscriptionMirrors(t *testing.T) {
+	truncateTables(t)
+	user := insertUserForPaymentGuardTest(t, 83143, 700)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 831)
+	insertSubscriptionOrderForPaymentGuardTest(t, "legacy-subscription-mirror", user.Id, plan.Id, PaymentProviderStripe)
+	require.NoError(t, ManualCompleteTopUp("legacy-subscription-mirror", "127.0.0.1"))
+	require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", "legacy-subscription-mirror").Update("order_type", "").Error)
+	rows, total, err := SearchAllTopUps("legacy-subscription-mirror", &common.PageInfo{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, rows, 1)
+	assert.Equal(t, OrderTypeSubscription, rows[0].OrderType)
+	assert.Empty(t, rows[0].PaymentCurrency, "unknown historical currency remains unknown")
+}
+
 func insertSubscriptionPlanForPaymentGuardTest(t *testing.T, id int) *SubscriptionPlan {
 	t.Helper()
 	plan := &SubscriptionPlan{
@@ -172,16 +218,19 @@ func TestCompleteSubscriptionOrderWithPaymentAmountRecordsVerifiedPayment(t *tes
 		PaymentProviderWaffoPancake,
 		"",
 		12.34,
+		"eur",
 	))
 
 	order := GetSubscriptionOrderByTradeNo("waffo-pancake-settled")
 	require.NotNil(t, order)
 	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
 	assert.InDelta(t, 12.34, order.Money, 0.000001)
+	assert.Equal(t, "EUR", order.PaymentCurrency)
 
 	topUp := GetTopUpByTradeNo("waffo-pancake-settled")
 	require.NotNil(t, topUp)
 	assert.InDelta(t, 12.34, topUp.Money, 0.000001)
+	assert.Equal(t, "EUR", topUp.PaymentCurrency)
 }
 
 func TestCompleteSubscriptionOrderPreservesEpayGatewayOnTopUp(t *testing.T) {

@@ -55,10 +55,10 @@ const (
 	MsgRelayResponseRejected             = "relay.response_rejected"
 )
 
-// Emails and the name of the token created at registration, in the
-// recipient's language
+// Emails and generated token names in the recipient's language.
 const (
-	MsgUserDefaultTokenName = "user.default_token_name"
+	MsgUserDefaultTokenName  = "user.default_token_name"
+	MsgSubscriptionTokenName = "subscription.token_name"
 
 	MsgEmailVerificationSubject  = "email.verification.subject"
 	MsgEmailVerificationGreeting = "email.verification.greeting"

@@ -391,6 +391,39 @@ func UpgradeSubscriptionWithBalance(userId int, subscriptionId int, planId int, 
 	return &upgrade.quote, nil
 }
 
+// AdminSetSubscriptionTier changes the active tier of the same plan without
+// starting a new cycle or changing money already paid for the subscription.
+func AdminSetSubscriptionTier(userID, subscriptionID, multiplier int) error {
+	if userID <= 0 || subscriptionID <= 0 || multiplier <= 0 {
+		return common.NewMessage("Invalid parameters")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := lockForUpdate(tx).Where("id = ? AND user_id = ?", subscriptionID, userID).First(&sub).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return common.NewMessage("Subscription not found")
+			}
+			return err
+		}
+		if sub.Status != "active" || sub.EndTime <= getDBTimestamp(tx) {
+			return common.NewMessage("Only active subscriptions can change usage tiers")
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+		if err != nil {
+			return err
+		}
+		tier, err := plan.ForUsageTier(multiplier)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&sub).Updates(map[string]any{
+			"multiplier": multiplier, "amount_total": tier.TotalAmount,
+			"five_hour_limit": tier.FiveHourLimit, "weekly_limit": tier.WeeklyLimit,
+			"monthly_limit": tier.MonthlyLimit,
+		}).Error
+	})
+}
+
 // UpdateUserSubscriptionRenewal turns balance auto-renewal on or off and sets
 // the usage tier of the next renewal (0 keeps the current tier).
 func UpdateUserSubscriptionRenewal(userId int, subscriptionId int, autoRenew bool, renewMultiplier int) error {

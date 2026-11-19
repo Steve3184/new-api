@@ -33,10 +33,12 @@ func GetUserGroups(c *gin.Context) {
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
 		// UserUsableGroups contains the groups that the user can use
 		if desc, ok := userUsableGroups[groupName]; ok {
+			_, subscription := ratio_setting.GetSubscriptionGroup(groupName)
 			usableGroups[groupName] = map[string]interface{}{
 				"ratio":         service.GetUserGroupRatio(userGroup, groupName),
 				"desc":          desc,
 				"default_model": ratio_setting.GetGroupDefaultModel(groupName),
+				"subscription":  subscription,
 			}
 		}
 	}

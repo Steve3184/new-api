@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -244,6 +245,9 @@ func DeleteSubscriptionPlan(planId int) error {
 	}
 	now := common.GetTimestamp()
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := CheckSubscriptionPlanGroupChangeTx(tx, planId, nil); err != nil {
+			return err
+		}
 		var plan SubscriptionPlan
 		if err := lockForUpdate(tx).Where("id = ?", planId).First(&plan).Error; err != nil {
 			return err
@@ -311,6 +315,9 @@ type SubscriptionPlan struct {
 
 	// Downgrade user group on expiry (empty = revert to the group held before purchase)
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
+
+	// SubscriptionGroup opts the plan into scoped billing; empty preserves legacy billing.
+	SubscriptionGroup string `json:"subscription_group" gorm:"type:varchar(64);not null;default:''"`
 
 	// Wallet-only group routing. In blacklist mode, listed groups bypass this
 	// subscription; in whitelist mode, only listed groups may use it.
@@ -412,10 +419,20 @@ func NormalizeWalletOnlyGroups(groups string) string {
 }
 
 func (p *SubscriptionPlan) IsWalletOnlyForGroup(group string) bool {
-	if p == nil || !p.WalletOnlyGroupsEnabled {
+	if p == nil {
 		return false
 	}
 	group = strings.TrimSpace(group)
+	_, subscriptionOnly := ratio_setting.GetSubscriptionGroup(group)
+	if p.SubscriptionGroup != "" {
+		return !subscriptionOnly || p.SubscriptionGroup != group
+	}
+	if subscriptionOnly {
+		return true
+	}
+	if !p.WalletOnlyGroupsEnabled {
+		return false
+	}
 	listed := false
 	for _, value := range strings.Split(p.WalletOnlyGroups, ",") {
 		if strings.TrimSpace(value) == group {
@@ -484,6 +501,7 @@ type SubscriptionOrder struct {
 	PlanId int     `json:"plan_id" gorm:"index"`
 	Money  float64 `json:"money"`
 
+	PaymentCurrency string `json:"payment_currency" gorm:"type:varchar(3)"`
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
@@ -893,6 +911,12 @@ func createUserSubscriptionTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, s
 		return nil, err
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
+	if plan.SubscriptionGroup != "" {
+		// Scoped subscriptions grant access to the bound group without
+		// changing the user's ordinary group or any legacy upgrade chain.
+		upgradeGroup = ""
+		sub.DowngradeGroup = ""
+	}
 	if upgradeGroup != "" {
 		currentGroup, err := getUserGroupByIdTx(tx, userId)
 		if err != nil {
@@ -909,6 +933,11 @@ func createUserSubscriptionTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, s
 	sub.UpgradeGroup = upgradeGroup
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
+	}
+	if source == "order" || source == PaymentMethodBalance || source == SubscriptionSourceUpgrade {
+		if err := ensureSubscriptionGroupKeyTx(tx, userId, plan); err != nil {
+			return nil, err
+		}
 	}
 	return sub, nil
 }
@@ -973,11 +1002,15 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 
 // CompleteSubscriptionOrderWithPaymentAmount completes an order using the
 // amount verified by its payment provider.
-func CompleteSubscriptionOrderWithPaymentAmount(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount float64) error {
+func CompleteSubscriptionOrderWithPaymentAmount(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount float64, paymentCurrency string) error {
 	if paymentAmount < 0 || math.IsNaN(paymentAmount) || math.IsInf(paymentAmount, 0) {
 		return errors.New("payment amount is invalid")
 	}
-	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, &paymentAmount)
+	paymentCurrency = strings.ToUpper(strings.TrimSpace(paymentCurrency))
+	if len(paymentCurrency) != 3 || strings.IndexFunc(paymentCurrency, func(r rune) bool { return r < 'A' || r > 'Z' }) >= 0 {
+		return errors.New("payment currency is invalid")
+	}
+	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, &PaidFiat{Amount: paymentAmount, Currency: paymentCurrency})
 }
 
 type subscriptionCompletionResult struct {
@@ -988,14 +1021,14 @@ type subscriptionCompletionResult struct {
 	upgradeGroup  string
 }
 
-func completeSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount *float64) error {
+func completeSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, payment *PaidFiat) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
 	var result subscriptionCompletionResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		result, err = completeSubscriptionOrderTx(tx, tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, paymentAmount)
+		result, err = completeSubscriptionOrderTx(tx, tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, payment)
 		return err
 	})
 	if err != nil {
@@ -1005,7 +1038,7 @@ func completeSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	return nil
 }
 
-func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, paymentAmount *float64) (subscriptionCompletionResult, error) {
+func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, payment *PaidFiat) (subscriptionCompletionResult, error) {
 	var result subscriptionCompletionResult
 	if tx == nil || tradeNo == "" {
 		return result, errors.New("invalid subscription completion transaction")
@@ -1050,8 +1083,9 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 	if subscription.PrevUserGroup != "" {
 		result.upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
 	}
-	if paymentAmount != nil {
-		order.Money = *paymentAmount
+	if payment != nil {
+		order.Money = payment.Amount
+		order.PaymentCurrency = payment.Currency
 	}
 	if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
 		return result, err
@@ -1098,6 +1132,7 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 				UserId:          order.UserId,
 				Amount:          0,
 				Money:           order.Money,
+				PaymentCurrency: order.PaymentCurrency,
 				TradeNo:         order.TradeNo,
 				PaymentMethod:   order.PaymentMethod,
 				PaymentProvider: order.PaymentProvider,
@@ -1105,12 +1140,16 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 				CreateTime:      order.CreateTime,
 				CompleteTime:    now,
 				Status:          common.TopUpStatusSuccess,
+				OrderType:       OrderTypeSubscription,
 			}
 			return tx.Create(&topup).Error
 		}
 		return err
 	}
 	topup.Money = order.Money
+	if order.PaymentCurrency != "" {
+		topup.PaymentCurrency = order.PaymentCurrency
+	}
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
 	} else if topup.PaymentMethod != order.PaymentMethod {
@@ -1131,6 +1170,7 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	}
 	topup.CompleteTime = now
 	topup.Status = common.TopUpStatusSuccess
+	topup.OrderType = OrderTypeSubscription
 	return tx.Save(&topup).Error
 }
 
@@ -1160,7 +1200,7 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 }
 
 // Admin bind (no payment). Creates a UserSubscription from a plan.
-func AdminBindSubscription(userId int, planId int, multiplier int, sourceNote string) (*common.Message, error) {
+func AdminBindSubscription(userId int, planId int, multiplier int, sourceNote string, autoRenew ...bool) (*common.Message, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
@@ -1180,10 +1220,14 @@ func AdminBindSubscription(userId int, planId int, multiplier int, sourceNote st
 			return err
 		}
 		subscription, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
-		if err == nil {
-			groupChanged = subscription.PrevUserGroup != ""
+		if err != nil {
+			return err
 		}
-		return err
+		groupChanged = subscription.PrevUserGroup != ""
+		if plan.Enabled && plan.AllowAutoRenew && (len(autoRenew) == 0 || autoRenew[0]) {
+			return tx.Model(subscription).Update("auto_renew", true).Error
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -1425,8 +1469,10 @@ func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, group string
 		Find(&subs).Error; err != nil {
 		return false, err
 	}
+	_, subscriptionOnly := ratio_setting.GetSubscriptionGroup(group)
+	eligible := false
 	for _, sub := range subs {
-		if sub.AmountTotal < 0 {
+		if sub.AmountTotal < 0 && !subscriptionOnly {
 			continue
 		}
 		plan, err := GetSubscriptionPlanById(sub.PlanId)
@@ -1436,11 +1482,16 @@ func UserActiveSubscriptionsAllowWalletOverflowForGroup(userId int, group string
 		if plan.IsWalletOnlyForGroup(group) {
 			continue
 		}
-		if !sub.AllowWalletOverflow {
+		eligible = true
+		allowOverflow := sub.AllowWalletOverflow
+		if subscriptionOnly {
+			allowOverflow = plan.AllowWalletOverflow != nil && *plan.AllowWalletOverflow
+		}
+		if !allowOverflow {
 			return false, nil
 		}
 	}
-	return true, nil
+	return !subscriptionOnly || eligible, nil
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.

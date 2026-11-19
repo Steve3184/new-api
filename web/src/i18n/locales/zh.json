@@ -1,5 +1,15 @@
 {
   "translation": {
+    "Automatically create API key": "自动创建 API Key",
+    "Automatically create API key: {{group}}": "自动创建 API Key：{{group}}",
+    "Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.": "启用订阅分组前，请先绑定一个订阅套餐。其他分组继续使用原有计费规则。",
+    "Leave unbound to keep legacy billing. A bound plan only covers its group once that group is enabled for subscriptions.": "不绑定分组即沿用旧版计费。绑定后，只有启用该订阅分组，套餐才可用于该分组。",
+    "Legacy subscription": "旧版订阅",
+    "Subscription group": "订阅分组",
+    "Subscription group: {{group}}": "订阅分组：{{group}}",
+    "Subscription groups": "订阅分组",
+    "Subscription group does not exist: {{group}}": "订阅分组不存在：{{group}}",
+    "Bind at least one subscription plan to group {{group}}": "请至少绑定一个订阅套餐到分组 {{group}}",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

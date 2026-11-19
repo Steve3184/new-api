@@ -82,7 +82,7 @@ func TestReferralRewards(t *testing.T) {
 				common.SetMainDatabaseType(oldType)
 				*payment = oldPayment
 				require.NoError(t, config.UpdateConfigFromMap(settings, originalSettings))
-				require.NoError(t, db.Migrator().DropTable(&ReferralReward{}, &TopUp{}, &User{}))
+				require.NoError(t, db.Migrator().DropTable(&ReferralReward{}, &TopUp{}, &User{}, &SubscriptionOrder{}))
 				require.NoError(t, sqlDB.Close())
 			})
 			// Upgrade a representative pre-referral order table, then migrate twice.
@@ -91,7 +91,7 @@ func TestReferralRewards(t *testing.T) {
 			require.NoError(t, db.Table(stmt.Schema.Table).AutoMigrate(&preReferralTopUp{}))
 			require.NoError(t, db.Table(stmt.Schema.Table).Create(&preReferralTopUp{TradeNo: "legacy-paid", UserId: 999, Money: 100, Status: common.TopUpStatusSuccess, EpayGatewayID: "retained-gateway", OrderType: OrderTypeRedemption, RedemptionQuota: 12345, RedemptionCount: 2}).Error)
 			for range 2 {
-				require.NoError(t, db.AutoMigrate(&TopUp{}, &ReferralReward{}, &User{}))
+				require.NoError(t, db.AutoMigrate(&TopUp{}, &ReferralReward{}, &User{}, &SubscriptionOrder{}))
 			}
 			var legacy TopUp
 			require.NoError(t, db.Where("trade_no = ?", "legacy-paid").First(&legacy).Error)

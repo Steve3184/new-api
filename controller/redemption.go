@@ -95,8 +95,17 @@ func AddRedemption(c *gin.Context) {
 			common.ApiErrorMsg(c, "订阅套餐已禁用")
 			return
 		}
+		if redemption.SubscriptionMultiplier < 0 {
+			common.ApiErrorT(c, "Invalid parameters")
+			return
+		}
+		if _, err := plan.ForUsageTier(redemption.SubscriptionMultiplier); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		redemption.Quota = 0
 	} else {
+		redemption.SubscriptionMultiplier = 1
 		if redemption.Quota <= 0 {
 			common.ApiErrorT(c, "Redemption quota must be positive")
 			return
@@ -114,14 +123,15 @@ func AddRedemption(c *gin.Context) {
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:             c.GetInt("id"),
-			CreatorType:        model.RedemptionCreatorAdmin,
-			Name:               redemption.Name,
-			Key:                key,
-			CreatedTime:        common.GetTimestamp(),
-			Quota:              redemption.Quota,
-			SubscriptionPlanId: redemption.SubscriptionPlanId,
-			ExpiredTime:        redemption.ExpiredTime,
+			UserId:                 c.GetInt("id"),
+			CreatorType:            model.RedemptionCreatorAdmin,
+			Name:                   redemption.Name,
+			Key:                    key,
+			CreatedTime:            common.GetTimestamp(),
+			Quota:                  redemption.Quota,
+			SubscriptionPlanId:     redemption.SubscriptionPlanId,
+			SubscriptionMultiplier: max(1, redemption.SubscriptionMultiplier),
+			ExpiredTime:            redemption.ExpiredTime,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -132,10 +142,11 @@ func AddRedemption(c *gin.Context) {
 		keys = append(keys, key)
 	}
 	recordManageAudit(c, "redemption.create", map[string]any{
-		"name":                 redemption.Name,
-		"count":                redemption.Count,
-		"quota":                logger.FormatQuota(redemption.Quota),
-		"subscription_plan_id": redemption.SubscriptionPlanId,
+		"name":                    redemption.Name,
+		"count":                   redemption.Count,
+		"quota":                   logger.FormatQuota(redemption.Quota),
+		"subscription_plan_id":    redemption.SubscriptionPlanId,
+		"subscription_multiplier": max(1, redemption.SubscriptionMultiplier),
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -183,12 +194,13 @@ func DeleteRedemptionBatch(c *gin.Context) {
 func UpdateRedemption(c *gin.Context) {
 	statusOnly := c.Query("status_only")
 	var redemption struct {
-		Id                 int    `json:"id"`
-		Status             int    `json:"status"`
-		Name               string `json:"name"`
-		Quota              int    `json:"quota"`
-		SubscriptionPlanId *int   `json:"subscription_plan_id"`
-		ExpiredTime        int64  `json:"expired_time"`
+		Id                     int    `json:"id"`
+		Status                 int    `json:"status"`
+		Name                   string `json:"name"`
+		Quota                  int    `json:"quota"`
+		SubscriptionPlanId     *int   `json:"subscription_plan_id"`
+		SubscriptionMultiplier *int   `json:"subscription_multiplier"`
+		ExpiredTime            int64  `json:"expired_time"`
 	}
 	err := c.ShouldBindJSON(&redemption)
 	if err != nil {
@@ -209,6 +221,17 @@ func UpdateRedemption(c *gin.Context) {
 		if redemption.SubscriptionPlanId != nil {
 			requestedPlanID = *redemption.SubscriptionPlanId
 		}
+		multiplier := max(1, cleanRedemption.SubscriptionMultiplier)
+		if requestedPlanID != cleanRedemption.SubscriptionPlanId {
+			multiplier = 1
+		}
+		if redemption.SubscriptionMultiplier != nil {
+			if *redemption.SubscriptionMultiplier <= 0 {
+				common.ApiErrorT(c, "Invalid parameters")
+				return
+			}
+			multiplier = *redemption.SubscriptionMultiplier
+		}
 		if requestedPlanID > 0 {
 			plan, planErr := model.GetSubscriptionPlanById(requestedPlanID)
 			if planErr != nil {
@@ -219,8 +242,15 @@ func UpdateRedemption(c *gin.Context) {
 				common.ApiErrorMsg(c, "订阅套餐已禁用")
 				return
 			}
+			if requestedPlanID != cleanRedemption.SubscriptionPlanId || multiplier != max(1, cleanRedemption.SubscriptionMultiplier) {
+				if _, err := plan.ForUsageTier(multiplier); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+			}
 			redemption.Quota = 0
 		} else {
+			multiplier = 1
 			if redemption.Quota <= 0 {
 				common.ApiErrorT(c, "Redemption quota must be positive")
 				return
@@ -238,6 +268,7 @@ func UpdateRedemption(c *gin.Context) {
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
 		cleanRedemption.SubscriptionPlanId = requestedPlanID
+		cleanRedemption.SubscriptionMultiplier = multiplier
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {

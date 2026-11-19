@@ -602,6 +602,7 @@ func CreateNowPaymentsSubscription(ctx context.Context, userID, planID, multipli
 		PlanId:          plan.Id,
 		Multiplier:      plan.UsageMultiplier,
 		Money:           priceUSD.InexactFloat64(),
+		PaymentCurrency: "USD",
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodNowPayments,
 		PaymentProvider: model.PaymentProviderNowPayments,

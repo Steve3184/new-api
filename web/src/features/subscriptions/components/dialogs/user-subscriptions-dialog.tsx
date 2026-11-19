@@ -57,7 +57,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
-import { getServerMessage } from '@/lib/server-error-message'
+import {
+  getServerMessage,
+  requireServerSuccess,
+} from '@/lib/server-error-message'
 
 import {
   getAdminPlans,
@@ -66,8 +69,13 @@ import {
   invalidateUserSubscription,
   deleteUserSubscription,
   resetUserSubscriptionsByPlan,
+  setUserSubscriptionTier,
 } from '../../api'
-import { formatTimestamp } from '../../lib'
+import {
+  formatMultiplier,
+  formatTimestamp,
+  getUsageTierOptions,
+} from '../../lib'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
 
 interface Props {
@@ -119,6 +127,23 @@ export function UserSubscriptionsDialog(props: Props) {
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [subs, setSubs] = useState<UserSubscriptionRecord[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
+  const [multiplier, setMultiplier] = useState(1)
+  const [autoRenew, setAutoRenew] = useState(true)
+  const [tierEdit, setTierEdit] = useState<
+    UserSubscriptionRecord['subscription'] | null
+  >(null)
+  const [editMultiplier, setEditMultiplier] = useState(1)
+  const [savingTier, setSavingTier] = useState(false)
+  const selectedPlan = plans.find(
+    ({ plan }) => String(plan.id) === selectedPlanId
+  )?.plan
+  const canAutoRenew =
+    selectedPlan?.enabled &&
+    selectedPlan.allow_auto_renew &&
+    selectedPlan.allow_balance_pay !== false
+  const grantTiers = selectedPlan ? getUsageTierOptions(selectedPlan) : []
+  const editPlan = plans.find(({ plan }) => plan.id === tierEdit?.plan_id)?.plan
+  const editTiers = editPlan ? getUsageTierOptions(editPlan) : []
   const [resetting, setResetting] = useState(false)
   const [advanceResetTime, setAdvanceResetTime] = useState(true)
   const [resetTotal, setResetTotal] = useState(true)
@@ -161,6 +186,7 @@ export function UserSubscriptionsDialog(props: Props) {
   useEffect(() => {
     if (props.open && props.user?.id) {
       setSelectedPlanId('')
+      setTierEdit(null)
       loadData()
     }
   }, [props.open, props.user?.id, loadData])
@@ -174,7 +200,10 @@ export function UserSubscriptionsDialog(props: Props) {
     try {
       const res = await createUserSubscription(props.user.id, {
         plan_id: Number(selectedPlanId),
+        multiplier,
+        auto_renew: Boolean(canAutoRenew && autoRenew),
       })
+      requireServerSuccess(res)
       if (res.success) {
         toast.success(getServerMessage(res.data) || t('Added successfully'))
         setSelectedPlanId('')
@@ -187,6 +216,60 @@ export function UserSubscriptionsDialog(props: Props) {
       setCreating(false)
     }
   }
+
+  const handleTierChange = async () => {
+    if (
+      !props.user?.id ||
+      !tierEdit ||
+      !editTiers.some((tier) => tier.multiplier === editMultiplier)
+    ) {
+      return
+    }
+    setSavingTier(true)
+    try {
+      requireServerSuccess(
+        await setUserSubscriptionTier(
+          props.user.id,
+          tierEdit.id,
+          editMultiplier
+        )
+      )
+      setTierEdit(null)
+      toast.success(t('Usage tier updated'))
+      await loadData()
+      props.onSuccess?.()
+    } catch (error) {
+      toast.error(getServerMessage(error) || t('Operation failed'))
+    } finally {
+      setSavingTier(false)
+    }
+  }
+
+  const renderTierPicker = (
+    tiers: typeof grantTiers,
+    value: number,
+    setValue: (value: number) => void
+  ) => (
+    <Select
+      items={tiers.map(({ multiplier }) => ({
+        value: String(multiplier),
+        label: formatMultiplier(multiplier),
+      }))}
+      value={String(value)}
+      onValueChange={(value) => value !== null && setValue(Number(value))}
+    >
+      <SelectTrigger aria-label={t('Usage tier')}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {tiers.map(({ multiplier }) => (
+          <SelectItem key={multiplier} value={String(multiplier)}>
+            {formatMultiplier(multiplier)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
 
   const handleConfirmAction = async () => {
     if (!confirmAction) return
@@ -269,7 +352,12 @@ export function UserSubscriptionsDialog(props: Props) {
                   ),
                 }))}
                 value={selectedPlanId}
-                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
+                onValueChange={(v) => {
+                  if (v === null) return
+                  setSelectedPlanId(v)
+                  setMultiplier(1)
+                  setAutoRenew(true)
+                }}
               >
                 <SelectTrigger className='flex-1'>
                   <SelectValue placeholder={t('Select subscription plan')} />
@@ -289,6 +377,8 @@ export function UserSubscriptionsDialog(props: Props) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {grantTiers.length > 1 &&
+                renderTierPicker(grantTiers, multiplier, setMultiplier)}
               <Button
                 onClick={handleCreate}
                 disabled={creating || !selectedPlanId}
@@ -298,6 +388,16 @@ export function UserSubscriptionsDialog(props: Props) {
               </Button>
             </div>
 
+            {canAutoRenew && (
+              <label className='flex items-center gap-2 text-sm'>
+                <Switch
+                  checked={autoRenew}
+                  onCheckedChange={setAutoRenew}
+                  disabled={creating}
+                />
+                {t('Auto-renew from balance')}
+              </label>
+            )}
             <StaticDataTable
               data={loading ? [] : subs}
               getRowKey={(record) => record.subscription.id}
@@ -320,7 +420,8 @@ export function UserSubscriptionsDialog(props: Props) {
                     return (
                       <div>
                         <div className='font-medium'>
-                          {planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`}
+                          {planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`} ·{' '}
+                          {formatMultiplier(sub.multiplier)}
                         </div>
                         <div className='text-muted-foreground text-sm'>
                           {t('Source')}: {sub.source || '-'}
@@ -380,6 +481,24 @@ export function UserSubscriptionsDialog(props: Props) {
 
                     return (
                       <DataTableRowActionMenu ariaLabel={t('Actions')}>
+                        {isActive &&
+                          plans.some(
+                            ({ plan }) =>
+                              plan.id === sub.plan_id &&
+                              getUsageTierOptions(plan).some(
+                                (tier) =>
+                                  tier.multiplier !== (sub.multiplier || 1)
+                              )
+                          ) && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditMultiplier(sub.multiplier || 1)
+                                setTierEdit(sub)
+                              }}
+                            >
+                              {t('Change usage tier')}
+                            </DropdownMenuItem>
+                          )}
                         <DropdownMenuItem
                           disabled={!isActive}
                           onClick={() => {
@@ -438,6 +557,25 @@ export function UserSubscriptionsDialog(props: Props) {
           </div>
         </SheetContent>
       </Sheet>
+
+      {tierEdit && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && !savingTier && setTierEdit(null)}
+          title={t('Change usage tier')}
+          desc={t(
+            'Changes quota limits without resetting usage, changing expiry, or charging the wallet.'
+          )}
+          handleConfirm={handleTierChange}
+          isLoading={savingTier}
+          disabled={
+            editMultiplier === (tierEdit.multiplier || 1) ||
+            !editTiers.some((tier) => tier.multiplier === editMultiplier)
+          }
+        >
+          {renderTierPicker(editTiers, editMultiplier, setEditMultiplier)}
+        </ConfirmDialog>
+      )}
 
       {confirmAction && (
         <ConfirmDialog

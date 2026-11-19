@@ -90,11 +90,16 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐支付金额无效")
 		return
 	}
+	if err := validateSubscriptionPaymentMinimum(payMoney, "CNY", req.PaymentMethod, gateway.ID); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
 		Multiplier:      plan.UsageMultiplier,
 		Money:           payMoney,
+		PaymentCurrency: "CNY",
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,

@@ -286,6 +286,9 @@ func BuildTopUpRecords(topUps []*TopUp) ([]*TopUpRecord, error) {
 	records := make([]*TopUpRecord, 0, len(topUps))
 	var nowPaymentsIDs, moneroIDs []int
 	for _, topUp := range topUps {
+		if topUp.OrderType == OrderTypeSubscription {
+			continue
+		}
 		switch topUp.PaymentProvider {
 		case PaymentProviderNowPayments:
 			nowPaymentsIDs = append(nowPaymentsIDs, topUp.Id)
@@ -317,6 +320,10 @@ func BuildTopUpRecords(topUps []*TopUp) ([]*TopUpRecord, error) {
 	now := common.GetTimestamp()
 	for _, topUp := range topUps {
 		record := &TopUpRecord{TopUp: topUp}
+		if topUp.OrderType == OrderTypeSubscription {
+			records = append(records, record)
+			continue
+		}
 		pending := topUp.Status == common.TopUpStatusPending
 		switch topUp.PaymentProvider {
 		case PaymentProviderNowPayments:
@@ -566,33 +573,9 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 	return topups, total, nil
 }
 
-// GetAllTopUps 获取全平台的充值记录（管理员使用，不限制时间窗口）
-func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return nil, 0, tx.Error
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	if err = tx.Model(&TopUp{}).Count(&total).Error; err != nil {
-		tx.Rollback()
-		return nil, 0, err
-	}
-
-	if err = tx.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
-		tx.Rollback()
-		return nil, 0, err
-	}
-
-	if err = tx.Commit().Error; err != nil {
-		return nil, 0, err
-	}
-
-	return topups, total, nil
+// GetAllTopUps lists all billing orders visible to an administrator.
+func GetAllTopUps(pageInfo *common.PageInfo) ([]*TopUp, int64, error) {
+	return queryAdminBillingOrders("", pageInfo)
 }
 
 // searchTopUpCountHardLimit 搜索充值记录时 COUNT 的安全上限，
@@ -639,50 +622,29 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 	return topups, total, nil
 }
 
-// SearchAllTopUps 按订单号搜索全平台充值记录（管理员使用，不限制时间窗口）
-func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return nil, 0, tx.Error
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	query := tx.Model(&TopUp{})
-	if keyword != "" {
-		pattern, perr := sanitizeLikePattern(keyword)
-		if perr != nil {
-			tx.Rollback()
-			return nil, 0, perr
-		}
-		query = query.Where("trade_no LIKE ? ESCAPE '!'", pattern)
-	}
-
-	if err = query.Limit(searchTopUpCountHardLimit).Count(&total).Error; err != nil {
-		tx.Rollback()
-		common.SysError(common.LogText("failed to count search topups: %s", err.Error()))
-		return nil, 0, common.NewMessage("Failed to search top-up records")
-	}
-
-	if err = query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&topups).Error; err != nil {
-		tx.Rollback()
-		common.SysError(common.LogText("failed to search topups: %s", err.Error()))
-		return nil, 0, common.NewMessage("Failed to search top-up records")
-	}
-
-	if err = tx.Commit().Error; err != nil {
-		return nil, 0, err
-	}
-	return topups, total, nil
+// SearchAllTopUps searches trade numbers, usernames and numeric user IDs.
+func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) ([]*TopUp, int64, error) {
+	return queryAdminBillingOrders(keyword, pageInfo)
 }
 
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值
 func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	if tradeNo == "" {
 		return common.NewMessage("Order number not provided")
+	}
+	var subscription SubscriptionOrder
+	if err := DB.Select("payment_provider", "status").Where("trade_no = ?", tradeNo).First(&subscription).Error; err == nil {
+		if subscription.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		switch subscription.PaymentProvider {
+		case PaymentProviderStripe, PaymentProviderCreem, PaymentProviderEpay, PaymentProviderWaffoPancake:
+			return CompleteSubscriptionOrder(tradeNo, "", subscription.PaymentProvider, "")
+		default:
+			return common.NewMessage("Crypto orders must be completed through gateway reconciliation")
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 
 	refCol := "`trade_no`"

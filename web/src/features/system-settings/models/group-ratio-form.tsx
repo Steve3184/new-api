@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
-import type { FieldErrors, UseFormReturn } from 'react-hook-form'
+import { useWatch, type FieldErrors, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -79,6 +79,7 @@ type GroupFormValues = {
   GroupSpecialUsableGroup: string
   GroupDefaultModel: string
   GroupRetryTimes: string
+  SubscriptionGroups: string
   ModelSquareVisibleGroups: string
 }
 
@@ -130,7 +131,22 @@ export const GroupRatioForm = memo(function GroupRatioForm({
     [form, handleInvalidSave, onSave]
   )
 
-  const watchedGroupRatio = form.watch('GroupRatio')
+  const watchedGroupRatio = useWatch({
+    control: form.control,
+    name: 'GroupRatio',
+  })
+  const watchedSubscriptionGroups = useWatch({
+    control: form.control,
+    name: 'SubscriptionGroups',
+  })
+  const subscriptionGroups = useMemo(
+    () =>
+      safeJsonParse<Record<string, { auto_create_key: boolean }>>(
+        watchedSubscriptionGroups,
+        { fallback: {}, silent: true }
+      ) ?? {},
+    [watchedSubscriptionGroups]
+  )
   const watchedAutoGroups = form.watch('AutoGroups')
   const hasAutoGroups = useMemo(
     () =>
@@ -226,6 +242,78 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 handleFieldChange(field as keyof GroupFormValues, value)
               }
             />
+
+            <fieldset className='space-y-3 rounded-md border p-3'>
+              <legend className='px-1 text-sm font-medium'>
+                {t('Subscription groups')}
+              </legend>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Bind a subscription plan before enabling its group. Other groups keep their existing billing rules.'
+                )}
+              </p>
+              {[...new Set([...groupNames, ...Object.keys(subscriptionGroups)])]
+                .filter((group) => group && group !== 'auto')
+                .map((group) => {
+                  const enabled = Object.hasOwn(subscriptionGroups, group)
+                  const autoCreateKey =
+                    enabled &&
+                    subscriptionGroups[group]?.auto_create_key === true
+                  return (
+                    <div
+                      key={group}
+                      className='flex flex-wrap items-center gap-x-4 gap-y-2'
+                    >
+                      <div className='flex items-center gap-2 text-sm'>
+                        <Switch
+                          aria-label={t('Subscription group: {{group}}', {
+                            group,
+                          })}
+                          checked={enabled}
+                          onCheckedChange={(checked) => {
+                            const next = checked
+                              ? {
+                                  ...subscriptionGroups,
+                                  [group]: { auto_create_key: false },
+                                }
+                              : Object.fromEntries(
+                                  Object.entries(subscriptionGroups).filter(
+                                    ([name]) => name !== group
+                                  )
+                                )
+                            handleFieldChange(
+                              'SubscriptionGroups',
+                              JSON.stringify(next)
+                            )
+                          }}
+                        />
+                        {group}
+                      </div>
+                      {enabled && (
+                        <div className='flex items-center gap-2 text-sm'>
+                          <Switch
+                            aria-label={t(
+                              'Automatically create API key: {{group}}',
+                              { group }
+                            )}
+                            checked={autoCreateKey}
+                            onCheckedChange={(checked) =>
+                              handleFieldChange(
+                                'SubscriptionGroups',
+                                JSON.stringify({
+                                  ...subscriptionGroups,
+                                  [group]: { auto_create_key: checked },
+                                })
+                              )
+                            }
+                          />
+                          {t('Automatically create API key')}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+            </fieldset>
 
             <GroupSpecialUsableRulesEditor
               value={form.watch('GroupSpecialUsableGroup')}

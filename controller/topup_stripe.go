@@ -289,7 +289,13 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		"currency":     strings.ToUpper(event.GetObjectValue("currency")),
 		"event_type":   string(event.Type),
 	}
-	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, ""); err == nil {
+	paidTotal, parseErr := strconv.ParseInt(event.GetObjectValue("amount_total"), 10, 64)
+	paid := model.PaidFiatFromMinorUnits(paidTotal, event.GetObjectValue("currency"))
+	if parseErr != nil || paidTotal < 0 || (paidTotal > 0 && paid.Amount == 0) {
+		logger.LogError(ctx, common.LogText("Stripe payment total is invalid trade_no=%s", referenceId))
+		return
+	}
+	if err := model.CompleteSubscriptionOrderWithPaymentAmount(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, "", paid.Amount, paid.Currency); err == nil {
 		logger.LogInfo(ctx, common.LogText("Stripe subscription order processed trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
@@ -297,11 +303,7 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return
 	}
 
-	paidTotal, parseErr := strconv.ParseInt(event.GetObjectValue("amount_total"), 10, 64)
-	if parseErr != nil {
-		paidTotal = 0
-	}
-	err := model.Recharge(referenceId, customerId, callerIp, model.PaidFiatFromMinorUnits(paidTotal, event.GetObjectValue("currency")))
+	err := model.Recharge(referenceId, customerId, callerIp, paid)
 	if err != nil {
 		logger.LogError(ctx, common.LogText("Stripe top-up processing failed trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
 		return
@@ -366,8 +368,6 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		return "", errors.New("invalid Stripe API key")
 	}
 
-	stripe.Key = setting.StripeApiSecret
-
 	// Use custom URLs if provided, otherwise use defaults
 	if successURL == "" {
 		successURL = paymentReturnPath("/usage-logs")
@@ -400,7 +400,8 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		params.Customer = stripe.String(customerId)
 	}
 
-	result, err := session.New(params)
+	client := session.Client{B: stripe.GetBackend(stripe.APIBackend), Key: setting.StripeApiSecret}
+	result, err := client.New(params)
 	if err != nil {
 		return "", err
 	}
@@ -424,7 +425,6 @@ func genStripeAmountLink(referenceId string, customerId string, email string, am
 		return "", fmt.Errorf("无效的Stripe支付金额")
 	}
 
-	stripe.Key = setting.StripeApiSecret
 	if successURL == "" {
 		successURL = paymentReturnPath("/wallet")
 	}
@@ -463,7 +463,8 @@ func genStripeAmountLink(referenceId string, customerId string, email string, am
 		params.Customer = stripe.String(customerId)
 	}
 
-	result, err := session.New(params)
+	client := session.Client{B: stripe.GetBackend(stripe.APIBackend), Key: setting.StripeApiSecret}
+	result, err := client.New(params)
 	if err != nil {
 		return "", err
 	}

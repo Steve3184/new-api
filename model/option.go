@@ -232,6 +232,7 @@ func InitOptionMap() {
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
+	common.OptionMap[ratio_setting.SubscriptionGroupsOptionKey] = "{}"
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
 	common.OptionMap["GroupDefaultModel"] = ratio_setting.GroupDefaultModel2JSONString()
 	common.OptionMap["GroupRetryTimes"] = ratio_setting.GroupRetryTimes2JSONString()
@@ -347,6 +348,10 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if key == ratio_setting.SubscriptionGroupsOptionKey {
+		_, err := ratio_setting.ParseSubscriptionGroups(value)
+		return err
+	}
 	if err := console_setting.ValidatePublicOption(key, value); err != nil {
 		return err
 	}
@@ -450,6 +455,9 @@ func normalizeOptionValue(key, value string) (string, error) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == ratio_setting.SubscriptionGroupsOptionKey {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if IsRequestPolicyOption(key) {
 		return UpdateRequestPolicyOptions(map[string]string{key: value})
 	}
@@ -531,6 +539,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockAndValidateSubscriptionGroupOptionTx(tx, values); err != nil {
+			return err
+		}
 		for k, v := range values {
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
@@ -990,6 +1001,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":
 		err = ratio_setting.UpdateGroupRatioByJSONString(value)
+	case ratio_setting.SubscriptionGroupsOptionKey:
+		err = ratio_setting.UpdateSubscriptionGroups(value)
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
 	case "GroupDefaultModel":

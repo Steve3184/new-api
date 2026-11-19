@@ -126,6 +126,41 @@ describe('subscription plan usage limit form mapping', () => {
   })
 })
 
+describe('subscription plan billing mode form mapping', () => {
+  test('keeps a legacy plan unbound and preserves its original group rules', () => {
+    const legacy = subscriptionPlanSchema.parse({
+      ...formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan,
+      id: 1,
+      upgrade_group: 'vip',
+      downgrade_group: 'default',
+      wallet_only_groups_enabled: true,
+      wallet_only_groups: 'team',
+    })
+    expect(
+      formValuesToPlanPayload(planToFormValues(legacy)).plan
+    ).toMatchObject({
+      subscription_group: '',
+      upgrade_group: 'vip',
+      downgrade_group: 'default',
+      wallet_only_groups_enabled: true,
+      wallet_only_groups: 'team',
+    })
+  })
+
+  test('preserves the explicit binding when editing a scoped plan', () => {
+    const scoped = subscriptionPlanSchema.parse({
+      ...formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan,
+      id: 2,
+      subscription_group: 'subscriber',
+    })
+    const values = planToFormValues(scoped)
+    expect(values.subscription_group).toBe('subscriber')
+    expect(formValuesToPlanPayload(values).plan.subscription_group).toBe(
+      'subscriber'
+    )
+  })
+})
+
 describe('subscription plan tiers form mapping', () => {
   test('round-trips usage tiers, upgrade targets and renewal settings', () => {
     const payload = formValuesToPlanPayload({

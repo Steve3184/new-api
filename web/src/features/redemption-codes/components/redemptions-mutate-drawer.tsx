@@ -58,6 +58,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { getAdminPlans } from '@/features/subscriptions/api'
+import {
+  formatMultiplier,
+  getUsageTierOptions,
+} from '@/features/subscriptions/lib'
 import type { PlanRecord } from '@/features/subscriptions/types'
 import {
   formatQuotaWithCurrency,
@@ -290,6 +294,24 @@ export function RedemptionsMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const subscriptionPlanId = form.watch('subscription_plan_id')
+  const selectedPlan = subscriptionPlans.find(
+    ({ plan }) => plan.id === subscriptionPlanId
+  )?.plan
+  const tiers = selectedPlan ? getUsageTierOptions(selectedPlan) : []
+  const selectedMultiplier = form.watch('subscription_multiplier')
+  const tierOptions = tiers.map(({ multiplier }) => ({
+    value: String(multiplier),
+    label: formatMultiplier(multiplier),
+  }))
+  if (
+    selectedMultiplier > 1 &&
+    !tiers.some(({ multiplier }) => multiplier === selectedMultiplier)
+  ) {
+    tierOptions.push({
+      value: String(selectedMultiplier),
+      label: formatMultiplier(selectedMultiplier),
+    })
+  }
   const redemptionTypeItems = [
     { value: 'wallet', label: t('Wallet balance code') },
     ...subscriptionPlans
@@ -403,6 +425,7 @@ export function RedemptionsMutateDrawer({
                             field.onChange(
                               value === 'wallet' ? null : Number(value)
                             )
+                            form.setValue('subscription_multiplier', 1)
                             if (value !== 'wallet') {
                               form.setValue('quota_dollars', 0, {
                                 shouldValidate: true,
@@ -433,6 +456,38 @@ export function RedemptionsMutateDrawer({
                     )}
                   />
 
+                  {subscriptionPlanId && tierOptions.length > 1 && (
+                    <FormField
+                      control={form.control}
+                      name='subscription_multiplier'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Usage tier')}</FormLabel>
+                          <Select
+                            items={tierOptions}
+                            value={String(field.value)}
+                            onValueChange={(value) =>
+                              value && field.onChange(Number(value))
+                            }
+                          >
+                            <FormControl>
+                              <SelectTrigger className='w-full'>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {tierOptions.map((tier) => (
+                                <SelectItem key={tier.value} value={tier.value}>
+                                  {tier.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <FormField
                     control={form.control}
                     name='expired_time'

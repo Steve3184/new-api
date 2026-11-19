@@ -101,4 +101,24 @@ describe('plan description', () => {
       'Your group changes to free when the plan ends',
     ])
   })
+
+  test('describes the bound group without promising legacy group changes', () => {
+    const description = describePlan(
+      plan({
+        subscription_group: 'subscriber',
+        upgrade_group: 'vip',
+        downgrade_group: 'free',
+        wallet_only_groups_enabled: true,
+        wallet_only_groups: 'team',
+      }),
+      t
+    )
+    expect(
+      description.features.find((feature) => feature.key === 'group')?.label
+    ).toBe('Access to the subscriber group')
+    expect(
+      description.features.some((feature) => feature.key === 'groups')
+    ).toBe(false)
+    expect(description.notes).toEqual([])
+  })
 })

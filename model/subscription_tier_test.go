@@ -54,6 +54,53 @@ func TestSubscriptionUsageTierLimitsSaturate(t *testing.T) {
 	assert.Zero(t, view.FiveHourLimit)
 }
 
+func TestAdminGrantDoesNotEnableRenewalWithoutBalancePayment(t *testing.T) {
+	truncateTables(t)
+	user := &User{Username: "grant-no-renew", AffCode: "no-renew"}
+	require.NoError(t, DB.Create(user).Error)
+	plan := &SubscriptionPlan{Title: "No balance", Enabled: true, AllowBalancePay: common.GetPointer(false), AllowAutoRenew: true}
+	require.NoError(t, DB.Create(plan).Error)
+	InvalidateSubscriptionPlanCache(plan.Id)
+	_, err := AdminBindSubscription(user.Id, plan.Id, 1, "")
+	require.NoError(t, err)
+	var got UserSubscription
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&got).Error)
+	assert.False(t, got.AutoRenew)
+}
+
+func TestAdminChangesTierWithoutResettingUsageOrChargingWallet(t *testing.T) {
+	truncateTables(t)
+	user := &User{Username: "admin-tier-user", AffCode: "tier-admin", Quota: 5000}
+	require.NoError(t, DB.Create(user).Error)
+	plan := &SubscriptionPlan{Title: "Tiers", PriceAmount: 5, TotalAmount: 100, WeeklyLimit: 60, AllowAutoRenew: true, UsageTiers: `[{"multiplier":3,"price_amount":15}]`}
+	require.NoError(t, DB.Create(plan).Error)
+	InvalidateSubscriptionPlanCache(plan.Id)
+	_, err := AdminBindSubscription(user.Id, plan.Id, 1, "")
+	require.NoError(t, err)
+	var sub UserSubscription
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&sub).Error)
+	assert.True(t, sub.AutoRenew)
+	end := sub.EndTime
+	require.NoError(t, DB.Model(&sub).Updates(map[string]any{"amount_used": 28, "weekly_used": 25, "next_reset_time": sub.StartTime + 60, "renew_multiplier": 3}).Error)
+	for _, tier := range []int{3, 1} {
+		require.NoError(t, AdminSetSubscriptionTier(user.Id, sub.Id, tier))
+		require.NoError(t, DB.First(&sub, sub.Id).Error)
+		assert.Equal(t, tier, sub.Multiplier)
+		assert.EqualValues(t, 100*tier, sub.AmountTotal)
+		assert.EqualValues(t, 60*tier, sub.WeeklyLimit)
+		assert.EqualValues(t, 28, sub.AmountUsed)
+		assert.EqualValues(t, 25, sub.WeeklyUsed)
+		assert.Equal(t, sub.StartTime+60, sub.NextResetTime)
+		assert.Equal(t, end, sub.EndTime)
+		assert.Equal(t, 3, sub.RenewMultiplier)
+		assert.True(t, sub.AutoRenew)
+	}
+	require.Error(t, AdminSetSubscriptionTier(user.Id, sub.Id, 4))
+	require.Error(t, AdminSetSubscriptionTier(user.Id+1, sub.Id, 3))
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, 5000, user.Quota)
+}
+
 // TestSubscriptionTiersUpgradeAndRenewalDatabaseMatrix upgrades a released
 // schema in place and then exercises tier purchase, gateway completion,
 // prorated upgrade and balance auto-renewal on every supported database.

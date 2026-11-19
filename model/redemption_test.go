@@ -301,6 +301,28 @@ func TestRedeemGrantsSubscriptionPlan(t *testing.T) {
 	assert.Zero(t, redeemed.Quota)
 }
 
+func TestSubscriptionRedemptionGrantsSelectedTier(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	user := &User{Username: "tier-code-user", AffCode: "tier-code", Quota: 500}
+	require.NoError(t, DB.Create(user).Error)
+	plan := &SubscriptionPlan{Id: 9803, Title: "Tier code", TotalAmount: 200, UsageTiers: `[{"multiplier":3,"price_amount":12}]`}
+	require.NoError(t, DB.Create(plan).Error)
+	InvalidateSubscriptionPlanCache(plan.Id)
+	var code Redemption
+	require.NoError(t, common.UnmarshalJsonStr(`{"subscription_multiplier":3}`, &code))
+	code.Name, code.Key, code.SubscriptionPlanId = "Tier code", "50000000000000000000000000000001", plan.Id
+	require.NoError(t, code.Insert())
+	_, err := RedeemWithResult(code.Key, user.Id)
+	require.NoError(t, err)
+	var sub UserSubscription
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&sub).Error)
+	assert.Equal(t, 3, sub.Multiplier)
+	assert.EqualValues(t, 600, sub.AmountTotal)
+	require.NoError(t, DB.First(user, user.Id).Error)
+	assert.Equal(t, 500, user.Quota)
+}
+
 func TestSubscriptionRedemptionPersistsZeroWalletQuota(t *testing.T) {
 	truncateTables(t)
 	plan := &SubscriptionPlan{

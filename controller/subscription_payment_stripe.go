@@ -49,6 +49,15 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorT(c, "Stripe webhook is not configured")
 		return
 	}
+	price, err := resolveSubscriptionStripeCheckout(c.Request.Context(), plan)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := validateSubscriptionPaymentMinimum(price.Amount, price.Currency, model.PaymentMethodStripe, ""); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, false)
@@ -73,7 +82,8 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		UserId:          userId,
 		PlanId:          plan.Id,
 		Multiplier:      plan.UsageMultiplier,
-		Money:           plan.PriceAmount,
+		Money:           price.Amount,
+		PaymentCurrency: price.Currency,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,
 		PaymentProvider: model.PaymentProviderStripe,
@@ -107,7 +117,6 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 }
 
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string) (string, error) {
-	stripe.Key = setting.StripeApiSecret
 
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
@@ -131,7 +140,8 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		params.Customer = stripe.String(customerId)
 	}
 
-	result, err := session.New(params)
+	client := session.Client{B: stripe.GetBackend(stripe.APIBackend), Key: setting.StripeApiSecret}
+	result, err := client.New(params)
 	if err != nil {
 		return "", err
 	}

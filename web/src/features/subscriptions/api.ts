@@ -99,6 +99,18 @@ export async function createUserSubscription(
   return res.data
 }
 
+export async function setUserSubscriptionTier(
+  userId: number,
+  subscriptionId: number,
+  multiplier: number
+): Promise<ApiResponse> {
+  const res = await api.put(
+    `/api/subscription/admin/users/${userId}/subscriptions/${subscriptionId}/tier`,
+    { multiplier }
+  )
+  return res.data
+}
+
 export async function invalidateUserSubscription(
   subId: number
 ): Promise<ApiResponse<{ message?: string }>> {

@@ -104,6 +104,9 @@ func UpdatePasskeyDomainOptions(values map[string]string, preview bool, confirma
 	}
 	var change *PasskeyDomainChange
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockAndValidateSubscriptionGroupOptionTx(tx, values); err != nil {
+			return err
+		}
 		settings, serverAddress, err := lockPasskeyDomainSettings(tx)
 		if err != nil {
 			return err

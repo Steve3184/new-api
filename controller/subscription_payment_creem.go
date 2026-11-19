@@ -49,8 +49,12 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		common.ApiErrorT(c, "Subscription plan is not enabled")
 		return
 	}
-	product, err := resolveSubscriptionCreemProduct(plan)
+	product, err := resolveSubscriptionCreemCheckout(c.Request.Context(), plan)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := validateSubscriptionPaymentMinimum(product.Price, product.Currency, model.PaymentMethodCreem, ""); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -84,6 +88,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		PlanId:          plan.Id,
 		Multiplier:      plan.UsageMultiplier,
 		Money:           product.Price,
+		PaymentCurrency: product.Currency,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
