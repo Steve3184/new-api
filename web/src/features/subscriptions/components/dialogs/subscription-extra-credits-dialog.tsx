@@ -471,9 +471,13 @@ export function SubscriptionExtraCreditsDialog(
                   {t('Exchange rate')}
                 </span>
                 <span className='tabular-nums'>
-                  {t('1 : {{rate}}', {
-                    rate: formatNumber(displayRate, locale),
-                  })}
+                  {t(
+                    '1 {{currency}} spent = {{rate}} {{currency}} extra credits',
+                    {
+                      currency: currencyLabel,
+                      rate: formatNumber(displayRate, locale),
+                    }
+                  )}
                 </span>
               </div>
               {props.subscription && (

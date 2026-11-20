@@ -252,3 +252,24 @@ test('saves an enabled rate at the exact typed value', async () => {
     network.mockRestore()
   }
 })
+
+test('describes the exchange rate in the currency the plan quota uses', async () => {
+  const user = userEvent.setup()
+  const network = mockGroups()
+  try {
+    renderDrawer({ open: true, onOpenChange: vi.fn() })
+    await user.click(
+      await screen.findByRole('switch', { name: 'Allow buying extra credits' })
+    )
+    const dialog = await screen.findByRole('dialog')
+    // The rate is a multiplier on the wallet balance the buyer spends, and
+    // that balance is shown in the site currency — not in raw quota units.
+    expect(
+      within(dialog).getByText(
+        /1 USD of wallet balance grants this many USD of extra credits/
+      )
+    ).toBeInTheDocument()
+  } finally {
+    network.mockRestore()
+  }
+})

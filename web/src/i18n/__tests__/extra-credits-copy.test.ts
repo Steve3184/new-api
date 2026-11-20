@@ -44,6 +44,8 @@ const backendKeys = [
 const uiKeys = [
   'Allow buying extra credits',
   'Extra credits exchange rate',
+  'Extra credits are granted at this rate in the same currency as the plan quota: 1 {{currency}} of wallet balance grants this many {{currency}} of extra credits. They are stored separately from the plan quota and stay available after the subscription expires.',
+  '1 {{currency}} spent = {{rate}} {{currency}} extra credits',
   'Buy Extra Credits',
   'Remaining extra credits',
   'Extra credits you receive',

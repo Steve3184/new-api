@@ -871,6 +871,16 @@ describe('buy extra credits dialog', () => {
     await buy()
     expect(callBody(1)).toEqual(callBody(0))
   })
+  test('states the exchange rate in the buyer currency on both sides', async () => {
+    renderDialog()
+    const dialog = await screen.findByRole('dialog')
+    // Rate 2 read as raw quota would be meaningless to a buyer whose wallet
+    // and credits are both shown in the site currency.
+    expect(
+      within(dialog).getByText('1 USD spent = 2 USD extra credits')
+    ).toBeInTheDocument()
+  })
+
   test('previews the credits granted by the configured rate before charging', async () => {
     const user = userEvent.setup()
     renderDialog()
