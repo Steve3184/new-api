@@ -99,6 +99,7 @@ import {
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
+  MIN_EXTRA_CREDITS_RATE,
   PLAN_FORM_DEFAULTS,
   planToFormValues,
   formValuesToPlanPayload,
@@ -251,6 +252,7 @@ export function SubscriptionsMutateDrawer({
     ),
   ]
   const walletOnlyGroupsEnabled = form.watch('wallet_only_groups_enabled')
+  const allowExtraCredits = form.watch('allow_extra_credits')
   const benefitsOnly = form.watch('benefits_only')
   const rateLimitGroups = form.watch('rate_limit_groups')
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
@@ -994,6 +996,55 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name='allow_extra_credits'
+                  render={({ field }) => (
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <FormLabel className='!mt-0'>
+                        {t('Allow buying extra credits')}
+                      </FormLabel>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          aria-label={t('Allow buying extra credits')}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {allowExtraCredits && (
+                  <FormField
+                    control={form.control}
+                    name='extra_credits_rate'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Extra credits exchange rate')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='text'
+                            inputMode='decimal'
+                            autoComplete='off'
+                            placeholder={`${MIN_EXTRA_CREDITS_RATE}`}
+                            aria-label={t('Extra credits exchange rate')}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Credits granted per unit of wallet balance spent. Extra credits are stored separately from the plan quota and stay available after the subscription expires.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {!subscriptionGroup && (
                   <FormField

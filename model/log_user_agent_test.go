@@ -91,7 +91,7 @@ func TestLogUserAgentDatabaseMatrix(t *testing.T) {
 						// The released schema is identical except for the new column. Build
 						// that schema and seed a historical row before the production migration.
 						if engine == "clickhouse" {
-							require.NoError(t, db.Exec(strings.Replace(clickHouseLogCreateTableSQL(0), "\n\tuser_agent String DEFAULT '',", "", 1)).Error)
+							require.NoError(t, db.Exec(strings.NewReplacer("\n\tuser_agent String DEFAULT '',", "", "\n\tsubscription_event_id String DEFAULT '',", "").Replace(clickHouseLogCreateTableSQL(0))).Error)
 						} else {
 							require.NoError(t, db.AutoMigrate(&logBeforeUserAgent{}))
 						}
@@ -115,6 +115,12 @@ func TestLogUserAgentDatabaseMatrix(t *testing.T) {
 							assert.True(t, db.Migrator().HasIndex(&Log{}, "idx_user_id_id"))
 						}
 					}
+					event := Log{UserId: 11, RequestId: strings.Repeat("r", 65), UpstreamRequestId: strings.Repeat("u", 129), SubscriptionEventId: "financial-event-delivery", Type: LogTypeConsume}
+					require.NoError(t, db.Create(&event).Error)
+					var delivered Log
+					require.NoError(t, db.Where("subscription_event_id = ?", event.SubscriptionEventId).Take(&delivered).Error)
+					require.Equal(t, event.RequestId, delivered.RequestId)
+					require.Equal(t, event.UpstreamRequestId, delivered.UpstreamRequestId)
 					ua := "Claude_Code/2.0 50%! O'Reilly"
 					ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 					ctx.Request = httptest.NewRequest("POST", "/v1/messages", nil)

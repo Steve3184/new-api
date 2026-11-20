@@ -273,3 +273,124 @@ describe('subscription plan tiers form mapping', () => {
     ).toBe(true)
   })
 })
+
+describe('subscription plan extra credits form mapping', () => {
+  test('defaults extra credits to disabled with no rate text', () => {
+    expect(PLAN_FORM_DEFAULTS.allow_extra_credits).toBe(false)
+    expect(PLAN_FORM_DEFAULTS.extra_credits_rate).toBe('')
+    expect(formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan).toMatchObject({
+      allow_extra_credits: false,
+      extra_credits_rate: 0,
+    })
+  })
+
+  test('keeps a legacy plan without the fields disabled when it is edited', () => {
+    const legacy = subscriptionPlanSchema.parse({
+      ...formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan,
+      id: 3,
+      title: 'Legacy',
+    })
+    expect(legacy.allow_extra_credits).toBe(false)
+    expect(legacy.extra_credits_rate).toBe(0)
+    const values = planToFormValues(legacy)
+    expect(values.allow_extra_credits).toBe(false)
+    expect(formValuesToPlanPayload(values).plan).toMatchObject({
+      allow_extra_credits: false,
+      extra_credits_rate: 0,
+    })
+  })
+
+  test('round-trips an enabled plan with its rate', () => {
+    const plan = subscriptionPlanSchema.parse({
+      ...formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan,
+      id: 4,
+      title: 'Pro',
+      allow_extra_credits: true,
+      extra_credits_rate: 2.5,
+    })
+    const values = planToFormValues(plan)
+    expect(values.allow_extra_credits).toBe(true)
+    expect(values.extra_credits_rate).toBe('2.5')
+    expect(formValuesToPlanPayload(values).plan).toMatchObject({
+      allow_extra_credits: true,
+      extra_credits_rate: 2.5,
+    })
+  })
+
+  test('never submits a rate for a disabled plan', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      allow_extra_credits: false,
+      extra_credits_rate: '5',
+    })
+    expect(payload.plan).toMatchObject({
+      allow_extra_credits: false,
+      extra_credits_rate: 0,
+    })
+  })
+
+  test('submits the exact typed rate instead of a float-parsed approximation', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      allow_extra_credits: true,
+      extra_credits_rate: '0.000001',
+    })
+    expect(payload.plan.extra_credits_rate).toBe(0.000001)
+  })
+
+  test('requires a rate within the backend range only when enabled', () => {
+    const schema = getPlanFormSchema(i18next.t)
+    const base = { ...PLAN_FORM_DEFAULTS, title: 'Plan' }
+    const accepts = (rate: string) =>
+      schema.safeParse({
+        ...base,
+        allow_extra_credits: true,
+        extra_credits_rate: rate,
+      }).success
+    // A disabled plan needs no rate at all.
+    expect(
+      schema.safeParse({
+        ...base,
+        allow_extra_credits: false,
+        extra_credits_rate: '',
+      }).success
+    ).toBe(true)
+    expect(accepts('')).toBe(false)
+    expect(accepts('0')).toBe(false)
+    expect(accepts('1000001')).toBe(false)
+    expect(accepts('2.5')).toBe(true)
+  })
+
+  test('accepts the backend rate bounds and rejects more than six decimals', () => {
+    const schema = getPlanFormSchema(i18next.t)
+    const base = {
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      allow_extra_credits: true,
+    }
+    const accepts = (rate: string) =>
+      schema.safeParse({ ...base, extra_credits_rate: rate }).success
+    expect(accepts('0.000001')).toBe(true)
+    expect(accepts('1000000')).toBe(true)
+    expect(accepts('1.123456')).toBe(true)
+    expect(accepts('0.0000009')).toBe(false)
+    expect(accepts('1.1234567')).toBe(false)
+  })
+
+  test('rejects pasted text whose extra decimals only disappear when parsed as a float', () => {
+    const schema = getPlanFormSchema(i18next.t)
+    const parsed = schema.safeParse({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Plan',
+      allow_extra_credits: true,
+      // Number.parseFloat maps this to exactly 1000000, inside the bounds.
+      extra_credits_rate: '1000000.00000000001',
+    })
+    expect(parsed.success).toBe(false)
+    expect(
+      parsed.error?.issues.map((issue) => [issue.path.join('.'), issue.message])
+    ).toEqual([['extra_credits_rate', 'Invalid extra credits exchange rate']])
+  })
+})

@@ -203,6 +203,39 @@ func (o *LogOther) MarshalJSON() ([]byte, error) {
 	return common.Marshal(o.toMap())
 }
 
+func (o *LogOther) UnmarshalJSON(data []byte) error {
+	var values map[string]json.RawMessage
+	if err := common.Unmarshal(data, &values); err != nil {
+		return err
+	}
+	restored := LogOther{}
+	for key, value := range values {
+		switch key {
+		case logOtherAdminInfoKey, logOtherRootInfoKey, logOtherAuditInfoKey:
+			var scoped map[string]json.RawMessage
+			if err := common.Unmarshal(value, &scoped); err != nil {
+				return err
+			}
+			for name, item := range scoped {
+				switch key {
+				case logOtherAdminInfoKey:
+					restored.SetAdmin(name, item)
+				case logOtherRootInfoKey:
+					restored.SetRoot(name, item)
+				case logOtherAuditInfoKey:
+					restored.SetAudit(name, item)
+				}
+			}
+		default:
+			if !restored.SetPublic(key, value) {
+				restored.SetAdmin(key, value)
+			}
+		}
+	}
+	*o = restored
+	return nil
+}
+
 func normalizeLegacyRejectReason(values map[string]json.RawMessage) bool {
 	rejectReason, ok := values["reject_reason"]
 	if !ok {

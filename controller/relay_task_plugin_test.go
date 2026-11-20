@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,8 +18,12 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -211,6 +216,192 @@ func TestExecuteTaskSubmissionSettlementFailureStaysDurableAndWritesNothing(t *t
 	assert.False(t, c.Writer.Written())
 }
 
+func reservedSubscriptionSubmission(t *testing.T, scenario string) (*gorm.DB, *model.UserSubscription, *gin.Context, *relaycommon.RelayInfo) {
+	t.Helper()
+	db, dialect := openTaskDialectDatabase(t, &model.User{}, &model.Channel{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}, &model.Task{})
+	oldDB, oldMain, oldLog := model.DB, common.MainDatabaseType(), common.LogDatabaseType()
+	oldRedis, oldConsume := common.RedisEnabled, common.LogConsumeEnabled
+	model.DB = db
+	common.SetDatabaseTypes(dialect, dialect)
+	common.RedisEnabled, common.LogConsumeEnabled = false, false
+	t.Cleanup(func() {
+		model.DB = oldDB
+		common.SetDatabaseTypes(oldMain, oldLog)
+		common.RedisEnabled, common.LogConsumeEnabled = oldRedis, oldConsume
+	})
+	user := model.User{Username: "accepted", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Accepted", SubscriptionGroup: "vip"}
+	require.NoError(t, db.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, db.Create(&sub).Error)
+	c, info := taskSubmissionTestContext(), taskSubmissionRelayInfo(nil)
+	info.UserId, info.RequestId, info.UsingGroup, info.IsPlayground = user.Id, scenario, "vip", true
+	info.PriceData.Quota = 6
+	require.Nil(t, service.PreConsumeBilling(c, 10, info))
+	return db, &sub, c, info
+}
+
+type tokenSettlementAdaptor struct{ taskcommon.BaseBilling }
+
+func (tokenSettlementAdaptor) Init(*relaycommon.RelayInfo) {}
+
+func TestSubscriptionTerminalSubmissionRecovery(t *testing.T) {
+	// Finance-only fixtures must not contribute process-wide health samples
+	// to later status-probe tests that query the same group.
+	enabled := perf_metrics_setting.GetSetting().Enabled
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{"perf_metrics_setting.enabled": "false"}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{"perf_metrics_setting.enabled": strconv.FormatBool(enabled)}))
+	})
+	for _, scenario := range []string{"token-recovery", "final-write"} {
+		t.Run(scenario, func(t *testing.T) {
+			db, sub, c, info := reservedSubscriptionSubmission(t, scenario)
+			require.NoError(t, db.AutoMigrate(&model.Log{}, &model.QuotaData{}))
+			t.Cleanup(func() { require.NoError(t, db.Migrator().DropTable(&model.Log{}, &model.QuotaData{})) })
+			oldLog := model.LOG_DB
+			model.LOG_DB = db
+			t.Cleanup(func() { model.LOG_DB = oldLog })
+			info.PriceData.ModelRatio, info.PriceData.GroupRatioInfo.GroupRatio = 2, 1.5
+			result := &relay.TaskSubmitResult{Platform: "plugin", UpstreamTaskID: "accepted", Quota: 6}
+			if scenario == "final-write" {
+				result.Immediate = &relaycommon.TaskInfo{Status: model.TaskStatusSuccess}
+				require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:final-write", func(tx *gorm.DB) {
+					if updates, ok := tx.Statement.Dest.(map[string]any); ok && updates["subscription_billing_pending"] == false {
+						tx.AddError(errors.New("temporary final settlement failure"))
+					}
+				}))
+			}
+			outcome, taskErr := executeTaskSubmissionWith(c, info, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+				return result, nil
+			})
+			var saved model.Task
+			require.NoError(t, db.Where("task_id = ?", info.PublicTaskID).First(&saved).Error)
+			require.True(t, saved.SubscriptionBillingPending)
+			require.Equal(t, 6, saved.Quota)
+			require.Nil(t, saved.PrivateData.SubscriptionSubmitQuota, "submission already aligned")
+			want := 6
+			if scenario == "final-write" {
+				require.NotNil(t, taskErr)
+				assert.Nil(t, outcome)
+				assert.Equal(t, "task_billing_settlement_failed", taskErr.Code)
+				assert.False(t, saved.PrivateData.SubscriptionResultReported)
+				require.NoError(t, db.First(sub, sub.Id).Error)
+				assert.Positive(t, sub.FundingReserved)
+				require.NoError(t, db.Callback().Update().Remove("test:final-write"))
+			} else {
+				require.Nil(t, taskErr)
+				require.Equal(t, 2.0, saved.PrivateData.BillingContext.ModelRatio)
+				require.Equal(t, 1.5, saved.PrivateData.BillingContext.GroupRatio)
+				before := saved.Status
+				saved.Status = model.TaskStatusSuccess
+				require.NoError(t, service.StoreTaskSettlementFacts(&saved, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, TotalTokens: 3}))
+				won, err := saved.UpdateWithStatus(before)
+				require.NoError(t, err)
+				require.True(t, won)
+				oldModel, oldGroup := ratio_setting.ModelRatio2JSONString(), ratio_setting.GroupRatio2JSONString()
+				t.Cleanup(func() {
+					require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(oldModel))
+					require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldGroup))
+				})
+				require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"plugin-model":1}`))
+				require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"vip":1,"default":1}`))
+				want = 9 // Three tokens at the submitted model and group ratios.
+			}
+			oldAdaptor := service.GetTaskAdaptorFunc
+			service.GetTaskAdaptorFunc = func(constant.TaskPlatform) service.TaskPollingAdaptor { return tokenSettlementAdaptor{} }
+			t.Cleanup(func() { service.GetTaskAdaptorFunc = oldAdaptor })
+			service.RunTaskPollingOnce(t.Context(), nil)
+			require.NoError(t, db.First(&saved, saved.ID).Error)
+			assert.False(t, saved.SubscriptionBillingPending)
+			assert.True(t, saved.PrivateData.SubscriptionFinancialComplete)
+			assert.True(t, saved.PrivateData.SubscriptionResultReported)
+			assert.Equal(t, want, saved.Quota)
+			require.NoError(t, db.First(sub, sub.Id).Error)
+			assert.EqualValues(t, want, sub.ExtraCreditsUsed)
+			assert.Zero(t, sub.FundingReserved)
+		})
+	}
+}
+
+func TestAcceptedSubscriptionTaskReceiptFailures(t *testing.T) {
+	for _, scenario := range []string{"temporary-preserve", "replaced-receipt", "stream-insert-and-settle"} {
+		t.Run(scenario, func(t *testing.T) {
+			db, sub, c, info := reservedSubscriptionSubmission(t, scenario)
+			var receipt model.SubscriptionPreConsumeRecord
+			require.NoError(t, db.Where("request_id = ?", scenario).First(&receipt).Error)
+			originalID := receipt.Id
+			switch scenario {
+			case "temporary-preserve":
+				failOnce := true
+				require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:receipt-read", func(tx *gorm.DB) {
+					if _, ok := tx.Statement.Dest.(*model.SubscriptionPreConsumeRecord); ok && failOnce {
+						failOnce = false
+						tx.AddError(errors.New("temporary receipt read failure"))
+					}
+				}))
+			default:
+				require.NoError(t, db.Model(&receipt).UpdateColumn("id", originalID+1).Error)
+			}
+			if scenario == "stream-insert-and-settle" {
+				require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject-task", func(tx *gorm.DB) {
+					tx.AddError(errors.New("task insert failure"))
+				}))
+			}
+			_, taskErr := executeTaskSubmissionWith(c, info, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+				_, err := c.Writer.WriteString("data: accepted\n\n")
+				require.NoError(t, err)
+				return &relay.TaskSubmitResult{Platform: "plugin", UpstreamTaskID: "accepted-job", Quota: 6}, nil
+			})
+			if scenario == "stream-insert-and-settle" {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, "task_insert_failed", taskErr.Code)
+				consume, _ := c.Get(string(constant.ContextKeyConsumeLog))
+				assert.Nil(t, consume)
+			} else {
+				var saved model.Task
+				require.NoError(t, db.Where("task_id = ?", info.PublicTaskID).First(&saved).Error)
+				assert.Equal(t, "accepted-job", saved.GetUpstreamTaskID())
+				assert.Equal(t, originalID, saved.PrivateData.SubscriptionReceiptId)
+				if scenario == "temporary-preserve" {
+					require.Nil(t, taskErr)
+					assert.Equal(t, 6, saved.Quota)
+				} else {
+					require.NotNil(t, taskErr)
+					assert.Equal(t, "task_billing_settlement_failed", taskErr.Code)
+				}
+			}
+			require.NoError(t, db.First(sub, sub.Id).Error)
+			if scenario != "temporary-preserve" {
+				assert.EqualValues(t, 10, sub.ExtraCreditsUsed, "the replacement receipt must not be adjusted")
+			}
+		})
+	}
+}
+
+func TestImmediateSubscriptionTaskPersistsFinalDecisionBeforeSettlement(t *testing.T) {
+	oldRedis, oldConsume := common.RedisEnabled, common.LogConsumeEnabled
+	common.RedisEnabled, common.LogConsumeEnabled = false, false
+	t.Cleanup(func() { common.RedisEnabled, common.LogConsumeEnabled = oldRedis, oldConsume })
+	events := []string{}
+	db := setupTaskSubmissionDatabase(t, true, &events)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.SubscriptionPreConsumeRecord{}))
+	c := taskSubmissionTestContext()
+	info := taskSubmissionRelayInfo(&taskSubmissionTestBilling{events: &events, settleErr: errors.New("injected preparation failure")})
+	info.BillingSource = service.BillingSourceSubscription
+	info.SubscriptionId = 1
+	info.RequestId = "immediate-subscription-final"
+	_, taskErr := executeTaskSubmissionWith(c, info, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+		return &relay.TaskSubmitResult{Platform: "plugin", Quota: 6, Immediate: &relaycommon.TaskInfo{Status: model.TaskStatusSuccess}}, nil
+	})
+	require.NotNil(t, taskErr)
+	var stored model.Task
+	require.NoError(t, db.Where("task_id = ?", "task_public").First(&stored).Error)
+	require.NotNil(t, stored.PrivateData.SubscriptionFinalBilling, "recovery must use the submit decision rather than rerun completion pricing")
+	require.Equal(t, 6, stored.PrivateData.SubscriptionFinalBilling.Quota)
+	require.False(t, stored.PrivateData.SubscriptionResultReported, "failed preparation must leave reporting for recovery")
+}
+
 func TestExecuteTaskSubmissionPersistsPinnedPluginProvenance(t *testing.T) {
 	events := make([]string, 0, 3)
 	database := setupTaskSubmissionDatabase(t, true, &events)
@@ -235,6 +426,9 @@ func TestExecuteTaskSubmissionPersistsPinnedPluginProvenance(t *testing.T) {
 	})
 	billing := &taskSubmissionTestBilling{events: &events}
 	info := taskSubmissionRelayInfo(billing)
+	info.RequestId = "billing-request"
+	info.BillingSource = service.BillingSourceSubscription
+	info.SubscriptionId = 1
 
 	outcome, taskErr := executeTaskSubmissionWith(c, info, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
 		return &relay.TaskSubmitResult{
@@ -248,6 +442,7 @@ func TestExecuteTaskSubmissionPersistsPinnedPluginProvenance(t *testing.T) {
 	require.NotNil(t, outcome.Task.PrivateData.Execution)
 	require.NotNil(t, outcome.Task.PrivateData.Execution.TaskPlugin)
 	assert.Equal(t, "request-public", outcome.Task.PrivateData.Execution.RequestID)
+	assert.Equal(t, "billing-request", outcome.Task.PrivateData.SubscriptionRequestID)
 	assert.Equal(t, "/plugin/submit", outcome.Task.PrivateData.Execution.RequestPath)
 	assert.Equal(t, "1.2.3", outcome.Task.PrivateData.Execution.TaskPlugin.Version)
 	assert.Equal(t, uint64(42), outcome.Task.PrivateData.Execution.TaskPlugin.Generation)

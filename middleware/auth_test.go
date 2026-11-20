@@ -403,6 +403,7 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	channel, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()+3600, "channel:read")
 	expired, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()-1, "profile:read")
 	wallet, _ := createMiddlewareScopedToken(t, admin.Id, 0, "wallet:read")
+	walletWrite, _ := createMiddlewareScopedToken(t, admin.Id, 0, "wallet:write")
 	billing, _ := createMiddlewareScopedToken(t, admin.Id, 0, "billing:read")
 	billingWrite, _ := createMiddlewareScopedToken(t, admin.Id, 0, "billing:write")
 	ordinary := createMiddlewarePATUser(t, "referral-ordinary", "referral-ordinary-legacy")
@@ -417,6 +418,7 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	router.GET("/api/pricing", TryUserAuth(), ok)
 	router.GET("/api/user/self/referral-rewards", UserAuth(), ok)
 	router.GET("/api/user/referral-rewards", AdminAuth(), ok)
+	router.POST("/api/subscription/self/:id/extra-credits", UserAuth(), ok)
 	router.POST("/api/user/referral-rewards/:id/reverse", AdminAuth(), ok)
 
 	for _, test := range []struct {
@@ -469,6 +471,25 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/api/user/referral-rewards/1/reverse", nil)
+			if test.token != "" {
+				request.Header.Set("Authorization", "Bearer "+test.token)
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			assert.Equal(t, test.status, response.Code, response.Body.String())
+		})
+	}
+
+	for _, test := range []struct {
+		name, token string
+		status      int
+	}{
+		{"read scope cannot buy extra credits", wallet, http.StatusForbidden},
+		{"wallet write scope can buy extra credits", walletWrite, http.StatusOK},
+		{"anonymous cannot buy extra credits", "", http.StatusUnauthorized},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/subscription/self/1/extra-credits", nil)
 			if test.token != "" {
 				request.Header.Set("Authorization", "Bearer "+test.token)
 			}

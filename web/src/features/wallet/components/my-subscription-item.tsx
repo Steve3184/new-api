@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowUpCircle } from 'lucide-react'
+import { ArrowUpCircle, Coins } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -40,10 +40,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { updateSubscriptionRenewal } from '@/features/subscriptions/api'
+import { usePendingExtraCreditsPurchase } from '@/features/subscriptions/hooks/use-pending-extra-credits-purchase'
 import {
   formatMultiplier,
   getUsageTierOptions,
+  canBuyExtraCredits,
+  hasExtraCredits,
   isActiveSubscription,
+  remainingExtraCredits,
 } from '@/features/subscriptions/lib'
 import type {
   SubscriptionPlan,
@@ -51,6 +55,7 @@ import type {
 } from '@/features/subscriptions/types'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
+import { useAuthStore } from '@/stores/auth-store'
 
 type MySubscriptionItemProps = {
   subscription: UserSubscription
@@ -59,6 +64,8 @@ type MySubscriptionItemProps = {
   canUpgrade: boolean
   onUpgrade: (subscription: UserSubscription) => void
   onChanged: () => void | Promise<void>
+  /** Opens the extra-credits dialog; omitted when the viewer cannot buy. */
+  onBuyExtraCredits?: (subscription: UserSubscription) => void
 }
 
 function usagePercent(used: number, limit: number): number {
@@ -70,6 +77,7 @@ function usagePercent(used: number, limit: number): number {
 export function MySubscriptionItem(props: MySubscriptionItemProps) {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
+  const userId = useAuthStore((state) => state.auth.user?.id) || 0
   const sub = props.subscription
   const now = Date.now() / 1000
   const isActive = isActiveSubscription(sub, now)
@@ -86,6 +94,18 @@ export function MySubscriptionItem(props: MySubscriptionItemProps) {
     !!sub.auto_renew &&
     !!props.plan?.allow_tier_switch &&
     tiers.length > 1
+  // Extra credits are bought against the subscription, not the upgrade path,
+  // so this never depends on upgrade availability. Cancelled and upgraded
+  // subscriptions cannot be topped up, but their paid extras are still shown.
+  const showExtraCredits = hasExtraCredits(sub)
+  const extraCreditsRemaining = remainingExtraCredits(sub)
+  const { pending } = usePendingExtraCreditsPurchase(userId, sub.id)
+  const canBuyExtras =
+    !!props.onBuyExtraCredits &&
+    sub.user_id === userId &&
+    (!!pending || canBuyExtraCredits(sub, props.plan, Date.now() / 1000))
+  const hasFooter = isActive && (canAutoRenew || props.canUpgrade)
+  const showFooter = hasFooter || canBuyExtras
 
   const saveRenewal = async (autoRenew: boolean, nextMultiplier: number) => {
     setSaving(true)
@@ -229,9 +249,22 @@ export function MySubscriptionItem(props: MySubscriptionItemProps) {
         )
       })}
 
-      {isActive && (canAutoRenew || props.canUpgrade) && (
+      {showExtraCredits && (
+        <div className='text-muted-foreground flex flex-wrap justify-between gap-x-2'>
+          <span className='tabular-nums'>
+            {t('Extra credits: {{amount}}', {
+              amount: formatQuota(extraCreditsRemaining),
+            })}
+          </span>
+          {!isActive && (
+            <span>{t('Unused extra credits stay after expiry')}</span>
+          )}
+        </div>
+      )}
+
+      {showFooter && (
         <div className='flex flex-wrap items-center justify-between gap-2 border-t pt-2.5'>
-          {canAutoRenew ? (
+          {isActive && canAutoRenew ? (
             <div className='flex flex-wrap items-center gap-2'>
               <Switch
                 id={`subscription-renew-${sub.id}`}
@@ -288,17 +321,30 @@ export function MySubscriptionItem(props: MySubscriptionItemProps) {
           ) : (
             <span />
           )}
-          {props.canUpgrade && (
-            <Button
-              variant='outline'
-              size='sm'
-              className='h-7 text-xs'
-              onClick={() => props.onUpgrade(sub)}
-            >
-              <ArrowUpCircle />
-              {t('Upgrade')}
-            </Button>
-          )}
+          <div className='flex flex-wrap items-center gap-2'>
+            {canBuyExtras && (
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-7 text-xs'
+                onClick={() => props.onBuyExtraCredits?.(sub)}
+              >
+                <Coins aria-hidden='true' />
+                {t('Buy Extra Credits')}
+              </Button>
+            )}
+            {isActive && props.canUpgrade && (
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-7 text-xs'
+                onClick={() => props.onUpgrade(sub)}
+              >
+                <ArrowUpCircle />
+                {t('Upgrade')}
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>

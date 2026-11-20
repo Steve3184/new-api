@@ -69,6 +69,16 @@ func GetUserGroupAccessSnapshot(userID int, userGroup string) (map[string]string
 			groups[group] = setting.GetUsableGroupDescription(group)
 		}
 	}
+	extraGroups, extraErr := model.GetUserExtraCreditGroups(userID)
+	if extraErr != nil {
+		return map[string]string{}, scoped, extraErr
+	}
+	for _, group := range extraGroups {
+		_, ordinaryAllowed := model.OrdinaryUserUsableGroups(userGroup)[group]
+		if (ordinaryAllowed || groups[group] != "") && group != "" && group != "auto" && ratio_setting.ContainsGroupRatio(group) {
+			groups[group] = setting.GetUsableGroupDescription(group)
+		}
+	}
 	check := model.NewGroupRuleCheck(model.DB)
 	for group := range groups {
 		if allowed, err := check(userID, group); err != nil || !allowed {

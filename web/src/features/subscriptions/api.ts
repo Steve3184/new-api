@@ -32,6 +32,8 @@ import type {
   SubscriptionPayRequest,
   SelfSubscriptionData,
   SubscriptionRenewalRequest,
+  SubscriptionExtraCreditsPurchase,
+  SubscriptionExtraCreditsRequest,
   SubscriptionUpgradeQuote,
   SubscriptionUpgradeRequest,
 } from './types'
@@ -307,5 +309,20 @@ export async function upgradeSubscription(
   data: SubscriptionUpgradeRequest
 ): Promise<ApiResponse<SubscriptionUpgradeQuote>> {
   const res = await api.post('/api/subscription/upgrade', data)
+  return res.data
+}
+
+/**
+ * Converts wallet balance into extra credits on one of the user's
+ * subscriptions. Send the same `request_id` on every retry of one purchase.
+ */
+export async function purchaseSubscriptionExtraCredits(
+  subscriptionId: number,
+  data: SubscriptionExtraCreditsRequest
+): Promise<ApiResponse<SubscriptionExtraCreditsPurchase>> {
+  const res = await api.post(
+    `/api/subscription/self/${subscriptionId}/extra-credits`,
+    data
+  )
   return res.data
 }

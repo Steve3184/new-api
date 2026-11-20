@@ -21,6 +21,7 @@ import {
   useState,
   useEffect,
   useMemo,
+  useRef,
   useCallback,
   type ReactNode,
 } from 'react'
@@ -45,12 +46,15 @@ import {
   getSelfSubscriptionFull,
   updateBillingPreference,
 } from '@/features/subscriptions/api'
+import { SubscriptionExtraCreditsDialog } from '@/features/subscriptions/components/dialogs/subscription-extra-credits-dialog'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import { SubscriptionUpgradeDialog } from '@/features/subscriptions/components/dialogs/subscription-upgrade-dialog'
+import { usePendingExtraCreditsPurchase } from '@/features/subscriptions/hooks/use-pending-extra-credits-purchase'
 import {
   getUpgradeOptions,
   getUpgradePlanIds,
   isActiveSubscription,
+  remainingExtraCredits,
 } from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
@@ -61,6 +65,7 @@ import type {
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type { NowPaymentsInvoice, PaymentMethod, TopupInfo } from '../types'
 import { NowPaymentsPaymentDialog } from './dialogs/nowpayments-payment-dialog'
@@ -132,6 +137,11 @@ export function SubscriptionSection({
 }: SubscriptionSectionProps) {
   const { t } = useTranslation()
 
+  const userId = useAuthStore((state) => state.auth.user?.id) || 0
+
+  const [recoverySubscriptionId, setRecoverySubscriptionId] = useState<
+    number | undefined
+  >()
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [activeSubscriptions, setActiveSubscriptions] = useState<
     UserSubscriptionRecord[]
@@ -151,6 +161,9 @@ export function SubscriptionSection({
   const [upgradeSubscription, setUpgradeSubscription] =
     useState<UserSubscription | null>(null)
   const [upgradeTarget, setUpgradeTarget] = useState<string | undefined>()
+  const [extraCreditsOpen, setExtraCreditsOpen] = useState(false)
+  const [extraCreditsSubscription, setExtraCreditsSubscription] =
+    useState<UserSubscription | null>(null)
   const [nowPaymentsInvoice, setNowPaymentsInvoice] =
     useState<NowPaymentsInvoice | null>(null)
   const [nowPaymentsDialogOpen, setNowPaymentsDialogOpen] = useState(false)
@@ -177,7 +190,7 @@ export function SubscriptionSection({
     }
   }, [])
 
-  const fetchSelfSubscription = useCallback(async () => {
+  const fetchSelfSubscription = useCallback(async (reportError = true) => {
     try {
       const res = requireServerSuccess(await getSelfSubscriptionFull())
       if (res.success && res.data) {
@@ -188,6 +201,7 @@ export function SubscriptionSection({
         setAllSubscriptions(res.data.all_subscriptions || [])
       }
     } catch (error) {
+      if (!reportError) throw error
       handleServerError(error)
     }
   }, [])
@@ -231,7 +245,13 @@ export function SubscriptionSection({
 
   const hasActive = activeSubscriptions.length > 0
   const hasAny = allSubscriptions.length > 0
-  const disablePref = !hasActive
+  const hasExtraCredits = allSubscriptions.some(
+    ({ subscription }) =>
+      subscription &&
+      subscription.status !== 'cancelled' &&
+      remainingExtraCredits(subscription) > 0
+  )
+  const disablePref = !hasActive && !hasExtraCredits
   const isSubPref =
     billingPreference === 'subscription_first' ||
     billingPreference === 'subscription_only'
@@ -286,7 +306,45 @@ export function SubscriptionSection({
     await fetchSelfSubscription()
     await onPurchaseSuccess?.()
   }
+  // One observer owns wallet refreshes for every subscription, including this
+  // dialog's own purchases. A batch of receipts needs only one balance read.
+  const balanceRefresh = useRef(Promise.resolve())
+  const { purchases } = usePendingExtraCreditsPurchase(
+    userId,
+    0,
+    true,
+    (outcomes) => {
+      if (!outcomes.some((outcome) => outcome.status === 'purchased')) return
+      balanceRefresh.current = balanceRefresh.current.then(async () => {
+        if (useAuthStore.getState().auth.user?.id !== userId) return
+        // Wait for both reads even when one fails: an older wallet or
+        // subscription response must not land after the next purchase refresh.
+        const results = await Promise.allSettled([
+          fetchSelfSubscription(false),
+          Promise.resolve().then(onPurchaseSuccess),
+        ])
+        const failure = results.find((result) => result.status === 'rejected')
+        if (failure) {
+          handleServerError(failure.reason, undefined, {
+            title: t(
+              'Extra credits were purchased, but the balance could not be refreshed. Reload the page to see it.'
+            ),
+          })
+        }
+      })
+    }
+  )
 
+  const openExtraCredits = (subscription: UserSubscription) => {
+    setRecoverySubscriptionId(undefined)
+    setExtraCreditsSubscription(subscription)
+    setExtraCreditsOpen(true)
+  }
+
+  const currentExtraCreditsSubscription =
+    allSubscriptions.find(
+      ({ subscription }) => subscription?.id === extraCreditsSubscription?.id
+    )?.subscription ?? extraCreditsSubscription
   const showSubscriptions = loading || plans.length > 0 || hasAny
 
   const preferenceControls = (
@@ -442,6 +500,7 @@ export function SubscriptionSection({
                       }
                       onUpgrade={(sub) => openUpgrade(sub)}
                       onChanged={handleSubscriptionChanged}
+                      onBuyExtraCredits={openExtraCredits}
                     />
                   )
                 })}
@@ -569,6 +628,40 @@ export function SubscriptionSection({
         initialTarget={upgradeTarget}
         userQuota={userQuota}
         onUpgraded={handleSubscriptionChanged}
+      />
+      {purchases
+        .filter(
+          (p) =>
+            !allSubscriptions.some(
+              ({ subscription }) => subscription?.id === p.subscriptionId
+            )
+        )
+        .map((p) => (
+          <Button
+            key={p.subscriptionId}
+            variant='outline'
+            onClick={() => {
+              setExtraCreditsSubscription(null)
+              setRecoverySubscriptionId(p.subscriptionId)
+              setExtraCreditsOpen(true)
+            }}
+          >
+            {t('Retry purchase')} · #{p.subscriptionId}
+          </Button>
+        ))}
+      <SubscriptionExtraCreditsDialog
+        recoverySubscriptionId={recoverySubscriptionId}
+        open={extraCreditsOpen}
+        onOpenChange={setExtraCreditsOpen}
+        subscription={currentExtraCreditsSubscription}
+        newPurchaseAvailable={allSubscriptions.some(
+          ({ subscription }) =>
+            subscription?.id === extraCreditsSubscription?.id
+        )}
+        plan={publicPlans.find(
+          (plan) => plan.id === extraCreditsSubscription?.plan_id
+        )}
+        userQuota={userQuota}
       />
       <NowPaymentsPaymentDialog
         open={nowPaymentsDialogOpen}

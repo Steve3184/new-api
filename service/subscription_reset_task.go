@@ -50,6 +50,12 @@ func runSubscriptionQuotaResetOnce() {
 	defer subscriptionResetRunning.Store(false)
 
 	ctx := context.Background()
+	if err := model.FlushExtraCreditPurchaseLogs(); err != nil {
+		logger.LogWarn(ctx, common.LogText("extra credit purchase log delivery failed: %v", err))
+	}
+	if err := model.ReconcileExtraCreditWalletHolds(); err != nil {
+		logger.LogWarn(ctx, common.LogText("extra credit wallet reconciliation failed: %v", err))
+	}
 	totalReset := 0
 	totalExpired := 0
 	// Renew before expiring: the lead of two ticks lets a renewal start the

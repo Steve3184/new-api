@@ -22,77 +22,96 @@ import { z } from 'zod'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 
 import type { SubscriptionPlan, PlanPayload } from '../types'
+import { parseExtraCreditsRateText } from './extra-credits'
 import { MAX_USAGE_MULTIPLIER, parseUsageTiers } from './usage-tiers'
 
+/** Upper bound the backend accepts for an extra-credits exchange rate. */
+export { MAX_EXTRA_CREDITS_RATE } from './extra-credits'
+
 export function getPlanFormSchema(t: TFunction) {
-  return z.object({
-    title: z.string().min(1, t('Please enter plan title')),
-    subtitle: z.string().optional(),
-    price_amount: z.coerce.number().min(0, t('Please enter amount')),
-    duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
-    duration_value: z.coerce.number().min(1),
-    custom_seconds: z.coerce.number().min(0).optional(),
-    quota_reset_period: z.enum([
-      'never',
-      'daily',
-      'weekly',
-      'monthly',
-      'custom',
-    ]),
-    quota_reset_custom_seconds: z.coerce.number().min(0).optional(),
-    enabled: z.boolean(),
-    sort_order: z.coerce.number(),
-    allow_balance_pay: z.boolean(),
-    allow_wallet_overflow: z.boolean(),
-    wallet_only_groups_enabled: z.boolean(),
-    wallet_only_groups_mode: z.enum(['blacklist', 'whitelist']),
-    wallet_only_groups: z.array(z.string()),
-    rate_limit_groups: z.array(
-      z.object({
-        group: z.string(),
-        rpm: z.coerce.number().int().min(1).max(2147483647),
-      })
-    ),
-    benefits_only: z.boolean(),
-    max_purchase_per_user: z.coerce.number().min(0),
-    max_active_per_user: z.coerce.number().int().min(0).max(2147483647),
-    total_amount: z.coerce.number(),
-    five_hour_limit: z.coerce.number().min(0),
-    weekly_limit: z.coerce.number().min(0),
-    monthly_limit: z.coerce.number().min(0),
-    subscription_group: z.string(),
-    auto_create_key: z.boolean(),
-    upgrade_group: z.string().optional(),
-    downgrade_group: z.string().optional(),
-    stripe_price_id: z.string().optional(),
-    creem_product_id: z.string().optional(),
-    waffo_pancake_product_id: z.string().optional(),
-    usage_tiers: z
-      .array(
+  return z
+    .object({
+      title: z.string().min(1, t('Please enter plan title')),
+      subtitle: z.string().optional(),
+      price_amount: z.coerce.number().min(0, t('Please enter amount')),
+      duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
+      duration_value: z.coerce.number().min(1),
+      custom_seconds: z.coerce.number().min(0).optional(),
+      quota_reset_period: z.enum([
+        'never',
+        'daily',
+        'weekly',
+        'monthly',
+        'custom',
+      ]),
+      quota_reset_custom_seconds: z.coerce.number().min(0).optional(),
+      enabled: z.boolean(),
+      sort_order: z.coerce.number(),
+      allow_balance_pay: z.boolean(),
+      allow_wallet_overflow: z.boolean(),
+      wallet_only_groups_enabled: z.boolean(),
+      wallet_only_groups_mode: z.enum(['blacklist', 'whitelist']),
+      wallet_only_groups: z.array(z.string()),
+      rate_limit_groups: z.array(
         z.object({
-          multiplier: z.coerce
-            .number()
-            .int()
-            .min(2, t('Usage multiplier must be between 2 and 100'))
-            .max(
-              MAX_USAGE_MULTIPLIER,
-              t('Usage multiplier must be between 2 and 100')
-            ),
-          price_amount: z.coerce.number().min(0).max(9999),
-          stripe_price_id: z.string().optional(),
-          creem_product_id: z.string().optional(),
-          waffo_pancake_product_id: z.string().optional(),
+          group: z.string(),
+          rpm: z.coerce.number().int().min(1).max(2147483647),
         })
-      )
-      .refine(
-        (tiers) =>
-          new Set(tiers.map((tier) => tier.multiplier)).size === tiers.length,
-        t('Usage multipliers must be unique')
       ),
-    allow_tier_switch: z.boolean(),
-    upgrade_plan_ids: z.array(z.string()),
-    allow_auto_renew: z.boolean(),
-  })
+      benefits_only: z.boolean(),
+      max_purchase_per_user: z.coerce.number().min(0),
+      max_active_per_user: z.coerce.number().int().min(0).max(2147483647),
+      total_amount: z.coerce.number(),
+      five_hour_limit: z.coerce.number().min(0),
+      weekly_limit: z.coerce.number().min(0),
+      monthly_limit: z.coerce.number().min(0),
+      subscription_group: z.string(),
+      auto_create_key: z.boolean(),
+      upgrade_group: z.string().optional(),
+      downgrade_group: z.string().optional(),
+      stripe_price_id: z.string().optional(),
+      creem_product_id: z.string().optional(),
+      waffo_pancake_product_id: z.string().optional(),
+      usage_tiers: z
+        .array(
+          z.object({
+            multiplier: z.coerce
+              .number()
+              .int()
+              .min(2, t('Usage multiplier must be between 2 and 100'))
+              .max(
+                MAX_USAGE_MULTIPLIER,
+                t('Usage multiplier must be between 2 and 100')
+              ),
+            price_amount: z.coerce.number().min(0).max(9999),
+            stripe_price_id: z.string().optional(),
+            creem_product_id: z.string().optional(),
+            waffo_pancake_product_id: z.string().optional(),
+          })
+        )
+        .refine(
+          (tiers) =>
+            new Set(tiers.map((tier) => tier.multiplier)).size === tiers.length,
+          t('Usage multipliers must be unique')
+        ),
+      allow_tier_switch: z.boolean(),
+      upgrade_plan_ids: z.array(z.string()),
+      allow_auto_renew: z.boolean(),
+      allow_extra_credits: z.boolean(),
+      // The administrator's typed text, validated exactly before conversion so
+      // decimals a float would drop still fail the check.
+      extra_credits_rate: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (!values.allow_extra_credits) return
+      if (parseExtraCreditsRateText(values.extra_credits_rate) === null) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['extra_credits_rate'],
+          message: t('Invalid extra credits exchange rate'),
+        })
+      }
+    })
 }
 
 export type PlanFormValues = z.infer<ReturnType<typeof getPlanFormSchema>>
@@ -132,6 +151,8 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   allow_tier_switch: false,
   upgrade_plan_ids: [],
   allow_auto_renew: false,
+  allow_extra_credits: false,
+  extra_credits_rate: '',
 }
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
@@ -200,10 +221,19 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
       .map((id) => id.trim())
       .filter(Boolean),
     allow_auto_renew: plan.allow_auto_renew === true,
+    allow_extra_credits: plan.allow_extra_credits === true,
+    // The rate stays text so an edit round-trips exactly what the column holds.
+    extra_credits_rate: plan.extra_credits_rate
+      ? String(plan.extra_credits_rate)
+      : '',
   }
 }
 
 export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
+  // Converted only after the text passed validation, so no precision is lost.
+  const extraCreditsRate = values.allow_extra_credits
+    ? parseExtraCreditsRateText(values.extra_credits_rate)
+    : null
   return {
     plan: {
       ...values,
@@ -256,6 +286,9 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       allow_tier_switch: values.allow_tier_switch,
       upgrade_plan_ids: values.upgrade_plan_ids.join(','),
       allow_auto_renew: values.allow_balance_pay && values.allow_auto_renew,
+      // A disabled plan carries no rate, so it can never sell extra credits.
+      allow_extra_credits: values.allow_extra_credits,
+      extra_credits_rate: extraCreditsRate ?? 0,
     },
   }
 }

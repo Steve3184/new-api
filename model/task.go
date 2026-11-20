@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -53,24 +54,26 @@ const (
 const TaskRefundLegacyCutoff int64 = 1771718400 // 2026-02-22 00:00:00 UTC
 
 type Task struct {
-	ID         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
-	CreatedAt  int64                 `json:"created_at" gorm:"index"`
-	UpdatedAt  int64                 `json:"updated_at"`
-	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
-	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
-	UserId     int                   `json:"user_id" gorm:"index"`
-	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
-	ChannelId  int                   `json:"channel_id" gorm:"index"`
-	Quota      int                   `json:"quota"`
-	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
-	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
-	FailReason string                `json:"fail_reason"`
-	SubmitTime int64                 `json:"submit_time" gorm:"index"`
-	StartTime  int64                 `json:"start_time" gorm:"index"`
-	FinishTime int64                 `json:"finish_time" gorm:"index"`
-	Progress   string                `json:"progress" gorm:"type:varchar(20);index"`
-	Properties Properties            `json:"properties" gorm:"type:json"`
-	Username   string                `json:"username,omitempty" gorm:"-"`
+	ID                         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
+	CreatedAt                  int64                 `json:"created_at" gorm:"index"`
+	UpdatedAt                  int64                 `json:"updated_at"`
+	TaskID                     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
+	Platform                   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
+	UserId                     int                   `json:"user_id" gorm:"index"`
+	Group                      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
+	ChannelId                  int                   `json:"channel_id" gorm:"index"`
+	Quota                      int                   `json:"quota"`
+	SubscriptionBillingPending bool                  `json:"-" gorm:"not null;default:false;index"`
+	SubscriptionReportPending  bool                  `json:"-" gorm:"not null;default:false;index"`
+	Action                     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
+	Status                     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
+	FailReason                 string                `json:"fail_reason"`
+	SubmitTime                 int64                 `json:"submit_time" gorm:"index"`
+	StartTime                  int64                 `json:"start_time" gorm:"index"`
+	FinishTime                 int64                 `json:"finish_time" gorm:"index"`
+	Progress                   string                `json:"progress" gorm:"type:varchar(20);index"`
+	Properties                 Properties            `json:"properties" gorm:"type:json"`
+	Username                   string                `json:"username,omitempty" gorm:"-"`
 	// 禁止返回给用户，内部可能包含key等隐私信息
 	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
 	Data        json.RawMessage `json:"data" gorm:"type:json"`
@@ -121,11 +124,21 @@ type TaskPrivateData struct {
 	// other private task state so public task DTOs cannot expose it by accident.
 	Execution *TaskExecutionSnapshot `json:"execution,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
-	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
-	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	NodeName       string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
-	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	BillingSource                 string                        `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
+	SubscriptionId                int                           `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
+	SubscriptionFinancialComplete bool                          `json:"subscription_financial_complete,omitempty"`
+	SubscriptionReceiptId         int                           `json:"subscription_receipt_id,omitempty"`
+	SubscriptionLocalRefund       bool                          `json:"subscription_local_refund,omitempty"`
+	SubscriptionRequestID         string                        `json:"subscription_request_id,omitempty"`
+	SubscriptionFinalResult       json.RawMessage               `json:"subscription_final_result,omitempty"`
+	SubscriptionInvalidUsage      bool                          `json:"subscription_invalid_usage,omitempty"`
+	SubscriptionFinalBilling      *SubscriptionTaskFinalBilling `json:"subscription_final_billing,omitempty"`
+	SubscriptionResultReported    bool                          `json:"subscription_result_reported,omitempty"`
+	SubscriptionSubmitQuota       *int                          `json:"subscription_submit_quota,omitempty"`
+	SubscriptionSubmitLog         *RecordTaskBillingLogParams   `json:"subscription_submit_log,omitempty"`
+	TokenId                       int                           `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+	NodeName                      string                        `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
+	BillingContext                *TaskBillingContext           `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
 	// ResponsesBackground records that the openai_responses create request
 	// asked for background:true. Every task is durable and survives client
 	// disconnect regardless; this only echoes the protocol-level request
@@ -565,7 +578,7 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 
 func GetTimedOutUnfinishedTasks(cutoffUnix int64, limit int) []*Task {
 	var tasks []*Task
-	err := DB.Where("progress != ?", "100%").
+	err := DB.Where("progress != ? OR subscription_billing_pending = ?", "100%", true).
 		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess}).
 		Where("submit_time < ?", cutoffUnix).
 		Order("submit_time").
@@ -581,26 +594,34 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	var tasks []*Task
 	var err error
 	// get all tasks progress is not 100%
-	err = DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
+	err = DB.Where("progress != ? OR subscription_billing_pending = ?", "100%", true).Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
 	if err != nil {
 		return nil
 	}
 	return tasks
 }
 
-// HasUnfinishedSyncTasks reports whether at least one async (Suno/video) task is
-// still in progress. It is a cheap existence check (LIMIT 1) used to decide
-// whether the async_task_poll system task needs to run; when no task is pending
-// the scheduler skips creating a row entirely.
+// HasUnfinishedSyncTasks reports whether the async task poller has work: a task
+// still in progress, a final task whose new-receipt settlement has not
+// committed, or a committed settlement whose billing log is still undelivered.
+// It is a cheap existence check (LIMIT 1) used to decide whether the
+// async_task_poll system task needs to run; when there is no work the scheduler
+// skips creating a row entirely. The receipt and log queries fail closed, so a
+// database error postpones the work to the next scheduled pass.
 func HasUnfinishedSyncTasks() bool {
+	return taskRowExists(DB.Model(&Task{}).
+		Where("progress != ? OR subscription_billing_pending = ?", "100%", true).
+		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess})) ||
+		taskRowExists(DB.Model(&Task{}).Where("subscription_billing_pending = ? OR subscription_report_pending = ?", true, true)) ||
+		taskRowExists(DB.Model(&SubscriptionPreConsumeRecord{}).Where("billing_log_pending = ?", true))
+}
+
+func taskRowExists(query *gorm.DB) bool {
 	var id int64
-	err := DB.Model(&Task{}).
-		Where("progress != ?", "100%").
-		Where("status != ?", TaskStatusFailure).
-		Where("status != ?", TaskStatusSuccess).
-		Limit(1).
-		Pluck("id", &id).Error
-	return err == nil && id != 0
+	if err := query.Limit(1).Pluck("id", &id).Error; err != nil {
+		return false
+	}
+	return id != 0
 }
 
 func GetByOnlyTaskId(taskId string) (*Task, bool, error) {
@@ -773,19 +794,116 @@ func (t *Task) UpdateQuota() error {
 
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).
 // Returns (true, nil) if this caller won the update, (false, nil) if
-// another process already moved the task out of fromStatus. MySQL commonly
-// reports changed rows rather than matched rows, so a same-value no-op update
-// can also return false even when the status predicate still matched.
+// another process already moved the task out of fromStatus.
 //
-// Uses Model().Select("*").Updates() instead of Save() because GORM's Save
-// falls back to INSERT ON CONFLICT when the WHERE-guarded UPDATE matches
-// zero rows, which silently bypasses the CAS guard.
+// Only the facts a polling pass owns are written (see taskPollingUpdates) and
+// the private data is merged into the row as stored: a submit alignment may
+// have committed after this caller read the task, and re-sending the older
+// charge or a cleared submission target would make the settlement refund
+// quota the user never reserved. On a win the receiver takes the authoritative
+// row, so the caller settles with the stored charge and receipt.
 func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
-	result := DB.Model(t).Where("status = ?", fromStatus).Select("*").Updates(t)
-	if result.Error != nil {
-		return false, result.Error
+	return t.updateWithStatus(fromStatus, false)
+}
+
+// UpdateWithStatusRetiringQuota is UpdateWithStatus for a task whose charge
+// must never be refunded. The transition and the cleared quota commit
+// together, so no later reader can refund a task that is already final.
+func (t *Task) UpdateWithStatusRetiringQuota(fromStatus TaskStatus) (bool, error) {
+	return t.updateWithStatus(fromStatus, true)
+}
+
+func (t *Task) updateWithStatus(fromStatus TaskStatus, retireQuota bool) (bool, error) {
+	won := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var stored Task
+		if err := lockForUpdate(tx).First(&stored, t.ID).Error; err != nil {
+			return err
+		}
+		if stored.Status != fromStatus {
+			return nil
+		}
+		privateData := mergePolledTaskPrivateData(stored.PrivateData, t.PrivateData)
+		updates := t.pollingUpdates(privateData, retireQuota)
+		result := tx.Model(&Task{}).
+			Where("id = ? AND status = ?", stored.ID, fromStatus).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			// MySQL reports changed rows, so a same-value update affects none.
+			// The guarded status still proves this caller won the transition.
+			var statuses []TaskStatus
+			if err := tx.Model(&Task{}).Where("id = ?", stored.ID).Limit(1).Pluck("status", &statuses).Error; err != nil {
+				return err
+			}
+			if len(statuses) == 0 || statuses[0] != fromStatus {
+				return nil
+			}
+		}
+		won = true
+		stored.Status = t.Status
+		stored.Progress = t.Progress
+		stored.StartTime = t.StartTime
+		stored.FinishTime = t.FinishTime
+		stored.FailReason = t.FailReason
+		stored.SubmitTime = t.SubmitTime
+		stored.Data = t.Data
+		stored.PrivateData = privateData
+		if retireQuota {
+			stored.Quota = 0
+		}
+		*t = stored
+		return nil
+	})
+	if err != nil {
+		return false, err
 	}
-	return result.RowsAffected > 0, nil
+	return won, nil
+}
+
+// pollingUpdates are the columns one polling pass writes. Identity and billing
+// columns stay as stored: quota and subscription_billing_pending belong to the
+// submit and settlement transactions, not to a poller's snapshot.
+func (t *Task) pollingUpdates(privateData TaskPrivateData, retireQuota bool) map[string]any {
+	updates := map[string]any{
+		"status":       t.Status,
+		"progress":     t.Progress,
+		"start_time":   t.StartTime,
+		"finish_time":  t.FinishTime,
+		"fail_reason":  t.FailReason,
+		"submit_time":  t.SubmitTime,
+		"data":         t.Data,
+		"private_data": privateData,
+		"updated_at":   common.GetTimestamp(),
+	}
+	if retireQuota {
+		updates["quota"] = 0
+	}
+	return updates
+}
+
+// mergePolledTaskPrivateData keeps the billing facts of the stored row and
+// takes the facts the poll produced: its result address, the plugin's
+// cross-round state, the consecutive failure count and the final result a
+// terminal settlement replays.
+func mergePolledTaskPrivateData(stored, polled TaskPrivateData) TaskPrivateData {
+	stored.ResultURL = polled.ResultURL
+	stored.PluginState = polled.PluginState
+	stored.PollFailures = polled.PollFailures
+	if polled.SubscriptionLocalRefund {
+		stored.SubscriptionLocalRefund = true
+		stored.SubscriptionFinalBilling = &SubscriptionTaskFinalBilling{Quota: 0}
+		if decision := polled.SubscriptionFinalBilling; decision != nil && decision.Quota == 0 {
+			stored.SubscriptionFinalBilling.Log = decision.Log
+		}
+	}
+	if len(polled.SubscriptionFinalResult) > 0 {
+		stored.SubscriptionFinalResult = polled.SubscriptionFinalResult
+		stored.SubscriptionInvalidUsage = polled.SubscriptionInvalidUsage
+	}
+	return stored
 }
 
 // TaskBulkUpdateByID performs an unconditional bulk UPDATE by primary key IDs.

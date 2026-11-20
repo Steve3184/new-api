@@ -200,6 +200,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
 			subscriptionRoute.PUT("/self/:id/renewal", middleware.CriticalRateLimit(), controller.UpdateSubscriptionRenewal)
+			subscriptionRoute.POST("/self/:id/extra-credits", middleware.CriticalRateLimit(), controller.PurchaseSubscriptionExtraCredits)
 			subscriptionRoute.POST("/upgrade/quote", middleware.CriticalRateLimit(), controller.SubscriptionUpgradeQuote)
 			subscriptionRoute.POST("/upgrade", middleware.CriticalRateLimit(), controller.SubscriptionUpgrade)
 			subscriptionRoute.POST("/balance/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)

@@ -3,7 +3,10 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,6 +18,7 @@ import (
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/bytedance/gopkg/util/gopool"
@@ -29,6 +33,8 @@ type taskPollingFetchAdaptor struct {
 	models       []string
 	keys         []string
 	fetched      chan string
+	beforeFetch  chan string
+	releaseFetch chan struct{}
 	blockTaskID  string
 	blockStarted chan struct{}
 	releaseBlock chan struct{}
@@ -76,6 +82,10 @@ func (a *taskPollingFetchAdaptor) initChannelMeta() *relaycommon.ChannelMeta {
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, key string, body map[string]any, _ string) (*http.Response, error) {
 	taskID, _ := body["task_id"].(string)
 	modelName, _ := body["model"].(string)
+	if a.beforeFetch != nil {
+		a.beforeFetch <- key
+		<-a.releaseFetch
+	}
 	if taskID == a.blockTaskID && a.releaseBlock != nil {
 		a.blockOnce.Do(func() {
 			if a.blockStarted != nil {
@@ -649,6 +659,358 @@ func TestUpdateVideoTasksDefaultSleepDoesNotBlockOtherChannels(t *testing.T) {
 	assert.ElementsMatch(t, []string{"upstream_a_1", "upstream_b_1"}, adaptor.fetchedTaskIDs())
 }
 
+type terminalQuotaAdaptor struct {
+	taskPollingFetchAdaptor
+	actual int
+}
+
+func (a *terminalQuotaAdaptor) AdjustBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int {
+	return a.actual
+}
+
+func TestSubscriptionExtraCreditsTerminalRefundSkipsSubmissionTopup(t *testing.T) {
+	truncate(t)
+	user := model.User{Username: "terminal-direct-refund", AffCode: "terminal-direct-refund", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Direct refund", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	id := "terminal-direct-refund"
+	receipt, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 10, "vip")
+	require.NoError(t, err)
+	target := 15
+	task := makeTask(user.Id, 0, 10, 0, BillingSourceSubscription, sub.Id)
+	task.TaskID = id
+	task.Status = model.TaskStatusFailure
+	task.SubscriptionBillingPending = true
+	task.PrivateData.SubscriptionRequestID = id
+	task.PrivateData.SubscriptionReceiptId = receipt.ReceiptId
+	task.PrivateData.SubscriptionSubmitQuota = &target
+	task.PrivateData.SubscriptionFinalBilling = &model.SubscriptionTaskFinalBilling{Quota: 0}
+	require.NoError(t, model.DB.Create(task).Error)
+	finalizeTerminalTask(t.Context(), nil, task, relaycommon.FailTaskInfo("failed"))
+	require.NoError(t, model.DB.First(task, task.ID).Error)
+	require.False(t, task.SubscriptionBillingPending, "a fixed refund never requires a higher submission debit")
+	require.Zero(t, task.Quota)
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	require.Zero(t, sub.ExtraCreditsUsed)
+	require.Zero(t, sub.FundingReserved)
+}
+
+func TestSubscriptionExtraCreditsTerminalRecoveryWaitsForAdaptor(t *testing.T) {
+	truncate(t)
+	user := model.User{Username: "terminal-no-adaptor", AffCode: "terminal-no-adaptor", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Recovery waits", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	id := "terminal-no-adaptor"
+	receipt, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 6, "vip")
+	require.NoError(t, err)
+	task := makeTask(user.Id, 0, 6, 0, BillingSourceSubscription, sub.Id)
+	task.TaskID = id
+	task.Status = model.TaskStatusSuccess
+	task.SubscriptionBillingPending = true
+	task.PrivateData.SubscriptionRequestID = id
+	task.PrivateData.SubscriptionReceiptId = receipt.ReceiptId
+	require.NoError(t, model.DB.Create(task).Error)
+	finalizeTerminalTask(t.Context(), nil, task, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess})
+	require.NoError(t, model.DB.First(task, task.ID).Error)
+	require.True(t, task.SubscriptionBillingPending, "missing adaptor cannot decide an unknown final price")
+	require.Nil(t, task.PrivateData.SubscriptionFinalBilling)
+	finalizeTerminalTask(t.Context(), &terminalQuotaAdaptor{actual: 3}, task, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess})
+	require.NoError(t, model.DB.First(task, task.ID).Error)
+	require.False(t, task.SubscriptionBillingPending)
+	require.Equal(t, 3, task.Quota)
+}
+
+func TestSubscriptionExtraCreditsLocalFailureKeepsRefundDecision(t *testing.T) {
+	truncate(t)
+	user := model.User{Username: "terminal-local-failure", AffCode: "terminal-local-failure", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Local refund", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	id := "terminal-local-failure"
+	receipt, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 6, "vip")
+	require.NoError(t, err)
+	task := makeTask(user.Id, 0, 6, 0, BillingSourceSubscription, sub.Id)
+	task.TaskID = id
+	task.PrivateData.SubscriptionRequestID = id
+	task.PrivateData.SubscriptionReceiptId = receipt.ReceiptId
+	task.SubscriptionBillingPending = true
+	expression := `tier("short", u("seconds"))`
+	task.PrivateData.BillingContext.TieredSnapshot = &billingexpr.BillingSnapshot{ExprString: expression, EstimatedTier: "short"}
+	oldTimeout := constant.TaskTimeoutMinutes
+	constant.TaskTimeoutMinutes = 1
+	t.Cleanup(func() { constant.TaskTimeoutMinutes = oldTimeout })
+	require.NoError(t, model.DB.Create(task).Error)
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_local_refund BEFORE UPDATE OF quota ON tasks BEGIN SELECT RAISE(ABORT,'temporary settlement failure'); END`).Error)
+	sweepTimedOutTasks(t.Context())
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_local_refund").Error)
+	require.NoError(t, model.DB.First(task, task.ID).Error)
+	require.True(t, task.SubscriptionBillingPending)
+	require.NotNil(t, task.PrivateData.SubscriptionFinalBilling, "local refund must be pinned with the terminal status")
+	finalizeTerminalTask(t.Context(), &terminalQuotaAdaptor{actual: 3}, task, relaycommon.FailTaskInfo(task.FailReason))
+	require.NoError(t, model.DB.First(task, task.ID).Error)
+	require.False(t, task.SubscriptionBillingPending)
+	require.Zero(t, task.Quota, "recovering a local failure cannot charge an adaptor's different decision")
+	require.NoError(t, model.FlushSubscriptionTaskBillingLogs())
+	var refund model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ? AND user_id = ?", model.LogTypeRefund, user.Id).First(&refund).Error)
+	assert.Equal(t, 6, refund.Quota)
+	var other map[string]any
+	require.NoError(t, common.Unmarshal([]byte(refund.Other), &other))
+	assert.Equal(t, "Task timed out", other["reason"])
+	assert.Equal(t, 0.02, other["model_price"])
+	assert.Equal(t, 1.0, other["group_ratio"])
+	assert.Equal(t, base64.StdEncoding.EncodeToString([]byte(expression)), other["expr_b64"])
+	assert.Equal(t, "short", other["matched_tier"])
+}
+
+func TestSubscriptionExtraCreditsTerminalRetriesUnderContinuousArrivals(t *testing.T) {
+	truncate(t)
+	subscriptionBillingRetryCursor.Store(0)
+	t.Cleanup(func() { subscriptionBillingRetryCursor.Store(0) })
+	old := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return &terminalQuotaAdaptor{} }
+	t.Cleanup(func() { GetTaskAdaptorFunc = old })
+	user := model.User{Username: "fair-retry", AffCode: "fair-retry", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Fair recovery", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	blocked := make([]model.Task, 50)
+	for i := range blocked {
+		blocked[i] = model.Task{Status: model.TaskStatusSuccess, SubscriptionBillingPending: true}
+	}
+	require.NoError(t, model.DB.Create(&blocked).Error)
+	id := "fair-retry"
+	receipt, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 5, "vip")
+	require.NoError(t, err)
+	task := makeTask(user.Id, 0, 5, 0, BillingSourceSubscription, sub.Id)
+	task.Status = model.TaskStatusSuccess
+	task.SubscriptionBillingPending = true
+	task.PrivateData.SubscriptionRequestID = id
+	task.PrivateData.SubscriptionReceiptId = receipt.ReceiptId
+	task.PrivateData.BillingContext.PerCallBilling = true
+	require.NoError(t, model.DB.Create(task).Error)
+	addRows := func() {
+		rows := make([]model.Task, 50)
+		for i := range rows {
+			rows[i] = model.Task{Status: model.TaskStatusSuccess, SubscriptionBillingPending: true}
+		}
+		require.NoError(t, model.DB.Create(&rows).Error)
+	}
+	addRows()
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_fair_retry BEFORE UPDATE OF quota ON tasks BEGIN SELECT RAISE(ABORT,'temporary settlement failure'); END`).Error)
+	RunTaskPollingOnce(t.Context(), nil)
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_fair_retry").Error)
+	for range 3 {
+		addRows()
+		RunTaskPollingOnce(t.Context(), nil)
+	}
+	require.NoError(t, model.DB.First(task, task.ID).Error)
+	require.False(t, task.SubscriptionBillingPending, "new full pages cannot indefinitely postpone a previous failed receipt")
+}
+
+func TestSubscriptionExtraCreditsTerminalPreparation(t *testing.T) {
+	for _, scenario := range []string{"direct", "retry", "per-call", "invalid-expression", "no-usage"} {
+		t.Run(scenario, func(t *testing.T) {
+			retry := scenario == "retry" || scenario == "no-usage"
+			want := 3
+			truncate(t)
+			require.NoError(t, model.DB.AutoMigrate(&model.QuotaData{}))
+			user := model.User{Username: "terminal-preparation", AffCode: "terminal-preparation", Group: "default", Status: common.UserStatusEnabled}
+			require.NoError(t, model.DB.Create(&user).Error)
+			plan := model.SubscriptionPlan{Title: "Final retry", SubscriptionGroup: "vip"}
+			require.NoError(t, model.DB.Create(&plan).Error)
+			sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 20, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+			require.NoError(t, model.DB.Create(&sub).Error)
+			id := fmt.Sprintf("terminal-prepare-%t", retry)
+			_, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 10, "vip")
+			require.NoError(t, err)
+			token := model.Token{UserId: user.Id, Key: id, RemainQuota: 90, UsedQuota: 10}
+			require.NoError(t, model.DB.Create(&token).Error)
+			target := 6
+			facts := relaycommon.TaskInfo{Status: model.TaskStatusFailure, TotalTokens: 3}
+			task := model.Task{TaskID: id, UserId: user.Id, Quota: 10, Status: model.TaskStatusFailure, SubscriptionBillingPending: true, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionRequestID: id, TokenId: token.Id, SubscriptionSubmitQuota: &target, SubscriptionSubmitLog: &model.RecordTaskBillingLogParams{ModelName: "model", Other: model.NewLogOther()}}}
+			if scenario == "per-call" {
+				task.Status = model.TaskStatusSuccess
+				facts.Status = model.TaskStatusSuccess
+				task.PrivateData.BillingContext = &model.TaskBillingContext{PerCallBilling: true}
+				want = 6
+			}
+			if scenario == "invalid-expression" {
+				task.Status = model.TaskStatusSuccess
+				facts.Status = model.TaskStatusSuccess
+				expression := `tier("bad", -1)`
+				task.PrivateData.BillingContext = &model.TaskBillingContext{TieredSnapshot: &billingexpr.BillingSnapshot{ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 1, ExprVersion: 1, TaskUsageBilling: true}}
+				want = 6
+			}
+			adaptor := &terminalQuotaAdaptor{actual: 3}
+			if scenario == "no-usage" {
+				task.Status = model.TaskStatusSuccess
+				facts = relaycommon.TaskInfo{Status: model.TaskStatusSuccess}
+				adaptor.actual = 0
+				want = target
+			}
+			task.PrivateData.SubscriptionFinalResult, err = common.Marshal(facts)
+			require.NoError(t, err)
+			require.NoError(t, model.DB.Create(&task).Error)
+			if retry {
+				old := GetTaskAdaptorFunc
+				GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+				t.Cleanup(func() { GetTaskAdaptorFunc = old })
+				RunTaskPollingOnce(t.Context(), nil)
+			} else {
+				finalizeTerminalTask(t.Context(), adaptor, &task, &facts)
+			}
+			require.NoError(t, model.DB.First(&task, task.ID).Error)
+			require.False(t, task.SubscriptionBillingPending)
+			require.Equal(t, want, task.Quota)
+			require.NoError(t, model.DB.First(&token, token.Id).Error)
+			require.Equal(t, 100-want, token.RemainQuota)
+			require.NoError(t, model.DB.First(&user, user.Id).Error)
+			require.Equal(t, want, user.UsedQuota)
+			require.Equal(t, 1, user.RequestCount)
+		})
+	}
+}
+
+func TestSubscriptionExtraCreditsTerminalRetryPassesBlockedBatch(t *testing.T) {
+	truncate(t)
+	old := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return &taskPollingFetchAdaptor{} }
+	t.Cleanup(func() { GetTaskAdaptorFunc = old })
+	user := model.User{Username: "retry-batch-user", AffCode: "retry-batch-user", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Retry after blocked", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	blocked := make([]model.Task, 100)
+	for i := range blocked {
+		blocked[i] = model.Task{UserId: user.Id, Status: model.TaskStatusSuccess, SubscriptionBillingPending: true}
+	}
+	require.NoError(t, model.DB.Create(&blocked).Error)
+	id := "retry-after-blocked-batch"
+	_, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 5, "vip")
+	require.NoError(t, err)
+	task := model.Task{UserId: user.Id, TaskID: id, Status: model.TaskStatusSuccess, Quota: 5, SubscriptionBillingPending: true, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionRequestID: id, BillingContext: &model.TaskBillingContext{PerCallBilling: true}}}
+	require.NoError(t, model.DB.Create(&task).Error)
+	RunTaskPollingOnce(t.Context(), nil)
+	RunTaskPollingOnce(t.Context(), nil)
+	require.NoError(t, model.DB.First(&task, task.ID).Error)
+	require.False(t, task.SubscriptionBillingPending)
+}
+
+func TestSubscriptionExtraCreditsTerminalRetry(t *testing.T) {
+	truncate(t)
+	oldFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return &taskPollingFetchAdaptor{} }
+	t.Cleanup(func() { GetTaskAdaptorFunc = oldFactory })
+	user := model.User{Username: "retry-extra-user", AffCode: "retry-extra-user", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Retry terminal", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	id := "terminal-retry-extra"
+	_, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 5, "vip")
+	require.NoError(t, err)
+	task := model.Task{UserId: user.Id, TaskID: id, Status: model.TaskStatusSuccess, Quota: 5, SubscriptionBillingPending: true, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionRequestID: id, BillingContext: &model.TaskBillingContext{PerCallBilling: true}}}
+	require.NoError(t, model.DB.Create(&task).Error)
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_retry_extra BEFORE UPDATE OF quota ON tasks BEGIN SELECT RAISE(ABORT,'temporary settlement failure'); END`).Error)
+	t.Cleanup(func() { model.DB.Exec("DROP TRIGGER IF EXISTS reject_retry_extra") })
+	finishTaskSubscriptionFunding(context.Background(), &task)
+	var saved model.Task
+	require.NoError(t, model.DB.First(&saved, task.ID).Error)
+	require.True(t, saved.SubscriptionBillingPending)
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_retry_extra").Error)
+	RunTaskPollingOnce(context.Background(), nil)
+	require.NoError(t, model.DB.First(&saved, task.ID).Error)
+	require.False(t, saved.SubscriptionBillingPending, "normal polling retries terminal funding after a database outage")
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	require.Zero(t, sub.FundingReserved)
+	require.EqualValues(t, 5, sub.ExtraCreditsUsed)
+}
+
+func TestSubscriptionExtraCreditsStaleFailureCannotRefundWinner(t *testing.T) {
+	truncate(t)
+	user := model.User{Username: "cas-extra-user", AffCode: "cas-extra-user", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "CAS refunds", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	id := "stale-refund-after-success"
+	_, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 5, "vip")
+	require.NoError(t, err)
+	stale := model.Task{UserId: user.Id, TaskID: id, Status: model.TaskStatusInProgress, Quota: 5, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionRequestID: id}}
+	require.NoError(t, model.DB.Create(&stale).Error)
+	require.NoError(t, model.DB.Model(&stale).UpdateColumn("status", model.TaskStatusSuccess).Error)
+	reportFailedTasks([]*model.Task{&stale}, "channel temporarily missing")
+	var saved model.Task
+	require.NoError(t, model.DB.First(&saved, stale.ID).Error)
+	require.Equal(t, model.TaskStatus(model.TaskStatusSuccess), saved.Status)
+	require.Equal(t, 5, saved.Quota)
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	require.EqualValues(t, 5, sub.ExtraCreditsUsed, "a stale failure observer cannot refund a success winner")
+}
+
+func TestRunTaskPollingOnceChannelsRemainConcurrentAndIsolated(t *testing.T) {
+	truncate(t)
+	oldLimit, oldTimeout := constant.TaskQueryLimit, constant.TaskTimeoutMinutes
+	constant.TaskQueryLimit = 10
+	constant.TaskTimeoutMinutes = 0
+	t.Cleanup(func() { constant.TaskQueryLimit = oldLimit; constant.TaskTimeoutMinutes = oldTimeout })
+	const firstChannel, secondChannel = 270, 271
+	seedTaskPollingChannel(t, firstChannel, true)
+	seedTaskPollingChannel(t, secondChannel, true)
+	first := seedPollingTask(t, firstChannel, "concurrent-public-first", "same-upstream-id")
+	second := seedPollingTask(t, secondChannel, "concurrent-public-second", "same-upstream-id")
+	for i, task := range []*model.Task{first, second} {
+		task.PrivateData.Key = fmt.Sprintf("fixture-key-%d", i)
+		require.NoError(t, model.DB.Model(task).Updates(map[string]any{"private_data": task.PrivateData, "submit_time": time.Now().Unix()}).Error)
+	}
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	oldFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor {
+		return &taskPollingFetchAdaptor{beforeFetch: started, releaseFetch: release}
+	}
+	t.Cleanup(func() { GetTaskAdaptorFunc = oldFactory })
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	done := make(chan struct{})
+	t.Cleanup(func() { unblock(); <-done })
+	go func() { RunTaskPollingOnce(context.Background(), nil); close(done) }()
+	var keys []string
+	for range 2 {
+		select {
+		case key := <-started:
+			keys = append(keys, key)
+		case <-time.After(2 * time.Second):
+			t.Fatal("one channel blocked the other channel from starting")
+		}
+	}
+	require.ElementsMatch(t, []string{first.PrivateData.Key, second.PrivateData.Key}, keys, "same upstream id keeps each channel's credentials")
+	unblock()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("polling did not finish")
+	}
+	var saved model.Task
+	require.NoError(t, model.DB.First(&saved, first.ID).Error)
+	require.Equal(t, model.TaskStatus(model.TaskStatusInProgress), saved.Status)
+}
+
 func TestUpdateVideoTasksSlowChannelDoesNotBlockOtherChannels(t *testing.T) {
 	truncate(t)
 
@@ -1189,6 +1551,457 @@ func TestUpdateBatchTasksPollClassification(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The billing snapshot keeps the settlement facts, not the media URL: the
+// signed upstream address is already the task's ResultURL, and the recorded
+// receipt must not carry a second copy of it.
+func TestUpdateBatchTasksBillingSnapshotOmitsResultUrl(t *testing.T) {
+	for _, signedURL := range []string{"https://cdn.example/signed-result.mp4?token=private", "data:video/mp4;base64,aW5saW5lLXZpZGVv"} {
+		t.Run(signedURL, func(t *testing.T) {
+			truncate(t)
+
+			const channelID = 145
+			const preConsumedQuota = 5
+			user := model.User{Username: "batch-snapshot-url", AffCode: "batch-snapshot-url", Group: "default", Status: common.UserStatusEnabled}
+			require.NoError(t, model.DB.Create(&user).Error)
+			plan := model.SubscriptionPlan{Title: "Batch snapshot", SubscriptionGroup: "vip"}
+			require.NoError(t, model.DB.Create(&plan).Error)
+			sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+			require.NoError(t, model.DB.Create(&sub).Error)
+			seedTaskPollingChannel(t, channelID, true)
+			const requestID = "terminal-batch-snapshot-url"
+			_, err := model.PreConsumeUserSubscriptionForGroup(requestID, user.Id, "model", 0, preConsumedQuota, "vip")
+			require.NoError(t, err)
+			task := makeTask(user.Id, channelID, preConsumedQuota, 0, BillingSourceSubscription, sub.Id)
+			task.TaskID = requestID
+			task.Platform = "batch-plugin"
+			task.PrivateData.UpstreamTaskID = "upstream_batch_snapshot_url"
+			task.PrivateData.SubscriptionRequestID = requestID
+			task.PrivateData.BillingContext.PerCallBilling = true
+			require.NoError(t, model.DB.Create(task).Error)
+
+			upstreamID := task.GetUpstreamTaskID()
+			adaptor := &batchPollingAdaptor{results: map[string]*BatchTaskResult{
+				upstreamID: {TaskInfo: relaycommon.TaskInfo{
+					TaskID:     upstreamID,
+					Status:     model.TaskStatusSuccess,
+					Url:        signedURL,
+					UsageFacts: map[string]any{"seconds": float64(4)},
+				}},
+			}}
+			require.NoError(t, UpdateBatchTasks(context.Background(), adaptor, map[int][]string{channelID: {upstreamID}}, map[string]*model.Task{upstreamID: task}))
+
+			var persisted model.Task
+			require.NoError(t, model.DB.First(&persisted, task.ID).Error)
+			assert.Equal(t, signedURL, persisted.GetResultURL(), "the URL is the only copy of this batch result")
+			assert.NotContains(t, string(persisted.PrivateData.SubscriptionFinalResult), "signed-result.mp4",
+				"the recorded billing facts must not retain the media URL")
+			var facts relaycommon.TaskInfo
+			require.NoError(t, common.Unmarshal(persisted.PrivateData.SubscriptionFinalResult, &facts))
+			assert.Empty(t, facts.Url)
+			assert.Equal(t, model.TaskStatusSuccess, facts.Status)
+			assert.Equal(t, map[string]any{"seconds": float64(4)}, facts.UsageFacts)
+			assert.False(t, persisted.SubscriptionBillingPending)
+		})
+	}
+}
+
+type nonfiniteDurationAdaptor struct{ scriptedPollingAdaptor }
+
+func (*nonfiniteDurationAdaptor) ProbeAudioDuration(context.Context, *model.Task) (float64, error) {
+	return math.Inf(1), nil
+}
+
+func TestSubscriptionPollNonFiniteUsage(t *testing.T) {
+	truncate(t)
+	const channelID = 145
+	seedTaskPollingChannel(t, channelID, true)
+	user := model.User{Username: "nonfinite", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Usage", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 40, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	batch := &batchPollingAdaptor{results: map[string]*BatchTaskResult{}}
+	tasks := map[string]*model.Task{}
+	var ids []string
+	for _, id := range []string{"per-call", "valid-expression", "invalid-expression", "normal", "single", "audio"} {
+		r, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 5, "vip")
+		require.NoError(t, err)
+		task := makeTask(user.Id, channelID, 5, 0, BillingSourceSubscription, sub.Id)
+		task.TaskID, task.PrivateData.SubscriptionRequestID = id, id
+		task.PrivateData.SubscriptionReceiptId = r.ReceiptId
+		task.SubscriptionBillingPending = true
+		facts := map[string]any{"units": 3.0, "noise": math.NaN()}
+		if id == "per-call" || id == "normal" {
+			task.PrivateData.BillingContext.PerCallBilling = true
+			if id == "normal" {
+				delete(facts, "noise")
+			}
+		} else {
+			expr := `tier("actual", u("units") ?? 0)`
+			if id == "audio" {
+				expr = `tier("actual", u("seconds"))`
+				facts["seconds"] = 3.0
+			}
+			task.PrivateData.BillingContext.TieredSnapshot = &billingexpr.BillingSnapshot{ExprString: expr, ExprHash: billingexpr.ExprHashString(expr), ExprVersion: 1, GroupRatio: 1, QuotaPerUnit: 1, TaskUsageBilling: true, UsageFacts: map[string]any{"units": 1.0}}
+			if id == "invalid-expression" || id == "single" {
+				facts["units"] = math.Inf(1)
+			}
+		}
+		require.NoError(t, model.DB.Create(task).Error)
+		tasks[id] = task
+		result := relaycommon.TaskInfo{Status: model.TaskStatusSuccess, UsageFacts: facts, Url: "https://vendor.test/" + id}
+		if id == "single" || id == "audio" {
+			ch, err := model.CacheGetChannel(channelID)
+			require.NoError(t, err)
+			assert.NoError(t, updateVideoSingleTask(t.Context(), &nonfiniteDurationAdaptor{scriptedPollingAdaptor{parse: &result}}, ch, id, tasks))
+		} else {
+			ids = append(ids, id)
+			batch.results[id] = &BatchTaskResult{TaskInfo: result}
+		}
+	}
+	assert.NoError(t, updateBatchTasks(t.Context(), batch, channelID, ids, tasks))
+	for id, task := range tasks {
+		var saved model.Task
+		require.NoError(t, model.DB.First(&saved, task.ID).Error)
+		assert.EqualValues(t, model.TaskStatusSuccess, saved.Status, id)
+		assert.Equal(t, "https://vendor.test/"+id, saved.GetResultURL(), id)
+		assert.False(t, saved.SubscriptionBillingPending, id)
+		want := 5
+		if id == "valid-expression" || id == "audio" {
+			want = 3
+		}
+		assert.Equal(t, want, saved.Quota, id)
+	}
+}
+
+// The retry window serves the oldest pending receipts and the rows after the
+// cursor in the same pass, without ever returning a row twice.
+func TestTerminalReceiptRetryWindowCoversHeadAndCursor(t *testing.T) {
+	truncate(t)
+	newRow := func(status model.TaskStatus, pending bool) *model.Task {
+		task := &model.Task{TaskID: fmt.Sprintf("receipt-window-%d", time.Now().UnixNano()), UserId: 1, Status: status, SubscriptionBillingPending: pending}
+		require.NoError(t, model.DB.Create(task).Error)
+		return task
+	}
+	ids := func(tasks []model.Task) []int64 {
+		out := make([]int64, 0, len(tasks))
+		for _, task := range tasks {
+			out = append(out, task.ID)
+		}
+		return out
+	}
+
+	first, second := newRow(model.TaskStatusSuccess, true), newRow(model.TaskStatusSuccess, true)
+	third := newRow(model.TaskStatusFailure, true)
+	running := newRow(model.TaskStatusInProgress, true)
+	settled := newRow(model.TaskStatusSuccess, false)
+
+	// The cursor reached the end of the queue: the oldest rows are still served,
+	// and the cursor restarts from the head because the tail is empty.
+	pending, next, err := outstandingTerminalReceipts(third.ID, 4)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{first.ID, second.ID}, ids(pending))
+	assert.Zero(t, next)
+
+	// A newer receipt does not replace the older ones in the same window, and a
+	// short page after the cursor sends the next pass back to the head.
+	newer := newRow(model.TaskStatusSuccess, true)
+	pending, next, err = outstandingTerminalReceipts(third.ID, 4)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{first.ID, second.ID, newer.ID}, ids(pending))
+	assert.Zero(t, next)
+
+	// Head and cursor overlap: the head is served first and the rest of the
+	// window continues strictly after it, so no row is returned twice.
+	pending, next, err = outstandingTerminalReceipts(0, 6)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{first.ID, second.ID, third.ID, newer.ID}, ids(pending))
+	assert.Zero(t, next, "an exhausted queue restarts the cursor at the head")
+
+	// A half-sized window keeps the oldest row first and pages the next one.
+	pending, next, err = outstandingTerminalReceipts(0, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{first.ID, second.ID}, ids(pending))
+	assert.Equal(t, second.ID, next)
+
+	// A full second page advances the cursor through the backlog.
+	pending, next, err = outstandingTerminalReceipts(0, 4)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{first.ID, second.ID, third.ID, newer.ID}, ids(pending))
+	assert.Equal(t, newer.ID, next)
+
+	// The next pass resumes after the cursor and still starts with the head,
+	// so a receipt that keeps failing is attempted every pass.
+	pending, next, err = outstandingTerminalReceipts(newer.ID, 4)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{first.ID, second.ID}, ids(pending))
+	assert.Zero(t, next)
+
+	assert.NotContains(t, ids(pending), running.ID, "a running task is polled, not retried")
+	assert.NotContains(t, ids(pending), settled.ID, "a settled receipt is not retried")
+}
+
+// A retry window that only advances forward buries a receipt whose settlement
+// keeps failing under newer rows. The head of the queue is rescanned every pass.
+func TestRunTaskPollingOnceRetriesFailedReceiptBehindNewerRows(t *testing.T) {
+	truncate(t)
+	subscriptionBillingRetryCursor.Store(0)
+	t.Cleanup(func() { subscriptionBillingRetryCursor.Store(0) })
+	oldFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return &terminalQuotaAdaptor{} }
+	t.Cleanup(func() { GetTaskAdaptorFunc = oldFactory })
+
+	user := model.User{Username: "retry-behind-newer", AffCode: "retry-behind-newer", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Retry fairness", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	pendingTerminalTask := func(requestID string) *model.Task {
+		_, err := model.PreConsumeUserSubscriptionForGroup(requestID, user.Id, "model", 0, 5, "vip")
+		require.NoError(t, err)
+		task := makeTask(user.Id, 0, 5, 0, BillingSourceSubscription, sub.Id)
+		task.TaskID = requestID
+		task.Status = model.TaskStatusSuccess
+		task.SubscriptionBillingPending = true
+		task.PrivateData.SubscriptionRequestID = requestID
+		require.NoError(t, model.DB.Create(task).Error)
+		return task
+	}
+
+	blocked := pendingTerminalTask("retry-behind-newer-1")
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_receipt_retry BEFORE UPDATE OF quota ON tasks BEGIN SELECT RAISE(ABORT,'temporary settlement failure'); END`).Error)
+	RunTaskPollingOnce(t.Context(), nil)
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_receipt_retry").Error)
+	var saved model.Task
+	require.NoError(t, model.DB.First(&saved, blocked.ID).Error)
+	require.True(t, saved.SubscriptionBillingPending, "the first settlement attempt failed")
+
+	newer := pendingTerminalTask("retry-behind-newer-2")
+	RunTaskPollingOnce(t.Context(), nil)
+
+	var retried, newest model.Task
+	require.NoError(t, model.DB.First(&retried, blocked.ID).Error)
+	assert.False(t, retried.SubscriptionBillingPending, "a newer pending receipt must not starve the older retry")
+	require.NoError(t, model.DB.First(&newest, newer.ID).Error)
+	assert.False(t, newest.SubscriptionBillingPending)
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	assert.Zero(t, sub.FundingReserved)
+	assert.EqualValues(t, 10, sub.ExtraCreditsUsed)
+}
+
+// Per-call, free and already-aligned costs are settled from the receipt and the
+// stored facts alone, so a restart that loses the platform adaptor must not
+// block them. Returning to the old failure mode leaves the funding reserved.
+func TestRunTaskPollingOnceSettlesTerminalReceiptWithoutAdaptor(t *testing.T) {
+	const preConsumedQuota = 5
+	testCases := []struct {
+		name        string
+		status      model.TaskStatus
+		configure   func(*model.Task)
+		wantQuota   int
+		wantCredits int64
+	}{
+		{
+			name:        "per-call success",
+			status:      model.TaskStatusSuccess,
+			configure:   func(task *model.Task) { task.PrivateData.BillingContext.PerCallBilling = true },
+			wantQuota:   preConsumedQuota,
+			wantCredits: preConsumedQuota,
+		},
+		{
+			name:      "per-call failure",
+			status:    model.TaskStatusFailure,
+			configure: func(task *model.Task) { task.PrivateData.BillingContext.PerCallBilling = true },
+		},
+		{
+			name:      "free model",
+			status:    model.TaskStatusSuccess,
+			configure: func(task *model.Task) { task.PrivateData.BillingContext.BillingFree = true },
+		},
+		{
+			name:   "pinned final cost",
+			status: model.TaskStatusSuccess,
+			configure: func(task *model.Task) {
+				aligned := preConsumedQuota
+				task.PrivateData.SubscriptionSubmitQuota = &aligned
+				task.PrivateData.SubscriptionFinalBilling = &model.SubscriptionTaskFinalBilling{Quota: aligned}
+			},
+			wantQuota:   preConsumedQuota,
+			wantCredits: preConsumedQuota,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			truncate(t)
+			subscriptionBillingRetryCursor.Store(0)
+			t.Cleanup(func() { subscriptionBillingRetryCursor.Store(0) })
+			oldFactory := GetTaskAdaptorFunc
+			GetTaskAdaptorFunc = nil
+			t.Cleanup(func() { GetTaskAdaptorFunc = oldFactory })
+
+			user := model.User{Username: "retry-without-adaptor", AffCode: "retry-without-adaptor", Group: "default", Status: common.UserStatusEnabled}
+			require.NoError(t, model.DB.Create(&user).Error)
+			plan := model.SubscriptionPlan{Title: "Restart settlement", SubscriptionGroup: "vip"}
+			require.NoError(t, model.DB.Create(&plan).Error)
+			sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+			require.NoError(t, model.DB.Create(&sub).Error)
+			requestID := "retry-without-adaptor-" + testCase.name
+			_, err := model.PreConsumeUserSubscriptionForGroup(requestID, user.Id, "model", 0, preConsumedQuota, "vip")
+			require.NoError(t, err)
+			task := makeTask(user.Id, 0, preConsumedQuota, 0, BillingSourceSubscription, sub.Id)
+			task.TaskID = requestID
+			task.Status = testCase.status
+			task.SubscriptionBillingPending = true
+			task.PrivateData.SubscriptionRequestID = requestID
+			testCase.configure(task)
+			require.NoError(t, model.DB.Create(task).Error)
+
+			RunTaskPollingOnce(t.Context(), nil)
+
+			var saved model.Task
+			require.NoError(t, model.DB.First(&saved, task.ID).Error)
+			assert.False(t, saved.SubscriptionBillingPending)
+			assert.Equal(t, testCase.wantQuota, saved.Quota)
+			require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+			assert.Zero(t, sub.FundingReserved)
+			assert.EqualValues(t, testCase.wantCredits, sub.ExtraCreditsUsed)
+		})
+	}
+}
+
+// A task that fails after its final amount was decided settles that amount
+// instead of refunding everything: the pinned decision is final for a failure
+// too, and returning false here would refund the whole reservation.
+func TestPinnedFinalQuotaSurvivesAFailedTask(t *testing.T) {
+	truncate(t)
+
+	user := model.User{Username: "pinned-failure", AffCode: "pinned-failure", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Pinned failure", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	const requestID = "pinned-final-quota-failure"
+	_, err := model.PreConsumeUserSubscriptionForGroup(requestID, user.Id, "model", 0, 5, "vip")
+	require.NoError(t, err)
+	task := makeTask(user.Id, 0, 5, 0, BillingSourceSubscription, sub.Id)
+	task.TaskID = requestID
+	task.Status = model.TaskStatusFailure
+	task.PrivateData.SubscriptionRequestID = requestID
+	task.PrivateData.SubscriptionFinalBilling = &model.SubscriptionTaskFinalBilling{Quota: 5}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	assert.True(t, settleTaskBillingOnComplete(t.Context(), nil, task, relaycommon.FailTaskInfo("upstream failed")),
+		"a pinned decision takes over terminal billing")
+
+	var saved model.Task
+	require.NoError(t, model.DB.First(&saved, task.ID).Error)
+	assert.Equal(t, 5, saved.Quota, "the pinned amount is charged, not refunded")
+	assert.False(t, saved.SubscriptionBillingPending)
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	assert.Zero(t, sub.FundingReserved)
+	assert.EqualValues(t, 5, sub.ExtraCreditsUsed)
+}
+
+// A new subscription task reports only after its final receipt commits: a
+// failed settlement reports nothing, the retry settles the pinned amount and
+// reports once, and a second finalizer cannot report the same task again.
+func TestSubscriptionFailureReportWaitsForFunds(t *testing.T) {
+	truncate(t)
+	oldReport := ReportTaskFunc
+	reports := 0
+	ReportTaskFunc = func(*model.Task) { reports++ }
+	t.Cleanup(func() { ReportTaskFunc = oldReport })
+	user := model.User{Username: "failure-report-funds", AffCode: "failure-report-funds", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Failure report", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	id := "failed-before-refund-committed"
+	_, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 5, "vip")
+	require.NoError(t, err)
+	task := makeTask(user.Id, 0, 5, 0, BillingSourceSubscription, sub.Id)
+	task.TaskID = id
+	task.SubscriptionBillingPending = true
+	task.PrivateData.SubscriptionRequestID = id
+	task.PrivateData.RequestPlugins = &model.TaskRequestPlugins{Instances: []string{"audit"}}
+	task.PrivateData.BillingContext.PerCallBilling = true
+	require.NoError(t, model.DB.Create(task).Error)
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_failure_refund BEFORE UPDATE OF quota ON tasks BEGIN SELECT RAISE(ABORT,'temporary refund failure'); END`).Error)
+	reportFailedTasks([]*model.Task{task}, "channel missing")
+	require.Zero(t, reports, "failed refund cannot report yet")
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_failure_refund").Error)
+	finalizeTerminalTask(t.Context(), nil, task, &relaycommon.TaskInfo{Status: model.TaskStatusFailure})
+	require.Equal(t, 1, reports)
+	finalizeTerminalTask(t.Context(), nil, task, &relaycommon.TaskInfo{Status: model.TaskStatusFailure})
+	require.Equal(t, 1, reports)
+}
+
+func TestSubscriptionTerminalReportWaitsForPinnedSettlement(t *testing.T) {
+	truncate(t)
+	subscriptionBillingRetryCursor.Store(0)
+	t.Cleanup(func() { subscriptionBillingRetryCursor.Store(0) })
+	adaptor := &terminalQuotaAdaptor{actual: 4}
+	oldFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+	t.Cleanup(func() { GetTaskAdaptorFunc = oldFactory })
+	var reported []string
+	oldReport := ReportTaskFunc
+	ReportTaskFunc = func(task *model.Task) { reported = append(reported, task.TaskID+":"+string(task.Status)) }
+	t.Cleanup(func() { ReportTaskFunc = oldReport })
+
+	user := model.User{Username: "pinned-report", AffCode: "pinned-report", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Pinned report", SubscriptionGroup: "vip"}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	const requestID = "pinned-report-once"
+	_, err := model.PreConsumeUserSubscriptionForGroup(requestID, user.Id, "model", 0, 5, "vip")
+	require.NoError(t, err)
+	task := makeTask(user.Id, 0, 5, 0, BillingSourceSubscription, sub.Id)
+	task.TaskID = requestID
+	task.Status = model.TaskStatusSuccess
+	task.SubscriptionBillingPending = true
+	task.PrivateData.SubscriptionRequestID = requestID
+	task.PrivateData.SubscriptionFinalBilling = &model.SubscriptionTaskFinalBilling{Quota: 3}
+	task.PrivateData.RequestPlugins = &model.TaskRequestPlugins{Instances: []string{"audit"}}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_pinned_settlement BEFORE UPDATE OF quota ON tasks BEGIN SELECT RAISE(ABORT,'temporary settlement failure'); END`).Error)
+	RunTaskPollingOnce(t.Context(), nil)
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_pinned_settlement").Error)
+	assert.Empty(t, reported, "a task whose final charge did not commit is not reported")
+	var saved model.Task
+	require.NoError(t, model.DB.First(&saved, task.ID).Error)
+	require.True(t, saved.SubscriptionBillingPending)
+	assert.Equal(t, 5, saved.Quota)
+
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_report_claim BEFORE UPDATE OF private_data ON tasks WHEN json_extract(NEW.private_data, '$.subscription_result_reported') = 1 BEGIN SELECT RAISE(ABORT,'temporary claim failure'); END`).Error)
+	RunTaskPollingOnce(t.Context(), nil)
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_report_claim").Error)
+	assert.Empty(t, reported, "the report claim rolled back")
+	var settled model.Task
+	require.NoError(t, model.DB.First(&settled, task.ID).Error)
+	assert.False(t, settled.SubscriptionBillingPending)
+	assert.Equal(t, 3, settled.Quota, "the retry settles the pinned amount, not the adaptor's new answer")
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	assert.Zero(t, sub.FundingReserved)
+	assert.EqualValues(t, 3, sub.ExtraCreditsUsed)
+
+	RunTaskPollingOnce(t.Context(), nil)
+	require.Equal(t, []string{requestID + ":SUCCESS"}, reported, "polling retries the report even though funds already settled")
+
+	// Another finalizer of the same terminal task, such as the submitting
+	// request, settles idempotently and does not report again.
+	finalizeTerminalTask(t.Context(), adaptor, &settled, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess})
+	RunTaskPollingOnce(t.Context(), nil)
+	assert.Len(t, reported, 1)
 }
 
 // A task reports once, when it reaches its final state: not per poll, not

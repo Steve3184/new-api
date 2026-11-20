@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const userCacheSchemaVersion = 2
@@ -107,21 +108,31 @@ func GetUserCache(userId int) (*UserBase, error) {
 	// Redis misses and read failures both fall back to the shared database. A
 	// version fence newer than the database is the one exception: allowing that
 	// snapshot would re-authorize a user while a restrictive update is pending.
-	user, err := GetUserById(userId, false)
+	var user *User
+	if common.RedisEnabled {
+		err = DB.Transaction(func(tx *gorm.DB) error {
+			var locked User
+			if err := lockForUpdate(tx).First(&locked, userId).Error; err != nil {
+				return err
+			}
+			floor, floorErr := getUserAuthVersionFloor(userId)
+			if floorErr == nil && floor > locked.AuthVersion {
+				return ErrUserAuthCachePending
+			}
+			if err := populateUserCache(locked); err != nil {
+				if errors.Is(err, ErrUserAuthCachePending) {
+					return err
+				}
+				common.SysError(common.LogText("failed to synchronously populate user cache: %s", err))
+			}
+			user = &locked
+			return nil
+		})
+	} else {
+		user, err = GetUserById(userId, false)
+	}
 	if err != nil {
 		return nil, err
-	}
-	if common.RedisEnabled {
-		floor, floorErr := getUserAuthVersionFloor(userId)
-		if floorErr == nil && floor > user.AuthVersion {
-			return nil, ErrUserAuthCachePending
-		}
-		if err := populateUserCache(*user); err != nil {
-			if errors.Is(err, ErrUserAuthCachePending) {
-				return nil, err
-			}
-			common.SysLog(common.LogText("failed to synchronously populate user cache: %s", err.Error()))
-		}
 	}
 	return user.ToBaseUser(), nil
 }
@@ -153,29 +164,38 @@ func cacheGetUserBase(userId int) (*UserBase, error) {
 	return &userCache, nil
 }
 
-// Add atomic quota operations using hash fields.
-// 通过守卫式 Lua 脚本执行：哈希不存在时直接跳过（下次读取会从数据库水合），
-// 不会像裸 HINCRBY 那样创建只含 Quota 字段的残缺哈希。
-func cacheIncrUserQuota(userId int, delta int64) error {
+// A delayed notification may arrive after a refill that already includes the
+// SQL change. Invalidate under the same row lock as hydration and wallet holds;
+// neither replay the change nor delete a hold while its purchase is in flight.
+func invalidateCommittedWalletCache(userId int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	_, err := cacheApplyUserQuotaDelta(userId, delta)
-	return err
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx.Unscoped()).Select("id").Where("id = ?", userId).Find(&user).Error; err != nil {
+			return err
+		}
+		return invalidateUserCache(userId)
+	})
 }
 
-func cacheDecrUserQuota(userId int, delta int64) error {
-	return cacheIncrUserQuota(userId, -delta)
+// Legacy post-commit notification signatures. Reservation and compensation
+// still use the Redis operations in quota_reserve.go directly.
+func cacheIncrUserQuota(userId int, _ int64) error {
+	return invalidateCommittedWalletCache(userId)
 }
 
-// syncCreditUserQuotaCache 在授信事务（充值/兑换等）提交后同步把增量补进缓存
-// 余额。预扣以缓存值为准（存在期间），授信不能绕过它，否则新到账的额度在
-// 缓存过期前不可用；缓存未命中无需处理，下次读取会从已提交的数据库余额水合。
+func cacheDecrUserQuota(userId int, _ int64) error {
+	return invalidateCommittedWalletCache(userId)
+}
+
+// A subsequent read hydrates the full user hash from the committed wallet.
 func syncCreditUserQuotaCache(userId int, quota int, operation string) {
 	if quota <= 0 {
 		return
 	}
-	if err := cacheIncrUserQuota(userId, int64(quota)); err != nil {
+	if err := invalidateCommittedWalletCache(userId); err != nil {
 		common.SysLog(common.LogText("failed to sync %s credit to user quota cache: %s", operation, err.Error()))
 	}
 }

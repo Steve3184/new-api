@@ -7,6 +7,7 @@ import (
 	"maps"
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -18,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/expr-lang/expr/ast"
 	"github.com/gin-gonic/gin"
 )
 
@@ -85,7 +87,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 		other.SetAdmin("request_plugins", info.RequestPluginSteps)
 	}
 	appendRequestPluginRecord(info, other)
-	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
+	consumeParams := model.RecordConsumeLogParams{
 		ChannelId:    info.ChannelId,
 		PromptTokens: info.GetEstimatePromptTokens(),
 		ModelName:    info.OriginModelName,
@@ -95,7 +97,39 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 		TokenId:      info.TokenId,
 		Group:        info.UsingGroup,
 		Other:        other,
-	})
+	}
+	if task.PrivateData.SubscriptionRequestID != "" && task.PrivateData.SubscriptionSubmitQuota != nil {
+		// Settlement writes this consume log after the request has ended, so it
+		// keeps what RecordConsumeLog reads from the request: report hooks get
+		// the consume params whether or not consume logs are kept, and the log
+		// keeps the request correlation and the IP the user chose to log.
+		common.SetContextKey(c, constant.ContextKeyConsumeLog, &consumeParams)
+		submitLog := &model.RecordTaskBillingLogParams{
+			UserId:            info.UserId,
+			LogType:           model.LogTypeConsume,
+			ChannelId:         consumeParams.ChannelId,
+			ModelName:         consumeParams.ModelName,
+			Quota:             consumeParams.Quota,
+			Content:           consumeParams.Content,
+			TokenId:           consumeParams.TokenId,
+			Group:             consumeParams.Group,
+			Other:             consumeParams.Other,
+			Execution:         task.PrivateData.Execution,
+			NodeName:          task.PrivateData.NodeName,
+			RequestId:         c.GetString(common.RequestIdKey),
+			UpstreamRequestId: c.GetString(common.UpstreamRequestIdKey),
+			PromptTokens:      consumeParams.PromptTokens,
+			TokenName:         consumeParams.TokenName,
+		}
+		if common.LogConsumeEnabled {
+			if settingMap, err := model.GetUserSetting(info.UserId, false); err == nil && settingMap.RecordIpLog {
+				submitLog.Ip = c.ClientIP()
+			}
+		}
+		task.PrivateData.SubscriptionSubmitLog = submitLog
+		return
+	}
+	model.RecordConsumeLog(c, info.UserId, consumeParams)
 	model.UpdateUserUsedQuotaAndRequestCount(info.UserId, info.PriceData.Quota)
 	model.UpdateChannelUsedQuota(info.ChannelId, info.PriceData.Quota)
 }
@@ -120,10 +154,26 @@ func taskIsSubscription(task *model.Task) bool {
 	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
 }
 
+func finishTaskSubscriptionFunding(ctx context.Context, task *model.Task) {
+	if !taskIsSubscription(task) || task.PrivateData.SubscriptionRequestID == "" {
+		return
+	}
+	actual := task.Quota
+	if target := task.PrivateData.SubscriptionSubmitQuota; target != nil {
+		actual = *target // Submission was persisted but its charge was not aligned yet.
+	}
+	if _, err := model.SettleSubscriptionTaskQuota(task, actual); err != nil {
+		logger.LogWarn(ctx, common.LogText("failed to finalize subscription request receipt: %s", err))
+	}
+}
+
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
-		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
+		if task.PrivateData.SubscriptionRequestID == "" {
+			return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
+		}
+		return adjustSubscriptionFunding(task.PrivateData.SubscriptionId, task.PrivateData.SubscriptionRequestID, int64(delta), true)
 	}
 	if delta > 0 {
 		return model.DecreaseUserQuota(task.UserId, delta, false)
@@ -274,17 +324,43 @@ func taskModelName(task *model.Task) string {
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool {
 	quota := task.Quota
 	if quota == 0 {
+		if taskIsSubscription(task) && task.PrivateData.SubscriptionRequestID != "" {
+			_, err := model.SettleSubscriptionTaskQuota(task, 0)
+			return err == nil
+		}
 		return true
 	}
 
 	// 1. 退还资金来源（钱包或订阅）
-	if err := taskAdjustFunding(task, -quota); err != nil {
+	fundingErr := error(nil)
+	if taskIsSubscription(task) && task.PrivateData.SubscriptionRequestID != "" {
+		var delta int
+		other := taskBillingOther(task)
+		other.SetPublic("reason", reason)
+		delta, fundingErr = model.SettleSubscriptionTaskQuota(task, 0, model.RecordTaskBillingLogParams{ModelName: taskModelName(task), Other: other, Content: nil})
+		quota = -delta
+	} else {
+		fundingErr = taskAdjustFunding(task, -quota)
+	}
+	if err := fundingErr; err != nil {
 		logger.LogWarn(ctx, common.LogText("failed to refund the funding source, task %s: %s", task.TaskID, err.Error()))
 		return false
 	}
 
+	if quota == 0 {
+		return true
+	}
+	if taskIsSubscription(task) && task.PrivateData.SubscriptionRequestID != "" {
+		if err := model.FlushSubscriptionTaskBillingLogs(); err != nil {
+			logger.LogWarn(ctx, common.LogText("failed to record task billing log: %s", err))
+		}
+		return true
+	}
+	finishTaskSubscriptionFunding(ctx, task)
 	// 2. 退还令牌额度
-	taskAdjustTokenQuota(ctx, task, -quota)
+	if task.PrivateData.SubscriptionRequestID == "" {
+		taskAdjustTokenQuota(ctx, task, -quota)
+	}
 
 	// 3. 回减预扣时累计的用户和渠道用量，请求次数保持不变
 	model.UpdateUserUsedQuota(task.UserId, -quota)
@@ -327,6 +403,13 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	quotaDelta := actualQuota - preConsumedQuota
 
 	if quotaDelta == 0 {
+		if taskIsSubscription(task) && task.PrivateData.SubscriptionRequestID != "" {
+			if _, err := model.SettleSubscriptionTaskQuota(task, actualQuota); err != nil {
+				logger.LogError(ctx, common.LogText("failed to settle subscription request: %s", err))
+				return
+			}
+		}
+		finishTaskSubscriptionFunding(ctx, task)
 		logger.LogInfo(ctx, common.LogText("task %s pre-consumed quota matches the actual quota (%s, %s)",
 			task.TaskID, logger.LogQuota(actualQuota), reason.Error()))
 		return
@@ -341,13 +424,35 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	))
 
 	// 调整资金来源
-	if err := taskAdjustFunding(task, quotaDelta); err != nil {
+	fundingErr := error(nil)
+	if taskIsSubscription(task) && task.PrivateData.SubscriptionRequestID != "" {
+		other := taskBillingOther(task)
+		for _, clamp := range clamps {
+			attachQuotaSaturationToOther(other, clamp)
+		}
+		quotaDelta, fundingErr = model.SettleSubscriptionTaskQuota(task, actualQuota, model.RecordTaskBillingLogParams{ModelName: taskModelName(task), Other: other, Content: []*common.Message{reason}})
+	} else {
+		fundingErr = taskAdjustFunding(task, quotaDelta)
+	}
+	if err := fundingErr; err != nil {
 		logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, err.Error()))
 		return
 	}
 
+	if quotaDelta == 0 {
+		return
+	}
+	if taskIsSubscription(task) && task.PrivateData.SubscriptionRequestID != "" {
+		if err := model.FlushSubscriptionTaskBillingLogs(); err != nil {
+			logger.LogWarn(ctx, common.LogText("failed to record task billing log: %s", err))
+		}
+		return
+	}
+	finishTaskSubscriptionFunding(ctx, task)
 	// 调整令牌额度
-	taskAdjustTokenQuota(ctx, task, quotaDelta)
+	if task.PrivateData.SubscriptionRequestID == "" {
+		taskAdjustTokenQuota(ctx, task, quotaDelta)
+	}
 
 	task.Quota = actualQuota
 	if err := task.UpdateQuota(); err != nil {
@@ -397,30 +502,12 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		return false
 	}
 
-	modelName := taskModelName(task)
-
-	// 获取模型价格和倍率
-	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
-	// 只有配置了倍率(非固定价格)时才按 token 重新计费
-	if !hasRatioSetting || modelRatio <= 0 {
-		return false
-	}
-
-	// 获取用户和组的倍率信息
-	group := task.Group
-	if group == "" {
-		user, err := model.GetUserById(task.UserId, false)
-		if err == nil {
-			group = user.Group
-		}
-	}
-	if group == "" {
-		return false
-	}
-
-	finalGroupRatio, _, err := GetUserGroupRatio(group, group)
+	modelRatio, finalGroupRatio, err := taskTokenRatios(task)
 	if err != nil {
 		logger.LogError(ctx, common.LogText("failed to resolve task billing group: %s", err))
+		return task.Status == model.TaskStatusSuccess && task.PrivateData.SubscriptionRequestID != ""
+	}
+	if modelRatio <= 0 {
 		return false
 	}
 
@@ -443,12 +530,125 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	return true
 }
 
+func taskTokenRatios(task *model.Task) (float64, float64, error) {
+	// Receipt-backed submissions already persist both effective ratios. Never
+	// price their recorded tokens against settings changed after acceptance.
+	if bc := task.PrivateData.BillingContext; task.PrivateData.SubscriptionRequestID != "" && bc != nil {
+		return bc.ModelRatio, bc.GroupRatio, nil
+	}
+	ratio, ok, _ := ratio_setting.GetModelRatio(taskModelName(task))
+	if !ok || ratio <= 0 {
+		return 0, 0, nil
+	}
+	group := task.Group
+	if group == "" {
+		if user, err := model.GetUserById(task.UserId, false); err == nil {
+			group = user.Group
+		}
+	}
+	if group == "" {
+		return 0, 0, fmt.Errorf("task billing group is missing")
+	}
+	groupRatio, _, err := GetUserGroupRatio(group, group)
+	return ratio, groupRatio, err
+}
+
+// StoreTaskSettlementFacts records only the bounded inputs needed after a
+// restart. The result URL, provider payload and plugin state live on the task.
+func StoreTaskSettlementFacts(task *model.Task, result *relaycommon.TaskInfo) error {
+	var expr string
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.TieredSnapshot != nil {
+		expr = bc.TieredSnapshot.ExprString
+	}
+	facts, invalid := boundedCompletionFacts(expr, result.UsageFacts)
+	snapshot := relaycommon.TaskInfo{Status: result.Status, TotalTokens: result.TotalTokens, CompletionTokens: result.CompletionTokens, UsageFacts: facts}
+	raw, err := common.Marshal(snapshot)
+	if err != nil {
+		return err
+	}
+	task.PrivateData.SubscriptionFinalResult = raw
+	task.PrivateData.SubscriptionInvalidUsage = invalid
+	result.UsageFacts = facts // The CAS winner uses the same facts as recovery.
+	return nil
+}
+
+func boundedCompletionFacts(expr string, input map[string]any) (map[string]any, bool) {
+	const maxFacts = 128
+	if len(input) == 0 {
+		return nil, false
+	}
+	facts := make(map[string]any, min(len(input), maxFacts))
+	needed := billingexpr.UsedUsageKeys(expr)
+	oversized := len(input) > maxFacts
+	dropped, invalid := false, false
+	for key, value := range input {
+		// For oversized sets, retain the expression's inputs, not a random
+		// prefix of the adaptor's map. Never replay a partial tariff.
+		if oversized && !needed[key] {
+			dropped = true
+			continue
+		}
+		v, ok := settlementFact(key, value)
+		if !ok || len(facts) == maxFacts {
+			dropped = true
+			invalid = invalid || needed[key]
+			continue
+		}
+		facts[key] = v
+	}
+	// Literal keys are known at compile time. With a dynamic u(...) lookup,
+	// an omitted value cannot safely be assumed irrelevant.
+	if dropped && !invalid && expr != "" {
+		prog, err := billingexpr.CompileFromCache(expr)
+		invalid = err != nil || ast.Find(prog.Node(), func(node ast.Node) bool {
+			call, ok := node.(*ast.CallNode)
+			if !ok || len(call.Arguments) != 1 {
+				return false
+			}
+			id, ok := call.Callee.(*ast.IdentifierNode)
+			_, literal := call.Arguments[0].(*ast.StringNode)
+			return ok && id.Value == "u" && !literal
+		}) != nil
+	}
+	return facts, invalid
+}
+
+func settlementFact(key string, value any) (any, bool) {
+	if len(key) == 0 || len(key) > 256 || !utf8.ValidString(key) {
+		return nil, false
+	}
+	var number float64
+	switch v := value.(type) {
+	case string:
+		return v, len(v) <= 1024 && utf8.ValidString(v)
+	case bool:
+		return v, true
+	case float64:
+		number = v
+	case int:
+		number = float64(v)
+	case int64:
+		number = float64(v)
+	default:
+		return nil, false
+	}
+	limit := float64(common.MaxQuota)
+	if key == "seconds" {
+		limit = relaycommon.MaxTaskDurationSeconds
+	}
+	return number, number >= 0 && number <= limit
+}
+
 // EvaluateTaskCompletionUsage evaluates actual facts against the frozen task
 // expression. It neither mutates the snapshot nor moves funds: synchronous
 // submission and polling have different persistence and settlement barriers.
 func EvaluateTaskCompletionUsage(snap *billingexpr.BillingSnapshot, facts map[string]any) (billingexpr.TieredResult, map[string]any, error) {
 	if snap == nil {
 		return billingexpr.TieredResult{}, nil, fmt.Errorf("task billing snapshot is missing")
+	}
+	facts, invalid := boundedCompletionFacts(snap.ExprString, facts)
+	if invalid {
+		return billingexpr.TieredResult{}, nil, fmt.Errorf("invalid completion usage")
 	}
 	usage := make(map[string]any, len(snap.UsageFacts)+len(facts))
 	maps.Copy(usage, snap.UsageFacts)

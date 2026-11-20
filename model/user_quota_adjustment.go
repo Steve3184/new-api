@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 
 	"github.com/QuantumNous/new-api/common"
@@ -34,6 +35,8 @@ func AdjustUserQuota(userID, operatorRole int, mode string, value int) (*UserQuo
 	}
 
 	var adjustment UserQuotaAdjustment
+	var cacheTicket string
+	var cacheErr error
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var user User
 		if err := lockForUpdate(tx).First(&user, userID).Error; err != nil {
@@ -66,6 +69,16 @@ func AdjustUserQuota(userID, operatorRole int, mode string, value int) (*UserQuo
 			if result.RowsAffected != 1 {
 				return gorm.ErrRecordNotFound
 			}
+			if common.RedisEnabled {
+				// Mark only the live hash while hydration is excluded. A refill
+				// includes the committed adjustment and won't carry its ticket.
+				cacheTicket = "quota-adjust:" + common.GetUUID()
+				const tag = `if redis.call('HEXISTS', KEYS[1], 'Quota') == 1 then
+  redis.call('HSET', KEYS[1], ARGV[1], '1')
+end
+return 1`
+				cacheErr = common.RDB.Eval(context.Background(), tag, []string{getUserCacheKey(userID)}, cacheTicket).Err()
+			}
 		}
 		adjustment = UserQuotaAdjustment{UserID: user.Id, Username: user.Username, Before: user.Quota, After: after}
 		return nil
@@ -74,12 +87,21 @@ func AdjustUserQuota(userID, operatorRole int, mode string, value int) (*UserQuo
 		return nil, err
 	}
 
-	// Apply only the committed difference, preserving outstanding reservations.
-	// Both balances are bounded above, so their difference fits in int64.
-	delta := int64(adjustment.After) - int64(adjustment.Before)
-	if delta != 0 {
-		if err := cacheIncrUserQuota(userID, delta); err != nil {
-			common.SysError(common.LogText("failed to sync manual quota adjustment for user %d: %s", userID, err))
+	// Preserve in-flight reservations on the original hash, even for overrides.
+	if cacheTicket != "" && cacheErr == nil {
+		delta := int64(adjustment.After) - int64(adjustment.Before)
+		const publish = `if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then
+  redis.call('HINCRBY', KEYS[1], 'Quota', ARGV[2])
+  redis.call('HDEL', KEYS[1], ARGV[1])
+end
+return 1`
+		cacheErr = common.RDB.Eval(context.Background(), publish, []string{getUserCacheKey(userID)}, cacheTicket, delta).Err()
+	}
+	if cacheErr != nil {
+		// SQL is already committed. An ambiguous Redis reply is safe to
+		// recover with invalidation, never with another unguarded delta.
+		if err := invalidateCommittedWalletCache(userID); err != nil {
+			common.SysError(common.LogText("failed to sync manual quota adjustment for user %d: %s", userID, errors.Join(cacheErr, err)))
 		}
 	}
 	return &adjustment, nil

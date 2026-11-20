@@ -889,9 +889,19 @@ func executeTaskSubmissionWith(
 	stage = "insert"
 	task := model.InitTask(result.Platform, relayInfo)
 	task.PrivateData.Execution = service.TaskExecutionSnapshotFromContext(c)
+	if task.PrivateData.Execution == nil {
+		task.PrivateData.Execution = &model.TaskExecutionSnapshot{}
+	}
+	if task.PrivateData.Execution.RequestID == "" {
+		task.PrivateData.Execution.RequestID = relayInfo.RequestId
+	}
 	task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 	task.PrivateData.BillingSource = relayInfo.BillingSource
 	task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+	if relayInfo.BillingSource == service.BillingSourceSubscription {
+		task.PrivateData.SubscriptionRequestID = relayInfo.RequestId
+		task.SubscriptionBillingPending = true
+	}
 	task.PrivateData.TokenId = relayInfo.TokenId
 	task.PrivateData.NodeName = common.NodeName
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
@@ -955,11 +965,32 @@ func executeTaskSubmissionWith(
 			insertOmits = append(insertOmits, "data")
 		}
 	}
+	if session, ok := relayInfo.Billing.(*service.BillingSession); ok {
+		session.BindTask(task)
+	}
+	if task.PrivateData.SubscriptionRequestID != "" {
+		guard := model.SubscriptionPreConsumeRecord{Id: task.PrivateData.SubscriptionReceiptId, UserId: task.UserId, UserSubscriptionId: task.PrivateData.SubscriptionId, RequestId: task.PrivateData.SubscriptionRequestID, ReservedTotal: -1}
+		if guard.Id > 0 {
+			if err := model.PreserveSubscriptionRequest(relayInfo.RequestId, guard); err != nil {
+				// The upstream accepted the task. Persist it with its original receipt ID;
+				// settlement independently checks that ID before moving funds.
+				logger.LogWarn(c, common.LogText("failed to preserve subscription receipt for task %s: %s", task.TaskID, err))
+			}
+		}
+		service.LogTaskConsumption(c, relayInfo, task)
+	}
+	if immediateTerminal && task.PrivateData.SubscriptionRequestID != "" {
+		task.PrivateData.SubscriptionFinalBilling = &model.SubscriptionTaskFinalBilling{Quota: result.Quota}
+		if err := service.StoreTaskSettlementFacts(task, result.Immediate); err != nil {
+			logger.LogWarn(c, common.LogText("failed to record final usage for task %s: %s", task.TaskID, err))
+		}
+	}
 	diagnostics.insertStart(task)
 	if insertErr := task.InsertWithContext(c.Request.Context(), insertOmits...); insertErr != nil {
 		common.SysError(common.LogText("insert task error: %s", insertErr.Error()))
 		taskErr = service.TaskErrorWrapperLocal(errors.New("failed to persist task"), "task_insert_failed", http.StatusInternalServerError)
 		diagnostics.failed("insert", "database_error", taskErr, false)
+		c.Set(string(constant.ContextKeyConsumeLog), nil)
 		// The client of a relayed event stream already holds the vendor's
 		// work, so it is settled and logged without a task row.
 		if c.Writer.Written() {
@@ -967,33 +998,54 @@ func executeTaskSubmissionWith(
 				common.SysError(common.LogText("settle task billing error: %s", settleErr.Error()))
 				return nil, taskErr
 			}
+			task.PrivateData.SubscriptionSubmitQuota = nil
+			task.PrivateData.SubscriptionSubmitLog = nil
 			service.LogTaskConsumption(c, relayInfo, task)
 		}
 		return nil, taskErr
 	}
 	durable = true
 	requestplugin.TaskCreated(c)
-	if immediateTerminal {
-		// Reported once settled, whatever the settlement did.
+	if immediateTerminal && task.PrivateData.SubscriptionRequestID == "" {
+		// Legacy task reporting retains its existing behavior.
 		defer requestplugin.ReportTask(task)
 	}
 	stage = "settle"
 	diagnostics.durable(task)
 	diagnostics.settleStart(task, result.Quota)
 
-	if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
+	settleErr := service.SettleBilling(c, relayInfo, result.Quota)
+	if settleErr == nil && immediateTerminal && relayInfo.BillingSource == service.BillingSourceSubscription {
+		_, settleErr = model.SettleSubscriptionTaskQuota(task, result.Quota)
+	}
+	if settleErr != nil {
 		common.SysError(common.LogText("settle task billing error: %s", settleErr.Error()))
 		taskErr = service.TaskErrorWrapperLocal(errors.New("failed to settle task billing"), "task_billing_settlement_failed", http.StatusInternalServerError)
 		diagnostics.failed("settle", "billing_error", taskErr, true)
 		return nil, taskErr
 	}
-	perfmetrics.RecordImmediateTaskResult(relayInfo, result.Immediate)
+	reportImmediate := true
+	if immediateTerminal && task.PrivateData.SubscriptionRequestID != "" {
+		claimed, err := model.ClaimSubscriptionTaskReport(task)
+		reportImmediate = err == nil && claimed
+		if err != nil {
+			logger.LogWarn(c, common.LogText("failed to claim the task report: %s", err))
+		}
+		if reportImmediate {
+			requestplugin.ReportTask(task)
+		}
+	}
+	if reportImmediate {
+		perfmetrics.RecordImmediateTaskResult(relayInfo, result.Immediate)
+	}
 	if task.Status != model.TaskStatusFailure {
 		service.MarkRequestPolicySuccess(c, nil)
 	} else {
 		policy.AddEvent(service.PolicyEvent{Decision: service.PolicyDecision{Action: "stop", Reason: "task_failed", Source: "upstream"}})
 	}
-	service.LogTaskConsumption(c, relayInfo, task)
+	if task.PrivateData.SubscriptionRequestID == "" {
+		service.LogTaskConsumption(c, relayInfo, task)
+	}
 	diagnostics.complete(task, result.Quota)
 
 	return &taskSubmissionOutcome{Result: result, Task: task, RelayInfo: relayInfo}, nil

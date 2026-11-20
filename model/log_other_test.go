@@ -1,11 +1,26 @@
 package model
 
 import (
+	"github.com/QuantumNous/new-api/common"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestLogOtherPersistedBillingSnapshot(t *testing.T) {
+	original := NewLogOther()
+	original.SetPublic("task_id", "safe-task")
+	original.SetAdmin("quota_saturation", map[string]any{"value": "large"})
+	original.SetRoot("node", "node-a")
+	original.SetAudit("method", "POST")
+	raw, err := common.Marshal(original)
+	require.NoError(t, err)
+	var restored LogOther
+	require.NoError(t, common.Unmarshal(raw, &restored))
+	require.JSONEq(t, original.JSONString(), restored.JSONString())
+	require.NotContains(t, formatLogOtherJSON(restored.JSONString(), logOtherVisibilityUser), "quota_saturation")
+}
 
 func TestLogOtherScopesAndMerges(t *testing.T) {
 	var other LogOther

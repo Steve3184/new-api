@@ -258,6 +258,15 @@ func CheckSubscriptionPlanGroupChangeTx(tx *gorm.DB, planID int, target *string)
 }
 
 func checkSubscriptionPlanRetainEntitlementsTx(tx *gorm.DB, planID int) error {
+	var extra []UserSubscription
+	if err := lockForUpdate(tx).Where("plan_id = ? AND (extra_credits_total > 0 OR funding_reserved > 0)", planID).Find(&extra).Error; err != nil {
+		return err
+	}
+	for i := range extra {
+		if err := checkSubscriptionExtraCreditsTx(tx, &extra[i]); err != nil {
+			return err
+		}
+	}
 	// MySQL locking reads see current records even if the caller already
 	// established an older repeatable-read snapshot. Checkout and settlement
 	// acquire the plan lock before locking or creating the protected rows.
@@ -304,6 +313,11 @@ func GetActiveUserSubscriptionGroups(userID int, groups []string) ([]string, err
 		allowed[group] = true
 	}
 	// SQL may match case/accent variants under the database collation.
+	extraGroups, err := GetUserExtraCreditGroups(userID)
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, extraGroups...)
 	// Authorize only exact names from this request's enabled-group snapshot.
 	result = slices.DeleteFunc(result, func(group string) bool {
 		if !allowed[group] {

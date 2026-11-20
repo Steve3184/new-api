@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -452,6 +453,129 @@ func TestLogTaskConsumptionMarksInlineResultsAndDiscardedArtifacts(t *testing.T)
 			}
 		})
 	}
+}
+
+// newTaskConsumptionContext builds the request context LogTaskConsumption reads
+// correlation, token name and client address from.
+func newTaskConsumptionContext(t *testing.T, requestPath string) *gin.Context {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, requestPath, nil)
+	ctx.Set("token_name", "test_token")
+	return ctx
+}
+
+func makeDurableSubmitTask(userID, channelID, submitQuota int, requestID string) *model.Task {
+	task := makeTask(userID, channelID, submitQuota, 0, BillingSourceSubscription, 1)
+	task.PrivateData.SubscriptionRequestID = requestID
+	quota := submitQuota
+	task.PrivateData.SubscriptionSubmitQuota = &quota
+	return task
+}
+
+// A subscription task's consume log is written after the request is gone, so the
+// durable submission snapshot has to carry what the direct consume log records:
+// request correlation, the settled token count, the token name and the client IP
+// the user asked to have logged.
+func TestLogTaskConsumptionDurableSubmissionLogKeepsRequestMetadata(t *testing.T) {
+	const requestID, upstreamRequestID = "req-submit-meta", "upstream-submit-meta"
+
+	for _, testCase := range []struct {
+		name    string
+		setting string
+		wantIp  string
+	}{
+		{name: "user enabled IP logging", setting: `{"record_ip_log":true}`, wantIp: "203.0.113.9"},
+		{name: "IP logging stays off by default", setting: "", wantIp: ""},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			truncate(t)
+			const userID, channelID = 60, 60
+			user := &model.User{Id: userID, Username: "submit_meta_user", Quota: 10_000, Status: common.UserStatusEnabled, Setting: testCase.setting}
+			require.NoError(t, model.DB.Create(user).Error)
+			seedChannel(t, channelID)
+
+			const submitQuota = 100
+			task := makeDurableSubmitTask(userID, channelID, submitQuota, requestID)
+			info := &relaycommon.RelayInfo{
+				UserId:          userID,
+				OriginModelName: "wan2.5-i2v-preview",
+				UsingGroup:      "default",
+				ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: channelID},
+				TaskRelayInfo:   &relaycommon.TaskRelayInfo{Action: "GENERATE"},
+				PriceData:       types.PriceData{ModelPrice: 0.02, Quota: submitQuota, GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1}},
+			}
+			info.SetEstimatePromptTokens(37)
+
+			ctx := newTaskConsumptionContext(t, "/v1/videos")
+			ctx.Request.RemoteAddr = "203.0.113.9:43128"
+			ctx.Set(common.RequestIdKey, requestID)
+			ctx.Set(common.UpstreamRequestIdKey, upstreamRequestID)
+
+			LogTaskConsumption(ctx, info, task)
+
+			submit := task.PrivateData.SubscriptionSubmitLog
+			require.NotNil(t, submit, "subscription tasks retain the consume log for settlement")
+			assert.Equal(t, requestID, submit.RequestId)
+			assert.Equal(t, upstreamRequestID, submit.UpstreamRequestId)
+			assert.Equal(t, 37, submit.PromptTokens)
+			assert.Equal(t, "test_token", submit.TokenName)
+			assert.Equal(t, testCase.wantIp, submit.Ip)
+			assert.Equal(t, submitQuota, submit.Quota)
+			assert.Equal(t, model.LogTypeConsume, submit.LogType)
+			assert.Equal(t, "wan2.5-i2v-preview", submit.ModelName)
+			assert.Equal(t, int64(0), countLogs(t), "the durable path logs nothing until settlement")
+		})
+	}
+}
+
+// Request plugin report hooks read the settled consume params from the context,
+// and RecordConsumeLog publishes them before the consume-log switch can drop the
+// log itself. The durable path has to publish the same params at the same point.
+func TestLogTaskConsumptionPublishesConsumeContextForDurableSubmission(t *testing.T) {
+	truncate(t)
+	const userID, channelID = 61, 61
+	seedUser(t, userID, 10_000)
+	seedChannel(t, channelID)
+
+	previousLogConsumeEnabled := common.LogConsumeEnabled
+	common.LogConsumeEnabled = false
+	t.Cleanup(func() { common.LogConsumeEnabled = previousLogConsumeEnabled })
+
+	const submitQuota = 80
+	task := makeDurableSubmitTask(userID, channelID, submitQuota, "req-submit-context")
+	info := &relaycommon.RelayInfo{
+		UserId:          userID,
+		OriginModelName: "wan2.5-i2v-preview",
+		UsingGroup:      "default",
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: channelID},
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{Action: "GENERATE"},
+		PriceData:       types.PriceData{ModelPrice: 0.02, Quota: submitQuota, GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1}},
+	}
+	info.SetEstimatePromptTokens(21)
+
+	ctx := newTaskConsumptionContext(t, "/v1/videos")
+	LogTaskConsumption(ctx, info, task)
+
+	params, ok := common.GetContextKeyType[*model.RecordConsumeLogParams](ctx, constant.ContextKeyConsumeLog)
+	require.True(t, ok, "report hooks read the consume params even when consume logs are off")
+	require.NotNil(t, params)
+	assert.Equal(t, submitQuota, params.Quota)
+	assert.Equal(t, 21, params.PromptTokens)
+	assert.Equal(t, "test_token", params.TokenName)
+	assert.Equal(t, "wan2.5-i2v-preview", params.ModelName)
+	assert.Equal(t, channelID, params.ChannelId)
+	assert.Equal(t, "default", params.Group)
+	require.NotNil(t, params.Other)
+	assert.Equal(t, int64(0), countLogs(t))
+
+	submit := task.PrivateData.SubscriptionSubmitLog
+	require.NotNil(t, submit)
+	assert.Equal(t, params.Quota, submit.Quota)
+	assert.Equal(t, params.PromptTokens, submit.PromptTokens)
+	assert.Equal(t, params.ModelName, submit.ModelName)
+	assert.Equal(t, params.ChannelId, submit.ChannelId)
 }
 
 func TestTaskBillingOtherSeparatesPluginAndRootDiagnostics(t *testing.T) {
@@ -1625,6 +1749,18 @@ func TestSettle_TieredSuccessStillRecomputes(t *testing.T) {
 	facts, ok := other["usage_facts"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, map[string]any{"seconds": float64(8), "clips": float64(2)}, facts)
+}
+
+func TestCompletionExpressionRejectsOnlyUnusableBillingInputs(t *testing.T) {
+	expr := `tier("actual", u("units") ?? 0)`
+	snap := &billingexpr.BillingSnapshot{ExprString: expr, ExprHash: billingexpr.ExprHashString(expr), GroupRatio: 1, QuotaPerUnit: 1, TaskUsageBilling: true}
+	result, facts, err := EvaluateTaskCompletionUsage(snap, map[string]any{"units": 3.0, "noise": math.NaN()})
+	require.NoError(t, err)
+	assert.Equal(t, 3, result.ActualQuotaAfterGroup)
+	_, err = common.Marshal(facts) // immediate submit writes these back to the durable pricing snapshot
+	assert.NoError(t, err)
+	_, _, err = EvaluateTaskCompletionUsage(snap, map[string]any{"units": math.Inf(1)})
+	assert.Error(t, err)
 }
 
 func TestSettle_TieredUsageFactsMergeCompletionOverSubmission(t *testing.T) {

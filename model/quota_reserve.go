@@ -105,11 +105,11 @@ func cacheApplyTokenQuotaDelta(id int, key string, delta int64) (cacheQuotaResul
 // persistUserQuotaDelta 把已在缓存侧预扣成功的增量落库；批量模式下入队，
 // 直写模式下要求行存在（用户已删除时报错，交由调用方补偿缓存）。
 func persistUserQuotaDelta(id int, delta int) error {
-	if common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, delta)
-		return nil
+	query := DB.Model(&User{}).Where("id = ?", id)
+	if delta < 0 {
+		query = query.Where("quota >= ?", -delta)
 	}
-	result := DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", delta))
+	result := query.Update("quota", gorm.Expr("quota + ?", delta))
 	if result.Error != nil {
 		return result.Error
 	}
@@ -120,11 +120,11 @@ func persistUserQuotaDelta(id int, delta int) error {
 }
 
 func persistTokenQuotaDelta(id int, delta int) error {
-	if common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeTokenQuota, id, delta)
-		return nil
+	query := DB.Model(&Token{}).Where("id = ?", id)
+	if delta < 0 {
+		query = query.Where("unlimited_quota = ? OR remain_quota >= ?", true, -delta)
 	}
-	result := DB.Model(&Token{}).Where("id = ?", id).Updates(
+	result := query.Updates(
 		map[string]any{
 			"remain_quota":  gorm.Expr("remain_quota + ?", delta),
 			"used_quota":    gorm.Expr("used_quota - ?", delta),
@@ -192,6 +192,20 @@ func TryReserveUserQuota(id int, quota int) (bool, error) {
 		if compensateErr != nil || compensated != cacheQuotaOK {
 			common.SysError(common.LogText("failed to compensate reserved user quota: result=%d error=%v", compensated, compensateErr))
 		}
+		// 条件更新零行与记录缺失都表现为 ErrRecordNotFound：只有行确实不存在
+		// 才算缺记录，行仍在即 SQL 侧余额不足拒绝了本次预扣。补偿已把缓存恢复
+		// 到偏高的旧余额，必须失效它；判定只看行是否存在，重查到的余额可能是
+		// 并发充值后的新值，不能当作本次预扣被放行的理由。
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			var user User
+			if lookupErr := DB.Select("id").First(&user, id).Error; lookupErr != nil {
+				return false, lookupErr
+			}
+			if cacheErr := invalidateUserCache(id); cacheErr != nil {
+				return false, cacheErr
+			}
+			return false, nil
+		}
 		return false, err
 	}
 	return true, nil
@@ -232,6 +246,20 @@ func TryReserveTokenQuota(id int, key string, quota int, unlimited bool) (bool, 
 		compensated, compensateErr := cacheApplyTokenQuotaDelta(id, key, int64(quota))
 		if compensateErr != nil || compensated != cacheQuotaOK {
 			common.SysError(common.LogText("failed to compensate reserved token quota: result=%d error=%v", compensated, compensateErr))
+		}
+		// SQL 条件更新拦截（remain_quota 不足）也表现为零更新行数：缓存余额高于
+		// 数据库时这是余额不足，不是令牌缺失。此时补偿已恢复偏高的缓存余额，
+		// 必须失效该缓存，否则后续预扣会反复以同一个失真余额报错。判定只看行
+		// 是否存在，重查到的余额可能已被并发充值抬高，不能据此放行或报缺记录。
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			var token Token
+			if lookupErr := DB.Select("id").First(&token, id).Error; lookupErr != nil {
+				return false, lookupErr
+			}
+			if cacheErr := invalidateTokenCacheForMutation(key); cacheErr != nil {
+				return false, cacheErr
+			}
+			return false, nil
 		}
 		return false, err
 	}

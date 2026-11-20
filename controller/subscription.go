@@ -1,7 +1,10 @@
 package controller
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,6 +14,8 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -47,6 +52,9 @@ func normalizeSubscriptionPlanInput(plan *model.SubscriptionPlan) error {
 	}
 	if plan.MaxActivePerUser < 0 || plan.MaxActivePerUser > 2147483647 {
 		return fmt.Errorf("同时生效数量上限必须在 0 到 2147483647 之间")
+	}
+	if err := validateSubscriptionExtraCreditSettings(plan.AllowExtraCredits, plan.ExtraCreditsRate); err != nil {
+		return err
 	}
 	plan.Currency = strings.TrimSpace(plan.Currency)
 	if plan.Currency == "" {
@@ -175,6 +183,24 @@ func GetSubscriptionSelf(c *gin.Context) {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
 
+	eligibility := make(map[int]bool)
+	for _, rows := range [][]model.SubscriptionSummary{allSubscriptions, activeSubscriptions} {
+		for _, row := range rows {
+			if row.Subscription != nil {
+				allowed, checked := eligibility[row.Subscription.Id]
+				if !checked {
+					var err error
+					allowed, err = model.SubscriptionExtraCreditPurchaseEligibility(userId, row.Subscription)
+					if err != nil {
+						common.ApiErrorStatus(c, 503, err)
+						return
+					}
+					eligibility[row.Subscription.Id] = allowed
+				}
+				row.Subscription.ExtraCreditsCanPurchase = allowed
+			}
+		}
+	}
 	common.ApiSuccess(c, gin.H{
 		"billing_preference": pref,
 		"subscriptions":      activeSubscriptions, // all active subscriptions
@@ -203,6 +229,62 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, gin.H{"billing_preference": pref})
+}
+
+func validateSubscriptionExtraCreditSettings(allowed bool, rate float64) error {
+	if math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0 || rate > 1000000 || (allowed && rate < 0.000001) {
+		return common.NewMessage("Invalid extra credits exchange rate")
+	}
+	if !decimal.NewFromFloat(rate).Equal(decimal.NewFromFloat(rate).Round(6)) {
+		return common.NewMessage("Invalid extra credits exchange rate")
+	}
+	return nil
+}
+
+func parseSubscriptionExtraCreditRate(raw json.RawMessage) (float64, error) {
+	// Bound the token and its exponent before any comparison or rounding:
+	// decimal rescales by a power of ten sized by the exponent difference.
+	if len(raw) > 64 {
+		return 0, common.NewMessage("Invalid extra credits exchange rate")
+	}
+	value, err := decimal.NewFromString(string(raw))
+	if err != nil || value.Exponent() < -64 || value.Exponent() > 64 || value.IsNegative() || value.GreaterThan(decimal.NewFromInt(1000000)) || !value.Equal(value.Round(6)) {
+		return 0, common.NewMessage("Invalid extra credits exchange rate")
+	}
+	rate, _ := value.Float64()
+	return rate, nil
+}
+
+func PurchaseSubscriptionExtraCredits(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	var req struct {
+		WalletQuota  int64           `json:"wallet_quota"`
+		RequestID    string          `json:"request_id"`
+		ExpectedRate json.RawMessage `json:"expected_rate"`
+	}
+	if err != nil || id <= 0 || c.ShouldBindJSON(&req) != nil || req.WalletQuota <= 0 || req.WalletQuota > common.MaxWalletQuota || len(req.RequestID) < 16 || len(req.RequestID) > 64 {
+		common.ApiErrorT(c, "Invalid extra credits amount")
+		return
+	}
+	rate, rateErr := parseSubscriptionExtraCreditRate(req.ExpectedRate)
+	if rateErr != nil || validateSubscriptionExtraCreditSettings(true, rate) != nil {
+		common.ApiErrorT(c, "Invalid extra credits exchange rate")
+		return
+	}
+	purchase, err := model.PurchaseSubscriptionExtraCredits(c.GetInt("id"), id, req.WalletQuota, req.RequestID, rate)
+	if err != nil {
+		var message *common.Message
+		if errors.As(err, &message) {
+			common.ApiError(c, err)
+		} else {
+			common.ApiErrorStatus(c, 503, err)
+		}
+		return
+	}
+	common.ApiSuccess(c, purchase)
 }
 
 func SubscriptionRequestBalancePay(c *gin.Context) {
@@ -303,9 +385,26 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	}
 
 	var req AdminUpsertSubscriptionPlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
+	}
+	var decimalInput struct {
+		Plan struct {
+			Rate json.RawMessage `json:"extra_credits_rate"`
+		} `json:"plan"`
+	}
+	if err := c.ShouldBindBodyWith(&decimalInput, binding.JSON); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if decimalInput.Plan.Rate != nil {
+		rate, err := parseSubscriptionExtraCreditRate(decimalInput.Plan.Rate)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		req.Plan.ExtraCreditsRate = rate
 	}
 	req.Plan.Id = 0
 	if strings.TrimSpace(req.Plan.Title) == "" {
@@ -391,8 +490,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	var req struct {
 		Plan struct {
 			model.SubscriptionPlan
-			SubscriptionGroupInput *string `json:"subscription_group"`
-			AutoCreateKeyInput     *bool   `json:"auto_create_key"`
+			SubscriptionGroupInput *string         `json:"subscription_group"`
+			AutoCreateKeyInput     *bool           `json:"auto_create_key"`
+			AllowExtraCreditsInput *bool           `json:"allow_extra_credits"`
+			ExtraCreditsRateInput  json.RawMessage `json:"extra_credits_rate"`
 		} `json:"plan"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -417,6 +518,16 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	}
 	if req.Plan.SubscriptionGroupInput != nil {
 		req.Plan.SubscriptionGroup = *req.Plan.SubscriptionGroupInput
+	}
+	// Validate the final extra-credit settings under the plan lock below.
+	// A legacy editor omits them, and a toggle-only edit may keep the saved rate.
+	if req.Plan.ExtraCreditsRateInput != nil {
+		rate, err := parseSubscriptionExtraCreditRate(req.Plan.ExtraCreditsRateInput)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		req.Plan.ExtraCreditsRate = rate
 	}
 	if err := normalizeSubscriptionPlanInput(&req.Plan.SubscriptionPlan); err != nil {
 		common.ApiError(c, err)
@@ -517,6 +628,26 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		}
 		if req.Plan.AllowWalletOverflow != nil {
 			updateMap["allow_wallet_overflow"] = *req.Plan.AllowWalletOverflow
+		}
+		if req.Plan.AllowExtraCreditsInput != nil || req.Plan.ExtraCreditsRateInput != nil {
+			if _, err := model.CheckSubscriptionPlanGroupChangeTx(tx, id, nil); err != nil {
+				return err
+			}
+			var saved model.SubscriptionPlan
+			if err := tx.First(&saved, id).Error; err != nil {
+				return err
+			}
+			if req.Plan.AllowExtraCreditsInput != nil {
+				saved.AllowExtraCredits = *req.Plan.AllowExtraCreditsInput
+			}
+			if req.Plan.ExtraCreditsRateInput != nil {
+				saved.ExtraCreditsRate = req.Plan.ExtraCreditsRate
+			}
+			if err := validateSubscriptionExtraCreditSettings(saved.AllowExtraCredits, saved.ExtraCreditsRate); err != nil {
+				return err
+			}
+			updateMap["allow_extra_credits"] = saved.AllowExtraCredits
+			updateMap["extra_credits_rate"] = saved.ExtraCreditsRate
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err

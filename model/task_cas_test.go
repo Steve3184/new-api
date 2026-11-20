@@ -54,6 +54,8 @@ func TestMain(m *testing.M) {
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
+		&SubscriptionPreConsumeRecord{},
+		&SubscriptionExtraCreditPurchase{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&StatusCheckProbeState{},
@@ -96,6 +98,8 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM subscription_orders")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
+		DB.Exec("DELETE FROM subscription_pre_consume_records")
+		DB.Exec("DELETE FROM subscription_extra_credit_purchases")
 		DB.Exec("DELETE FROM perf_metrics")
 		DB.Exec("DELETE FROM status_check_probe_states")
 		DB.Exec("DELETE FROM system_instances")
@@ -330,6 +334,185 @@ func TestUpdateWithStatus_ConcurrentWinner(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, winCount, "exactly one goroutine should win the CAS")
+}
+
+// The submit alignment can commit while a poller still holds the row it read.
+// The transition must keep the authoritative charge and receipt marker, and
+// hand the winner those values so its settlement uses the aligned charge.
+func TestUpdateWithStatus_KeepsNewerBillingFacts(t *testing.T) {
+	truncateTables(t)
+
+	target := 600
+	task := &Task{
+		TaskID:                     "task_cas_stale_billing",
+		Status:                     TaskStatusInProgress,
+		Progress:                   "30%",
+		Quota:                      1000,
+		SubscriptionBillingPending: true,
+		Data:                       json.RawMessage(`{}`),
+		PrivateData: TaskPrivateData{
+			BillingSource:           "subscription",
+			SubscriptionId:          9,
+			SubscriptionRequestID:   "receipt-1",
+			TokenId:                 5,
+			SubscriptionSubmitQuota: &target,
+		},
+	}
+	insertTask(t, task)
+
+	aligned := task.PrivateData
+	aligned.SubscriptionSubmitQuota = nil
+	require.NoError(t, DB.Model(&Task{}).Where("id = ?", task.ID).
+		Updates(map[string]any{"quota": 600, "private_data": aligned}).Error)
+
+	task.Status = TaskStatusSuccess
+	task.Progress = "100%"
+	won, err := task.UpdateWithStatus(TaskStatusInProgress)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.Equal(t, 600, reloaded.Quota, "a stale snapshot must not restore the earlier charge")
+	assert.Nil(t, reloaded.PrivateData.SubscriptionSubmitQuota, "a stale snapshot must not restore a cleared submission target")
+	assert.True(t, reloaded.SubscriptionBillingPending)
+	assert.EqualValues(t, TaskStatusSuccess, reloaded.Status)
+
+	assert.Equal(t, 600, task.Quota, "the winner settles on the authoritative charge")
+	assert.Nil(t, task.PrivateData.SubscriptionSubmitQuota)
+	assert.Equal(t, "receipt-1", task.PrivateData.SubscriptionRequestID)
+}
+
+// Only the facts a poll owns may reach the row; identity and billing columns
+// stay as stored, so a stale reader cannot rewrite another writer's data.
+func TestUpdateWithStatus_MergesPollingFactsIntoTheStoredRow(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:    "task_cas_merge",
+		UserId:    3,
+		ChannelId: 7,
+		Group:     "vip",
+		Status:    TaskStatusInProgress,
+		Progress:  "30%",
+		Quota:     900,
+		Properties: Properties{
+			OriginModelName:   "kling-video",
+			UpstreamModelName: "kling-video-2",
+		},
+		Data: json.RawMessage(`{"step":1}`),
+		PrivateData: TaskPrivateData{
+			UpstreamTaskID: "upstream_1",
+			Key:            "sk-private",
+			ResultURL:      "https://old.example/v.mp4",
+			PollFailures:   1,
+			BillingSource:  "subscription",
+			TokenId:        5,
+		},
+	}
+	insertTask(t, task)
+	require.NoError(t, DB.Model(&Task{}).Where("id = ?", task.ID).
+		Update("subscription_billing_pending", true).Error)
+
+	stale := *task
+	stale.UserId = 99
+	stale.ChannelId = 999
+	stale.Group = "stale"
+	stale.Quota = 5
+	stale.Properties = Properties{OriginModelName: "stale-model"}
+	stale.Progress = "60%"
+	stale.PrivateData.ResultURL = "https://new.example/v.mp4"
+	stale.PrivateData.PluginState = json.RawMessage(`{"req_key":"next"}`)
+	stale.PrivateData.PollFailures = 4
+	won, err := stale.UpdateWithStatus(TaskStatusInProgress)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.Equal(t, "60%", reloaded.Progress, "polling facts are written")
+	assert.Equal(t, "https://new.example/v.mp4", reloaded.PrivateData.ResultURL)
+	assert.JSONEq(t, `{"req_key":"next"}`, string(reloaded.PrivateData.PluginState))
+	assert.Equal(t, 4, reloaded.PrivateData.PollFailures)
+
+	assert.Equal(t, 3, reloaded.UserId, "identity stays as stored")
+	assert.Equal(t, 7, reloaded.ChannelId)
+	assert.Equal(t, "vip", reloaded.Group)
+	assert.Equal(t, 900, reloaded.Quota)
+	assert.True(t, reloaded.SubscriptionBillingPending)
+	assert.Equal(t, "kling-video", reloaded.Properties.OriginModelName)
+	assert.Equal(t, "sk-private", reloaded.PrivateData.Key, "billing facts stay as stored")
+	assert.Equal(t, "upstream_1", reloaded.PrivateData.UpstreamTaskID)
+	assert.Equal(t, "subscription", reloaded.PrivateData.BillingSource)
+
+	assert.Equal(t, 3, stale.UserId, "the winner continues with the authoritative row")
+	assert.Equal(t, "vip", stale.Group)
+	assert.Equal(t, 900, stale.Quota)
+}
+
+// A pre-refund-era task is retired with its charge cleared in the same
+// transition, so no later reader can refund it.
+func TestUpdateWithStatusRetiringQuota_ClearsQuotaWithTheTransition(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:   "task_cas_retire",
+		Status:   TaskStatusInProgress,
+		Progress: "50%",
+		Quota:    1200,
+		Data:     json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	task.Status = TaskStatusFailure
+	task.Progress = "100%"
+	task.FailReason = "Task timed out"
+	task.Quota = 0
+	won, err := task.UpdateWithStatusRetiringQuota(TaskStatusInProgress)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.EqualValues(t, TaskStatusFailure, reloaded.Status)
+	assert.Zero(t, reloaded.Quota)
+}
+
+// The poller must also run when its only remaining work is a final task whose
+// receipt settlement or billing log has not committed yet.
+func TestHasUnfinishedSyncTasks_CountsPendingSettlementWork(t *testing.T) {
+	truncateTables(t)
+
+	assert.False(t, HasUnfinishedSyncTasks())
+
+	running := &Task{TaskID: "task_gate_running", Status: TaskStatusInProgress, Progress: "40%", Data: json.RawMessage(`{}`)}
+	insertTask(t, running)
+	assert.True(t, HasUnfinishedSyncTasks(), "an unfinished task keeps the poller running")
+	require.NoError(t, DB.Model(running).Updates(map[string]any{"progress": "100%", "subscription_billing_pending": true, "submit_time": 1}).Error)
+	require.Len(t, GetAllUnFinishSyncTasks(100), 1, "nonterminal subscription task remains pollable at upstream 100 percent")
+	require.Len(t, GetTimedOutUnfinishedTasks(2, 100), 1, "same task must remain eligible for timeout recovery")
+	require.NoError(t, DB.Model(running).UpdateColumn("subscription_billing_pending", false).Error)
+	require.NoError(t, DB.Model(&Task{}).Where("id = ?", running.ID).Updates(map[string]any{"status": TaskStatusSuccess, "progress": "100%"}).Error)
+	assert.False(t, HasUnfinishedSyncTasks())
+
+	pendingReceipt := &Task{TaskID: "task_gate_receipt", Status: TaskStatusSuccess, Progress: "100%", SubscriptionBillingPending: true, Data: json.RawMessage(`{}`)}
+	insertTask(t, pendingReceipt)
+	assert.True(t, HasUnfinishedSyncTasks(), "a final task with an unsettled receipt needs another pass")
+	require.NoError(t, DB.Model(&Task{}).Where("id = ?", pendingReceipt.ID).Update("subscription_billing_pending", false).Error)
+	assert.False(t, HasUnfinishedSyncTasks())
+
+	receipt := &SubscriptionPreConsumeRecord{RequestId: "receipt-log-pending", UserId: 1, Status: "settled", BillingLogPending: true}
+	require.NoError(t, DB.Create(receipt).Error)
+	assert.True(t, HasUnfinishedSyncTasks(), "an undelivered settlement log needs another pass")
+	require.NoError(t, DB.Model(receipt).UpdateColumn("billing_log_pending", false).Error)
+	assert.False(t, HasUnfinishedSyncTasks())
+	pendingReceipt.PrivateData = TaskPrivateData{SubscriptionId: 1, SubscriptionFinancialComplete: true}
+	require.NoError(t, DB.Model(pendingReceipt).Updates(map[string]any{"subscription_report_pending": true, "private_data": pendingReceipt.PrivateData}).Error)
+	assert.True(t, HasUnfinishedSyncTasks(), "committed finance still needs its terminal report")
+	claimed, err := ClaimSubscriptionTaskReport(pendingReceipt)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	assert.False(t, HasUnfinishedSyncTasks(), "claiming the report clears the last pending work")
 }
 
 func TestUpdateWithStatus_PersistsPluginStateAndPollFailures(t *testing.T) {

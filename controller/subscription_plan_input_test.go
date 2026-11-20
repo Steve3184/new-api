@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v81"
+	"gorm.io/gorm"
 )
 
 func TestSubscriptionSimultaneousLimitValidation(t *testing.T) {
@@ -45,6 +47,134 @@ func TestSubscriptionPlanInputUsageTiersAndAutoRenew(t *testing.T) {
 
 	require.Error(t, normalizeSubscriptionPlanInput(&model.SubscriptionPlan{UsageTiers: `[{"multiplier":0,"price_amount":1}]`}))
 	require.Error(t, normalizeSubscriptionPlanInput(&model.SubscriptionPlan{TotalAmount: common.MaxWalletQuota / 2, UsageTiers: `[{"multiplier":3,"price_amount":1}]`}))
+}
+
+func TestSubscriptionExtraCreditsPlanInputAndLegacyEditor(t *testing.T) {
+	// Bounded before decimal comparison: an extreme exponent would otherwise
+	// allocate a huge power of ten while being rejected.
+	for _, raw := range []string{"1000000.000000000001", "0.0000001", "1.0000001", "null", "0e100", "0." + strings.Repeat("0", 70), "0e2147483647", "1e-2147483648"} {
+		_, err := parseSubscriptionExtraCreditRate([]byte(raw))
+		require.Error(t, err, raw)
+	}
+	for _, raw := range []string{"1000000", "0.000001", "1.123456", "1e6", "1e-6", "1.5000000000", "0." + strings.Repeat("0", 58) + "1e65"} {
+		_, err := parseSubscriptionExtraCreditRate([]byte(raw))
+		require.NoError(t, err, raw)
+	}
+	for _, rate := range []float64{0, -1, math.NaN(), math.Inf(1), 1000001} {
+		plan := model.SubscriptionPlan{AllowExtraCredits: true, ExtraCreditsRate: rate}
+		require.Error(t, normalizeSubscriptionPlanInput(&plan))
+	}
+	db := setupManageUserTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.SystemTask{}))
+	settings := operation_setting.GetPaymentSetting()
+	original := *settings
+	t.Cleanup(func() { *settings = original })
+	settings.ComplianceConfirmed = true
+	settings.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	plan := model.SubscriptionPlan{Title: "Extra credits", AllowExtraCredits: true, ExtraCreditsRate: 2.5}
+	require.NoError(t, db.Create(&plan).Error)
+	router := gin.New()
+	router.PUT("/plans/:id", AdminUpdateSubscriptionPlan)
+	for _, tc := range []struct {
+		body    string
+		allowed bool
+		rate    float64
+	}{
+		{`{"plan":{"title":"Legacy edit"}}`, true, 2.5},
+		{`{"plan":{"title":"Turn off","allow_extra_credits":false}}`, false, 2.5},
+		{`{"plan":{"title":"Rate edit","extra_credits_rate":3}}`, false, 3},
+		{`{"plan":{"title":"Turn on","allow_extra_credits":true}}`, true, 3},
+	} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPut, "/plans/"+strconv.Itoa(plan.Id), strings.NewReader(tc.body))
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(response, request)
+		var result struct{ Success bool }
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+		require.True(t, result.Success, response.Body.String())
+		var saved model.SubscriptionPlan
+		require.NoError(t, db.First(&saved, plan.Id).Error)
+		require.Equal(t, tc.allowed, saved.AllowExtraCredits)
+		require.Equal(t, tc.rate, saved.ExtraCreditsRate)
+	}
+}
+
+func TestSubscriptionExtraCreditsPurchaseEndpoint(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionExtraCreditPurchase{}, &model.Option{}, &model.SystemTask{}))
+	settings := operation_setting.GetPaymentSetting()
+	original := *settings
+	t.Cleanup(func() { *settings = original })
+	settings.ComplianceConfirmed = true
+	settings.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	user := model.User{Username: "extra-credits-api", Quota: 100, Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Extra endpoint", Enabled: true, SubscriptionGroup: "vip", AllowExtraCredits: true, ExtraCreditsRate: 2}
+	require.NoError(t, db.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", EndTime: common.GetTimestamp() + 3600}
+	require.NoError(t, db.Create(&sub).Error)
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("id", user.Id) })
+	router.POST("/self/:id/extra-credits", PurchaseSubscriptionExtraCredits)
+	path := "/self/" + strconv.Itoa(sub.Id) + "/extra-credits"
+	request := func(body string) bool {
+		t.Helper()
+		response := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(response, req)
+		var result struct{ Success bool }
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+		return result.Success
+	}
+	for _, body := range []string{
+		`{"wallet_quota":0,"request_id":"extra-api-purchase-001"}`,
+		`{"wallet_quota":-1,"request_id":"extra-api-purchase-001"}`,
+		`{"wallet_quota":1.5,"request_id":"extra-api-purchase-001"}`,
+		`{"wallet_quota":9007199254740992,"request_id":"extra-api-purchase-001"}`,
+		`{"wallet_quota":10,"request_id":"short"}`,
+	} {
+		require.False(t, request(body), body)
+	}
+	body := `{"wallet_quota":10,"request_id":"extra-api-purchase-001","expected_rate":2}`
+	require.True(t, request(body))
+	require.True(t, request(body), "retry returns the same purchase without another debit")
+	var savedUser model.User
+	require.NoError(t, db.First(&savedUser, user.Id).Error)
+	require.Equal(t, 90, savedUser.Quota)
+	var savedSub model.UserSubscription
+	require.NoError(t, db.First(&savedSub, sub.Id).Error)
+	require.EqualValues(t, 20, savedSub.ExtraCreditsTotal)
+	require.Zero(t, savedSub.AmountUsed)
+	require.False(t, request(`{"wallet_quota":11,"request_id":"extra-api-purchase-001","expected_rate":2}`))
+	other := model.UserSubscription{UserId: user.Id + 99, PlanId: plan.Id, Status: "active", EndTime: common.GetTimestamp() + 3600}
+	require.NoError(t, db.Create(&other).Error)
+	path = "/self/" + strconv.Itoa(other.Id) + "/extra-credits"
+	require.False(t, request(`{"wallet_quota":10,"request_id":"extra-api-purchase-002","expected_rate":2}`))
+}
+
+func TestSubscriptionSelfWithExtrasDisabledAvoidsRepeatedAccountReads(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.UserSubscription{}))
+	user := model.User{Username: "extras-disabled-query-budget", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Default extras disabled", Enabled: true}
+	require.NoError(t, db.Create(&plan).Error)
+	for range 3 {
+		require.NoError(t, db.Create(&model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", EndTime: common.GetTimestamp() + 3600}).Error)
+	}
+	queries := 0
+	name := "test:extra_eligibility_user_reads"
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register(name, func(tx *gorm.DB) {
+		if tx.Statement.Table == "users" {
+			queries++
+		}
+	}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove(name) })
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("id", user.Id)
+	GetSubscriptionSelf(c)
+	require.LessOrEqual(t, queries, 2, "disabled extra purchases must not reload the account for every row in both lists")
 }
 
 func TestSubscriptionGroupBindingIsOptIn(t *testing.T) {

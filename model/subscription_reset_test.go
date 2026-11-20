@@ -1,12 +1,15 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func seedSubscriptionResetPlan(t *testing.T, plan *SubscriptionPlan) {
@@ -238,4 +241,139 @@ func TestAdminResetPlanSubscriptionsNoMatchSucceeds(t *testing.T) {
 	assert.Zero(t, result.ResetCount)
 	assert.Zero(t, result.UserCount)
 	assert.Empty(t, result.AffectedUserIds)
+}
+
+// recordSubscriptionLockOrder collects the order of the statements a rollback
+// path issues, marking the ones that take row locks: FOR UPDATE reads and every
+// write. Refund paths lock the account row and then all of its subscription
+// rows, so a rollback that locks in the opposite order deadlocks against them
+// on MySQL and PostgreSQL.
+func recordSubscriptionLockOrder(t *testing.T) *[]string {
+	t.Helper()
+	order := &[]string{}
+	record := func(kind string, locking bool) func(*gorm.DB) {
+		return func(tx *gorm.DB) {
+			table := ""
+			if tx.Statement != nil {
+				table = tx.Statement.Table
+			}
+			mark := "read"
+			if locking {
+				mark = "lock"
+			}
+			*order = append(*order, kind+"|"+mark+"|"+table)
+		}
+	}
+	queryName := "test:record_rollback_query_order"
+	updateName := "test:record_rollback_update_order"
+	deleteName := "test:record_rollback_delete_order"
+	require.NoError(t, DB.Callback().Query().Before("gorm:query").Register(queryName, func(tx *gorm.DB) {
+		_, locking := tx.Statement.Clauses["FOR"]
+		record("query", locking)(tx)
+	}))
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(updateName, record("update", true)))
+	require.NoError(t, DB.Callback().Delete().Before("gorm:delete").Register(deleteName, record("delete", true)))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Query().Remove(queryName))
+		require.NoError(t, DB.Callback().Update().Remove(updateName))
+		require.NoError(t, DB.Callback().Delete().Remove(deleteName))
+	})
+	return order
+}
+
+func TestSubscriptionResetLocksAccountBeforeFundingRows(t *testing.T) {
+	for _, all := range []bool{false, true} {
+		t.Run(fmt.Sprint(all), func(t *testing.T) {
+			truncateTables(t)
+			plan := &SubscriptionPlan{Title: "Reset lock order", DurationUnit: SubscriptionDurationMonth, DurationValue: 1, TotalAmount: 100}
+			user, sub := createSubscriptionUsageLimitFixture(t, plan)
+			order := recordSubscriptionLockOrder(t)
+			var err error
+			if all {
+				_, err = AdminResetPlanSubscriptions(plan.Id, false)
+			} else {
+				_, err = AdminResetUserSubscriptionsByPlan(user.Id, plan.Id, false)
+			}
+			require.NoError(t, err)
+			firstAccount, firstSub := -1, -1
+			for i, entry := range *order {
+				if firstAccount < 0 && strings.HasSuffix(entry, "|users") {
+					firstAccount = i
+				}
+				if firstSub < 0 && strings.HasSuffix(entry, "|user_subscriptions") && (strings.Contains(entry, "|lock|") || strings.HasPrefix(entry, "update|")) {
+					firstSub = i
+				}
+			}
+			require.GreaterOrEqual(t, firstAccount, 0, "reset must serialize with funding release on the account")
+			require.Less(t, firstAccount, firstSub)
+			require.NoError(t, DB.First(sub, sub.Id).Error)
+			require.Zero(t, sub.AmountUsed)
+		})
+	}
+}
+
+func TestSubscriptionGroupRollbackLocksAccountBeforeSubscriptions(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(subId int) error
+	}{
+		{"expire", func(subId int) error {
+			_, err := ExpireDueSubscriptions(10)
+			return err
+		}},
+		{"invalidate", func(subId int) error {
+			_, err := AdminInvalidateUserSubscription(subId)
+			return err
+		}},
+		{"delete", func(subId int) error {
+			_, err := AdminDeleteUserSubscription(subId)
+			return err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			truncateTables(t)
+			now := GetDBTimestamp()
+			user := &User{
+				Username: "rollback-lock-" + common.GetRandomString(8),
+				Password: "password",
+				Status:   common.UserStatusEnabled,
+				Group:    "svip",
+			}
+			require.NoError(t, DB.Create(user).Error)
+			endTime := now + 3600
+			if tt.name == "expire" {
+				endTime = now - 1
+			}
+			sub := UserSubscription{
+				UserId: user.Id, Status: "active", StartTime: now - 7200, EndTime: endTime,
+				AmountTotal: 100, UpgradeGroup: "svip", PrevUserGroup: "default",
+			}
+			require.NoError(t, DB.Create(&sub).Error)
+
+			order := recordSubscriptionLockOrder(t)
+			require.NoError(t, tt.run(sub.Id))
+
+			var reloaded User
+			require.NoError(t, DB.First(&reloaded, user.Id).Error)
+			require.Equal(t, "default", reloaded.Group, "the group rollback runs")
+
+			firstLock := func(table string) int {
+				for i, entry := range *order {
+					parts := strings.SplitN(entry, "|", 3)
+					if parts[2] == table && (parts[1] == "lock" || table == "users" && common.UsingMainDatabase(common.DatabaseTypeSQLite)) {
+						return i
+					}
+				}
+				return -1
+			}
+			t.Logf("order: %v", *order)
+			accountLock := firstLock("users")
+			subscriptionLock := firstLock("user_subscriptions")
+			require.GreaterOrEqual(t, accountLock, 0, "the rollback must lock the account row")
+			require.GreaterOrEqual(t, subscriptionLock, 0, "the rollback locks its subscription row")
+			assert.Less(t, accountLock, subscriptionLock, "locks must follow the account-then-subscriptions order")
+		})
+	}
 }

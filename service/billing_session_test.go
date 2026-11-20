@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
 	"os"
@@ -23,6 +24,213 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+func TestSubscriptionExtraCreditsDurableSubmissionLog(t *testing.T) {
+	truncate(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.QuotaData{}))
+	user := model.User{Username: "submit-log-user", AffCode: "submit-log-user", Group: "default", Quota: 100, Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Submission log", SubscriptionGroup: "vip", TotalAmount: 20}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", EndTime: common.GetTimestamp() + 1000, AmountTotal: 20}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/videos", nil)
+	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{Action: "generate"}, ChannelMeta: &relaycommon.ChannelMeta{}, RequestId: "durable-initial-log", UserId: user.Id, UsingGroup: "vip", OriginModelName: "test", IsPlayground: true, ForcePreConsume: true, UserSetting: dto.UserSetting{BillingPreference: "subscription_only"}}
+	session, apiErr := NewBillingSession(ctx, info, 10)
+	require.Nil(t, apiErr)
+	task := &model.Task{UserId: user.Id, Quota: 3, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionRequestID: info.RequestId}}
+	session.BindTask(task)
+	LogTaskConsumption(ctx, info, task)
+	require.NotNil(t, task.PrivateData.SubscriptionSubmitLog)
+	require.NoError(t, model.DB.Create(task).Error)
+	require.NoError(t, session.Settle(3))
+	require.NoError(t, model.DB.First(&user, user.Id).Error)
+	require.Equal(t, 3, user.UsedQuota)
+	require.Equal(t, 1, user.RequestCount)
+	RecalculateTaskQuota(t.Context(), task, 5, common.NewMessage("token adjustment"), &common.QuotaClamp{Op: "QuotaRound", Kind: common.QuotaClampOverflow})
+	require.NoError(t, model.FlushSubscriptionTaskBillingLogs())
+	var entry model.Log
+	require.NoError(t, model.LOG_DB.Where("user_id = ? AND type = ?", user.Id, model.LogTypeConsume).Order("id DESC").First(&entry).Error)
+	require.Contains(t, entry.Other, "quota_saturation")
+}
+
+func TestSubscriptionExtraCreditsBillingSession(t *testing.T) {
+	truncate(t)
+	for _, expired := range []bool{false, true} {
+		name := fmt.Sprintf("extra-billing-%t", expired)
+		user := &model.User{Username: name, AffCode: name, Group: "default", Status: common.UserStatusEnabled, Quota: 100}
+		require.NoError(t, model.DB.Create(user).Error)
+		plan := &model.SubscriptionPlan{Title: name, SubscriptionGroup: "vip", TotalAmount: 5, AllowWalletOverflow: common.GetPointer(false)}
+		require.NoError(t, model.DB.Create(plan).Error)
+		now := common.GetTimestamp()
+		sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", StartTime: now - 60, EndTime: now + 3600, AmountTotal: 5}
+		if expired {
+			sub.Status = "expired"
+			sub.EndTime = now - 1
+		}
+		sub.ExtraCreditsTotal = 30
+		sub.ExtraCreditsGroups = `["vip"]`
+		sub.ExtraCreditsScopedGroups = `["vip"]`
+		require.NoError(t, model.DB.Create(&sub).Error)
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+		info := &relaycommon.RelayInfo{RequestId: name, UserId: user.Id, UsingGroup: "vip", OriginModelName: "test", IsPlayground: true, ForcePreConsume: true, UserSetting: dto.UserSetting{BillingPreference: "subscription_only"}}
+		session, apiErr := NewBillingSession(ctx, info, 10)
+		require.Nil(t, apiErr, "expired subscriptions must still fund requests with purchased credits")
+		require.NoError(t, session.ReserveBeforeSubmit(15))
+		wantLoggedRegular := int64(5)
+		if expired {
+			wantLoggedRegular = 0
+		}
+		require.Equal(t, wantLoggedRegular, info.SubscriptionAmountUsedAfterPreConsume, "extra reservations do not increase ordinary quota usage in billing logs")
+		require.NoError(t, session.Settle(8))
+		require.NoError(t, session.Settle(8))
+		var saved model.UserSubscription
+		require.NoError(t, model.DB.First(&saved, sub.Id).Error)
+		wantRegular := int64(5)
+		if expired {
+			wantRegular = 0
+		}
+		require.Equal(t, wantRegular, saved.AmountUsed)
+		raw, err := common.Marshal(saved)
+		require.NoError(t, err)
+		var fields map[string]any
+		require.NoError(t, common.Unmarshal(raw, &fields))
+		require.Equal(t, float64(8-wantRegular), fields["extra_credits_used"])
+		var savedUser model.User
+		require.NoError(t, model.DB.First(&savedUser, user.Id).Error)
+		require.Equal(t, 100, savedUser.Quota)
+		// A task's refund must return its own extra-credit reservation without
+		// undoing the previously settled request or returning wallet balance.
+		requestID := name + "-task"
+		info.RequestId = requestID
+		taskSession, taskErr := NewBillingSession(ctx, info, 6)
+		require.Nil(t, taskErr)
+		require.NoError(t, taskSession.ReserveBeforeSubmit(9))
+		funding := taskSession.funding.(*SubscriptionFunding)
+		task := &model.Task{UserId: user.Id, PrivateData: model.TaskPrivateData{
+			BillingSource: BillingSourceSubscription, SubscriptionId: funding.subscriptionId,
+			SubscriptionRequestID: requestID,
+			Execution:             &model.TaskExecutionSnapshot{RequestID: requestID},
+		}}
+		require.NoError(t, taskAdjustFunding(task, 1))
+		require.NoError(t, taskAdjustFunding(task, -10))
+		require.NoError(t, model.DB.First(&saved, sub.Id).Error)
+		require.Equal(t, wantRegular, saved.AmountUsed)
+		require.EqualValues(t, 8-wantRegular, saved.ExtraCreditsUsed)
+		info.RequestId = name + "-failed"
+		failedSession, failedErr := NewBillingSession(ctx, info, 4)
+		require.Nil(t, failedErr)
+		require.NoError(t, failedSession.ReserveBeforeSubmit(7))
+		require.NoError(t, failedSession.funding.Refund())
+		require.NoError(t, failedSession.funding.Refund())
+		require.NoError(t, model.DB.First(&saved, sub.Id).Error)
+		require.Equal(t, wantRegular, saved.AmountUsed)
+		require.EqualValues(t, 8-wantRegular, saved.ExtraCreditsUsed)
+	}
+}
+
+func TestSubscriptionExtraCreditsLegacyAdjustments(t *testing.T) {
+	truncate(t)
+	user := &model.User{Username: "extra-adjustment-user", AffCode: "extra-adjustment-user", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(user).Error)
+	plan := &model.SubscriptionPlan{Title: "Extra adjustments", SubscriptionGroup: "vip", TotalAmount: 10}
+	require.NoError(t, model.DB.Create(plan).Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", StartTime: common.GetTimestamp() - 1, EndTime: common.GetTimestamp() + 3600, AmountTotal: 10}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	other := sub
+	other.Id = 0
+	other.AmountTotal = 100
+	require.NoError(t, model.DB.Create(&other).Error)
+	_, err := model.PreConsumeUserSubscriptionForGroup("extra-legacy-adjustment", user.Id, "model", 0, 4, "vip")
+	require.NoError(t, err)
+	require.NoError(t, model.AdjustSubscriptionRequestQuota("extra-legacy-adjustment", 4))
+	require.Error(t, model.AdjustSubscriptionRequestQuota("extra-legacy-adjustment", 3), "ordinary requests stay on their original subscription")
+	require.NoError(t, model.DB.Model(&sub).Updates(map[string]any{"extra_credits_total": 20, "extra_credits_groups": `["vip"]`, "extra_credits_scoped_groups": `["vip"]`}).Error)
+	require.NoError(t, model.AdjustSubscriptionRequestQuota("extra-legacy-adjustment", 3), "a newly purchased balance can fund the existing request")
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	require.EqualValues(t, 10, sub.AmountUsed)
+	require.NoError(t, model.DB.First(&other, other.Id).Error)
+	require.EqualValues(t, 1, other.AmountUsed)
+	record := model.SubscriptionPreConsumeRecord{RequestId: "old-task-added-reserve", UserId: user.Id, UserSubscriptionId: other.Id, PreConsumed: 2, Status: "consumed"}
+	require.NoError(t, model.DB.Create(&record).Error)
+	require.NoError(t, model.PostConsumeUserSubscriptionDelta(other.Id, 7))
+	require.NoError(t, adjustSubscriptionFunding(other.Id, record.RequestId, -7))
+	require.NoError(t, model.DB.First(&other, other.Id).Error)
+	require.EqualValues(t, 1, other.AmountUsed)
+}
+
+func TestSubscriptionExtraCreditsReservationBoundaries(t *testing.T) {
+	truncate(t)
+	user := model.User{Username: "extra-boundaries", AffCode: "extra-boundaries", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Boundaries", SubscriptionGroup: "vip", TotalAmount: 100}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", StartTime: common.GetTimestamp() - 100, EndTime: common.GetTimestamp() + 3600, AmountTotal: 100, LastResetTime: 10, ExtraCreditsTotal: 20, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	_, err := model.PreConsumeUserSubscriptionForGroup("boundary-resumed", user.Id, "model", 0, 10, "vip")
+	require.NoError(t, err)
+	require.NoError(t, model.AdjustSubscriptionRequestQuota("boundary-resumed", 5))
+	_, err = model.PreConsumeUserSubscriptionForGroup("boundary-resumed", user.Id, "model", 0, 10, "vip")
+	require.Error(t, err, "a reconstructed session must not reserve its additional quota twice")
+	require.NoError(t, model.RefundSubscriptionPreConsume("boundary-resumed"))
+	// Ordinary requests also retain their original window before buying extras.
+	require.NoError(t, model.DB.Model(&sub).Updates(map[string]any{"extra_credits_total": 0, "extra_credits_used": 0}).Error)
+	_, err = model.PreConsumeUserSubscriptionForGroup("boundary-old-window", user.Id, "model", 0, 10, "vip")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&sub).Updates(map[string]any{"last_reset_time": 20, "amount_used": 7, "extra_credits_total": 20}).Error)
+	require.NoError(t, model.RefundSubscriptionPreConsume("boundary-old-window"))
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	require.EqualValues(t, 7, sub.AmountUsed, "old-period refund must not remove new-period usage")
+	_, err = model.PreConsumeUserSubscriptionForGroup("boundary-complete-after-expiry", user.Id, "model", 0, 10, "vip")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&sub).Updates(map[string]any{"status": "expired", "end_time": common.GetTimestamp() - 1, "extra_credits_total": 0}).Error)
+	require.NoError(t, model.AdjustSubscriptionRequestQuota("boundary-complete-after-expiry", 5), "an existing request may settle against its original period after expiry")
+}
+
+func TestSubscriptionExtraCreditsTaskReceipts(t *testing.T) {
+	truncate(t)
+	user := model.User{Username: "extra-task-receipt", AffCode: "extra-task-receipt", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(&user).Error)
+	plan := model.SubscriptionPlan{Title: "Extra task receipt", SubscriptionGroup: "vip", TotalAmount: 1}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", StartTime: common.GetTimestamp() - 100, EndTime: common.GetTimestamp() - 1, AmountTotal: 1, ExtraCreditsTotal: 10, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	id := "task-receipt-finalization"
+	_, err := model.PreConsumeUserSubscriptionForGroup(id, user.Id, "model", 0, 10, "vip")
+	require.NoError(t, err)
+	task := model.Task{UserId: user.Id, TaskID: id, Status: model.TaskStatusSuccess, Quota: 10, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionRequestID: id}}
+	require.NoError(t, model.DB.Create(&task).Error)
+	require.NoError(t, model.DB.Model(&sub).UpdateColumn("extra_credits_total", 20).Error)
+	require.NoError(t, model.DB.Exec(`CREATE TRIGGER reject_extra_task_quota BEFORE UPDATE OF quota ON tasks BEGIN SELECT RAISE(ABORT, 'injected task quota write failure'); END`).Error)
+	RecalculateTaskQuota(context.Background(), &task, 15, common.NewMessage("test rollback"))
+	var rolledBack model.UserSubscription
+	require.NoError(t, model.DB.First(&rolledBack, sub.Id).Error)
+	require.EqualValues(t, 10, rolledBack.ExtraCreditsUsed, "failed task quota write rolls back the extra debit")
+	require.NoError(t, model.DB.Exec("DROP TRIGGER reject_extra_task_quota").Error)
+	require.NoError(t, model.DB.Model(&sub).UpdateColumn("extra_credits_total", 10).Error)
+	RecalculateTaskQuota(context.Background(), &task, 11, common.NewMessage("test settlement"))
+	var record model.SubscriptionPreConsumeRecord
+	require.NoError(t, model.DB.Where("request_id = ?", id).First(&record).Error)
+	require.True(t, record.Durable, "failed final charge keeps receipt")
+	_, err = model.AdminDeleteUserSubscription(sub.Id)
+	require.Error(t, err, "in-flight extras protected")
+	require.NoError(t, model.DB.Model(&sub).UpdateColumn("extra_credits_total", 15).Error)
+	RecalculateTaskQuota(context.Background(), &task, 10, common.NewMessage("test settlement"))
+	require.Equal(t, 15, task.Quota, "retry settles the first persisted amount even when caller supplies a different one")
+	require.NoError(t, model.DB.Where("request_id = ?", id).First(&record).Error)
+	require.False(t, record.Durable, "successful settlement completes receipt")
+	require.Error(t, model.RefundSubscriptionPreConsume(id), "a completed request cannot be refunded by an older session")
+	require.Error(t, model.AdjustSubscriptionRequestQuota(id, -1), "completed allocations are immutable")
+	_, err = model.AdminDeleteUserSubscription(sub.Id)
+	require.NoError(t, err, "fully consumed final credits do not block management forever")
+	task.PrivateData.SubscriptionRequestID = "missing-new-task-receipt"
+	require.Error(t, taskAdjustFunding(&task, -1), "new tasks never fall back to ordinary quota if allocation is missing")
+}
 
 func TestSubscriptionOnlyBillingDatabaseMatrix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -302,6 +510,114 @@ func TestNewBillingSessionUsesEffectiveRequestGroupForSubscriptionWhitelist(t *t
 	var reloadedSubscription model.UserSubscription
 	require.NoError(t, model.DB.Select("amount_used").First(&reloadedSubscription, subscription.Id).Error)
 	assert.EqualValues(t, 10, reloadedSubscription.AmountUsed)
+}
+
+func TestSubscriptionPurchaseLogMaintenance(t *testing.T) {
+	truncate(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.SubscriptionExtraCreditPurchase{}))
+	var receipts []model.SubscriptionExtraCreditPurchase
+	for i := range 2 {
+		id := fmt.Sprintf("maintenance-purchase-%d", i)
+		user := model.User{Username: id, AffCode: id, Group: "default", Quota: 10}
+		require.NoError(t, model.DB.Create(&user).Error)
+		plan := model.SubscriptionPlan{Title: id, SubscriptionGroup: "vip", AllowExtraCredits: true, ExtraCreditsRate: 1}
+		require.NoError(t, model.DB.Create(&plan).Error)
+		sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", EndTime: common.GetTimestamp() + 3600}
+		require.NoError(t, model.DB.Create(&sub).Error)
+		if i == 0 {
+			require.NoError(t, model.DB.Exec("CREATE TRIGGER offline_purchases BEFORE INSERT ON logs BEGIN SELECT RAISE(ABORT,'offline'); END").Error)
+			t.Cleanup(func() { model.DB.Exec("DROP TRIGGER IF EXISTS offline_purchases") })
+		}
+		r, err := model.PurchaseSubscriptionExtraCredits(user.Id, sub.Id, 1, id, 1)
+		require.NoError(t, err)
+		receipts = append(receipts, *r)
+	}
+	t.Cleanup(func() {
+		model.DB.Where("request_id IN ?", []string{"maintenance-purchase-0", "maintenance-purchase-1"}).Delete(&model.SubscriptionExtraCreditPurchase{})
+	})
+	require.NoError(t, model.DB.Exec("DROP TRIGGER offline_purchases").Error)
+	require.NoError(t, model.DB.Exec(fmt.Sprintf("CREATE TRIGGER offline_purchases BEFORE INSERT ON logs WHEN NEW.user_id=%d BEGIN SELECT RAISE(ABORT,'offline'); END", receipts[0].UserId)).Error)
+	runSubscriptionQuotaResetOnce()
+	var pending []int
+	require.NoError(t, model.DB.Model(&model.SubscriptionExtraCreditPurchase{}).Where("log_pending = ?", true).Order("id").Pluck("id", &pending).Error)
+	require.Equal(t, []int{receipts[0].Id}, pending)
+	require.NoError(t, model.DB.Exec("DROP TRIGGER offline_purchases").Error)
+	runSubscriptionQuotaResetOnce()
+	runSubscriptionQuotaResetOnce()
+	for _, r := range receipts {
+		var count int64
+		require.NoError(t, model.DB.Model(&model.Log{}).Where("subscription_event_id = ? AND user_id = ?", fmt.Sprintf("extra-purchase:%d", r.Id), r.UserId).Count(&count).Error)
+		require.EqualValues(t, 1, count)
+	}
+}
+
+// A task route reserves absolutely (ForcePreConsume), but a task row that never
+// persisted can no longer settle later: the session must close the receipt now.
+func TestSubscriptionTaskWithoutPersistedRowSettlesAbsolutely(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		actual int
+	}{
+		{name: "final_amount_differs", actual: 15},
+		{name: "final_amount_matches_reservation", actual: 10},
+		{name: "commit_rollback", actual: 15},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncate(t)
+			user := model.User{Username: tc.name, AffCode: tc.name, Group: "default", Quota: 100, Status: common.UserStatusEnabled}
+			require.NoError(t, model.DB.Create(&user).Error)
+			plan := model.SubscriptionPlan{Title: tc.name, SubscriptionGroup: "vip", TotalAmount: 100}
+			require.NoError(t, model.DB.Create(&plan).Error)
+			model.InvalidateSubscriptionPlanCache(plan.Id)
+			now := common.GetTimestamp()
+			sub := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", StartTime: now - 60, EndTime: now + 3600, AmountTotal: 100}
+			require.NoError(t, model.DB.Create(&sub).Error)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/videos", nil)
+			info := &relaycommon.RelayInfo{RequestId: tc.name, UserId: user.Id, UserGroup: user.Group, UsingGroup: "vip", OriginModelName: "test-model", IsPlayground: true, ForcePreConsume: true, UserSetting: dto.UserSetting{BillingPreference: "subscription_only"}}
+			session, apiErr := NewBillingSession(ctx, info, 10)
+			require.Nil(t, apiErr)
+			// The response was written before the task insert failed, so the bound
+			// task never received a row and never owns the settlement.
+			task := &model.Task{UserId: user.Id, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionRequestID: info.RequestId}}
+			session.BindTask(task)
+			if tc.name == "commit_rollback" {
+				require.NoError(t, model.DB.Exec("PRAGMA foreign_keys=ON").Error)
+				t.Cleanup(func() { model.DB.Exec("PRAGMA foreign_keys=OFF") })
+				require.NoError(t, model.DB.Exec("CREATE TABLE commit_probe (owner INTEGER REFERENCES users(id) DEFERRABLE INITIALLY DEFERRED)").Error)
+				t.Cleanup(func() { model.DB.Exec("DROP TABLE commit_probe") })
+				err := model.DB.Transaction(func(tx *gorm.DB) error {
+					if err := tx.Create(task).Error; err != nil {
+						return err
+					}
+					return tx.Exec("INSERT INTO commit_probe VALUES (-1)").Error
+				})
+				require.ErrorContains(t, err, "FOREIGN KEY constraint failed")
+				require.Positive(t, task.ID)
+				// SQLite keeps a failed deferred COMMIT open until explicitly rolled back.
+				require.NoError(t, model.DB.Exec("ROLLBACK").Error)
+				require.ErrorIs(t, model.DB.First(&model.Task{}, task.ID).Error, gorm.ErrRecordNotFound)
+				require.NoError(t, model.DB.Migrator().RenameTable("tasks", "tasks_unavailable"))
+				err = session.Settle(tc.actual)
+				require.NoError(t, model.DB.Migrator().RenameTable("tasks_unavailable", "tasks"))
+				require.ErrorContains(t, err, "no such table")
+				require.False(t, session.fundingSettled)
+			}
+			require.NoError(t, session.Settle(tc.actual))
+			var record model.SubscriptionPreConsumeRecord
+			require.NoError(t, model.DB.Where("request_id = ?", info.RequestId).First(&record).Error)
+			require.Equal(t, "settled", record.Status, "an orphan task must not leave the receipt open for a poller")
+			require.False(t, record.Durable)
+			require.EqualValues(t, tc.actual, record.ReservedTotal)
+			var saved model.UserSubscription
+			require.NoError(t, model.DB.First(&saved, sub.Id).Error)
+			require.EqualValues(t, tc.actual, saved.AmountUsed)
+			require.Zero(t, saved.FundingReserved, "absolute settlement releases the whole reservation")
+			// Retrying the same settlement stays idempotent.
+			require.NoError(t, session.Settle(tc.actual))
+			require.NoError(t, model.SettleSubscriptionRequestQuota(info.RequestId, int64(tc.actual)))
+		})
+	}
 }
 
 func TestSubscriptionGroupActivationPreservesCurrentLegacyCycle(t *testing.T) {

@@ -706,11 +706,11 @@ func BatchUpdateUserStatus(ids []int, status int) error {
 	return nil
 }
 
-func inviteUser(inviterId int) error {
+func inviteUser(inviterId, quota int) error {
 	result := DB.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
 		"aff_count":   gorm.Expr("aff_count + ?", 1),
-		"aff_quota":   gorm.Expr("aff_quota + ?", common.QuotaForInviter),
-		"aff_history": gorm.Expr("aff_history + ?", common.QuotaForInviter),
+		"aff_quota":   gorm.Expr("aff_quota + ?", quota),
+		"aff_history": gorm.Expr("aff_history + ?", quota),
 	})
 	if result.Error != nil {
 		return result.Error
@@ -1019,13 +1019,19 @@ func (user *User) grantRegistrationRewards(inviterId int) {
 		RecordLog(user.Id, LogTypeSystem, common.NewMessage("New user sign-up bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForNewUser)}))
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, common.NewMessage("Invitation code bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInvitee)}))
+		if quota := common.QuotaForInvitee; quota > 0 {
+			if err := IncreaseUserQuota(user.Id, quota, true); err != nil {
+				common.SysError(common.LogText("failed to credit invitee reward for user %d: %s", user.Id, err))
+			} else {
+				RecordLog(user.Id, LogTypeSystem, common.NewMessage("Invitation code bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(quota)}))
+			}
 		}
-		if common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, common.NewMessage("Bonus for inviting a user {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInviter)}))
-			_ = inviteUser(inviterId)
+		if quota := common.QuotaForInviter; quota > 0 {
+			if err := inviteUser(inviterId, quota); err != nil {
+				common.SysError(common.LogText("failed to credit inviter reward for user %d: %s", inviterId, err))
+			} else {
+				RecordLog(inviterId, LogTypeSystem, common.NewMessage("Bonus for inviting a user {{quota}}", map[string]any{"quota": logger.FormatQuota(quota)}))
+			}
 		}
 	}
 }
@@ -1609,61 +1615,40 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 	if err := common.ValidateWalletQuota(quota); err != nil {
 		return err
 	}
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
-		gopool.Go(func() {
-			if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
-				common.SysLog(common.LogText("failed to increase user quota: %s", err.Error()))
-			}
-		})
-		return nil
-	}
-	if err := increaseUserQuota(id, quota); err != nil {
-		return err
-	}
-	gopool.Go(func() {
-		if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
-			common.SysLog(common.LogText("failed to increase user quota: %s", err.Error()))
-		}
-	})
-	return nil
-}
-
-func increaseUserQuota(id int, quota int) (err error) {
-	result := DB.Model(&User{}).
-		Where("id = ? AND quota <= ?", id, common.MaxWalletQuota-quota).
-		Update("quota", gorm.Expr("quota + ?", quota))
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 1 {
-		return nil
-	}
-	var count int64
-	if err := DB.Model(&User{}).Where("id = ?", id).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return ErrWalletQuotaLimitExceeded
+	return changeUserWalletQuota(id, quota)
 }
 
 func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota cannot be negative")
 	}
-	gopool.Go(func() {
-		err := cacheDecrUserQuota(id, int64(quota))
-		if err != nil {
-			common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
-		}
-	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
+	if quota == 0 {
 		return nil
 	}
-	return decreaseUserQuota(id, quota)
+	return changeUserWalletQuota(id, -quota)
+}
+
+func changeUserWalletQuota(id, delta int) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("quota").Where("id = ?", id).Take(&user).Error; err != nil {
+			if delta < 0 && errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil // Settlement on a removed account remains a no-op.
+			}
+			return err
+		}
+		if delta >= 0 && user.Quota > common.MaxWalletQuota-delta {
+			return ErrWalletQuotaLimitExceeded
+		}
+		if delta == 0 {
+			return nil
+		}
+		if err := tx.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", delta)).Error; err != nil {
+			return err
+		}
+		// Cache hydration and purchases lock this same row. A rollback can leave a miss, never an uncommitted balance.
+		return invalidateUserCache(id)
+	})
 }
 
 // TryReserveUserCheckinQuota atomically reserves deductible check-in credit.
@@ -1692,14 +1677,6 @@ func IncreaseUserCheckinQuota(id int, quota int) error {
 func GetUserCheckinQuota(id int) (quota int, err error) {
 	err = DB.Model(&User{}).Where("id = ?", id).Select("checkin_quota").Scan(&quota).Error
 	return quota, err
-}
-
-func decreaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
-	if err != nil {
-		return err
-	}
-	return err
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {

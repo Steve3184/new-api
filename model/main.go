@@ -371,6 +371,7 @@ func migrateDB() error {
 		&SubscriptionMigration{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
+		&SubscriptionExtraCreditPurchase{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
@@ -457,6 +458,7 @@ func migrateDBFast() error {
 		{&SubscriptionMigration{}, "SubscriptionMigration"},
 		{&UserSubscription{}, "UserSubscription"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
+		{&SubscriptionExtraCreditPurchase{}, "SubscriptionExtraCreditPurchase"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
@@ -539,6 +541,9 @@ func migrateClickHouseLogDB() error {
 	if err := LOG_DB.Exec("ALTER TABLE logs ADD COLUMN IF NOT EXISTS user_agent String DEFAULT ''").Error; err != nil {
 		return err
 	}
+	if err := LOG_DB.Exec("ALTER TABLE logs ADD COLUMN IF NOT EXISTS subscription_event_id String DEFAULT ''").Error; err != nil {
+		return err
+	}
 	return syncClickHouseLogTTL(ttlDays)
 }
 
@@ -588,6 +593,7 @@ CREATE TABLE IF NOT EXISTS logs (
 	request_id String DEFAULT '',
 	upstream_request_id String DEFAULT '',
 	user_agent String DEFAULT '',
+	subscription_event_id String DEFAULT '',
 	other String DEFAULT ''
 )
 ENGINE = MergeTree()
@@ -648,6 +654,8 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`sort_order`" + ` integer DEFAULT 0,
 ` + "`allow_balance_pay`" + ` numeric DEFAULT 1,
 ` + "`allow_wallet_overflow`" + ` numeric DEFAULT 1,
+` + "`allow_extra_credits`" + ` numeric NOT NULL DEFAULT 0,
+` + "`extra_credits_rate`" + ` decimal(18,6) NOT NULL DEFAULT 0,
 ` + "`stripe_price_id`" + ` varchar(128) DEFAULT '',
 ` + "`creem_product_id`" + ` varchar(128) DEFAULT '',
 ` + "`waffo_pancake_product_id`" + ` varchar(128) DEFAULT '',
@@ -699,6 +707,8 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "sort_order", DDL: "`sort_order` integer DEFAULT 0"},
 		{Name: "allow_balance_pay", DDL: "`allow_balance_pay` numeric DEFAULT 1"},
 		{Name: "allow_wallet_overflow", DDL: "`allow_wallet_overflow` numeric DEFAULT 1"},
+		{Name: "allow_extra_credits", DDL: "`allow_extra_credits` numeric NOT NULL DEFAULT 0"},
+		{Name: "extra_credits_rate", DDL: "`extra_credits_rate` decimal(18,6) NOT NULL DEFAULT 0"},
 		{Name: "stripe_price_id", DDL: "`stripe_price_id` varchar(128) DEFAULT ''"},
 		{Name: "creem_product_id", DDL: "`creem_product_id` varchar(128) DEFAULT ''"},
 		{Name: "waffo_pancake_product_id", DDL: "`waffo_pancake_product_id` varchar(128) DEFAULT ''"},

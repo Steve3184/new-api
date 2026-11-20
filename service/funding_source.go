@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"gorm.io/gorm"
 )
 
 // ---------------------------------------------------------------------------
@@ -242,6 +243,10 @@ type SubscriptionFunding struct {
 	amount         int64 // 预扣的订阅额度（subConsume）
 	subscriptionId int
 	preConsumed    int64
+	// receipt is the pre-consume row this request owns. Every later adjustment
+	// re-checks it under the row lock, so a receipt dropped by retention cleanup
+	// and reused by another request can never be charged or released here.
+	receipt model.SubscriptionPreConsumeRecord
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
@@ -257,10 +262,22 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	if err != nil {
 		return err
 	}
+	if res.Reused {
+		return errors.New("subscription request already reserved")
+	}
 	s.subscriptionId = res.UserSubscriptionId
 	s.preConsumed = res.PreConsumed
 	s.AmountTotal = res.AmountTotal
 	s.AmountUsedAfter = res.AmountUsedAfter
+	// Identity-only snapshot: additional reservations and partial settlements
+	// move this same receipt, so its reserved total must not be pinned here.
+	s.receipt = model.SubscriptionPreConsumeRecord{
+		Id:                 res.ReceiptId,
+		RequestId:          s.requestId,
+		UserId:             s.userId,
+		UserSubscriptionId: res.UserSubscriptionId,
+		ReservedTotal:      -1,
+	}
 	// 获取订阅计划信息
 	if planInfo, err := model.GetSubscriptionPlanInfoByUserSubscriptionId(res.UserSubscriptionId); err == nil && planInfo != nil {
 		s.PlanId = planInfo.PlanId
@@ -269,11 +286,48 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	return nil
 }
 
+// adjustmentGuard is the locked receipt identity captured by PreConsume. It is
+// empty only for a receipt the model did not identify, which no reservation
+// path produces.
+func (s *SubscriptionFunding) adjustmentGuard() []model.SubscriptionPreConsumeRecord {
+	if s.receipt.Id <= 0 {
+		return nil
+	}
+	return []model.SubscriptionPreConsumeRecord{s.receipt}
+}
+
 func (s *SubscriptionFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	_, err := model.AdjustSubscriptionRequestQuotaWithResult(s.requestId, int64(delta), s.adjustmentGuard()...)
+	return err
+}
+
+// Historical tasks have no request allocation. New tasks must refund or settle
+// their own allocation so another request's purchased credits are untouched.
+func adjustSubscriptionFunding(subscriptionID int, requestID string, delta int64, requireRecord ...bool) error {
+	if requestID != "" {
+		var record model.SubscriptionPreConsumeRecord
+		err := model.DB.Where("request_id = ?", requestID).First(&record).Error
+		if err == nil {
+			if record.RequestId != requestID || record.UserSubscriptionId != subscriptionID {
+				return errors.New("subscription funding request does not match subscription")
+			}
+			if record.Allocations != "" || record.RequestGroup != "" {
+				_, err := model.AdjustSubscriptionRequestQuotaWithResult(requestID, delta, record)
+				return err
+			}
+			return model.PostConsumeUserSubscriptionDelta(subscriptionID, delta)
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	}
+	if len(requireRecord) > 0 && requireRecord[0] {
+		return errors.New("subscription funding receipt missing")
+	}
+	return model.PostConsumeUserSubscriptionDelta(subscriptionID, delta)
 }
 
 func (s *SubscriptionFunding) Refund() error {
@@ -281,7 +335,12 @@ func (s *SubscriptionFunding) Refund() error {
 		return nil
 	}
 	return refundWithRetry(func() error {
-		return model.RefundSubscriptionPreConsume(s.requestId)
+		guard := s.adjustmentGuard()
+		if len(guard) == 0 {
+			return model.RefundSubscriptionPreConsume(s.requestId)
+		}
+		// Settling the owned receipt to zero is the identity-checked refund.
+		return model.SettleSubscriptionRequestQuota(s.requestId, 0, guard...)
 	})
 }
 

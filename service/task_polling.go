@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -150,16 +152,38 @@ func reportFinalTask(task *model.Task) {
 	}
 }
 
-// reportFailedTasks reports tasks failed in one bulk update with reason.
+func pinLocalSubscriptionRefund(task *model.Task) {
+	if task.PrivateData.SubscriptionRequestID != "" {
+		task.PrivateData.SubscriptionLocalRefund = true
+		task.PrivateData.SubscriptionFinalBilling = &model.SubscriptionTaskFinalBilling{Quota: 0,
+			Log: &model.RecordTaskBillingLogParams{ModelName: taskModelName(task), Other: taskBillingOther(task)},
+		}
+	}
+}
+
+// reportFailedTasks fails only tasks for which this caller wins the status transition.
 func reportFailedTasks(tasks []*model.Task, reason string) {
 	now := time.Now().Unix()
 	for _, task := range tasks {
-		if task == nil || task.PrivateData.RequestPlugins == nil {
+		if task == nil {
+			continue
+		}
+		oldStatus := task.Status
+		if oldStatus == model.TaskStatusSuccess || oldStatus == model.TaskStatusFailure {
 			continue
 		}
 		task.Status, task.Progress, task.FailReason = model.TaskStatusFailure, "100%", reason
+		pinLocalSubscriptionRefund(task)
 		if task.FinishTime == 0 {
 			task.FinishTime = now
+		}
+		won, err := task.UpdateWithStatus(oldStatus)
+		if err != nil || !won {
+			continue
+		}
+		if task.PrivateData.SubscriptionRequestID != "" {
+			finalizeTerminalTask(context.Background(), nil, task, &relaycommon.TaskInfo{Status: model.TaskStatusFailure, Reason: reason})
+			continue
 		}
 		reportFinalTask(task)
 	}
@@ -184,7 +208,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 	timedOutCount := 0
 
 	for _, task := range tasks {
-		isLegacy := task.SubmitTime > 0 && task.SubmitTime < model.TaskRefundLegacyCutoff
+		isLegacy := task.PrivateData.SubscriptionRequestID == "" && task.SubmitTime > 0 && task.SubmitTime < model.TaskRefundLegacyCutoff
 
 		oldStatus := task.Status
 		task.Status = model.TaskStatusFailure
@@ -197,9 +221,16 @@ func sweepTimedOutTasks(ctx context.Context) {
 			task.Quota = 0
 		} else {
 			task.FailReason = reason
+			pinLocalSubscriptionRefund(task)
 		}
 
-		won, err := task.UpdateWithStatus(oldStatus)
+		var won bool
+		var err error
+		if isLegacy {
+			won, err = task.UpdateWithStatusRetiringQuota(oldStatus)
+		} else {
+			won, err = task.UpdateWithStatus(oldStatus)
+		}
 		if err != nil {
 			logger.LogError(ctx, common.LogText("sweepTimedOutTasks CAS update error for task %s: %v", task.TaskID, err))
 			continue
@@ -209,7 +240,11 @@ func sweepTimedOutTasks(ctx context.Context) {
 			continue
 		}
 		timedOutCount++
-		if !isLegacy && task.Quota != 0 {
+		if task.PrivateData.SubscriptionRequestID != "" {
+			finalizeTerminalTask(ctx, nil, task, &relaycommon.TaskInfo{Status: model.TaskStatusFailure, Reason: reason})
+			continue
+		}
+		if !isLegacy && (task.Quota != 0 || task.PrivateData.SubscriptionRequestID != "") {
 			RefundTaskQuota(ctx, task, reason)
 		}
 		reportFinalTask(task)
@@ -228,6 +263,53 @@ type TaskPollSummary struct {
 	NullTasksFailed  int `json:"null_tasks_failed"`
 }
 
+// subscriptionBillingRetryCursor continues the receipt retry window after the
+// rows one polling pass already attempted.
+var subscriptionBillingRetryCursor atomic.Int64
+
+// A finite snapshot boundary lets the next sweep revisit failed older rows
+// even while new terminal tasks keep arriving.
+var subscriptionBillingRetryUpper atomic.Int64
+
+// subscriptionBillingRetryWindow is how many pending receipts one pass serves.
+const subscriptionBillingRetryWindow = 100
+
+const pendingTerminalCondition = "(subscription_billing_pending = ? OR subscription_report_pending = ?) AND status IN ?"
+
+// outstandingTerminalReceipts returns the retry window of terminal tasks whose
+// subscription receipt is still pending, and the cursor the next pass resumes
+// from. Half of the window is always the oldest pending rows, so a receipt
+// whose settlement keeps failing is retried on every pass instead of staying
+// buried under newer ones. The other half pages through the rest of the queue
+// after cursor and never repeats a head row. When that page comes back short,
+// the end of the queue was reached and next returns to 0, so newer rows
+// arriving on every pass cannot keep the cursor from revisiting older ones.
+func outstandingTerminalReceipts(cursor int64, limit int, upper ...int64) (pending []model.Task, next int64, err error) {
+	statuses := []string{model.TaskStatusSuccess, model.TaskStatusFailure}
+	headLimit := max(limit/2, 1)
+	tailLimit := limit - headLimit
+
+	if err = model.DB.Where(pendingTerminalCondition, true, true, statuses).Order("id").Limit(headLimit).Find(&pending).Error; err != nil {
+		return nil, cursor, err
+	}
+	if len(pending) < headLimit || tailLimit <= 0 {
+		return pending, 0, nil
+	}
+	after := max(cursor, pending[len(pending)-1].ID)
+	var tail []model.Task
+	tailQuery := model.DB.Where(pendingTerminalCondition, true, true, statuses).Where("id > ?", after)
+	if len(upper) > 0 {
+		tailQuery = tailQuery.Where("id <= ?", upper[0])
+	}
+	if err = tailQuery.Order("id").Limit(tailLimit).Find(&tail).Error; err != nil {
+		return nil, cursor, err
+	}
+	if len(tail) == tailLimit {
+		next = tail[len(tail)-1].ID
+	}
+	return append(pending, tail...), next, nil
+}
+
 // RunTaskPollingOnce performs one async-task (Suno/video) polling pass
 // synchronously. It honors ctx cancellation (the system-task runner cancels it
 // when the lease is lost) and, when report is non-nil, reports progress as
@@ -235,15 +317,60 @@ type TaskPollSummary struct {
 // adaptor factory has not been wired yet, to avoid a nil call during startup.
 func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) TaskPollSummary {
 	summary := TaskPollSummary{}
-	if GetTaskAdaptorFunc == nil {
-		return summary
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	common.SysLog(common.LogText("task progress polling started"))
+	// Settlement and the subsequent report claim commit independently.
+	cursor := subscriptionBillingRetryCursor.Load()
+	if cursor == 0 {
+		var last model.Task
+		if err := model.DB.Select("id").Where(pendingTerminalCondition, true, true, []string{model.TaskStatusSuccess, model.TaskStatusFailure}).Order("id desc").Limit(1).Find(&last).Error; err != nil {
+			return summary
+		}
+		subscriptionBillingRetryUpper.Store(last.ID)
+	}
+	upper := subscriptionBillingRetryUpper.Load()
+	pendingBilling, nextCursor, err := outstandingTerminalReceipts(cursor, subscriptionBillingRetryWindow, upper)
+	if nextCursor >= upper {
+		nextCursor = 0
+	}
+	if err != nil {
+		logger.LogWarn(ctx, common.LogText("failed to finalize subscription request receipt: %s", err))
+	} else {
+		subscriptionBillingRetryCursor.Store(nextCursor)
+		for i := range pendingBilling {
+			task := &pendingBilling[i]
+			if ctx.Err() != nil {
+				break
+			}
+			if task.PrivateData.SubscriptionRequestID == "" {
+				continue
+			}
+			result := relaycommon.TaskInfo{Status: string(task.Status)}
+			if len(task.PrivateData.SubscriptionFinalResult) > 0 {
+				if err := common.Unmarshal(task.PrivateData.SubscriptionFinalResult, &result); err != nil {
+					continue
+				}
+			}
+			// A per-call, free, tiered or already-aligned final amount is settled
+			// from the receipt alone, so an unavailable platform adaptor cannot
+			// keep the funding reservation open.
+			var adaptor TaskPollingAdaptor
+			if GetTaskAdaptorFunc != nil {
+				adaptor = GetTaskAdaptorFunc(task.Platform)
+			}
+			finalizeTerminalTask(ctx, adaptor, task, &result)
+		}
+	}
+	if err := model.FlushSubscriptionTaskBillingLogs(); err != nil {
+		logger.LogWarn(ctx, common.LogText("failed to record task billing log: %s", err))
+	}
 	sweepTimedOutTasks(ctx)
+	if GetTaskAdaptorFunc == nil {
+		return summary
+	}
 	allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
 	summary.UnfinishedTasks = len(allTasks)
 	platformTask := make(map[constant.TaskPlatform][]*model.Task)
@@ -266,7 +393,7 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 		}
 		summary.PlatformsScanned++
 		taskChannelM := make(map[int][]string)
-		taskM := make(map[string]*model.Task)
+		tasksByChannel := make(map[int]map[string]*model.Task)
 		nullTaskIds := make([]int64, 0)
 		var nullTasks []*model.Task
 		for _, task := range tasks {
@@ -277,27 +404,32 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 				nullTasks = append(nullTasks, task)
 				continue
 			}
-			taskM[upstreamID] = task
+			if tasksByChannel[task.ChannelId] == nil {
+				tasksByChannel[task.ChannelId] = make(map[string]*model.Task)
+			}
+			tasksByChannel[task.ChannelId][upstreamID] = task
 			taskChannelM[task.ChannelId] = append(taskChannelM[task.ChannelId], upstreamID)
 		}
 		if len(nullTaskIds) > 0 {
 			summary.NullTasksFailed += len(nullTaskIds)
-			err := model.TaskBulkUpdateByID(nullTaskIds, map[string]any{
-				"status":   "FAILURE",
-				"progress": "100%",
-			})
-			if err != nil {
-				logger.LogError(ctx, common.LogText("Fix null task_id task error: %v", err))
-			} else {
-				logger.LogInfo(ctx, common.LogText("Fix null task_id task success: %v", nullTaskIds))
-				reportFailedTasks(nullTasks, "")
-			}
+			reportFailedTasks(nullTasks, "")
 		}
 		if len(taskChannelM) == 0 {
 			continue
 		}
 
-		DispatchPlatformUpdate(ctx, platform, taskChannelM, taskM)
+		// Upstream identifiers are only unique within a channel. Keep each
+		// channel's task map private while polling channels concurrently.
+		var channels sync.WaitGroup
+		for channelID, ids := range taskChannelM {
+			channelTasks := tasksByChannel[channelID]
+			channels.Add(1)
+			gopool.Go(func() {
+				defer channels.Done()
+				DispatchPlatformUpdate(ctx, platform, map[int][]string{channelID: ids}, channelTasks)
+			})
+		}
+		channels.Wait()
 	}
 	if report != nil && ctx.Err() == nil {
 		report(totalPlatforms, totalPlatforms)
@@ -351,23 +483,7 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 	ch, err := model.CacheGetChannel(channelId)
 	if err != nil {
 		common.SysLog(common.LogText("CacheGetChannel: %v", err))
-		// Collect DB primary key IDs for bulk update (taskIds are upstream IDs, not task_id column values)
-		var failedIDs []int64
-		for _, upstreamID := range taskIds {
-			if t, ok := taskM[upstreamID]; ok {
-				failedIDs = append(failedIDs, t.ID)
-			}
-		}
-		err = model.TaskBulkUpdateByID(failedIDs, map[string]any{
-			"fail_reason": "Failed to get the channel information. Please contact the administrator",
-			"status":      "FAILURE",
-			"progress":    "100%",
-		})
-		if err != nil {
-			common.SysLog(common.LogText("UpdateSunoTask error: %v", err))
-		} else {
-			reportFailedTasks(bulkFailedTasks(taskIds, taskM), "Failed to get the channel information. Please contact the administrator")
-		}
+		reportFailedTasks(bulkFailedTasks(taskIds, taskM), "Failed to get the channel information. Please contact the administrator")
 		return err
 	}
 	proxy := ch.GetSetting().Proxy
@@ -521,6 +637,12 @@ func processBatchTaskResponse(ctx context.Context, adaptor BatchTaskPollingAdapt
 
 		isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
 		terminalTransition := isDone && snap.Status != task.Status
+		if terminalTransition && task.PrivateData.SubscriptionRequestID != "" {
+			if err := StoreTaskSettlementFacts(task, &responseItem.TaskInfo); err != nil {
+				common.SysLog(common.LogText("UpdateSunoTask task error: %s", err.Error()))
+				continue
+			}
+		}
 		won, updateErr := task.UpdateWithStatus(snap.Status)
 		if updateErr != nil {
 			common.SysLog(common.LogText("UpdateSunoTask task error: %s", updateErr.Error()))
@@ -578,23 +700,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	}
 	cacheGetChannel, err := model.CacheGetChannel(channelId)
 	if err != nil {
-		// Collect DB primary key IDs for bulk update (taskIds are upstream IDs, not task_id column values)
-		var failedIDs []int64
-		for _, upstreamID := range taskIds {
-			if t, ok := taskM[upstreamID]; ok {
-				failedIDs = append(failedIDs, t.ID)
-			}
-		}
-		errUpdate := model.TaskBulkUpdateByID(failedIDs, map[string]any{
-			"fail_reason": "Failed to get the channel information. Please contact the administrator",
-			"status":      "FAILURE",
-			"progress":    "100%",
-		})
-		if errUpdate != nil {
-			common.SysLog(common.LogText("UpdateVideoTask error: %v", errUpdate))
-		} else {
-			reportFailedTasks(bulkFailedTasks(taskIds, taskM), "Failed to get the channel information. Please contact the administrator")
-		}
+		reportFailedTasks(bulkFailedTasks(taskIds, taskM), "Failed to get the channel information. Please contact the administrator")
 		return fmt.Errorf("CacheGetChannel failed: %w", err)
 	}
 	adaptor := GetTaskAdaptorFunc(platform)
@@ -785,11 +891,16 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 		}
 		if durationProvider, ok := adaptor.(taskAudioDurationProvider); ok {
-			if duration, durationErr := durationProvider.ProbeAudioDuration(ctx, task); durationErr == nil && duration > 0 {
-				if taskResult.UsageFacts == nil {
-					taskResult.UsageFacts = make(map[string]any)
+			if duration, err := durationProvider.ProbeAudioDuration(ctx, task); err == nil && (duration > 0 || math.IsNaN(duration)) {
+				// A failed measurement cannot displace valid provider usage. If it
+				// is the only measurement, the expression must retain the reservation.
+				_, valid := settlementFact("seconds", taskResult.UsageFacts["seconds"])
+				if duration <= relaycommon.MaxTaskDurationSeconds || !valid {
+					if taskResult.UsageFacts == nil {
+						taskResult.UsageFacts = make(map[string]any)
+					}
+					taskResult.UsageFacts["seconds"] = duration
 				}
-				taskResult.UsageFacts["seconds"] = duration
 			}
 		}
 		shouldFinalizeBilling = true
@@ -811,6 +922,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
 	if isDone && snap.Status != task.Status {
+		if task.PrivateData.SubscriptionRequestID != "" {
+			if err := StoreTaskSettlementFacts(task, taskResult); err != nil {
+				return err
+			}
+		}
 		won, err := task.UpdateWithStatus(snap.Status)
 		if err != nil {
 			logger.LogError(ctx, common.LogText("UpdateWithStatus failed for task %s: %s", task.TaskID, err.Error()))
@@ -837,11 +953,28 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 // finalizeTerminalTask 终态统一收尾（状态 CAS 赢家调用，恰好一次）：采样 + 结算 + 失败兜底退款。
 func finalizeTerminalTask(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
-	perfmetrics.RecordTaskResult(task, taskResult)
-	billingSettled := settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
-	if task.Status == model.TaskStatusFailure && !billingSettled && task.Quota != 0 {
-		RefundTaskQuota(ctx, task, task.FailReason)
+	if !task.PrivateData.SubscriptionFinancialComplete {
+		billingSettled := settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+		if task.Status == model.TaskStatusFailure && !billingSettled && (task.Quota != 0 || task.PrivateData.SubscriptionRequestID != "") {
+			RefundTaskQuota(ctx, task, task.FailReason)
+		}
 	}
+	// 新订阅任务只在终结收据落账后上报一次：资金步骤失败时保留上报资格给重试，
+	// 采样与上报都不能先于扣款发生，也不能被并发的第二个终结路径重复。
+	if task.PrivateData.SubscriptionRequestID != "" {
+		if task.SubscriptionBillingPending {
+			return
+		}
+		claimed, err := model.ClaimSubscriptionTaskReport(task)
+		if err != nil {
+			logger.LogWarn(ctx, common.LogText("failed to claim the task report: %s", err))
+			return
+		}
+		if !claimed {
+			return
+		}
+	}
+	perfmetrics.RecordTaskResult(task, taskResult)
 	reportFinalTask(task)
 }
 
@@ -903,8 +1036,16 @@ func truncateBase64(s string) string {
 //
 // 表达式求值失败会保留预扣额度，因此也视为已接管，避免错误全退。
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) bool {
+	// 已固定的最终金额是上一次终结尝试做出的决定：重试只执行它，不按当前
+	// 快照重新推导金额；扣款失败也不回落到全额退款，避免同一任务两次不同结论。
+	if pinned := task.PrivateData.SubscriptionFinalBilling; pinned != nil {
+		if _, err := model.SettleSubscriptionTaskQuota(task, pinned.Quota); err != nil {
+			logger.LogWarn(ctx, common.LogText("failed to settle the pinned final quota of task %s: %s", task.TaskID, err))
+		}
+		return true
+	}
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.BillingFree {
-		if task.Quota != 0 {
+		if task.Quota != 0 || task.PrivateData.SubscriptionRequestID != "" {
 			RecalculateTaskQuota(ctx, task, 0, common.NewMessage("Model price is below the free threshold"), nil)
 		}
 		return true
@@ -914,9 +1055,21 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		if task.Status == model.TaskStatusFailure {
 			return false
 		}
+		if task.PrivateData.SubscriptionInvalidUsage {
+			logger.LogWarn(ctx, common.LogText("task %s expression settlement failed, keeping the pre-consumed quota: %v", task.TaskID, "invalid completion usage"))
+			finishTaskSubscriptionFunding(ctx, task)
+			return true
+		}
 		result, usageFacts, err := EvaluateTaskCompletionUsage(bc.TieredSnapshot, taskResult.UsageFacts)
 		if err != nil {
 			logger.LogWarn(ctx, common.LogText("task %s expression settlement failed, keeping the pre-consumed quota: %v", task.TaskID, err))
+			if task.PrivateData.SubscriptionRequestID != "" {
+				actual := task.Quota
+				if task.PrivateData.SubscriptionSubmitQuota != nil {
+					actual = *task.PrivateData.SubscriptionSubmitQuota
+				}
+				RecalculateTaskQuota(ctx, task, actual, common.NewMessage("Pre-consumed"))
+			}
 			return true
 		}
 		if result.Clamp != nil {
@@ -929,21 +1082,37 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 	}
 	// 按次计费的成功任务保持预扣；失败任务由调用方全额退款。
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
+		if task.Status == model.TaskStatusSuccess {
+			if task.PrivateData.SubscriptionSubmitQuota != nil && task.PrivateData.SubscriptionRequestID != "" {
+				RecalculateTaskQuota(ctx, task, *task.PrivateData.SubscriptionSubmitQuota, common.NewMessage("Pre-consumed"))
+			} else {
+				finishTaskSubscriptionFunding(ctx, task)
+			}
+		}
 		logger.LogInfo(ctx, common.LogText("task %s is billed per request, skipping difference settlement", task.TaskID))
 		return false
 	}
-	// 优先让 adaptor 决定最终额度。
-	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, common.NewMessage("Adjusted by the channel adaptor"))
+	// 优先让 adaptor 决定最终额度。平台适配器在重启后可能不可用，
+	// 只按已确定的金额（按次/免费/阶梯/已对齐）终结的收据不依赖它。
+	if task.PrivateData.SubscriptionRequestID != "" && adaptor == nil {
 		return true
+	}
+	if adaptor != nil {
+		if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
+			RecalculateTaskQuota(ctx, task, actualQuota, common.NewMessage("Adjusted by the channel adaptor"))
+			return true
+		}
 	}
 	// 回退到 token 重算。
 	tokens := taskResult.TotalTokens
 	if tokens == 0 && taskResult.CompletionTokens > 0 {
 		tokens = taskResult.CompletionTokens
 	}
-	if tokens > 0 {
-		return RecalculateTaskQuotaByTokens(ctx, task, tokens)
+	if tokens > 0 && RecalculateTaskQuotaByTokens(ctx, task, tokens) {
+		return true
+	}
+	if task.Status == model.TaskStatusSuccess {
+		finishTaskSubscriptionFunding(ctx, task)
 	}
 	return false
 }
@@ -1040,6 +1209,7 @@ func failTaskFromPoll(ctx context.Context, adaptor TaskPollingAdaptor, task *mod
 		task.FinishTime = now
 	}
 	task.FailReason = reason
+	pinLocalSubscriptionRefund(task)
 	won, err := task.UpdateWithStatus(fromStatus)
 	if err != nil {
 		return err

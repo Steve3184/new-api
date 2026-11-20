@@ -60,6 +60,10 @@ export const subscriptionPlanSchema = z.object({
   allow_tier_switch: z.boolean().optional().default(false),
   upgrade_plan_ids: z.string().optional().default(''),
   allow_auto_renew: z.boolean().optional().default(false),
+  // Extra credits are opt-in per plan; plans saved before this field existed
+  // parse as disabled with no rate.
+  allow_extra_credits: z.boolean().optional().default(false),
+  extra_credits_rate: z.number().optional().default(0),
 })
 
 export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>
@@ -96,6 +100,11 @@ export const userSubscriptionSchema = z.object({
   price_amount: z.number().nullable().optional(),
   auto_renew: z.boolean().optional(),
   renew_multiplier: z.number().optional(),
+  /** Purchased extra credits in raw quota units; they survive expiry. */
+  extra_credits_total: z.number().optional(),
+  extra_credits_used: z.number().optional(),
+  /** Server-derived: whether a new extra-credits purchase would be accepted. */
+  extra_credits_can_purchase: z.boolean().optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
@@ -152,6 +161,31 @@ export interface SubscriptionUpgradeQuote {
 export interface SubscriptionRenewalRequest {
   auto_renew: boolean
   renew_multiplier: number
+}
+
+export interface SubscriptionExtraCreditsRequest {
+  /** Raw site wallet quota units debited from the user's balance. */
+  wallet_quota: number
+  /** Client-generated id reused on every retry so one purchase charges once. */
+  request_id: string
+  /**
+   * The plan rate this purchase was previewed with. The server refuses the
+   * purchase when the plan's current rate differs, instead of granting
+   * credits at a rate the user never saw.
+   */
+  expected_rate: number
+}
+
+export interface SubscriptionExtraCreditsPurchase {
+  id: number
+  user_id: number
+  subscription_id: number
+  request_id: string
+  wallet_quota: number
+  /** Subscription credit quota units granted. */
+  credits: number
+  rate: number
+  created_at: number
 }
 
 export interface SubscriptionPayResponse {

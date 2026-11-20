@@ -191,3 +191,45 @@ func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	require.Equal(t, "default", rows[1].UseGroup)
 	require.Equal(t, 25, rows[1].Quota)
 }
+
+func TestSaveQuotaDataCacheIncrementsOnlyTheSelectedRow(t *testing.T) {
+	truncateTables(t)
+	CacheQuotaDataLock.Lock()
+	CacheQuotaData = make(map[string]*QuotaData)
+	CacheQuotaDataLock.Unlock()
+
+	// Two rows already share every grouping dimension, so the dimension columns
+	// alone do not identify one row. A flush must add the cached increment to a
+	// single existing row instead of every row of that dimension group.
+	seedFlowQuotaData(t, QuotaData{
+		UserID: 1, Username: "alice", ModelName: "gpt-a", CreatedAt: 3600,
+		UseGroup: "vip", TokenID: 11, ChannelID: 1, NodeName: "node-a",
+		Count: 1, Quota: 3, TokenUsed: 3,
+	})
+	seedFlowQuotaData(t, QuotaData{
+		UserID: 1, Username: "alice", ModelName: "gpt-a", CreatedAt: 3600,
+		UseGroup: "vip", TokenID: 11, ChannelID: 1, NodeName: "node-a",
+		Count: 1, Quota: 2, TokenUsed: 2,
+	})
+
+	LogQuotaData(QuotaDataLogParams{
+		UserID: 1, Username: "alice", ModelName: "gpt-a", CreatedAt: 3600,
+		UseGroup: "vip", TokenID: 11, ChannelID: 1, NodeName: "node-a",
+		Quota: 4, TokenUsed: 4,
+	})
+	SaveQuotaDataCache()
+
+	var rows []QuotaData
+	require.NoError(t, DB.Order("id ASC").Find(&rows).Error)
+	require.Len(t, rows, 2)
+	// 3 + 2 seeded, plus 4 logged exactly once.
+	require.Equal(t, 9, rows[0].Quota+rows[1].Quota)
+	require.Equal(t, 3, rows[0].Count+rows[1].Count)
+	require.Equal(t, 9, rows[0].TokenUsed+rows[1].TokenUsed)
+
+	dashboardRows, err := GetQuotaDataByUserId(1, 3600, 3600)
+	require.NoError(t, err)
+	require.Len(t, dashboardRows, 1)
+	require.Equal(t, 9, dashboardRows[0].Quota)
+	require.Equal(t, 3, dashboardRows[0].Count)
+}

@@ -45,3 +45,20 @@ export {
   formValuesToPlanPayload,
   type PlanFormValues,
 } from './plan-form'
+export {
+  canBuyExtraCredits,
+  convertExtraCreditsAmount,
+  EXTRA_CREDITS_RATE_DECIMALS,
+  extraCreditsFromWalletQuota,
+  hasExtraCredits,
+  isValidExtraCreditsRate,
+  isValidExtraCreditsRateText,
+  MAX_EXTRA_CREDITS_RATE,
+  MAX_EXTRA_CREDITS_WALLET_QUOTA,
+  MIN_EXTRA_CREDITS_RATE,
+  parseExtraCreditsRateText,
+  parseExtraCreditsWalletQuota,
+  planAllowsExtraCredits,
+  remainingExtraCredits,
+  type ExtraCreditsConversion,
+} from './extra-credits'
