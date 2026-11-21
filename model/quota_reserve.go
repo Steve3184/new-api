@@ -102,8 +102,10 @@ func cacheApplyTokenQuotaDelta(id int, key string, delta int64) (cacheQuotaResul
 	return quotaResultFromLua(result, err)
 }
 
-// persistUserQuotaDelta 把已在缓存侧预扣成功的增量落库；批量模式下入队，
-// 直写模式下要求行存在（用户已删除时报错，交由调用方补偿缓存）。
+// persistUserQuotaDelta 把已在缓存侧预扣成功的增量同步落库，不受 BATCH_UPDATE_ENABLED
+// 影响：额外额度购买直接读 SQL 余额，缓存被驱逐后也会从 SQL 重新水合，预扣若只入
+// 批量队列，二者都会看到未扣减的余额而超支。要求行存在（用户已删除时报错，交由
+// 调用方补偿缓存）。
 func persistUserQuotaDelta(id int, delta int) error {
 	query := DB.Model(&User{}).Where("id = ?", id)
 	if delta < 0 {
@@ -119,6 +121,7 @@ func persistUserQuotaDelta(id int, delta int) error {
 	return nil
 }
 
+// persistTokenQuotaDelta 同样同步落库，理由见 persistUserQuotaDelta。
 func persistTokenQuotaDelta(id int, delta int) error {
 	query := DB.Model(&Token{}).Where("id = ?", id)
 	if delta < 0 {

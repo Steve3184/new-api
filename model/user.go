@@ -1615,6 +1615,17 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 	if err := common.ValidateWalletQuota(quota); err != nil {
 		return err
 	}
+	if !db && common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
+		if common.RedisEnabled {
+			gopool.Go(func() {
+				if _, err := cacheApplyUserQuotaDelta(id, int64(quota)); err != nil {
+					common.SysLog(common.LogText("failed to increase user quota cache: %s", err.Error()))
+				}
+			})
+		}
+		return nil
+	}
 	return changeUserWalletQuota(id, quota)
 }
 
@@ -1623,6 +1634,17 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 		return errors.New("quota cannot be negative")
 	}
 	if quota == 0 {
+		return nil
+	}
+	if !db && common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
+		if common.RedisEnabled {
+			gopool.Go(func() {
+				if _, err := cacheApplyUserQuotaDelta(id, -int64(quota)); err != nil {
+					common.SysLog(common.LogText("failed to decrease user quota cache: %s", err.Error()))
+				}
+			})
+		}
 		return nil
 	}
 	return changeUserWalletQuota(id, -quota)
@@ -1646,8 +1668,14 @@ func changeUserWalletQuota(id, delta int) error {
 		if err := tx.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", delta)).Error; err != nil {
 			return err
 		}
-		// Cache hydration and purchases lock this same row. A rollback can leave a miss, never an uncommitted balance.
-		return invalidateUserCache(id)
+		// Cache hydration and purchases lock this same row, so deleting the entry here
+		// cannot be refilled with the pre-commit balance. The response has already been
+		// served: a failed DEL must not undo this settlement. The stale entry ages out
+		// with its TTL and the SQL-guarded reserve path rejects an inflated balance.
+		if err := invalidateUserCache(id); err != nil {
+			common.SysError(common.LogText("failed to invalidate user cache after wallet quota change: user=%d delta=%d error=%v", id, delta, err))
+		}
+		return nil
 	})
 }
 

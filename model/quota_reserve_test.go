@@ -269,14 +269,14 @@ func TestExplicitWalletMutation(t *testing.T) {
 				for _, failCache := range []bool{true, false} {
 					user, referrer := createReserveTestUser(t, 10), createReserveTestUser(t, 0)
 					user.RegistrationRewardEligible = true
-					wantQuota, wantAff := 10, 3
-					paidID, content := referrer.Id, "Bonus for inviting a user "+logger.FormatQuota(3)
+					wantQuota, wantAff := 12, 3
+					wantContents := []string{"Invitation code bonus " + logger.FormatQuota(2), "Bonus for inviting a user " + logger.FormatQuota(3)}
 					if failCache {
 						server.SetError("ERR reward cache unavailable")
 					} else {
 						require.NoError(t, DB.Delete(&referrer).Error)
-						wantQuota, wantAff = 12, 0
-						paidID, content = user.Id, "Invitation code bonus "+logger.FormatQuota(2)
+						wantAff = 0
+						wantContents = wantContents[:1]
 					}
 					user.grantRegistrationRewards(referrer.Id)
 					drain()
@@ -286,16 +286,19 @@ func TestExplicitWalletMutation(t *testing.T) {
 					assert.Equal(t, wantAff, referrer.AffQuota)
 					var logs []Log
 					require.NoError(t, LOG_DB.Where("user_id IN ? AND type = ?", []int{user.Id, referrer.Id}, LogTypeSystem).Find(&logs).Error)
-					require.Len(t, logs, 1)
-					assert.Equal(t, paidID, logs[0].UserId)
-					assert.Equal(t, content, logs[0].Content)
+					var contents []string
+					for _, entry := range logs {
+						contents = append(contents, entry.Content)
+					}
+					assert.ElementsMatch(t, wantContents, contents)
 				}
 			})
 			for _, tc := range []struct {
 				name   string
 				mutate func(int, int, bool) error
 				want   int
-			}{{"debit", DecreaseUserQuota, -2}, {"credit", IncreaseUserQuota, 22}} {
+				final  int
+			}{{"debit", DecreaseUserQuota, -2, -14}, {"credit", IncreaseUserQuota, 22, 34}} {
 				t.Run(tc.name, func(t *testing.T) {
 					server := useUserCacheMiniRedis(t)
 					user := createReserveTestUser(t, 10)
@@ -323,17 +326,17 @@ func TestExplicitWalletMutation(t *testing.T) {
 					err := tc.mutate(user.Id, 12, false)
 					drain()
 					server.SetError("")
-					assert.ErrorContains(t, err, "injected cache failure")
-					assert.Equal(t, 10, getUserQuotaFromDB(t, user.Id), "failed invalidation must roll back SQL")
-					assert.Equal(t, "10", server.HGet(key, "Quota"))
+					require.NoError(t, err, "a failed cache DEL must not undo a committed settlement")
+					assert.Equal(t, tc.want, getUserQuotaFromDB(t, user.Id))
+					assert.Equal(t, "10", server.HGet(key, "Quota"), "the stale entry stays until the next invalidation")
 
 					require.NoError(t, tc.mutate(user.Id, 12, false))
 					drain()
 					assert.False(t, server.Exists(key), "a committed mutation invalidates the old snapshot")
 					cached, err := GetUserCache(user.Id)
 					require.NoError(t, err)
-					assert.Equal(t, tc.want, cached.Quota)
-					assert.Equal(t, tc.want, getUserQuotaFromDB(t, user.Id))
+					assert.Equal(t, tc.final, cached.Quota)
+					assert.Equal(t, tc.final, getUserQuotaFromDB(t, user.Id))
 				})
 			}
 		})
