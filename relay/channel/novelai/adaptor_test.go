@@ -72,6 +72,20 @@ func TestForcedOrdinaryEndpointAcceptsZipResponseFromNativeStreamPath(t *testing
 	assert.Equal(t, archive, recorder.Body.Bytes())
 }
 
+func TestNativeStreamPathLabelsZipPassthroughWhenUpstreamOmitsContentType(t *testing.T) {
+	archive := novelAIArchive(t, map[string][]byte{"image.png": []byte("png-image")})
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/ai/generate-image-stream", nil)
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
+	response := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(archive))}
+
+	_, apiErr := (&Adaptor{}).DoResponse(c, response, info)
+	require.Nil(t, apiErr)
+	assert.Equal(t, "application/zip", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, archive, recorder.Body.Bytes())
+}
+
 func TestNativeImageRequestPreservesTopLevelFields(t *testing.T) {
 	request := dto.ImageRequest{Extra: map[string]json.RawMessage{
 		"novelai_native_request": json.RawMessage(`{"input":"a blue cup","model":"nai-diffusion-3","action":"generate","parameters":{"steps":20},"url":"https://image.novelai.net/reference.png"}`),

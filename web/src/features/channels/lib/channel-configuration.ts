@@ -106,6 +106,7 @@ const CONFIGURATION_BLOCKS = {
       'disable_task_polling_sleep',
       'agnes_auto_image_url',
       'novelai_max_28_steps',
+      'novelai_force_generate_image',
     ],
   },
   upstreamModelDetection: {

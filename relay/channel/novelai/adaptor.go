@@ -260,7 +260,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return nil, types.NewErrorWithStatusCode(errors.New("NovelAI image response exceeds the size limit"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
 	}
 	var images []decodedImage
-	if bytes.HasPrefix(body, []byte("PK\x03\x04")) {
+	isZip := bytes.HasPrefix(body, []byte("PK\x03\x04"))
+	if isZip {
 		images, err = decodeZipImages(body)
 	} else if streamResponse || strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "msgpack") {
 		images, err = decodeMessagePackImages(body)
@@ -277,7 +278,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/ai/") {
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "" {
-			if streamResponse {
+			if streamResponse && !isZip {
 				contentType = "application/msgpack"
 			} else {
 				contentType = "application/zip"
