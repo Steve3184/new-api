@@ -268,6 +268,8 @@ func TestSubscriptionOnlyBillingDatabaseMatrix(t *testing.T) {
 			t.Cleanup(func() {
 				model.DB = oldDB
 				common.SetDatabaseTypes(oldMainType, oldLogType)
+				// The cached group bindings came from this test database's plans.
+				_ = model.PurgeSubscriptionPlanCache()
 			})
 			require.NoError(t, db.AutoMigrate(&model.User{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}, &model.Option{}, &model.SystemTask{}))
 			versionQuery := "select version()"

@@ -151,10 +151,12 @@ func TestSubscriptionGroupAutoCreateKeyMigrationMatrix(t *testing.T) {
 				assert.False(t, pro.AutoCreateKey)
 			})
 			require.NoError(t, db.Delete(&SubscriptionPlan{}, 11).Error)
+			invalidateSubscriptionBindingCache()
 			bound, err := IsSubscriptionGroup("Go Plan")
 			require.NoError(t, err)
 			assert.True(t, bound, "disabled plans still bind the group")
 			require.NoError(t, db.Delete(&SubscriptionPlan{}, 12).Error)
+			invalidateSubscriptionBindingCache()
 			bound, err = IsSubscriptionGroup("Go Plan")
 			require.NoError(t, err)
 			assert.False(t, bound, "a case variant does not count as the last binding")
@@ -165,6 +167,7 @@ func TestSubscriptionGroupAutoCreateKeyMigrationMatrix(t *testing.T) {
 				t.Run("leading_nul_binding_is_not_empty", func(t *testing.T) {
 					const group = "\x00bound"
 					require.NoError(t, db.Create(&SubscriptionPlan{Title: "Nonempty name", SubscriptionGroup: group}).Error)
+					invalidateSubscriptionBindingCache()
 					bound, err := IsSubscriptionGroup(group)
 					require.NoError(t, err)
 					require.True(t, bound)

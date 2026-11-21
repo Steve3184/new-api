@@ -123,7 +123,8 @@ func migrateSubscriptionGroupAutoCreateKeys(db *gorm.DB) error {
 // SubscriptionGroupNames derives membership from saved bindings, including
 // disabled plans: unlisting a plan does not revoke existing entitlements.
 func SubscriptionGroupNames() ([]string, error) {
-	return subscriptionGroupNamesTx(DB)
+	names, _, err := loadSubscriptionBindings()
+	return slices.Clone(names), err
 }
 
 func subscriptionGroupNamesTx(db *gorm.DB) ([]string, error) {
@@ -139,8 +140,18 @@ func subscriptionGroupNamesTx(db *gorm.DB) ([]string, error) {
 	return slices.Compact(bindings), nil
 }
 
+// IsSubscriptionGroup answers from the cached binding set; transactions that
+// must see uncommitted plan edits use isSubscriptionGroupTx instead.
 func IsSubscriptionGroup(group string) (bool, error) {
-	return isSubscriptionGroupTx(DB, group)
+	if group == "" || group == "auto" {
+		return false, nil
+	}
+	_, set, err := loadSubscriptionBindings()
+	if err != nil {
+		return false, err
+	}
+	_, bound := set[group]
+	return bound, nil
 }
 
 func isSubscriptionGroupTx(tx *gorm.DB, group string) (bool, error) {

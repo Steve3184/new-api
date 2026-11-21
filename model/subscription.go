@@ -228,6 +228,7 @@ func InvalidateSubscriptionPlanCache(planId int) {
 	infoCache := getSubscriptionPlanInfoCache()
 	_ = infoCache.Purge()
 	_ = getSubscriptionRateLimitCache().Purge()
+	invalidateSubscriptionBindingCache()
 	BumpSyncTopic(SyncTopicSubscriptionPlans)
 }
 
@@ -264,6 +265,7 @@ func DeleteSubscriptionPlan(planId int) error {
 // PurgeSubscriptionPlanCache drops every cached plan, so the next reads load
 // them from the database.
 func PurgeSubscriptionPlanCache() error {
+	invalidateSubscriptionBindingCache()
 	if err := getSubscriptionPlanCache().Purge(); err != nil {
 		return err
 	}

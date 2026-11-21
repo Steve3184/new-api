@@ -89,6 +89,8 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM user_subscriptions")
 		model.DB.Exec("DELETE FROM subscription_orders")
 		model.DB.Exec("DELETE FROM subscription_plans")
+		// Raw SQL skips the plan write hooks, so drop the cached group bindings too.
+		_ = model.PurgeSubscriptionPlanCache()
 		model.DB.Exec("DELETE FROM system_task_locks")
 		model.DB.Exec("DELETE FROM system_tasks")
 	})

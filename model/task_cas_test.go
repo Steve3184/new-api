@@ -97,6 +97,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM top_ups")
 		DB.Exec("DELETE FROM subscription_orders")
 		DB.Exec("DELETE FROM subscription_plans")
+		invalidateSubscriptionBindingCache()
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM subscription_pre_consume_records")
 		DB.Exec("DELETE FROM subscription_extra_credit_purchases")
