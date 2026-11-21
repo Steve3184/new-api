@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"math"
@@ -387,6 +388,8 @@ func TestSubscriptionExtraCreditsDatabaseMatrix(t *testing.T) {
 
 			if dialect != common.DatabaseTypeSQLite {
 				require.NoError(t, db.Model(&plan).Update("allow_extra_credits", true).Error)
+				// Only an active, unexpired subscription can buy credits.
+				require.NoError(t, db.Model(&sub).Updates(map[string]any{"status": "active", "end_time": GetDBTimestamp() + 3600}).Error)
 				var wg sync.WaitGroup
 				errors := make(chan error, 2)
 				for range 2 {
@@ -404,7 +407,27 @@ func TestSubscriptionExtraCreditsDatabaseMatrix(t *testing.T) {
 				require.Equal(t, 80, user.Quota)
 				require.NoError(t, db.First(&sub, sub.Id).Error)
 				require.EqualValues(t, 40, sub.ExtraCreditsTotal)
+				require.NoError(t, db.Model(&sub).Updates(map[string]any{"status": "expired", "end_time": GetDBTimestamp() - 1}).Error)
 			}
+
+			// Expiry returns the unspent credits at the paid rate, exactly once.
+			require.NoError(t, db.First(&sub, sub.Id).Error)
+			require.Zero(t, sub.FundingReserved)
+			unspent := sub.ExtraCreditsTotal - sub.ExtraCreditsUsed
+			require.Positive(t, unspent)
+			var paid struct{ Wallet, Credits int64 }
+			require.NoError(t, db.Model(&SubscriptionExtraCreditPurchase{}).Where("subscription_id = ?", sub.Id).
+				Select("SUM(wallet_quota) AS wallet, SUM(credits) AS credits").Scan(&paid).Error)
+			require.NoError(t, db.First(&user, user.Id).Error)
+			quotaBefore := user.Quota
+			for range 2 {
+				_, err = RefundExpiredExtraCredits(100)
+				require.NoError(t, err)
+			}
+			require.NoError(t, db.First(&user, user.Id).Error)
+			assert.EqualValues(t, int64(quotaBefore)+unspent*paid.Wallet/paid.Credits, user.Quota)
+			require.NoError(t, db.First(&sub, sub.Id).Error)
+			assert.Equal(t, sub.ExtraCreditsUsed, sub.ExtraCreditsTotal)
 		})
 	}
 }
@@ -1256,4 +1279,34 @@ func TestSubscriptionExtraCreditsUsesReservedWalletBalance(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, cache.Quota)
 	require.Equal(t, 4, getUserQuotaFromDB(t, user.Id))
+}
+
+func TestRefundExpiredExtraCredits(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		reserved  int64
+		wantQuota int
+		wantTotal int64
+	}{
+		{"refunds unspent credits at the purchase rate", 0, 17, 6},
+		{"waits for an in-flight reservation", 5, 10, 20},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			user := createReserveTestUser(t, 10)
+			plan := SubscriptionPlan{Title: "Refund", SubscriptionGroup: "vip", AllowExtraCredits: true, ExtraCreditsRate: 2}
+			require.NoError(t, DB.Create(&plan).Error)
+			sub := UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "expired", EndTime: GetDBTimestamp() - 1, ExtraCreditsTotal: 20, ExtraCreditsUsed: 6, FundingReserved: tc.reserved, ExtraCreditsGroups: `["vip"]`, ExtraCreditsScopedGroups: `["vip"]`}
+			require.NoError(t, DB.Create(&sub).Error)
+			receipt := SubscriptionExtraCreditPurchase{UserId: user.Id, SubscriptionId: sub.Id, RequestId: "refund-receipt-0000001", WalletQuota: 10, Credits: 20, Rate: 2}
+			require.NoError(t, DB.Create(&receipt).Error)
+			for range 2 { // the second pass proves the refund is idempotent
+				_, err := RefundExpiredExtraCredits(10)
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantQuota, getUserQuotaFromDB(t, user.Id))
+			require.NoError(t, DB.First(&sub, sub.Id).Error)
+			require.Equal(t, tc.wantTotal, sub.ExtraCreditsTotal)
+		})
+	}
 }

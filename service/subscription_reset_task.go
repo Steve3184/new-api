@@ -78,6 +78,11 @@ func runSubscriptionQuotaResetOnce() {
 			break
 		}
 	}
+	// Return the unspent extra credits of ended subscriptions to the wallet; rows that
+	// still hold an in-flight reservation are retried on the next tick.
+	if _, err := model.RefundExpiredExtraCredits(subscriptionResetBatchSize); err != nil {
+		logger.LogWarn(ctx, common.LogText("extra credit refund task failed: %v", err))
+	}
 	for {
 		n, err := model.ResetDueSubscriptions(subscriptionResetBatchSize)
 		if err != nil {

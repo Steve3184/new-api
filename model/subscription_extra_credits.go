@@ -179,7 +179,7 @@ func CanPurchaseSubscriptionExtraCredits(userID int, sub *UserSubscription) bool
 }
 
 func SubscriptionExtraCreditPurchaseEligibility(userID int, sub *UserSubscription) (bool, error) {
-	if sub == nil || sub.UserId != userID || (sub.Status != "active" && sub.Status != "expired") {
+	if sub == nil || sub.UserId != userID || sub.Status != "active" || sub.EndTime <= GetDBTimestamp() {
 		return false, nil
 	}
 	plan, err := GetSubscriptionPlanById(sub.PlanId)
@@ -286,7 +286,7 @@ func PurchaseSubscriptionExtraCredits(userID, subscriptionID int, walletQuota in
 		if err := lockForUpdate(tx).Where("id = ? AND user_id = ?", subscriptionID, userID).First(&sub).Error; err != nil {
 			return err
 		}
-		if sub.PlanId != plan.Id || (sub.Status != "active" && sub.Status != "expired") || ((sub.Status == "expired" || sub.EndTime <= getDBTimestamp(tx)) && sub.ExtraCreditsGroups == "") {
+		if sub.PlanId != plan.Id || sub.Status != "active" || sub.EndTime <= getDBTimestamp(tx) {
 			return common.NewMessage("Cannot purchase extra credits for this subscription")
 		}
 		if !plan.Enabled || !plan.AllowExtraCredits {
