@@ -10,6 +10,7 @@ import (
 
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -150,33 +151,43 @@ func SubscriptionEpayNotify(c *gin.Context) {
 	}
 
 	if len(params) == 0 {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription webhook params are empty client_ip=%s", c.ClientIP()))
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
 	gateway := epayGatewayForTradeNo(params["out_trade_no"])
 	if gateway == nil {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription webhook order or gateway not found trade_no=%s client_ip=%s", params["out_trade_no"], c.ClientIP()))
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 	client := getEpayClientForGateway(gateway.ID)
 	if client == nil {
+		logger.LogError(c.Request.Context(), common.LogText("Epay client is not initialized path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 	verifyInfo, err := verifyEpayCallback(client, gateway, params)
 	if err != nil {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay webhook signature verification failed path=%q client_ip=%s verify_error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
 	if verifyInfo.TradeStatus != epay.StatusTradeSuccess {
+		logger.LogInfo(c.Request.Context(), common.LogText("Epay webhook ignored event trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 	order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
-	if order == nil || order.PaymentProvider != model.PaymentProviderEpay ||
-		validateEpayCallbackOrder(gateway, verifyInfo, order.TradeNo, order.PaymentMethod, order.Money, order.EpayGatewayID) != nil {
+	if order == nil || order.PaymentProvider != model.PaymentProviderEpay {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription webhook order or gateway not found trade_no=%s client_ip=%s", verifyInfo.ServiceTradeNo, c.ClientIP()))
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
+	}
+	if err := validateEpayCallbackOrder(gateway, verifyInfo, order.TradeNo, order.PaymentMethod, order.Money, order.EpayGatewayID); err != nil {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription callback does not match the order trade_no=%s callback_type=%s money=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.Money, c.ClientIP(), err.Error()))
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
@@ -185,10 +196,12 @@ func SubscriptionEpayNotify(c *gin.Context) {
 	defer UnlockOrder(verifyInfo.ServiceTradeNo)
 
 	if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
+		logger.LogError(c.Request.Context(), common.LogText("Epay subscription order processing failed trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error()))
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
+	logger.LogInfo(c.Request.Context(), common.LogText("Epay subscription order processed trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
 	_, _ = c.Writer.Write([]byte("success"))
 }
 
@@ -216,38 +229,49 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	}
 
 	if len(params) == 0 {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription webhook params are empty client_ip=%s", c.ClientIP()))
 		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 		return
 	}
 
 	gateway := epayGatewayForTradeNo(params["out_trade_no"])
 	if gateway == nil {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription webhook order or gateway not found trade_no=%s client_ip=%s", params["out_trade_no"], c.ClientIP()))
 		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 		return
 	}
 	client := getEpayClientForGateway(gateway.ID)
 	if client == nil {
+		logger.LogError(c.Request.Context(), common.LogText("Epay client is not initialized path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
 		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 		return
 	}
 	verifyInfo, err := verifyEpayCallback(client, gateway, params)
 	if err != nil {
+		logger.LogWarn(c.Request.Context(), common.LogText("Epay webhook signature verification failed path=%q client_ip=%s verify_error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
 		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 		return
 	}
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
-		if order == nil || order.PaymentProvider != model.PaymentProviderEpay ||
-			validateEpayCallbackOrder(gateway, verifyInfo, order.TradeNo, order.PaymentMethod, order.Money, order.EpayGatewayID) != nil {
+		if order == nil || order.PaymentProvider != model.PaymentProviderEpay {
+			logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription webhook order or gateway not found trade_no=%s client_ip=%s", verifyInfo.ServiceTradeNo, c.ClientIP()))
+			c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
+			return
+		}
+		if err := validateEpayCallbackOrder(gateway, verifyInfo, order.TradeNo, order.PaymentMethod, order.Money, order.EpayGatewayID); err != nil {
+			logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription callback does not match the order trade_no=%s callback_type=%s money=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.Money, c.ClientIP(), err.Error()))
 			c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 			return
 		}
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
 		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
+			logger.LogError(c.Request.Context(), common.LogText("Epay subscription order processing failed trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error()))
 			c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 			return
 		}
+		logger.LogInfo(c.Request.Context(), common.LogText("Epay subscription order processed trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
 		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=success"))
 		return
 	}

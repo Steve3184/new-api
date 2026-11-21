@@ -686,6 +686,74 @@ func TestEpayRSAModeSignsOrdersAndVerifiesCallbacks(t *testing.T) {
 	})
 }
 
+// TestEpayTopUpNotifyCompletesSubscriptionOrder covers a gateway that ignores
+// the per-order notify_url and reports a paid subscription order to the
+// top-up callback. A subscription order has no top-up row until completion.
+func TestEpayTopUpNotifyCompletesSubscriptionOrder(t *testing.T) {
+	setupEpayCallbackTest(t)
+	operation_setting.GetPaymentSetting().EpaySignType = operation_setting.EpaySignTypeMD5
+	operation_setting.EpayKey = "test-key"
+	require.True(t, isEpayWebhookEnabled())
+
+	const userID, tradeNo = 9001, "SUBUSR9001NOnotify"
+	require.NoError(t, model.DB.Create(&model.User{Id: userID, Username: "epay_subscription_user", Status: common.UserStatusEnabled}).Error)
+	plan := &model.SubscriptionPlan{Id: 9001, Title: "EpayPlan", PriceAmount: 1, Currency: "CNY", DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, Enabled: true, TotalAmount: 1000}
+	require.NoError(t, model.DB.Create(plan).Error)
+	require.NoError(t, (&model.SubscriptionOrder{
+		UserId: userID, PlanId: plan.Id, Money: 1, TradeNo: tradeNo, PaymentMethod: "alipay",
+		PaymentProvider: model.PaymentProviderEpay, Status: common.TopUpStatusPending, CreateTime: common.GetTimestamp(),
+	}).Insert())
+
+	signer, err := epay.NewClient(&epay.Config{PartnerID: "epay_id", Key: "test-key"}, "https://pay.example.com")
+	require.NoError(t, err)
+	router := gin.New()
+	router.GET("/api/user/epay/notify", EpayNotify)
+	notify := func(overrides map[string]string) string {
+		t.Helper()
+		fields := map[string]string{
+			"type": "alipay", "money": "1.00", "name": "SUB:EpayPlan", "out_trade_no": tradeNo,
+			"trade_no": "provider-trade-1", "trade_status": epay.StatusTradeSuccess,
+		}
+		maps.Copy(fields, overrides)
+		signed, err := signer.SignParams(fields)
+		require.NoError(t, err)
+		query := url.Values{}
+		for key, value := range signed {
+			query.Set(key, value)
+		}
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/user/epay/notify?"+query.Encode(), nil))
+		require.Equal(t, http.StatusOK, recorder.Code)
+		return recorder.Body.String()
+	}
+	assertState := func(wantStatus string, wantSubscriptions int64) {
+		t.Helper()
+		order := model.GetSubscriptionOrderByTradeNo(tradeNo)
+		require.NotNil(t, order)
+		assert.Equal(t, wantStatus, order.Status)
+		var granted int64
+		require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", userID).Count(&granted).Error)
+		assert.Equal(t, wantSubscriptions, granted)
+	}
+
+	assert.Equal(t, "success", notify(map[string]string{"trade_status": "WAIT_BUYER_PAY"}))
+	assertState(common.TopUpStatusPending, 0)
+	assert.Equal(t, "fail", notify(map[string]string{"money": "0.01"}))
+	assertState(common.TopUpStatusPending, 0)
+	assert.Nil(t, model.GetTopUpByTradeNo(tradeNo))
+
+	assert.Equal(t, "success", notify(nil))
+	assertState(common.TopUpStatusSuccess, 1)
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	assert.Equal(t, model.OrderTypeSubscription, topUp.OrderType)
+
+	// A repeated callback is acknowledged without granting a second subscription.
+	assert.Equal(t, "success", notify(nil))
+	assertState(common.TopUpStatusSuccess, 1)
+}
+
 func TestUpdateOptionValidatesEpaySignSettings(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.Option{}))

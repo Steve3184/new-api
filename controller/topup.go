@@ -676,7 +676,33 @@ func EpayNotify(c *gin.Context) {
 
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
-		if topUp == nil || topUp.PaymentProvider != model.PaymentProviderEpay {
+		if topUp == nil {
+			// 订阅订单在下单时不预写充值记录；若易支付网关忽略订单级 notify_url、
+			// 只回调全局地址，就在这里按订阅订单兜底完成，避免已付款未到账。
+			order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
+			if order != nil && order.PaymentProvider == model.PaymentProviderEpay {
+				if err := validateEpayCallbackOrder(gateway, verifyInfo, order.TradeNo, order.PaymentMethod, order.Money, order.EpayGatewayID); err != nil {
+					logger.LogWarn(c.Request.Context(), common.LogText("Epay subscription callback does not match the order trade_no=%s callback_type=%s money=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.Money, c.ClientIP(), err.Error()))
+					_, _ = c.Writer.Write([]byte("fail"))
+					return
+				}
+				LockOrder(verifyInfo.ServiceTradeNo)
+				defer UnlockOrder(verifyInfo.ServiceTradeNo)
+				// 幂等由事务内的状态校验保证：已成功的订单重复回调返回 nil。
+				if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
+					logger.LogError(c.Request.Context(), common.LogText("Epay subscription order processing failed trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error()))
+					_, _ = c.Writer.Write([]byte("fail"))
+					return
+				}
+				logger.LogInfo(c.Request.Context(), common.LogText("Epay subscription order processed trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
+				_, _ = c.Writer.Write([]byte("success"))
+				return
+			}
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 回调订单不存在或支付网关不匹配 trade_no=%s client_ip=%s", verifyInfo.ServiceTradeNo, c.ClientIP()))
+			_, _ = c.Writer.Write([]byte("fail"))
+			return
+		}
+		if topUp.PaymentProvider != model.PaymentProviderEpay {
 			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 回调订单不存在或支付网关不匹配 trade_no=%s client_ip=%s", verifyInfo.ServiceTradeNo, c.ClientIP()))
 			_, _ = c.Writer.Write([]byte("fail"))
 			return
