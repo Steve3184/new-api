@@ -37,6 +37,8 @@ const backendKeys = [
   'Extra credits purchase request conflicts with an earlier purchase',
   'Cannot purchase extra credits for this subscription',
   'Extra credits purchased',
+  'Extra credits purchased: {{credits}}; wallet quota: {{quota}}; subscription: {{subscription}}',
+  'Unused extra credits refunded: {{credits}} extra credits returned as {{quota}} wallet quota; subscription: {{subscription}}',
   'Subscription still has unspent extra credits',
   'Extra credits exchange rate changed; reload and try again',
 ] as const
@@ -44,18 +46,19 @@ const backendKeys = [
 const uiKeys = [
   'Allow buying extra credits',
   'Extra credits exchange rate',
-  'Extra credits are granted at this rate in the same currency as the plan quota: 1 {{currency}} of wallet balance grants this many {{currency}} of extra credits. They are stored separately from the plan quota and stay available after the subscription expires.',
+  'Extra credits are granted at this rate in the same currency as the plan quota: 1 {{currency}} of wallet balance grants this many {{currency}} of extra credits. They are stored separately from the plan quota. When the subscription ends, unused extra credits are refunded to the wallet at the rate they were bought at.',
   '1 {{currency}} spent = {{rate}} {{currency}} extra credits',
   'Buy Extra Credits',
   'Remaining extra credits',
   'Extra credits you receive',
   'Confirm extra credits purchase',
   'Extra credits: {{amount}}',
-  'Unused extra credits stay after expiry',
+  'Unused extra credits are refunded to your wallet after expiry',
   'Purchases are unavailable because this browser cannot coordinate tabs. Keep any pending purchase in this browser until its status can be checked.',
   'The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.',
   'The pending purchase changed in another tab. Review the amount and confirm again.',
   'The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.',
+  'The purchase result is unknown. Continue to retry it; you will not be charged twice.',
 ] as const
 
 describe('extra credits translations', () => {

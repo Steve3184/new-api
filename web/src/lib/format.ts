@@ -131,6 +131,23 @@ export function formatQuota(quota: number): string {
 }
 
 /**
+ * Format quota in full, without the k suffix that token displays get. Use it for
+ * amounts a person confirms, pays or is refunded, where a rounded figure would
+ * hide digits.
+ */
+export function formatExactQuota(
+  quota: number,
+  locales?: Intl.LocalesArgument
+): string {
+  return formatQuotaWithCurrency(quota, {
+    digitsLarge: 2,
+    digitsSmall: 4,
+    abbreviate: false,
+    locale: locales,
+  })
+}
+
+/**
  * Parse quota from the current display input back to quota units.
  */
 export function parseQuotaFromDollars(amount: number): number {

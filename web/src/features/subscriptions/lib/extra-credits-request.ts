@@ -47,6 +47,11 @@ export type ExtraCreditsPurchaseOutcome = ExtraCreditsPurchasePayload & {
 type OutcomeMap = Record<string, ExtraCreditsPurchaseOutcome>
 const mirrorKey = `${EXTRA_CREDITS_PENDING_STORAGE_KEY}:tab`
 
+// Receipts only stop a settled purchase from being replayed. A body this old
+// cannot still be held by a tab, so older receipts are dropped when a new one
+// is saved instead of piling up in the shared store.
+const EXTRA_CREDITS_OUTCOME_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
 // A storage clear is not a receipt. Keep the exact known bodies and terminal
 // outcomes for this document's lifetime, independently of mounted components.
 let pagePending: PendingMap = {}
@@ -272,6 +277,15 @@ export function resolvePendingExtraCreditsPurchase(
         storage,
         EXTRA_CREDITS_RESOLVED_STORAGE_KEY
       )
+      for (const [oldKey, previous] of Object.entries(map)) {
+        if (
+          typeof previous?.resolved_at === 'number' &&
+          previous.resolved_at <
+            outcome.resolved_at - EXTRA_CREDITS_OUTCOME_TTL_MS
+        ) {
+          delete map[oldKey]
+        }
+      }
       map[key] = outcome
       storage.setItem(EXTRA_CREDITS_RESOLVED_STORAGE_KEY, JSON.stringify(map))
       const saved = readPurchaseMap<ExtraCreditsPurchaseOutcome>(

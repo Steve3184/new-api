@@ -28,6 +28,7 @@ import {
   type ExtraCreditsPurchaseOutcome,
   type ExtraCreditsPurchasePayload,
 } from '../lib/extra-credits-request'
+import { pageLocks, type PurchaseLocks } from '../lib/page-locks'
 
 /** Read the shared transaction under its purchase lock and follow tab updates. */
 export function usePendingExtraCreditsPurchase(
@@ -39,14 +40,17 @@ export function usePendingExtraCreditsPurchase(
   const listener = useRef(onResolved)
   listener.current = onResolved
   const refresh = useRef<() => void>(undefined)
-  const [locks] = useState<LockManager | null>(() => {
+  // Web Locks exist only in secure contexts, and many self-hosted sites run on
+  // plain http. There the lock is per page: two tabs may replay the same pending
+  // body, which the server settles once by its request id.
+  const [locks] = useState<PurchaseLocks>(() => {
     try {
-      return typeof navigator === 'undefined' ? null : (navigator.locks ?? null)
+      return navigator.locks ?? pageLocks
     } catch {
-      return null
+      return pageLocks
     }
   })
-  const [unavailable, setUnavailable] = useState(!locks)
+  const [unavailable, setUnavailable] = useState(false)
   const [state, setState] = useState<{
     userId: number
     subscriptionId: number
@@ -56,7 +60,7 @@ export function usePendingExtraCreditsPurchase(
 
   useEffect(() => {
     let active = true
-    if (!enabled || !userId || !locks) return
+    if (!enabled || !userId) return
     // Establish the notification baseline before queuing behind an in-flight
     // purchase. The pending body itself is only trusted under the lock.
     let seen: Record<string, ExtraCreditsPurchaseOutcome> = {}

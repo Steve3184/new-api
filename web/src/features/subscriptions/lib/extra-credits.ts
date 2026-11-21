@@ -110,19 +110,15 @@ export function planAllowsExtraCredits(
 /**
  * Whether the user may buy extra credits for a subscription right now.
  *
- * A subscription that has run out of time is not a fresh sale: the first
- * purchase pins the groups the credits are spendable in, so charging an
- * already expired row for the first time would hand out access to whatever
- * groups its plan was rebound to after expiry. Expired rows may therefore only
- * be topped up once a prior purchase already pinned them, and the server still
- * rejects the purchase if those groups changed. Cancelled (invalidated) and
- * upgraded subscriptions never qualify, and the plan must still sell extra
- * credits. Already purchased extras stay spendable after expiry either way.
+ * Only an active subscription that has not run out of time qualifies, and the
+ * plan must still sell extra credits. Extras left on a subscription when it
+ * ends are refunded to the wallet, so expired, cancelled and upgraded rows are
+ * never topped up.
  */
 export function canBuyExtraCredits(
   subscription: Pick<
     UserSubscription,
-    'status' | 'end_time' | 'extra_credits_total' | 'extra_credits_can_purchase'
+    'status' | 'end_time' | 'extra_credits_can_purchase'
   >,
   plan:
     | Pick<SubscriptionPlan, 'allow_extra_credits' | 'extra_credits_rate'>
@@ -133,16 +129,10 @@ export function canBuyExtraCredits(
   // The server derives this from the same status and group checks the
   // purchase applies (including groups changed after expiry); trust it.
   if (subscription.extra_credits_can_purchase === false) return false
-  if (subscription.status !== 'active' && subscription.status !== 'expired') {
-    return false
-  }
-  const ranOutOfTime =
-    subscription.end_time > 0 && subscription.end_time <= nowSeconds
-  if (subscription.status === 'active' && !ranOutOfTime) return true
-  // Only a subscription whose groups were already pinned by an earlier
-  // purchase may add more credits once expired; a first purchase would pick up
-  // the plan's current groups and escalate entitlements.
-  return Number(subscription.extra_credits_total || 0) > 0
+  if (subscription.status !== 'active') return false
+  // A subscription that ran out of time is not sold more credits; whatever
+  // it still holds is refunded to the wallet.
+  return !(subscription.end_time > 0 && subscription.end_time <= nowSeconds)
 }
 
 /** Remaining spendable extra credits on a subscription, never negative. */

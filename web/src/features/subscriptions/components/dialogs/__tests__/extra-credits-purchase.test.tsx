@@ -336,6 +336,20 @@ describe('buy extra credits dialog', () => {
     expect(readPendingExtraCreditsPurchase(1, 9)).toEqual(body)
   })
 
+  test('tells the user the result is unknown, and that a retry is safe, when the request drops', async () => {
+    vi.mocked(purchaseSubscriptionExtraCredits).mockRejectedValueOnce(
+      new Error('Network Error')
+    )
+    renderDialog()
+    await buy('2')
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'The purchase result is unknown. Continue to retry it; you will not be charged twice.'
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('Request failed')
+  })
+
   test('releases the purchase lock before waiting for balance refresh', async () => {
     let finishRefresh!: () => void
     const onPurchased = vi.fn(
@@ -359,27 +373,20 @@ describe('buy extra credits dialog', () => {
     }
   })
 
-  test('explains unsupported browsers and disables purchase before confirmation', async () => {
+  test('purchases through a same-page lock when the browser has no Web Locks', async () => {
     Object.defineProperty(navigator, 'locks', {
       configurable: true,
       value: undefined,
     })
     renderDialog()
-    const user = userEvent.setup()
-    const dialog = await screen.findByRole('dialog')
-    await user.type(within(dialog).getByRole('spinbutton'), '2')
-    expect(
-      within(dialog).getByRole('button', { name: 'Continue' })
-    ).toBeDisabled()
-    expect(
-      within(dialog).getByText(
-        'Purchases are unavailable because this browser cannot coordinate tabs. Keep any pending purchase in this browser until its status can be checked.'
-      )
-    ).toBeVisible()
-    expect(purchaseSubscriptionExtraCredits).not.toHaveBeenCalled()
+    await buy('2')
+    await waitFor(() =>
+      expect(purchaseSubscriptionExtraCredits).toHaveBeenCalledTimes(1)
+    )
+    expect(toast.success).toHaveBeenCalledWith('Extra credits purchased')
   })
 
-  test('keeps the dialog usable when reading browser lock capability throws', async () => {
+  test('keeps purchases available when reading browser lock capability throws', async () => {
     Object.defineProperty(navigator, 'locks', {
       configurable: true,
       get() {
@@ -387,15 +394,10 @@ describe('buy extra credits dialog', () => {
       },
     })
     renderDialog()
-    const dialog = await screen.findByRole('dialog')
-    expect(
-      within(dialog).getByRole('button', { name: 'Continue' })
-    ).toBeDisabled()
-    expect(
-      within(dialog).getByText(
-        'Purchases are unavailable because this browser cannot coordinate tabs. Keep any pending purchase in this browser until its status can be checked.'
-      )
-    ).toBeVisible()
+    await buy('2')
+    await waitFor(() =>
+      expect(purchaseSubscriptionExtraCredits).toHaveBeenCalledTimes(1)
+    )
   })
 
   test('replays the first submitted body if storage disappears before its network response', async () => {

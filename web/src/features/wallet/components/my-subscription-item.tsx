@@ -53,7 +53,7 @@ import type {
   SubscriptionPlan,
   UserSubscription,
 } from '@/features/subscriptions/types'
-import { formatQuota } from '@/lib/format'
+import { formatExactQuota, formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -95,8 +95,9 @@ export function MySubscriptionItem(props: MySubscriptionItemProps) {
     !!props.plan?.allow_tier_switch &&
     tiers.length > 1
   // Extra credits are bought against the subscription, not the upgrade path,
-  // so this never depends on upgrade availability. Cancelled and upgraded
-  // subscriptions cannot be topped up, but their paid extras are still shown.
+  // so this never depends on upgrade availability. Only an active subscription
+  // can be topped up; extras left on an ended one are refunded to the wallet
+  // and show here until that refund runs.
   const showExtraCredits = hasExtraCredits(sub)
   const extraCreditsRemaining = remainingExtraCredits(sub)
   const { pending } = usePendingExtraCreditsPurchase(userId, sub.id)
@@ -253,11 +254,15 @@ export function MySubscriptionItem(props: MySubscriptionItemProps) {
         <div className='text-muted-foreground flex flex-wrap justify-between gap-x-2'>
           <span className='tabular-nums'>
             {t('Extra credits: {{amount}}', {
-              amount: formatQuota(extraCreditsRemaining),
+              amount: formatExactQuota(extraCreditsRemaining),
             })}
           </span>
           {!isActive && (
-            <span>{t('Unused extra credits stay after expiry')}</span>
+            <span>
+              {t(
+                'Unused extra credits are refunded to your wallet after expiry'
+              )}
+            </span>
           )}
         </div>
       )}

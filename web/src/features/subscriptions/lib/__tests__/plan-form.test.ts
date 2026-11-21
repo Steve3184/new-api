@@ -317,7 +317,7 @@ describe('subscription plan extra credits form mapping', () => {
     })
   })
 
-  test('never submits a rate for a disabled plan', () => {
+  test('keeps the saved rate when extra credits are switched off', () => {
     const payload = formValuesToPlanPayload({
       ...PLAN_FORM_DEFAULTS,
       title: 'Plan',
@@ -326,7 +326,7 @@ describe('subscription plan extra credits form mapping', () => {
     })
     expect(payload.plan).toMatchObject({
       allow_extra_credits: false,
-      extra_credits_rate: 0,
+      extra_credits_rate: 5,
     })
   })
 

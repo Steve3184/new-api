@@ -131,7 +131,7 @@ test('loading a plan with extra credits enabled prefills the rate for editing', 
   }
 })
 
-test('turning extra credits off clears the submitted rate so a disabled plan never sells', async () => {
+test('turning extra credits off keeps the saved rate so switching it back on restores it', async () => {
   const user = userEvent.setup()
   const network = mockGroups()
   try {
@@ -157,7 +157,7 @@ test('turning extra credits off clears the submitted rate so a disabled plan nev
     }
     expect(body.plan).toMatchObject({
       allow_extra_credits: false,
-      extra_credits_rate: 0,
+      extra_credits_rate: 4,
     })
     post.mockRestore()
   } finally {

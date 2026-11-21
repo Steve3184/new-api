@@ -231,9 +231,9 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
 
 export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
   // Converted only after the text passed validation, so no precision is lost.
-  const extraCreditsRate = values.allow_extra_credits
-    ? parseExtraCreditsRateText(values.extra_credits_rate)
-    : null
+  // The rate is kept while the switch is off, so turning extra credits back on
+  // does not lose what the administrator saved; the flag alone decides sales.
+  const extraCreditsRate = parseExtraCreditsRateText(values.extra_credits_rate)
   return {
     plan: {
       ...values,
@@ -286,7 +286,6 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       allow_tier_switch: values.allow_tier_switch,
       upgrade_plan_ids: values.upgrade_plan_ids.join(','),
       allow_auto_renew: values.allow_balance_pay && values.allow_auto_renew,
-      // A disabled plan carries no rate, so it can never sell extra credits.
       allow_extra_credits: values.allow_extra_credits,
       extra_credits_rate: extraCreditsRate ?? 0,
     },

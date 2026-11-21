@@ -1037,7 +1037,7 @@ export function SubscriptionsMutateDrawer({
                         </FormControl>
                         <FormDescription>
                           {t(
-                            'Extra credits are granted at this rate in the same currency as the plan quota: 1 {{currency}} of wallet balance grants this many {{currency}} of extra credits. They are stored separately from the plan quota and stay available after the subscription expires.',
+                            'Extra credits are granted at this rate in the same currency as the plan quota: 1 {{currency}} of wallet balance grants this many {{currency}} of extra credits. They are stored separately from the plan quota. When the subscription ends, unused extra credits are refunded to the wallet at the rate they were bought at.',
                             { currency: currencyLabel }
                           )}
                         </FormDescription>

@@ -74,6 +74,31 @@ describe('pending extra-credits purchase storage', () => {
     }
   })
 
+  test('drops receipts older than 30 days when a new receipt is saved', () => {
+    const day = 24 * 60 * 60 * 1000
+    const receipt = (requestId: string, age: number) => ({
+      ...payload,
+      request_id: requestId,
+      status: 'purchased',
+      resolved_at: Date.now() - age,
+    })
+    localStorage.setItem(
+      EXTRA_CREDITS_RESOLVED_STORAGE_KEY,
+      JSON.stringify({
+        '1:8:stale-receipt-123456': receipt('stale-receipt-123456', 31 * day),
+        '1:8:recent-receipt-12345': receipt('recent-receipt-12345', day),
+      })
+    )
+    expect(savePendingExtraCreditsPurchase(1, 9, payload)).toBe(true)
+    expect(resolvePendingExtraCreditsPurchase(1, 9, payload)).toBe(true)
+    const stored = JSON.parse(
+      localStorage.getItem(EXTRA_CREDITS_RESOLVED_STORAGE_KEY) ?? '{}'
+    )
+    expect(Object.keys(stored).sort()).toEqual(
+      ['1:8:recent-receipt-12345', `1:9:${payload.request_id}`].sort()
+    )
+  })
+
   test.each([false, true])(
     'repairs a missing shared order before the tab closes (other order=%s)',
     (hasOther) => {

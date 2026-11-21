@@ -31,8 +31,7 @@ import { Separator } from '@/components/ui/separator'
 import { toIntlLocale } from '@/i18n/languages'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
-  formatNumber,
-  formatQuota,
+  formatExactQuota,
   getEditableQuotaStep,
   quotaUnitsToEditableAmount,
 } from '@/lib/format'
@@ -85,6 +84,8 @@ const EXTRA_CREDITS_REJECTION_KEYS: ReadonlySet<string> = new Set([
   'Subscription still has unspent extra credits',
   'Insufficient balance',
   'Extra credits purchase request conflicts with an earlier purchase',
+  // requirePaymentCompliance runs before anything is charged.
+  'Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.',
 ])
 
 function newRequestId(): string {
@@ -298,7 +299,11 @@ export function SubscriptionExtraCreditsDialog(
     } catch (error) {
       // The request may have reached the server: keep the stored body so the
       // retry is idempotent.
-      handleServerError(error, t('Request failed'))
+      handleServerError(error, undefined, {
+        title: t(
+          'The purchase result is unknown. Continue to retry it; you will not be charged twice.'
+        ),
+      })
       settle()
       return
     }
@@ -322,7 +327,11 @@ export function SubscriptionExtraCreditsDialog(
       typeof messageKey === 'string' &&
       EXTRA_CREDITS_REJECTION_KEYS.has(messageKey)
     if (!confirmed && !rejected) {
-      toast.error(t('Request failed'))
+      toast.error(
+        t(
+          'The purchase result is unknown. Continue to retry it; you will not be charged twice.'
+        )
+      )
       settle()
       return
     }
@@ -417,7 +426,7 @@ export function SubscriptionExtraCreditsDialog(
           </>
         }
         description={t(
-          'Convert wallet balance into extra credits for this subscription. Plan quota is used first, then extra credits. Unused extra credits stay after expiry.'
+          'Convert wallet balance into extra credits for this subscription. Plan quota is used first, then extra credits. Unused extra credits are refunded to your wallet when the subscription ends.'
         )}
         contentClassName='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'
         titleClassName='flex items-center gap-2'
@@ -475,7 +484,9 @@ export function SubscriptionExtraCreditsDialog(
                     '1 {{currency}} spent = {{rate}} {{currency}} extra credits',
                     {
                       currency: currencyLabel,
-                      rate: formatNumber(displayRate, locale),
+                      rate: new Intl.NumberFormat(locale, {
+                        maximumFractionDigits: 6,
+                      }).format(displayRate),
                     }
                   )}
                 </span>
@@ -485,7 +496,9 @@ export function SubscriptionExtraCreditsDialog(
                   <span className='text-muted-foreground'>
                     {t('Remaining extra credits')}
                   </span>
-                  <span className='tabular-nums'>{formatQuota(remaining)}</span>
+                  <span className='tabular-nums'>
+                    {formatExactQuota(remaining, locale)}
+                  </span>
                 </div>
               )}
             </div>
@@ -534,19 +547,21 @@ export function SubscriptionExtraCreditsDialog(
                     {t('Due from balance')}
                   </span>
                   <span className='tabular-nums'>
-                    {formatQuota(conversion.walletQuota)}
+                    {formatExactQuota(conversion.walletQuota, locale)}
                   </span>
                 </div>
                 <Separator />
                 <div className='flex justify-between gap-2 font-medium'>
                   <span>{t('Extra credits you receive')}</span>
                   <span className='tabular-nums'>
-                    {formatQuota(conversion.credits)}
+                    {formatExactQuota(conversion.credits, locale)}
                   </span>
                 </div>
                 <div className='text-muted-foreground flex justify-between gap-2 text-xs'>
                   <span>{t('Available')}</span>
-                  <span className='tabular-nums'>{formatQuota(userQuota)}</span>
+                  <span className='tabular-nums'>
+                    {formatExactQuota(userQuota, locale)}
+                  </span>
                 </div>
               </div>
             )}
@@ -578,8 +593,14 @@ export function SubscriptionExtraCreditsDialog(
             ? t(
                 '{{cost}} will be deducted from your wallet balance for {{credits}} of extra credits. This cannot be undone.',
                 {
-                  cost: formatQuota(confirmationConversion.walletQuota),
-                  credits: formatQuota(confirmationConversion.credits),
+                  cost: formatExactQuota(
+                    confirmationConversion.walletQuota,
+                    locale
+                  ),
+                  credits: formatExactQuota(
+                    confirmationConversion.credits,
+                    locale
+                  ),
                 }
               )
             : ''

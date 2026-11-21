@@ -164,7 +164,7 @@ describe('buy extra credits button placement', () => {
     ).not.toBeInTheDocument()
   })
 
-  test('is offered to top up an expired subscription that already holds extras', () => {
+  test('is not offered to top up an expired subscription that still holds extras', () => {
     renderItem({
       canUpgrade: false,
       subscription: {
@@ -181,8 +181,8 @@ describe('buy extra credits button placement', () => {
       },
     })
     expect(
-      screen.getByRole('button', { name: 'Buy Extra Credits' })
-    ).toBeInTheDocument()
+      screen.queryByRole('button', { name: 'Buy Extra Credits' })
+    ).not.toBeInTheDocument()
   })
 
   test('is never offered for a cancelled subscription', () => {
@@ -250,7 +250,9 @@ describe('remaining extra credits on a subscription row', () => {
     })
     expect(screen.getByText('Extra credits: $4')).toBeInTheDocument()
     expect(
-      screen.getByText('Unused extra credits stay after expiry')
+      screen.getByText(
+        'Unused extra credits are refunded to your wallet after expiry'
+      )
     ).toBeVisible()
   })
 

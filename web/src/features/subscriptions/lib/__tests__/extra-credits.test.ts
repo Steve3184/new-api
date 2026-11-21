@@ -155,7 +155,7 @@ describe('buying extra credits is allowed only for open subscriptions', () => {
     ).toBe(false)
   })
 
-  test('allows topping up an expired subscription whose extras were already purchased', () => {
+  test('refuses a top-up on an expired subscription even when it holds extras', () => {
     expect(
       canBuyExtraCredits(
         makeSub({
@@ -167,7 +167,7 @@ describe('buying extra credits is allowed only for open subscriptions', () => {
         plan,
         now
       )
-    ).toBe(true)
+    ).toBe(false)
     expect(
       canBuyExtraCredits(
         makeSub({
@@ -178,7 +178,7 @@ describe('buying extra credits is allowed only for open subscriptions', () => {
         plan,
         now
       )
-    ).toBe(true)
+    ).toBe(false)
   })
 
   test('refuses cancelled and upgraded subscriptions', () => {
