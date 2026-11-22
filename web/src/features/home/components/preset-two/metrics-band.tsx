@@ -68,8 +68,10 @@ function StatFigure(props: { stat: Stat; reduced: boolean }) {
   return (
     <>
       <span ref={ref}>{digits}</span>
+      {/* Upright on purpose: gradient text is clipped to the glyph box, so an
+          italic unit such as M loses the part that leans past it. */}
       {accent && (
-        <span className='preset-two-gradient-text ml-0.5 font-serif text-4xl font-normal italic sm:text-5xl'>
+        <span className='preset-two-gradient-text ml-0.5 font-serif text-4xl font-normal sm:text-5xl'>
           {accent}
         </span>
       )}

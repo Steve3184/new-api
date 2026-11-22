@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { createElement, Fragment, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -273,6 +273,12 @@ describe('homepage preset two', () => {
     expect(figureAbove('providers connected')).toHaveTextContent('3')
     expect(figureAbove('requests per minute, live')).toHaveTextContent('1.2K')
     expect(figureAbove('tokens per minute, live')).toHaveTextContent('2.5M')
+    // An italic unit leans out of the gradient's clip box and loses a piece.
+    expect(
+      within(figureAbove('tokens per minute, live') as HTMLElement).getByText(
+        'M'
+      )
+    ).not.toHaveClass('italic')
     expect(
       screen.queryByText('upstream services integrated')
     ).not.toBeInTheDocument()
