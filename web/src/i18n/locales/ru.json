@@ -9079,6 +9079,14 @@
     "The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.": "Не удалось надёжно сохранить результат покупки в этом браузере. Прежде чем повторить попытку в любой вкладке, проверьте баланс.",
     "The pending purchase changed in another tab. Review the amount and confirm again.": "Ожидающая подтверждения покупка изменилась в другой вкладке. Проверьте сумму и подтвердите ещё раз.",
     "The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.": "Предыдущая покупка обработана в другой вкладке. Введите сумму только для новой покупки.",
-    "Retry purchase": "Повторить покупку"
+    "Retry purchase": "Повторить покупку",
+    "Model plaza categories": "Категории на витрине моделей",
+    "The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.": "В фильтре групп на витрине моделей сначала показываются группы без категории, затем каждая категория под своим заголовком. Группа может входить не более чем в одну категорию; категории без групп не сохраняются.",
+    "Add category": "Добавить категорию",
+    "No categories yet. All groups appear uncategorized in the model plaza.": "Категорий пока нет. На витрине моделей все группы показываются без категории.",
+    "Category name": "Название категории",
+    "No groups available": "Нет доступных групп",
+    "Not in pricing table: {{names}}": "Нет в таблице тарифных групп: {{names}}",
+    "Duplicate category names: {{names}}": "Повторяющиеся названия категорий: {{names}}"
   }
 }

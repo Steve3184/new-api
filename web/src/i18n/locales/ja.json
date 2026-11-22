@@ -9079,6 +9079,14 @@
     "The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.": "このブラウザーでは購入結果を確実に保存できませんでした。どのタブで再試行する場合も、先に残高を確認してください。",
     "The pending purchase changed in another tab. Review the amount and confirm again.": "別のタブで確認待ちの購入が変更されました。金額を確認して、もう一度確定してください。",
     "The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.": "以前の購入は別のタブで処理されました。新たに購入する場合のみ金額を入力してください。",
-    "Retry purchase": "購入を再試行"
+    "Retry purchase": "購入を再試行",
+    "Model plaza categories": "モデル広場のカテゴリ",
+    "The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.": "モデル広場のグループフィルターでは、未分類のグループを先に表示し、その後カテゴリごとに見出しを付けて表示します。各グループが属するカテゴリは 1 つまでです。グループのないカテゴリは保存されません。",
+    "Add category": "カテゴリを追加",
+    "No categories yet. All groups appear uncategorized in the model plaza.": "カテゴリはまだありません。モデル広場ではすべてのグループが未分類として表示されます。",
+    "Category name": "カテゴリ名",
+    "No groups available": "選択できるグループがありません",
+    "Not in pricing table: {{names}}": "料金グループ表にありません: {{names}}",
+    "Duplicate category names: {{names}}": "重複するカテゴリ名: {{names}}"
   }
 }

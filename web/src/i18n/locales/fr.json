@@ -9079,6 +9079,14 @@
     "The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.": "Le résultat de l’achat n’a pas pu être enregistré de manière fiable dans ce navigateur. Vérifiez votre solde avant de réessayer, quel que soit l’onglet.",
     "The pending purchase changed in another tab. Review the amount and confirm again.": "L’achat en attente a changé dans un autre onglet. Vérifiez le montant et confirmez à nouveau.",
     "The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.": "L’achat précédent a été résolu dans un autre onglet. Saisissez un montant uniquement pour effectuer un nouvel achat.",
-    "Retry purchase": "Réessayer l’achat"
+    "Retry purchase": "Réessayer l’achat",
+    "Model plaza categories": "Catégories de la place des modèles",
+    "The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.": "Le filtre de groupes de la place des modèles affiche d'abord les groupes non classés, puis chaque catégorie sous son propre titre. Un groupe appartient à une seule catégorie au plus ; les catégories sans groupe ne sont pas enregistrées.",
+    "Add category": "Ajouter une catégorie",
+    "No categories yet. All groups appear uncategorized in the model plaza.": "Aucune catégorie pour le moment. Tous les groupes apparaissent comme non classés dans la place des modèles.",
+    "Category name": "Nom de la catégorie",
+    "No groups available": "Aucun groupe disponible",
+    "Not in pricing table: {{names}}": "Absent du tableau tarifaire : {{names}}",
+    "Duplicate category names: {{names}}": "Noms de catégorie en double : {{names}}"
   }
 }

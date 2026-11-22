@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -236,5 +242,178 @@ describe('group settings workspace', () => {
     expect(description).toHaveAttribute('rows', '1')
     fireEvent.change(description, { target: { value: '' } })
     expect(description).toHaveAttribute('rows', '1')
+  })
+})
+
+describe('model plaza group categories', () => {
+  it('edits categories in their own card instead of a pricing table column', () => {
+    render(
+      <Fixture initial={{ ModelSquareGroupCategories: '{"vip":"Premium"}' }} />
+    )
+
+    expect(
+      screen.queryByRole('columnheader', { name: 'Model plaza category' })
+    ).not.toBeInTheDocument()
+    const name = screen.getByRole('textbox', { name: 'Category name' })
+    expect(name).toHaveValue('Premium')
+    const categoryRow = name.closest('tr')
+    expect(categoryRow).not.toBeNull()
+    expect(within(categoryRow as HTMLElement).getByText('vip')).toBeVisible()
+    expect(
+      within(categoryRow as HTMLElement).queryByRole('textbox', {
+        name: 'Group name',
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('saves groups picked for a new category as the category map', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async (_values: typeof defaults) => {})
+    render(<Fixture onSave={onSave} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add category' }))
+    await user.type(
+      screen.getByRole('textbox', { name: 'Category name' }),
+      'Premium'
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Select groups' }))
+    await user.click(screen.getByRole('option', { name: 'vip' }))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Save group ratios' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(
+      JSON.parse(onSave.mock.calls[0][0].ModelSquareGroupCategories)
+    ).toEqual({ vip: 'Premium' })
+  })
+
+  it('offers a group already in one category to no other category', async () => {
+    const user = userEvent.setup()
+    render(
+      <Fixture initial={{ ModelSquareGroupCategories: '{"vip":"Premium"}' }} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Add category' }))
+    const groupSelects = screen.getAllByRole('combobox', {
+      name: 'Select groups',
+    })
+    expect(groupSelects).toHaveLength(2)
+    await user.click(groupSelects[1])
+
+    expect(screen.getByRole('option', { name: 'default' })).toBeVisible()
+    expect(
+      screen.queryByRole('option', { name: 'vip' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps groups while a category name is cleared but leaves the unnamed category out of saved settings', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async (_values: typeof defaults) => {})
+    render(
+      <Fixture
+        onSave={onSave}
+        initial={{ ModelSquareGroupCategories: '{"vip":"Premium"}' }}
+      />
+    )
+
+    const name = screen.getByRole('textbox', { name: 'Category name' })
+    await user.clear(name)
+
+    expect(name).toHaveAttribute('aria-invalid', 'true')
+    expect(name).toHaveAccessibleDescription('Category name is required')
+    expect(
+      within(name.closest('tr') as HTMLElement).getByText('vip')
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save group ratios' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(
+      JSON.parse(onSave.mock.calls[0][0].ModelSquareGroupCategories)
+    ).toEqual({})
+  })
+
+  it('marks duplicate category names as invalid', async () => {
+    const user = userEvent.setup()
+    render(
+      <Fixture initial={{ ModelSquareGroupCategories: '{"vip":"Premium"}' }} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Add category' }))
+    const names = screen.getAllByRole('textbox', { name: 'Category name' })
+    await user.type(names[1], 'Premium')
+
+    for (const name of names) {
+      expect(name).toHaveAttribute('aria-invalid', 'true')
+      expect(name).toHaveAccessibleDescription(
+        'Duplicate category names: Premium'
+      )
+    }
+  })
+
+  it('saves the loaded category value unchanged after a group is picked and removed again', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async (_values: typeof defaults) => {})
+    const initialCategories = '{"default":"Zeta","vip":"Alpha"}'
+    render(
+      <Fixture
+        onSave={onSave}
+        initial={{ ModelSquareGroupCategories: initialCategories }}
+      />
+    )
+
+    const alphaRow = screen
+      .getByDisplayValue('Alpha')
+      .closest('tr') as HTMLElement
+    await user.click(
+      within(alphaRow).getByRole('combobox', { name: 'Select groups' })
+    )
+    await user.click(screen.getByRole('option', { name: 'vip' }))
+    await user.click(screen.getByRole('option', { name: 'vip' }))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Save group ratios' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].ModelSquareGroupCategories).toBe(
+      JSON.stringify(JSON.parse(initialCategories), null, 2)
+    )
+  })
+
+  it('warns when a categorized group is missing from the pricing table', () => {
+    render(
+      <Fixture initial={{ ModelSquareGroupCategories: '{"legacy":"Old"}' }} />
+    )
+
+    expect(screen.getByText('Not in pricing table: legacy')).toBeVisible()
+  })
+
+  it('shows the group category in the group details sheet', async () => {
+    const user = userEvent.setup()
+    render(
+      <Fixture initial={{ ModelSquareGroupCategories: '{"vip":"Premium"}' }} />
+    )
+
+    await user.click(screen.getAllByRole('button', { name: 'Details' })[1])
+    const sheet = await screen.findByRole('dialog')
+
+    expect(within(sheet).getByText('Model plaza category')).toBeVisible()
+    expect(within(sheet).getByText('Premium')).toBeVisible()
+  })
+
+  it('shows Uncategorized in the details of an uncategorized group named like an object property', async () => {
+    const user = userEvent.setup()
+    render(
+      <Fixture
+        initial={{
+          GroupRatio: '{"constructor":1}',
+          TopupGroupRatio: '{}',
+          UserUsableGroups: '{}',
+          AutoGroups: '[]',
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Details' }))
+    const sheet = await screen.findByRole('dialog')
+
+    expect(within(sheet).getByText('Uncategorized')).toBeVisible()
   })
 })

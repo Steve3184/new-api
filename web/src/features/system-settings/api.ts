@@ -38,7 +38,11 @@ import type {
 } from './types'
 
 export async function getSystemOptions() {
-  const res = await api.get<SystemOptionsResponse>('/api/option/')
+  // Settings are re-read right after each save. Sharing an earlier in-flight
+  // read would return the options as they were before the last update.
+  const res = await api.get<SystemOptionsResponse>('/api/option/', {
+    disableDuplicate: true,
+  })
   return res.data
 }
 

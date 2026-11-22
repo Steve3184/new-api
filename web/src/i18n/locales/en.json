@@ -9079,6 +9079,14 @@
     "The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.": "The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.",
     "The pending purchase changed in another tab. Review the amount and confirm again.": "The pending purchase changed in another tab. Review the amount and confirm again.",
     "The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.": "The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.",
-    "Retry purchase": "Retry purchase"
+    "Retry purchase": "Retry purchase",
+    "Model plaza categories": "Model plaza categories",
+    "The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.": "The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.",
+    "Add category": "Add category",
+    "No categories yet. All groups appear uncategorized in the model plaza.": "No categories yet. All groups appear uncategorized in the model plaza.",
+    "Category name": "Category name",
+    "No groups available": "No groups available",
+    "Not in pricing table: {{names}}": "Not in pricing table: {{names}}",
+    "Duplicate category names: {{names}}": "Duplicate category names: {{names}}"
   }
 }

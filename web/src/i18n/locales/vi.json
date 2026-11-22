@@ -9079,6 +9079,14 @@
     "The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.": "Trình duyệt này không thể lưu kết quả mua một cách đáng tin cậy. Hãy kiểm tra số dư trước khi thử lại ở bất kỳ thẻ nào.",
     "The pending purchase changed in another tab. Review the amount and confirm again.": "Giao dịch mua đang chờ đã thay đổi trong một thẻ khác. Hãy kiểm tra số tiền và xác nhận lại.",
     "The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.": "Giao dịch mua trước đã được xử lý trong thẻ khác. Chỉ nhập số tiền nếu bạn muốn mua mới.",
-    "Retry purchase": "Thử lại giao dịch mua"
+    "Retry purchase": "Thử lại giao dịch mua",
+    "Model plaza categories": "Danh mục trên khu mô hình",
+    "The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.": "Bộ lọc nhóm trên khu mô hình hiển thị các nhóm chưa phân loại trước, sau đó là từng danh mục dưới tiêu đề riêng. Mỗi nhóm thuộc tối đa một danh mục; danh mục không có nhóm sẽ không được lưu.",
+    "Add category": "Thêm danh mục",
+    "No categories yet. All groups appear uncategorized in the model plaza.": "Chưa có danh mục nào. Tất cả nhóm hiển thị là chưa phân loại trên khu mô hình.",
+    "Category name": "Tên danh mục",
+    "No groups available": "Không có nhóm nào để chọn",
+    "Not in pricing table: {{names}}": "Không có trong bảng định giá: {{names}}",
+    "Duplicate category names: {{names}}": "Tên danh mục bị trùng: {{names}}"
   }
 }

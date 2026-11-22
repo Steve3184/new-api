@@ -9079,6 +9079,14 @@
     "The purchase result could not be saved reliably in this browser. Check your balance before retrying in any tab.": "此浏览器未能可靠地保存购买结果。在任何标签页重试前，请先核对余额。",
     "The pending purchase changed in another tab. Review the amount and confirm again.": "另一标签页中的待确认购买已变更。请核对金额并重新确认。",
     "The earlier purchase was resolved in another tab. Enter an amount only if you want to make a new purchase.": "先前的购买已在另一标签页处理完成。只有需要新购时，才重新输入金额。",
-    "Retry purchase": "重试购买"
+    "Retry purchase": "重试购买",
+    "Model plaza categories": "模型广场分类",
+    "The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.": "模型广场的分组筛选会先列出未分类的分组，再按分类标题依次列出其余分组。每个分组最多属于一个分类；没有分组的分类不会被保存。",
+    "Add category": "添加分类",
+    "No categories yet. All groups appear uncategorized in the model plaza.": "暂无分类，所有分组在模型广场中均显示为未分类。",
+    "Category name": "分类名称",
+    "No groups available": "没有可选分组",
+    "Not in pricing table: {{names}}": "不在定价分组表中：{{names}}",
+    "Duplicate category names: {{names}}": "存在重复的分类名称：{{names}}"
   }
 }

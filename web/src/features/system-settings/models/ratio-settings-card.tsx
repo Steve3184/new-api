@@ -58,17 +58,16 @@ import {
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
-function filterDefaultModelsByGroups(
-  defaultModels: string,
-  groupValues: string[]
-): string {
-  const modelMap = safeJsonParse<Record<string, string>>(defaultModels, {
+// Drops the entries of a group-keyed JSON map whose group is no longer in
+// the pricing table, so deleted or renamed groups leave nothing behind.
+function filterGroupMapByGroups(value: string, groupValues: string[]): string {
+  const groupMap = safeJsonParse<Record<string, string>>(value, {
     fallback: {},
     silent: true,
   })
   const validGroups = new Set(groupValues)
   const filtered = Object.fromEntries(
-    Object.entries(modelMap).filter(([group]) => validGroups.has(group))
+    Object.entries(groupMap).filter(([group]) => validGroups.has(group))
   )
   return JSON.stringify(filtered, null, 2)
 }
@@ -497,6 +496,12 @@ export function RatioSettingsCard({
 
   const saveGroupRatios = useCallback(
     async (values: GroupFormValues) => {
+      const pricedGroups = Object.keys(
+        safeJsonParse<Record<string, number>>(values.GroupRatio, {
+          fallback: {},
+          silent: true,
+        })
+      )
       const normalized = {
         GroupRatio: normalizeJsonString(values.GroupRatio),
         TopupGroupRatio: normalizeJsonString(values.TopupGroupRatio),
@@ -509,21 +514,19 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup: normalizeJsonString(
           values.GroupSpecialUsableGroup
         ),
-        GroupDefaultModel: filterDefaultModelsByGroups(
+        GroupDefaultModel: filterGroupMapByGroups(
           values.GroupDefaultModel,
-          Object.keys(
-            safeJsonParse<Record<string, number>>(values.GroupRatio, {
-              fallback: {},
-              silent: true,
-            })
-          )
+          pricedGroups
         ),
         GroupRetryTimes: normalizeJsonString(values.GroupRetryTimes),
         ModelSquareVisibleGroups: normalizeJsonString(
           values.ModelSquareVisibleGroups
         ),
         ModelSquareGroupCategories: normalizeJsonString(
-          values.ModelSquareGroupCategories
+          filterGroupMapByGroups(
+            values.ModelSquareGroupCategories,
+            pricedGroups
+          )
         ),
       }
 

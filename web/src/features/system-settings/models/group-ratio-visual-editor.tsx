@@ -42,6 +42,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -58,6 +59,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Combobox } from '@/components/ui/combobox'
+import { Field, FieldError } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -93,8 +95,13 @@ type GroupPricingRow = {
   retryTimes: string
   selectable: boolean
   modelSquareVisible: boolean
-  category: string
   description: string
+}
+
+type GroupCategoryRow = {
+  _id: string
+  name: string
+  groups: string[]
 }
 
 type RegistryEntry = {
@@ -110,6 +117,12 @@ let groupPricingIdCounter = 0
 function createGroupPricingId() {
   groupPricingIdCounter += 1
   return `gpr_${groupPricingIdCounter}`
+}
+
+let groupCategoryIdCounter = 0
+function createGroupCategoryId() {
+  groupCategoryIdCounter += 1
+  return `gcat_${groupCategoryIdCounter}`
 }
 
 function normalizeRatio(value: unknown): number {
@@ -150,14 +163,63 @@ function parseVisibleGroupDescriptions(value: string): Record<string, string> {
   )
 }
 
+// Reads the group name -> category name map with the same trimming and
+// blank-entry rules the backend applies on save.
 function parseGroupCategories(value: string): Record<string, string> {
   const parsed = safeJsonParse<unknown>(value, { fallback: {}, silent: true })
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-  return Object.fromEntries(
-    Object.entries(parsed)
-      .filter(([, category]) => typeof category === 'string')
-      .sort(([a], [b]) => a.localeCompare(b))
+  const entries: [string, string][] = []
+  for (const [group, category] of Object.entries(parsed)) {
+    if (typeof category !== 'string') continue
+    const groupName = group.trim()
+    const categoryName = category.trim()
+    if (groupName && categoryName) entries.push([groupName, categoryName])
+  }
+  return Object.fromEntries(entries)
+}
+
+function groupCategorySignature(categories: Record<string, string>): string {
+  return JSON.stringify(
+    Object.entries(categories).sort(([a], [b]) => a.localeCompare(b))
   )
+}
+
+function buildGroupCategoryRows(value: string): GroupCategoryRow[] {
+  const rowsByName = new Map<string, GroupCategoryRow>()
+  for (const [group, category] of Object.entries(parseGroupCategories(value))) {
+    const row = rowsByName.get(category)
+    if (row) {
+      row.groups.push(group)
+      continue
+    }
+    rowsByName.set(category, {
+      _id: createGroupCategoryId(),
+      name: category,
+      groups: [group],
+    })
+  }
+  return [...rowsByName.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+// Keys are sorted the way the backend stores the map, so an edit that ends
+// where it started yields the saved value again instead of a reordered one.
+function serializeGroupCategoryRows(
+  rows: GroupCategoryRow[]
+): Record<string, string> {
+  const entries: [string, string][] = []
+  for (const row of rows) {
+    const name = row.name.trim()
+    if (!name) continue
+    for (const group of row.groups) {
+      const groupName = group.trim()
+      if (groupName) entries.push([groupName, name])
+    }
+  }
+  entries.sort(([a], [b]) => {
+    if (a === b) return 0
+    return a < b ? -1 : 1
+  })
+  return Object.fromEntries(entries)
 }
 
 function parseNestedRatioMap(
@@ -174,8 +236,7 @@ function buildGroupPricingRows(
   userUsableGroups: string,
   modelSquareVisibleGroups: string,
   topupGroupRatio: string,
-  groupRetryTimes: string,
-  modelSquareGroupCategories: string
+  groupRetryTimes: string
 ): GroupPricingRow[] {
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
@@ -192,7 +253,6 @@ function buildGroupPricingRows(
     ...Object.keys(retryTimesMap),
     ...visibleGroups,
   ])
-  const categoryMap = parseGroupCategories(modelSquareGroupCategories)
 
   return [...names].map((name) => ({
     _id: createGroupPricingId(),
@@ -204,7 +264,6 @@ function buildGroupPricingRows(
       : '',
     selectable: Object.hasOwn(usableMap, name),
     modelSquareVisible: visibleGroups.has(name),
-    category: categoryMap[name] ?? '',
     description: String(usableMap[name] ?? visibleDescriptions[name] ?? ''),
   }))
 }
@@ -215,7 +274,6 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const topupGroupRatio: Record<string, number> = {}
   const groupRetryTimes: Record<string, number> = {}
   const modelSquareVisibleGroups: string[] = []
-  const modelSquareGroupCategories: Record<string, string> = {}
 
   for (const row of rows) {
     const name = row.name.trim()
@@ -227,8 +285,6 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     if (row.modelSquareVisible) {
       modelSquareVisibleGroups.push(name)
     }
-    const category = row.category.trim()
-    if (category) modelSquareGroupCategories[name] = category
     const topup = row.topupRatio.trim()
     if (topup !== '' && Number.isFinite(Number(topup))) {
       topupGroupRatio[name] = Number(topup)
@@ -266,11 +322,6 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
       null,
       2
     ),
-    ModelSquareGroupCategories: JSON.stringify(
-      modelSquareGroupCategories,
-      null,
-      2
-    ),
   }
 }
 
@@ -287,9 +338,6 @@ function groupPricingSignature(rows: GroupPricingRow[]): string {
     modelSquareGroupDescriptions: parseVisibleGroupDescriptions(
       serialized.ModelSquareVisibleGroups
     ),
-    modelSquareGroupCategories: parseGroupCategories(
-      serialized.ModelSquareGroupCategories
-    ),
   })
 }
 
@@ -298,8 +346,7 @@ function sourceGroupPricingSignature(
   userUsableGroups: string,
   topupGroupRatio: string,
   groupRetryTimes: string,
-  modelSquareVisibleGroups: string,
-  modelSquareGroupCategories: string
+  modelSquareVisibleGroups: string
 ): string {
   return JSON.stringify({
     groupRatio: parseRatioMap(groupRatio),
@@ -309,9 +356,6 @@ function sourceGroupPricingSignature(
     modelSquareVisibleGroups: parseVisibleGroups(modelSquareVisibleGroups),
     modelSquareGroupDescriptions: parseVisibleGroupDescriptions(
       modelSquareVisibleGroups
-    ),
-    modelSquareGroupCategories: parseGroupCategories(
-      modelSquareGroupCategories
     ),
   })
 }
@@ -440,11 +484,16 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         groupRatio={groupRatio}
         userUsableGroups={userUsableGroups}
         modelSquareVisibleGroups={modelSquareVisibleGroups}
-        modelSquareGroupCategories={modelSquareGroupCategories}
         topupGroupRatio={topupGroupRatio}
         groupRetryTimes={groupRetryTimes}
         onChange={onChange}
         onShowDetail={setDetailGroup}
+      />
+
+      <GroupCategoryCard
+        groups={registryNames}
+        value={modelSquareGroupCategories}
+        onChange={onChange}
       />
 
       <GroupOverrideRules
@@ -524,6 +573,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         topupGroupRatio={topupGroupRatio}
         userUsableGroups={userUsableGroups}
         groupGroupRatio={groupGroupRatio}
+        modelSquareGroupCategories={modelSquareGroupCategories}
         autoGroups={autoGroupsList}
         groupSpecialUsableGroup={groupSpecialUsableGroup}
       />
@@ -535,7 +585,6 @@ type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
   modelSquareVisibleGroups: string
-  modelSquareGroupCategories: string
   topupGroupRatio: string
   groupRetryTimes: string
   onChange: (field: string, value: string) => void
@@ -548,7 +597,6 @@ function GroupPricingTable({
   topupGroupRatio,
   groupRetryTimes,
   modelSquareVisibleGroups,
-  modelSquareGroupCategories,
   onChange,
   onShowDetail,
 }: GroupPricingTableProps) {
@@ -559,8 +607,7 @@ function GroupPricingTable({
       userUsableGroups,
       modelSquareVisibleGroups,
       topupGroupRatio,
-      groupRetryTimes,
-      modelSquareGroupCategories
+      groupRetryTimes
     )
   )
 
@@ -570,8 +617,7 @@ function GroupPricingTable({
       userUsableGroups,
       topupGroupRatio,
       groupRetryTimes,
-      modelSquareVisibleGroups,
-      modelSquareGroupCategories
+      modelSquareVisibleGroups
     )
     setRows((currentRows) => {
       if (groupPricingSignature(currentRows) === incomingSignature) {
@@ -582,15 +628,13 @@ function GroupPricingTable({
         userUsableGroups,
         modelSquareVisibleGroups,
         topupGroupRatio,
-        groupRetryTimes,
-        modelSquareGroupCategories
+        groupRetryTimes
       )
     })
   }, [
     groupRatio,
     userUsableGroups,
     modelSquareVisibleGroups,
-    modelSquareGroupCategories,
     topupGroupRatio,
     groupRetryTimes,
   ])
@@ -604,10 +648,6 @@ function GroupPricingTable({
       onChange('TopupGroupRatio', serialized.TopupGroupRatio)
       onChange('GroupRetryTimes', serialized.GroupRetryTimes)
       onChange('ModelSquareVisibleGroups', serialized.ModelSquareVisibleGroups)
-      onChange(
-        'ModelSquareGroupCategories',
-        serialized.ModelSquareGroupCategories
-      )
     },
     [onChange]
   )
@@ -642,7 +682,6 @@ function GroupPricingTable({
         retryTimes: '',
         selectable: true,
         modelSquareVisible: false,
-        category: '',
         description: '',
       },
       ...rows,
@@ -797,22 +836,6 @@ function GroupPricingTable({
                 ),
               },
               {
-                id: 'category',
-                header: t('Model plaza category'),
-                className: 'w-40 min-w-36',
-                cell: (row) => (
-                  <Input
-                    aria-label={t('Model plaza category')}
-                    value={row.category}
-                    maxLength={32}
-                    placeholder={t('Uncategorized')}
-                    onChange={(event) =>
-                      updateRow(row._id, 'category', event.target.value)
-                    }
-                  />
-                ),
-              },
-              {
                 id: 'description',
                 header: t('Description'),
                 className: 'min-w-56',
@@ -866,6 +889,202 @@ function GroupPricingTable({
             </p>
           )}
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+const MAX_GROUP_CATEGORY_NAME_LENGTH = 32
+
+type GroupCategoryCardProps = {
+  groups: string[]
+  value: string
+  onChange: (field: string, value: string) => void
+}
+
+function GroupCategoryCard(props: GroupCategoryCardProps) {
+  const { t } = useTranslation()
+  const [rows, setRows] = useState<GroupCategoryRow[]>(() =>
+    buildGroupCategoryRows(props.value)
+  )
+
+  // Keep local rows (including unnamed or empty categories that are not
+  // serialized) unless the incoming value really differs, e.g. after a JSON
+  // edit or a reset.
+  useEffect(() => {
+    const incomingSignature = groupCategorySignature(
+      parseGroupCategories(props.value)
+    )
+    setRows((currentRows) => {
+      const currentSignature = groupCategorySignature(
+        serializeGroupCategoryRows(currentRows)
+      )
+      if (currentSignature === incomingSignature) return currentRows
+      return buildGroupCategoryRows(props.value)
+    })
+  }, [props.value])
+
+  const emitRows = (nextRows: GroupCategoryRow[]) => {
+    setRows(nextRows)
+    props.onChange(
+      'ModelSquareGroupCategories',
+      JSON.stringify(serializeGroupCategoryRows(nextRows), null, 2)
+    )
+  }
+
+  const updateRow = (
+    id: string,
+    patch: Partial<Omit<GroupCategoryRow, '_id'>>
+  ) => {
+    emitRows(rows.map((row) => (row._id === id ? { ...row, ...patch } : row)))
+  }
+
+  // A new category has no groups yet, so it does not change the saved value.
+  const addRow = () => {
+    setRows([...rows, { _id: createGroupCategoryId(), name: '', groups: [] }])
+  }
+
+  const knownGroups = new Set(props.groups)
+  const categoryIdByGroup = new Map<string, string>()
+  const nameCounts = new Map<string, number>()
+  for (const row of rows) {
+    for (const group of row.groups) categoryIdByGroup.set(group, row._id)
+    const name = row.name.trim()
+    if (name) nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1)
+  }
+  const duplicateNames = new Set(
+    [...nameCounts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name)
+  )
+
+  return (
+    <Card className={sectionCardClassName}>
+      <CardHeader className={sectionHeaderClassName}>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div>
+            <CardTitle>{t('Model plaza categories')}</CardTitle>
+            <CardDescription>
+              {t(
+                'The model plaza group filter lists uncategorized groups first, then each category under its own heading. A group belongs to at most one category; categories without groups are not saved.'
+              )}
+            </CardDescription>
+          </div>
+          <Button onClick={addRow} size='sm' className='sm:self-start'>
+            <Plus className='mr-2 h-4 w-4' />
+            {t('Add category')}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <StaticDataTable
+          data={rows}
+          getRowKey={(row) => row._id}
+          emptyClassName='text-muted-foreground h-20 text-sm'
+          emptyContent={t(
+            'No categories yet. All groups appear uncategorized in the model plaza.'
+          )}
+          columns={[
+            {
+              id: 'name',
+              header: t('Category name'),
+              className: 'w-56 min-w-44',
+              cellClassName: 'align-top whitespace-normal',
+              cell: (row) => {
+                const name = row.name.trim()
+                let error: string | null = null
+                if (!name && row.groups.length > 0) {
+                  error = t('Category name is required')
+                } else if (duplicateNames.has(name)) {
+                  error = t('Duplicate category names: {{names}}', {
+                    names: name,
+                  })
+                }
+                const errorId = `${row._id}-name-error`
+                return (
+                  <Field data-invalid={error !== null} className='gap-1.5'>
+                    <Input
+                      aria-label={t('Category name')}
+                      value={row.name}
+                      maxLength={MAX_GROUP_CATEGORY_NAME_LENGTH}
+                      placeholder={t('Category name')}
+                      aria-invalid={error !== null}
+                      aria-describedby={error ? errorId : undefined}
+                      onChange={(event) =>
+                        updateRow(row._id, { name: event.target.value })
+                      }
+                    />
+                    {error && (
+                      <FieldError id={errorId} className='text-xs'>
+                        {error}
+                      </FieldError>
+                    )}
+                  </Field>
+                )
+              },
+            },
+            {
+              id: 'groups',
+              header: t('Groups'),
+              className: 'min-w-72',
+              cellClassName: 'align-top whitespace-normal',
+              cell: (row) => {
+                const missingGroups = row.groups.filter(
+                  (group) => !knownGroups.has(group)
+                )
+                const options = [
+                  ...props.groups
+                    .filter(
+                      (group) =>
+                        (categoryIdByGroup.get(group) ?? row._id) === row._id
+                    )
+                    .map((group) => ({ value: group, label: group })),
+                  ...missingGroups.map((group) => ({
+                    value: group,
+                    label: group,
+                    icon: <AlertTriangle className='text-destructive size-3' />,
+                  })),
+                ]
+                return (
+                  <div className='space-y-1.5'>
+                    <MultiSelect
+                      options={options}
+                      selected={row.groups}
+                      onChange={(groups) => updateRow(row._id, { groups })}
+                      placeholder={t('Select groups')}
+                      emptyText={t('No groups available')}
+                    />
+                    {missingGroups.length > 0 && (
+                      <p className='text-destructive text-xs'>
+                        {t('Not in pricing table: {{names}}', {
+                          names: missingGroups.join(', '),
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )
+              },
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'text-right',
+              cellClassName: 'text-right align-top',
+              cell: (row) => (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() =>
+                    emitRows(rows.filter((item) => item._id !== row._id))
+                  }
+                  aria-label={t('Delete')}
+                >
+                  <Trash2 className='h-4 w-4' />
+                </Button>
+              ),
+            },
+          ]}
+        />
       </CardContent>
     </Card>
   )
@@ -1323,6 +1542,7 @@ type GroupDetailSheetProps = {
   topupGroupRatio: string
   userUsableGroups: string
   groupGroupRatio: string
+  modelSquareGroupCategories: string
   autoGroups: string[]
   groupSpecialUsableGroup: string
 }
@@ -1391,12 +1611,14 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
     }
 
     const autoIndex = props.autoGroups.indexOf(name)
+    const categoryMap = parseGroupCategories(props.modelSquareGroupCategories)
 
     return {
       ratio: entry?.ratio,
       topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : null,
       selectable: Object.hasOwn(usableMap, name),
       description: String(usableMap[name] ?? ''),
+      category: Object.hasOwn(categoryMap, name) ? categoryMap[name] : null,
       incomingOverrides,
       outgoingOverrides,
       visibilityRules,
@@ -1408,6 +1630,7 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
     props.topupGroupRatio,
     props.userUsableGroups,
     props.groupGroupRatio,
+    props.modelSquareGroupCategories,
     props.autoGroups,
     props.groupSpecialUsableGroup,
   ])
@@ -1461,6 +1684,14 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
                     </dd>
                   </div>
                 )}
+                <div className='flex justify-between gap-4'>
+                  <dt className='text-muted-foreground'>
+                    {t('Model plaza category')}
+                  </dt>
+                  <dd className='text-right font-medium'>
+                    {detail.category ?? t('Uncategorized')}
+                  </dd>
+                </div>
                 <div className='flex justify-between'>
                   <dt className='text-muted-foreground'>
                     {t('Auto assignment order')}
