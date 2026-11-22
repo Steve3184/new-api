@@ -851,10 +851,13 @@ export function OverviewDashboard() {
               </div>
             )}
 
+            {/* API routes take the height of the row instead of setting it
+                (h-0 + min-h-full), so the usage calendar never gains empty
+                space below its text; the route list scrolls instead. */}
             {showApiInfoPanel && (
               <CardStaggerItem
                 className={cn(
-                  'xl:col-start-2 xl:row-start-1',
+                  'xl:col-start-2 xl:row-start-1 xl:h-0 xl:min-h-full',
                   !showUptimePanel && 'xl:row-span-2'
                 )}
               >

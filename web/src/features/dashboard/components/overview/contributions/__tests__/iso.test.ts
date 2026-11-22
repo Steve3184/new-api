@@ -103,6 +103,38 @@ describe('iso layout', () => {
   })
 })
 
+describe('iso canvas fit', () => {
+  const allPoints = (layout: ReturnType<typeof layoutIsoCalendar>) =>
+    layout.cubes.flatMap((cube) => [...cube.top, ...cube.left, ...cube.right])
+
+  it('reserves no room for tall columns above a year without usage', () => {
+    const year = Array.from({ length: 53 * 7 }, (_, index) =>
+      day(Math.floor(index / 7), index % 7, 0, 0)
+    )
+    const layout = layoutIsoCalendar(year, RAMP)
+    const ys = allPoints(layout).map((point) => point.y)
+    const drawn = Math.max(...ys) - Math.min(...ys)
+
+    // Only the padding is added around the flat slab.
+    expect(layout.height).toBeCloseTo(drawn + 2 * 16, 5)
+  })
+
+  it('starts the drawing at the padding when the tallest column is at the front', () => {
+    const layout = layoutIsoCalendar(
+      [day(0, 0, 0, 0), day(40, 3, 0, 0), day(52, 6, 5000, 4)],
+      RAMP
+    )
+    const points = allPoints(layout)
+
+    expect(Math.min(...points.map((point) => point.y))).toBeCloseTo(16, 5)
+    expect(Math.min(...points.map((point) => point.x))).toBeCloseTo(16, 5)
+    expect(Math.max(...points.map((point) => point.y))).toBeCloseTo(
+      layout.height - 16,
+      5
+    )
+  })
+})
+
 describe('iso hit testing', () => {
   const days = [day(2, 3, 1000, 4), day(5, 1, 20, 1)]
   const layout = layoutIsoCalendar(days, RAMP)

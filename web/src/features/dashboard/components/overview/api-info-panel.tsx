@@ -63,7 +63,7 @@ export function ApiInfoPanel() {
       height='h-48'
       contentClassName='p-0'
     >
-      <PanelScrollArea minHeight='min-h-48'>
+      <PanelScrollArea minHeight='min-h-48 xl:min-h-0'>
         <div>
           {list.map((item: ApiInfoItem, idx: number) => (
             <div

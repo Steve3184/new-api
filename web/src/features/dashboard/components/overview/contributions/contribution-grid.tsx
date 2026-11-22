@@ -19,6 +19,9 @@ interface ContributionGridProps {
   onSelect: (day: ContributionDay) => void
 }
 
+// Columns a month label needs before the next one can start.
+const MIN_MONTH_LABEL_WEEKS = 3
+
 const DAY_OFFSETS: Record<string, number> = {
   ArrowLeft: -7,
   ArrowRight: 7,
@@ -47,6 +50,23 @@ export function ContributionGrid(props: ContributionGridProps) {
     () => new Intl.DateTimeFormat(locale, { month: 'short' }),
     [locale]
   )
+  // A month is labelled at the week it starts in. The first column names its
+  // month only when that month still has a few columns left, otherwise its
+  // label would run into the next month's.
+  const weekStarts = props.days.filter((day) => day.weekday === 0)
+  const monthLabelWeeks = new Set<number>()
+  weekStarts.forEach((day, week) => {
+    const previous = weekStarts[week - 1]
+    if (
+      previous !== undefined &&
+      new Date(previous.timestamp).getMonth() !==
+        new Date(day.timestamp).getMonth()
+    ) {
+      monthLabelWeeks.add(week)
+    }
+  })
+  const firstMonthChange = Math.min(...monthLabelWeeks, weekStarts.length)
+  if (firstMonthChange >= MIN_MONTH_LABEL_WEEKS) monthLabelWeeks.add(0)
   const weekdayFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { weekday: 'short' }),
     [locale]
@@ -114,21 +134,13 @@ export function ContributionGrid(props: ContributionGridProps) {
           style={{ gridTemplateColumns: weekColumns }}
           aria-hidden='true'
         >
-          {props.days
-            .filter((day) => day.weekday === 0)
-            .map((day, week) => {
-              const date = new Date(day.timestamp)
-              const previous = props.days[(week - 1) * 7]
-              const showMonth =
-                week === 0 ||
-                (previous !== undefined &&
-                  new Date(previous.timestamp).getMonth() !== date.getMonth())
-              return (
-                <span key={day.date} className='whitespace-nowrap'>
-                  {showMonth ? monthFormatter.format(date) : ''}
-                </span>
-              )
-            })}
+          {weekStarts.map((day, week) => (
+            <span key={day.date} className='whitespace-nowrap'>
+              {monthLabelWeeks.has(week)
+                ? monthFormatter.format(new Date(day.timestamp))
+                : ''}
+            </span>
+          ))}
         </div>
         <div className='flex gap-2'>
           <div

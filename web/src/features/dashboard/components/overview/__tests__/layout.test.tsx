@@ -136,6 +136,9 @@ describe('overview content grid', () => {
 
     expect(calendar).toHaveClass('xl:col-start-1', 'xl:row-start-1')
     expect(apiInfo).toHaveClass('xl:col-start-2', 'xl:row-start-1')
+    // API routes take the calendar's row height instead of setting it, so the
+    // calendar card never gains empty space below its text.
+    expect(apiInfo).toHaveClass('xl:h-0', 'xl:min-h-full')
     expect(below).toHaveClass('xl:col-start-1', 'xl:row-start-2')
     expect(below).toContainElement(screen.getByText('FAQ'))
     // Uptime Kuma shares a row with the panels below the calendar only, so a

@@ -127,14 +127,20 @@ export function PanelWrapper(props: PanelWrapperProps) {
  * Scrolling body of a panel. It keeps at least `minHeight` and grows with the
  * panel; the content scrolls inside instead of making the panel taller, so a
  * long list never pushes the dashboard columns out of line.
+ *
+ * The absolute box is a plain wrapper on purpose: the ScrollArea root sets an
+ * inline `position: relative`, which would override an `absolute` class on it
+ * and put the whole list back into the layout.
  */
 export function PanelScrollArea(props: {
-  minHeight: 'min-h-48' | 'min-h-72' | 'min-h-80'
+  minHeight: 'min-h-48 xl:min-h-0' | 'min-h-72' | 'min-h-80'
   children: ReactNode
 }) {
   return (
     <div className={cn('relative flex-1', props.minHeight)}>
-      <ScrollArea className='absolute inset-0'>{props.children}</ScrollArea>
+      <div className='absolute inset-0'>
+        <ScrollArea className='h-full'>{props.children}</ScrollArea>
+      </div>
     </div>
   )
 }

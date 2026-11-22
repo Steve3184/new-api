@@ -11,9 +11,9 @@ import { CONTRIBUTION_LEVEL_ALPHA, type ContributionDay } from './calendar'
  */
 // Screen slope of one iso step, roughly the sine of the camera's elevation. A
 // true 30° projection (0.577) looks down too steeply on a wide, short card, so
-// the camera sits lower, about 19° above the ground: the calendar reads as a
+// the camera sits low, about 15° above the ground: the calendar reads as a
 // landscape and the columns stand out, while the cubes still read as isometric.
-export const ISO_SLOPE = 0.32
+export const ISO_SLOPE = 0.26
 // Side faces carry the cube's volume. A wider spread than the reference's
 // 0.8367/0.7 keeps neighbouring columns readable at this scale.
 const LEFT_DARKEN = 0.78
@@ -137,10 +137,34 @@ export function layoutIsoCalendar(
   // Painter's order: nearer cubes (larger week + weekday) are drawn last.
   cubes.sort((a, b) => a.depth - b.depth)
 
+  // Fit the canvas to what is drawn. Room for the tallest possible column is
+  // not reserved at the back corner: recent weeks, where usage sits, are at
+  // the front and much lower on screen, so that band would stay empty.
+  const points = cubes.flatMap((cube) => [
+    ...cube.top,
+    ...cube.left,
+    ...cube.right,
+  ])
+  if (points.length === 0) {
+    return {
+      cubes,
+      width: spanX + 2 * CELL + 2 * PAD,
+      height: originY + depth + stepY + PAD,
+    }
+  }
+  const minX = Math.min(...points.map((point) => point.x))
+  const minY = Math.min(...points.map((point) => point.y))
+  const maxX = Math.max(...points.map((point) => point.x))
+  const maxY = Math.max(...points.map((point) => point.y))
+  for (const point of points) {
+    point.x += PAD - minX
+    point.y += PAD - minY
+  }
+
   return {
     cubes,
-    width: spanX + 2 * CELL + 2 * PAD,
-    height: originY + depth + stepY + PAD,
+    width: maxX - minX + 2 * PAD,
+    height: maxY - minY + 2 * PAD,
   }
 }
 

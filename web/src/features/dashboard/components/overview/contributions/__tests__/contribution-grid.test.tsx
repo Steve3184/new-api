@@ -150,3 +150,40 @@ describe('contribution grid', () => {
     expect(await waitForTooltip()).toHaveTextContent('2026-03-05: 50 tokens')
   })
 })
+
+/** `weeks` whole weeks of idle days starting on the given local date. */
+function weeksFrom(start: Date, weeks: number): ContributionDay[] {
+  return Array.from({ length: weeks * 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    return {
+      date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      timestamp: date.getTime(),
+      week: Math.floor(index / 7),
+      weekday: index % 7,
+      tokens: 0,
+      requests: 0,
+      level: 0,
+      available: true,
+    }
+  })
+}
+
+describe('contribution grid month labels', () => {
+  it('drops the first month label when the next month starts within three weeks', () => {
+    // Starts on Sunday 29 March: April begins in the second column.
+    renderGrid(weeksFrom(new Date(2026, 2, 29), 8))
+
+    expect(screen.queryByText('Mar')).not.toBeInTheDocument()
+    expect(screen.getByText('Apr')).toBeInTheDocument()
+    expect(screen.getByText('May')).toBeInTheDocument()
+  })
+
+  it('keeps the first month label when that month still has three columns', () => {
+    // Starts on Sunday 8 March: April begins in the fifth column.
+    renderGrid(weeksFrom(new Date(2026, 2, 8), 8))
+
+    expect(screen.getByText('Mar')).toBeInTheDocument()
+    expect(screen.getByText('Apr')).toBeInTheDocument()
+  })
+})
