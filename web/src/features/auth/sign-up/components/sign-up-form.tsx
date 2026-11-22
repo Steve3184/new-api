@@ -72,6 +72,7 @@ export function SignUpForm({
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
+  const [isEditingPassword, setIsEditingPassword] = useState(false)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
@@ -311,7 +312,16 @@ export function SignUpForm({
           control={form.control}
           name='password'
           render={({ field }) => (
-            <FormItem>
+            // The checklists fold away unless focus is inside this field,
+            // including its show-password toggle.
+            <FormItem
+              onFocus={() => setIsEditingPassword(true)}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  setIsEditingPassword(false)
+                }
+              }}
+            >
               <FormLabel>{t('Password')}</FormLabel>
               <FormControl describedBy='sign-up-password-strength'>
                 <PasswordInput
@@ -323,6 +333,7 @@ export function SignUpForm({
               <PasswordStrength
                 id='sign-up-password-strength'
                 value={passwordValue}
+                showRules={isEditingPassword}
               />
               <FormMessage />
             </FormItem>

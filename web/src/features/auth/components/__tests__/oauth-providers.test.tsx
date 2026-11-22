@@ -48,10 +48,17 @@ const status: SystemStatus = {
 
 afterEach(cleanup)
 
-async function renderProviders(showBindRewards: boolean) {
+async function renderProviders(
+  showBindRewards: boolean,
+  showSeparator?: boolean
+) {
   const root = createRootRoute({
     component: () => (
-      <OAuthProviders status={status} showBindRewards={showBindRewards} />
+      <OAuthProviders
+        status={status}
+        showBindRewards={showBindRewards}
+        showSeparator={showSeparator}
+      />
     ),
   })
   const router = createRouter({
@@ -89,5 +96,32 @@ describe('OAuthProviders binding rewards', () => {
       await screen.findByRole('button', { name: /Continue with LinuxDO/ })
     ).toBeVisible()
     expect(screen.queryByText(/bonus/)).not.toBeInTheDocument()
+  })
+})
+
+describe('OAuthProviders divider', () => {
+  it('sits after every provider button so it leads into the fields below', async () => {
+    await renderProviders(false)
+
+    const buttons = await screen.findAllByRole('button', {
+      name: /Continue with/,
+    })
+    const divider = screen.getByText('Or continue with')
+    expect(buttons.length).toBeGreaterThan(0)
+    for (const button of buttons) {
+      expect(
+        button.compareDocumentPosition(divider) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    }
+  })
+
+  it('is left out when no fields follow the buttons', async () => {
+    await renderProviders(false, false)
+
+    expect(
+      await screen.findByRole('button', { name: /Continue with GitHub/ })
+    ).toBeVisible()
+    expect(screen.queryByText('Or continue with')).not.toBeInTheDocument()
   })
 })

@@ -220,6 +220,19 @@ describe('password strength feedback', () => {
     ).toHaveAttribute('aria-valuenow', '0')
   })
 
+  test('keeps the meter and status line but folds both checklists away when rules are hidden', () => {
+    render(<PasswordStrength value='Ab1!' showRules={false} />)
+
+    expect(
+      screen.getByRole('meter', { name: 'Password strength' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Password requirements not met')).toBeVisible()
+    expect(screen.queryByText('Password requirement')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('For a stronger password')
+    ).not.toBeInTheDocument()
+  })
+
   test('shows how many characters a short password still needs', () => {
     render(<PasswordStrength value='Ab1!' />)
 

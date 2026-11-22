@@ -217,14 +217,14 @@ function BuiltInIllustration() {
 function LegalLinks(props: { className?: string }) {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const links = [
-    status?.user_agreement_enabled
-      ? { label: t('User Agreement'), href: '/user-agreement' }
-      : null,
-    status?.privacy_policy_enabled
-      ? { label: t('Privacy Policy'), href: '/privacy-policy' }
-      : null,
-  ].filter((link): link is { label: string; href: string } => link !== null)
+  const links: { label: string; to: '/user-agreement' | '/privacy-policy' }[] =
+    []
+  if (status?.user_agreement_enabled) {
+    links.push({ label: t('User Agreement'), to: '/user-agreement' })
+  }
+  if (status?.privacy_policy_enabled) {
+    links.push({ label: t('Privacy Policy'), to: '/privacy-policy' })
+  }
   if (links.length === 0) return null
 
   return (
@@ -232,14 +232,16 @@ function LegalLinks(props: { className?: string }) {
       aria-label={t('Legal documents')}
       className={cn('flex flex-wrap gap-x-6 gap-y-2 text-xs', props.className)}
     >
+      {/* Router links: both pages are app routes, so a plain anchor would
+          reload the whole app just to switch pages. */}
       {links.map((link) => (
-        <a
-          key={link.href}
-          href={link.href}
+        <Link
+          key={link.to}
+          to={link.to}
           className='hover:text-primary underline-offset-4 hover:underline'
         >
           {link.label}
-        </a>
+        </Link>
       ))}
     </nav>
   )

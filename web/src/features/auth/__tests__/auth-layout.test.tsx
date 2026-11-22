@@ -25,9 +25,13 @@ import { AuthLayout } from '../auth-layout'
 
 let appearance: Partial<SiteAppearanceConfig>
 
+// Router links are marked so a test can tell them from plain anchors, which
+// would reload the whole app instead of switching routes in place.
 vi.mock('@tanstack/react-router', () => ({
   Link: (props: { to: string; children: React.ReactNode }) => (
-    <a href={props.to}>{props.children}</a>
+    <a href={props.to} data-router-link=''>
+      {props.children}
+    </a>
   ),
 }))
 
@@ -107,6 +111,12 @@ describe('auth layout', () => {
     expect(
       screen.getAllByRole('link', { name: 'Privacy Policy' })
     ).toHaveLength(2)
+    // The legal pages are app routes, so the links switch routes in place.
+    for (const link of screen.getAllByRole('link', {
+      name: /User Agreement|Privacy Policy/,
+    })) {
+      expect(link).toHaveAttribute('data-router-link')
+    }
     // The particle field stands in for the illustration panel.
     expect(container.querySelector('canvas')).not.toBeNull()
   })

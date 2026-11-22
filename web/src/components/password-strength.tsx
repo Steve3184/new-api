@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Check, X } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -76,6 +76,12 @@ type PasswordStrengthProps = {
   className?: string
   id?: string
   quietWhenEmpty?: boolean
+  /**
+   * Show the requirement and suggestion checklists. The meter and its status
+   * line stay visible either way, so a form can fold the lists away until
+   * the password field is being edited.
+   */
+  showRules?: boolean
 }
 
 type PasswordRuleItemProps = {
@@ -260,36 +266,55 @@ export function PasswordStrength(props: PasswordStrengthProps) {
         </p>
       )}
 
-      <div className='mt-2'>
-        <p className='text-foreground mb-1.5 text-xs font-medium'>
-          {t('Password requirement')}
-        </p>
-        <ul>
-          {requirementRule && (
-            <PasswordRuleItem
-              rule={requirementRule}
-              label={requirementLabel}
-              shouldReduceMotion={shouldReduceMotion}
-            />
-          )}
-        </ul>
-      </div>
+      {/* The lists ease open and shut rather than jumping in, since a form
+          may toggle them as focus enters and leaves the field. */}
+      <AnimatePresence initial={false}>
+        {props.showRules !== false && (
+          <motion.div
+            key='rules'
+            className='overflow-hidden'
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={
+              shouldReduceMotion
+                ? MOTION_TRANSITION.none
+                : MOTION_TRANSITION.default
+            }
+          >
+            <div className='mt-2'>
+              <p className='text-foreground mb-1.5 text-xs font-medium'>
+                {t('Password requirement')}
+              </p>
+              <ul>
+                {requirementRule && (
+                  <PasswordRuleItem
+                    rule={requirementRule}
+                    label={requirementLabel}
+                    shouldReduceMotion={shouldReduceMotion}
+                  />
+                )}
+              </ul>
+            </div>
 
-      <div className='mt-3'>
-        <p className='text-muted-foreground mb-1.5 text-xs font-medium'>
-          {t('For a stronger password')}
-        </p>
-        <ul className='grid gap-1.5 sm:grid-cols-2'>
-          {suggestionRules.map((rule) => (
-            <PasswordRuleItem
-              key={rule.id}
-              rule={rule}
-              label={t(RULE_LABELS[rule.id])}
-              shouldReduceMotion={shouldReduceMotion}
-            />
-          ))}
-        </ul>
-      </div>
+            <div className='mt-3'>
+              <p className='text-muted-foreground mb-1.5 text-xs font-medium'>
+                {t('For a stronger password')}
+              </p>
+              <ul className='grid gap-1.5 sm:grid-cols-2'>
+                {suggestionRules.map((rule) => (
+                  <PasswordRuleItem
+                    key={rule.id}
+                    rule={rule}
+                    label={t(RULE_LABELS[rule.id])}
+                    shouldReduceMotion={shouldReduceMotion}
+                  />
+                ))}
+              </ul>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <p aria-live='polite' className='sr-only'>
         {settledAnnouncement}

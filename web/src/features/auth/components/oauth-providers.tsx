@@ -28,6 +28,7 @@ import {
 } from '@/assets/brand-icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { FieldSeparator } from '@/components/ui/field'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -46,6 +47,11 @@ type OAuthProvidersProps = {
   redirectTo?: string
   /** Show the one-time reward for linking each provider, used on sign-up */
   showBindRewards?: boolean
+  /**
+   * Draw the "Or continue with" divider below the buttons, leading into the
+   * password fields that follow them. Leave it off when nothing follows.
+   */
+  showSeparator?: boolean
 }
 
 type ProviderButton = {
@@ -65,6 +71,7 @@ export function OAuthProviders({
   isWeChatLoading = false,
   redirectTo,
   showBindRewards = false,
+  showSeparator = true,
 }: OAuthProvidersProps) {
   const { t } = useTranslation()
   const {
@@ -169,17 +176,6 @@ export function OAuthProviders({
   return (
     <>
       <div className={cn('space-y-3', className)}>
-        <div className='relative'>
-          <div className='absolute inset-0 flex items-center'>
-            <span className='w-full border-t' />
-          </div>
-          <div className='relative flex justify-center text-xs uppercase'>
-            <span className='bg-background text-muted-foreground px-2'>
-              {t('Or continue with')}
-            </span>
-          </div>
-        </div>
-
         <div className='flex flex-col gap-2'>
           {providerButtons.map((button) => {
             const reward = showBindRewards
@@ -205,6 +201,12 @@ export function OAuthProviders({
             )
           })}
         </div>
+
+        {showSeparator && (
+          <FieldSeparator className='my-0 text-xs uppercase'>
+            {t('Or continue with')}
+          </FieldSeparator>
+        )}
       </div>
 
       <TelegramLoginDialog
