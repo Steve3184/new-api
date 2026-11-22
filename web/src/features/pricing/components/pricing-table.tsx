@@ -138,6 +138,7 @@ export function PricingTable(props: PricingTableProps) {
             row={row}
             className='hover:bg-muted/30 cursor-pointer transition-colors'
             onClick={() => handleRowClick(row.original)}
+            cellRenderColumns={table.options.columns}
           />
         )}
       />
