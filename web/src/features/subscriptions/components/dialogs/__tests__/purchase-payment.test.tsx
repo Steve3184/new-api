@@ -27,6 +27,9 @@ vi.mock('../../../api', () => ({
   paySubscriptionNowPayments: vi.fn(),
 }))
 
+const BELOW_MINIMUM_KEY =
+  'Subscription payment is below the minimum of {{amount}} {{currency}}'
+
 const plan = subscriptionPlanSchema.parse({
   id: 1,
   title: 'Monthly Plan',
@@ -171,6 +174,58 @@ describe('subscription payment selection', () => {
       'aria-pressed',
       'true'
     )
+  })
+
+  test('hides a gateway whose quote is below its payment minimum', async () => {
+    vi.mocked(quoteSubscriptionPayment).mockImplementation(
+      async ({ epay_gateway }) =>
+        epay_gateway === 'custom'
+          ? {
+              success: false,
+              message: 'Subscription payment is below the minimum of 10 CNY',
+              message_key: BELOW_MINIMUM_KEY,
+              message_params: { amount: '10', currency: 'CNY' },
+            }
+          : { success: true, data: { amount: 11, currency: 'USD' } }
+    )
+    renderPurchase()
+    await screen.findByRole('button', { name: 'Stripe' })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Alipay' })
+      ).not.toBeInTheDocument()
+    )
+    expect(
+      screen.queryByText(
+        'Unable to calculate payment amount. Please choose another payment method.'
+      )
+    ).not.toBeInTheDocument()
+  })
+
+  test('moves the default selection off a gateway below its payment minimum', async () => {
+    vi.mocked(quoteSubscriptionPayment).mockImplementation(
+      async ({ payment_method }) =>
+        payment_method === 'stripe'
+          ? {
+              success: false,
+              message: 'Subscription payment is below the minimum of 5 USD',
+              message_key: BELOW_MINIMUM_KEY,
+            }
+          : { success: true, data: { amount: 11, currency: 'USD' } }
+    )
+    renderPurchase({
+      plan: {
+        plan: subscriptionPlanSchema.parse({
+          ...plan,
+          allow_balance_pay: false,
+        }),
+      },
+    })
+    const pancake = await screen.findByRole('button', { name: 'Waffo Pancake' })
+    await waitFor(() => expect(pancake).toHaveAttribute('aria-pressed', 'true'))
+    expect(
+      screen.queryByRole('button', { name: 'Stripe' })
+    ).not.toBeInTheDocument()
   })
 
   test('blocks a second active subscription while allowing expired history', async () => {

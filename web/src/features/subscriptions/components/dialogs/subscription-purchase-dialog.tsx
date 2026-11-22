@@ -57,6 +57,10 @@ import {
 } from '../../lib'
 import type { PlanRecord } from '../../types'
 
+/** `message_key` of the quote refusal for a payment below a method's minimum. */
+const BELOW_MINIMUM_MESSAGE_KEY =
+  'Subscription payment is below the minimum of {{amount}} {{currency}}'
+
 interface PaymentMethod {
   type: string
   name?: string
@@ -176,6 +180,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             payment_method: option.method,
             epay_gateway: gateway,
           })
+          // A method whose minimum this plan cannot reach is not offered, so
+          // resolve to null instead of failing (which would show an error).
+          const messageKey = (result as { message_key?: unknown }).message_key
+          if (!result.success && messageKey === BELOW_MINIMUM_MESSAGE_KEY) {
+            return null
+          }
           requireServerSuccess(result)
           if (!result.data) throw new Error(t('Payment request failed'))
           return result.data
@@ -187,7 +197,19 @@ export function SubscriptionPurchaseDialog(props: Props) {
   })
   const quoteFor = (key: string) =>
     quotes[quoteOptions.findIndex((option) => option.key === key)]
+  const isBelowMinimum = (key: string) => quoteFor(key)?.data === null
   const paymentQuote = quoteFor(selectedPayment)
+  const selectedBelowMinimum = isBelowMinimum(selectedPayment)
+  const fallbackPayment =
+    props.plan?.plan.allow_balance_pay !== false
+      ? 'balance'
+      : (quoteOptions.find((_, index) => quotes[index]?.data !== null)?.key ??
+        '')
+
+  useEffect(() => {
+    if (selectedBelowMinimum) setSelectedPayment(fallbackPayment)
+  }, [selectedBelowMinimum, fallbackPayment])
+
   const plan = props.plan?.plan
   if (!plan) return null
 
@@ -551,7 +573,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   description={formatQuota(userQuota)}
                 />
               )}
-              {hasStripe && (
+              {hasStripe && !isBelowMinimum('stripe') && (
                 <PaymentMethodCard
                   name={
                     props.paymentMethods?.find((m) => m.type === 'stripe')
@@ -566,7 +588,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   disabled={blocked || paying || quoteFor('stripe')?.isError}
                 />
               )}
-              {hasCreem && (
+              {hasCreem && !isBelowMinimum('creem') && (
                 <PaymentMethodCard
                   name={
                     props.paymentMethods?.find((m) => m.type === 'creem')
@@ -581,7 +603,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   disabled={blocked || paying || quoteFor('creem')?.isError}
                 />
               )}
-              {hasWaffoPancake && (
+              {hasWaffoPancake && !isBelowMinimum('waffo_pancake') && (
                 <PaymentMethodCard
                   name={
                     props.paymentMethods?.find(
@@ -601,7 +623,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   }
                 />
               )}
-              {hasNowPayments && (
+              {hasNowPayments && !isBelowMinimum('nowpayments') && (
                 <PaymentMethodCard
                   name={
                     props.paymentMethods?.find((m) => m.type === 'nowpayments')
@@ -620,21 +642,23 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 />
               )}
               {hasEpay &&
-                (props.epayMethods || []).map((m, index) => (
-                  <PaymentMethodCard
-                    key={`${m.gateway || 'epay'}-${m.type}`}
-                    name={m.name || m.type}
-                    type={m.type}
-                    icon={m.icon}
-                    selected={selectedPayment === `epay-${index}`}
-                    onClick={() => {
-                      setSelectedPayment(`epay-${index}`)
-                    }}
-                    disabled={
-                      blocked || paying || quoteFor(`epay-${index}`)?.isError
-                    }
-                  />
-                ))}
+                (props.epayMethods || []).map((m, index) =>
+                  isBelowMinimum(`epay-${index}`) ? null : (
+                    <PaymentMethodCard
+                      key={`${m.gateway || 'epay'}-${m.type}`}
+                      name={m.name || m.type}
+                      type={m.type}
+                      icon={m.icon}
+                      selected={selectedPayment === `epay-${index}`}
+                      onClick={() => {
+                        setSelectedPayment(`epay-${index}`)
+                      }}
+                      disabled={
+                        blocked || paying || quoteFor(`epay-${index}`)?.isError
+                      }
+                    />
+                  )
+                )}
             </div>
           </div>
           {selectedPayment !== 'balance' && paymentQuote?.isError && (
