@@ -9091,6 +9091,9 @@
     "Category name": "Nom de la catégorie",
     "No groups available": "Aucun groupe disponible",
     "Not in pricing table: {{names}}": "Absent du tableau tarifaire : {{names}}",
-    "Duplicate category names: {{names}}": "Noms de catégorie en double : {{names}}"
+    "Duplicate category names: {{names}}": "Noms de catégorie en double : {{names}}",
+    "Sent with each payment as its IPN callback URL, so it does not need to be entered in NOWPayments. A configured callback address replaces the server address.": "Envoyée avec chaque paiement comme URL de rappel IPN, elle n’a pas à être saisie dans NOWPayments. Une adresse de rappel configurée remplace l’adresse du serveur.",
+    "Generate an IPN secret in your NOWPayments dashboard and enter it below.": "Générez un secret IPN dans votre tableau de bord NOWPayments et saisissez-le ci-dessous.",
+    "NOWPayments Dashboard": "Tableau de bord NOWPayments"
   }
 }

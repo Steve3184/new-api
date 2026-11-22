@@ -9091,6 +9091,9 @@
     "Category name": "カテゴリ名",
     "No groups available": "選択できるグループがありません",
     "Not in pricing table: {{names}}": "料金グループ表にありません: {{names}}",
-    "Duplicate category names: {{names}}": "重複するカテゴリ名: {{names}}"
+    "Duplicate category names: {{names}}": "重複するカテゴリ名: {{names}}",
+    "Sent with each payment as its IPN callback URL, so it does not need to be entered in NOWPayments. A configured callback address replaces the server address.": "各支払いで IPN コールバック URL として自動送信されるため、NOWPayments 側での入力は不要です。コールバックアドレスを設定している場合は、サーバーアドレスの代わりに使われます。",
+    "Generate an IPN secret in your NOWPayments dashboard and enter it below.": "NOWPayments ダッシュボードで IPN シークレットを生成し、下に入力してください。",
+    "NOWPayments Dashboard": "NOWPayments ダッシュボード"
   }
 }

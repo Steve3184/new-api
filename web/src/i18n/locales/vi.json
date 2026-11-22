@@ -9091,6 +9091,9 @@
     "Category name": "Tên danh mục",
     "No groups available": "Không có nhóm nào để chọn",
     "Not in pricing table: {{names}}": "Không có trong bảng định giá: {{names}}",
-    "Duplicate category names: {{names}}": "Tên danh mục bị trùng: {{names}}"
+    "Duplicate category names: {{names}}": "Tên danh mục bị trùng: {{names}}",
+    "Sent with each payment as its IPN callback URL, so it does not need to be entered in NOWPayments. A configured callback address replaces the server address.": "Được gửi kèm mỗi khoản thanh toán làm URL callback IPN, nên không cần nhập vào NOWPayments. Nếu đã cấu hình địa chỉ callback, địa chỉ đó sẽ thay cho địa chỉ máy chủ.",
+    "Generate an IPN secret in your NOWPayments dashboard and enter it below.": "Tạo IPN secret trong bảng điều khiển NOWPayments và nhập vào bên dưới.",
+    "NOWPayments Dashboard": "Bảng điều khiển NOWPayments"
   }
 }

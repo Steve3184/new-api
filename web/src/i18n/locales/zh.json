@@ -9091,6 +9091,9 @@
     "Category name": "分类名称",
     "No groups available": "没有可选分组",
     "Not in pricing table: {{names}}": "不在定价分组表中：{{names}}",
-    "Duplicate category names: {{names}}": "存在重复的分类名称：{{names}}"
+    "Duplicate category names: {{names}}": "存在重复的分类名称：{{names}}",
+    "Sent with each payment as its IPN callback URL, so it does not need to be entered in NOWPayments. A configured callback address replaces the server address.": "每笔支付都会自动将其作为 IPN 回调地址发送，无需在 NOWPayments 中填写。若配置了回调地址，将用它代替服务器地址。",
+    "Generate an IPN secret in your NOWPayments dashboard and enter it below.": "在 NOWPayments 控制面板中生成 IPN 密钥，并填写到下方。",
+    "NOWPayments Dashboard": "NOWPayments 控制面板"
   }
 }

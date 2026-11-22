@@ -9091,6 +9091,9 @@
     "Category name": "Название категории",
     "No groups available": "Нет доступных групп",
     "Not in pricing table: {{names}}": "Нет в таблице тарифных групп: {{names}}",
-    "Duplicate category names: {{names}}": "Повторяющиеся названия категорий: {{names}}"
+    "Duplicate category names: {{names}}": "Повторяющиеся названия категорий: {{names}}",
+    "Sent with each payment as its IPN callback URL, so it does not need to be entered in NOWPayments. A configured callback address replaces the server address.": "Передаётся с каждым платежом как IPN callback URL, поэтому вводить его в NOWPayments не нужно. Если задан адрес обратного вызова, он используется вместо адреса сервера.",
+    "Generate an IPN secret in your NOWPayments dashboard and enter it below.": "Создайте IPN-секрет в панели управления NOWPayments и введите его ниже.",
+    "NOWPayments Dashboard": "Панель управления NOWPayments"
   }
 }

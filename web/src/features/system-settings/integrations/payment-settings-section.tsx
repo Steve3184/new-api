@@ -2426,6 +2426,41 @@ export function PaymentSettingsSection({
                   </p>
                 </div>
 
+                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                  <p className='mb-2 font-medium'>
+                    {t('Webhook Configuration:')}
+                  </p>
+                  <ul className='list-inside list-disc space-y-1'>
+                    <li>
+                      {t('Webhook URL:')}{' '}
+                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                        {'<ServerAddress>/api/nowpayments/webhook'}
+                      </code>
+                    </li>
+                    <li>
+                      {t(
+                        'Sent with each payment as its IPN callback URL, so it does not need to be entered in NOWPayments. A configured callback address replaces the server address.'
+                      )}
+                    </li>
+                    <li>
+                      {t(
+                        'Generate an IPN secret in your NOWPayments dashboard and enter it below.'
+                      )}
+                    </li>
+                    <li>
+                      {t('Configure at:')}{' '}
+                      <a
+                        href='https://account.nowpayments.io/'
+                        target='_blank'
+                        rel='noreferrer'
+                        className='underline hover:no-underline'
+                      >
+                        {t('NOWPayments Dashboard')}
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+
                 <FormField
                   control={form.control}
                   name='NowPaymentsEnabled'
