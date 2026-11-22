@@ -80,6 +80,7 @@ export function usePricingData(enabled = true) {
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
     modelSquareGroups: data?.model_square_groups ?? [],
+    modelSquareGroupCategories: data?.model_square_group_categories ?? {},
     isLoading,
     error,
     refetch,

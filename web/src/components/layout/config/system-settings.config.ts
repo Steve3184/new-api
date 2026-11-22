@@ -22,12 +22,14 @@ import {
   Route,
   CreditCard,
   Layout,
+  Palette,
   Settings,
   Shield,
   ShieldAlert,
   Wrench,
 } from 'lucide-react'
 
+import { getAppearanceSectionNavItems } from '@/features/system-settings/appearance/section-registry.tsx'
 import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
 import { getBillingSectionNavItems } from '@/features/system-settings/billing/section-registry.tsx'
 import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
@@ -59,6 +61,11 @@ function getSystemSettingsNavGroups(
           title: t('Site & Branding'),
           icon: Settings,
           items: getSiteSectionNavItems(t),
+        },
+        {
+          title: t('Appearance Settings'),
+          icon: Palette,
+          items: getAppearanceSectionNavItems(t),
         },
         {
           title: t('Authentication'),

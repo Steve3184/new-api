@@ -42,6 +42,7 @@ const defaults = {
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
   ModelSquareVisibleGroups: '{}',
+  ModelSquareGroupCategories: '{}',
 }
 
 const schema = z.object({
@@ -57,6 +58,7 @@ const schema = z.object({
   GroupDefaultModel: z.string(),
   GroupRetryTimes: z.string(),
   ModelSquareVisibleGroups: z.string(),
+  ModelSquareGroupCategories: z.string(),
 })
 
 function Fixture(props: {

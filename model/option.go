@@ -355,6 +355,10 @@ func validateOptionValue(key string, value string) error {
 		_, err := console_setting.NormalizeModelSquareVisibleGroups(value)
 		return err
 	}
+	if key == "console_setting.model_square_group_categories" {
+		_, err := console_setting.NormalizeModelSquareGroupCategories(value)
+		return err
+	}
 	if key == "console_setting.group_access_rules" {
 		_, err := console_setting.NormalizeGroupAccessRules(value)
 		return err
@@ -443,6 +447,8 @@ func normalizeOptionValue(key, value string) (string, error) {
 	switch key {
 	case "console_setting.model_square_visible_groups":
 		return console_setting.NormalizeModelSquareVisibleGroups(value)
+	case "console_setting.model_square_group_categories":
+		return console_setting.NormalizeModelSquareGroupCategories(value)
 	case "console_setting.group_access_rules":
 		return console_setting.NormalizeGroupAccessRules(value)
 	default:

@@ -240,6 +240,61 @@ func parseModelSquareVisibleGroups(value string) ([]string, map[string]string, e
 	return groups, descriptions, nil
 }
 
+const maxModelSquareGroupCategoryRunes = 32
+
+// parseModelSquareGroupCategories reads the group name -> category name object
+// and keeps only entries whose group still has a pricing ratio and whose
+// category is not blank, so deleted groups never leak into the public plaza.
+func parseModelSquareGroupCategories(value string) (map[string]string, error) {
+	categories := map[string]string{}
+	if strings.TrimSpace(value) == "" {
+		return categories, nil
+	}
+	var raw map[string]string
+	if err := common.UnmarshalJsonStr(value, &raw); err != nil {
+		return nil, common.NewMessage("Group categories must be a JSON object of group names to category names")
+	}
+	valid := ratio_setting.GetGroupRatioCopy()
+	for group, category := range raw {
+		group = strings.TrimSpace(group)
+		category = strings.TrimSpace(category)
+		if group == "" || category == "" {
+			continue
+		}
+		if _, exists := valid[group]; !exists {
+			continue
+		}
+		if len([]rune(category)) > maxModelSquareGroupCategoryRunes {
+			return nil, common.NewMessage("Group category names are limited to {{count}} characters", map[string]any{"count": maxModelSquareGroupCategoryRunes})
+		}
+		categories[group] = category
+	}
+	return categories, nil
+}
+
+// GetModelSquareGroupCategories returns the model square category of each
+// group; groups without a category are absent.
+func GetModelSquareGroupCategories() map[string]string {
+	categories, err := parseModelSquareGroupCategories(consoleSetting.ModelSquareGroupCategories)
+	if err != nil {
+		common.SysLog("failed to parse model square group categories: " + err.Error())
+		return map[string]string{}
+	}
+	return categories
+}
+
+func NormalizeModelSquareGroupCategories(value string) (string, error) {
+	categories, err := parseModelSquareGroupCategories(value)
+	if err != nil {
+		return "", err
+	}
+	data, err := common.Marshal(categories)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 func NormalizeModelSquareVisibleGroups(value string) (string, error) {
 	groups, descriptions, err := parseModelSquareVisibleGroups(value)
 	if err != nil {

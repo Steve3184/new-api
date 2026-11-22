@@ -91,6 +91,11 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 	pricing = filterPricingByUsableGroups(pricing, pricingGroups)
+	groupCategories := console_setting.GetModelSquareGroupCategories()
+	maps.DeleteFunc(groupCategories, func(name, _ string) bool {
+		_, ok := pricingGroups[name]
+		return !ok
+	})
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := pricingGroups[group]; !ok {
@@ -107,6 +112,7 @@ func GetPricing(c *gin.Context) {
 		"model_square_groups":             visibleGroups,
 		"subscription_groups":             subscriptionGroups,
 		"model_square_group_descriptions": visibleDescriptions,
+		"model_square_group_categories":   groupCategories,
 		"supported_endpoint":              model.GetSupportedEndpointMap(),
 		"auto_groups":                     service.GetUserAutoGroupForUser(userID, group),
 		"pricing_version":                 "a42d372ccf0b5dd13ecf71203521f9d2",

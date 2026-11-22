@@ -1,0 +1,64 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { SettingsPage } from '../components/settings-page'
+import type { AppearanceSettings } from '../types'
+import {
+  APPEARANCE_DEFAULT_SECTION,
+  getAppearanceSectionContent,
+  getAppearanceSectionMeta,
+} from './section-registry.tsx'
+
+const defaultAppearanceSettings: AppearanceSettings = {
+  HomePageContent: '',
+  'console_setting.background_image': '',
+  'console_setting.background_blur_opacity': 40,
+  'console_setting.legal_background_enabled': true,
+  'console_setting.auth_background_enabled': true,
+  'console_setting.auth_page_style': 'centered',
+  'console_setting.auth_split_image': '',
+  'console_setting.default_theme': 'system',
+  'console_setting.default_theme_override': 'none',
+  'console_setting.default_theme_preset': 'default',
+  'console_setting.default_theme_font': 'default',
+  'console_setting.default_theme_radius': 'default',
+  'console_setting.default_theme_scale': 'default',
+  'console_setting.default_sidebar_variant': 'inset',
+  'console_setting.default_sidebar_layout': 'expanded',
+  'console_setting.default_content_layout': 'full',
+  'console_setting.default_direction': 'ltr',
+  'console_setting.model_square_default_view': 'card',
+  'console_setting.model_square_card_page_size': 18,
+  'console_setting.model_square_table_page_size': 20,
+  'console_setting.homepage_style': 'default',
+  'console_setting.homepage_preset_title_mode': 'i18n',
+  'console_setting.homepage_preset_sla_enabled': true,
+  'console_setting.homepage_preset_sla_text': '99% SLA guarantee',
+}
+
+export function AppearanceSettings() {
+  return (
+    <SettingsPage
+      routePath='/_authenticated/system-settings/appearance/$section'
+      defaultSettings={defaultAppearanceSettings}
+      defaultSection={APPEARANCE_DEFAULT_SECTION}
+      getSectionContent={getAppearanceSectionContent}
+      getSectionMeta={getAppearanceSectionMeta}
+    />
+  )
+}

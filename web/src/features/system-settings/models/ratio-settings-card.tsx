@@ -185,6 +185,15 @@ const createGroupSchema = (t: Translate) =>
       predicateMessage:
         'Expected a JSON array of group identifiers or an object mapping identifiers to descriptions',
     }),
+    ModelSquareGroupCategories: createJsonStringField(t, {
+      predicate: (parsed) =>
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed) &&
+        Object.values(parsed).every((value) => typeof value === 'string'),
+      predicateMessage:
+        'Expected a JSON object mapping group identifiers to category names',
+    }),
   })
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
@@ -299,6 +308,9 @@ export function RatioSettingsCard({
     ModelSquareVisibleGroups: normalizeJsonString(
       groupDefaults.ModelSquareVisibleGroups
     ),
+    ModelSquareGroupCategories: normalizeJsonString(
+      groupDefaults.ModelSquareGroupCategories
+    ),
   })
   const modelSchema = useMemo(() => createModelSchema(t), [t])
   const groupSchema = useMemo(() => createGroupSchema(t), [t])
@@ -343,6 +355,9 @@ export function RatioSettingsCard({
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: formatJsonForTextarea(
         groupDefaults.ModelSquareVisibleGroups
+      ),
+      ModelSquareGroupCategories: formatJsonForTextarea(
+        groupDefaults.ModelSquareGroupCategories
       ),
     },
   })
@@ -402,6 +417,9 @@ export function RatioSettingsCard({
       ModelSquareVisibleGroups: normalizeJsonString(
         groupDefaults.ModelSquareVisibleGroups
       ),
+      ModelSquareGroupCategories: normalizeJsonString(
+        groupDefaults.ModelSquareGroupCategories
+      ),
     }
 
     groupForm.reset({
@@ -420,6 +438,9 @@ export function RatioSettingsCard({
       GroupRetryTimes: formatJsonForTextarea(groupDefaults.GroupRetryTimes),
       ModelSquareVisibleGroups: formatJsonForTextarea(
         groupDefaults.ModelSquareVisibleGroups
+      ),
+      ModelSquareGroupCategories: formatJsonForTextarea(
+        groupDefaults.ModelSquareGroupCategories
       ),
     })
   }, [groupDefaults, groupForm])
@@ -501,6 +522,9 @@ export function RatioSettingsCard({
         ModelSquareVisibleGroups: normalizeJsonString(
           values.ModelSquareVisibleGroups
         ),
+        ModelSquareGroupCategories: normalizeJsonString(
+          values.ModelSquareGroupCategories
+        ),
       }
 
       // Map form field names to API keys (most are 1:1, except GroupSpecialUsableGroup)
@@ -508,6 +532,8 @@ export function RatioSettingsCard({
         GroupSpecialUsableGroup:
           'group_ratio_setting.group_special_usable_group',
         ModelSquareVisibleGroups: 'console_setting.model_square_visible_groups',
+        ModelSquareGroupCategories:
+          'console_setting.model_square_group_categories',
       }
 
       const updates = (

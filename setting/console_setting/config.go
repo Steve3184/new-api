@@ -11,77 +11,84 @@ import (
 )
 
 type ConsoleSetting struct {
-	ApiInfo                  string `json:"api_info"`              // 控制台 API 信息 (JSON 数组字符串)
-	UptimeKumaGroups         string `json:"uptime_kuma_groups"`    // Uptime Kuma 分组配置 (JSON 数组字符串)
-	Announcements            string `json:"announcements"`         // 系统公告 (JSON 数组字符串)
-	FAQ                      string `json:"faq"`                   // 常见问题 (JSON 数组字符串)
-	ApiInfoEnabled           bool   `json:"api_info_enabled"`      // 是否启用 API 信息面板
-	UptimeKumaEnabled        bool   `json:"uptime_kuma_enabled"`   // 是否启用 Uptime Kuma 面板
-	AnnouncementsEnabled     bool   `json:"announcements_enabled"` // 是否启用系统公告面板
-	FAQEnabled               bool   `json:"faq_enabled"`           // 是否启用常见问答面板
-	BackgroundImage          string `json:"background_image"`
-	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
-	LegalBackgroundEnabled   bool   `json:"legal_background_enabled"`
-	DefaultTheme             string `json:"default_theme"`
-	DefaultThemeOverride     string `json:"default_theme_override"`
-	DefaultThemePreset       string `json:"default_theme_preset"`
-	DefaultThemeFont         string `json:"default_theme_font"`
-	DefaultThemeRadius       string `json:"default_theme_radius"`
-	DefaultThemeScale        string `json:"default_theme_scale"`
-	DefaultSidebarVariant    string `json:"default_sidebar_variant"`
-	DefaultSidebarLayout     string `json:"default_sidebar_layout"`
-	DefaultContentLayout     string `json:"default_content_layout"`
-	DefaultDirection         string `json:"default_direction"`
-	ModelSquareDefaultView   string `json:"model_square_default_view"`
-	ModelSquareCardPageSize  int    `json:"model_square_card_page_size"`
-	ModelSquareTablePageSize int    `json:"model_square_table_page_size"`
-	ModelSquareVisibleGroups string `json:"model_square_visible_groups"`
-	GroupAccessRules         string `json:"group_access_rules"`
-	HomepageStyle            string `json:"homepage_style"`
-	HomepagePresetTitleMode  string `json:"homepage_preset_title_mode"`
-	HomepagePresetSLAEnabled bool   `json:"homepage_preset_sla_enabled"`
-	HomepagePresetSLAText    string `json:"homepage_preset_sla_text"`
-	SPAMetaDescription       string `json:"spa_meta_description"`
-	SPAMetaOGType            string `json:"spa_meta_og_type"`
-	SPAMetaOGDescription     string `json:"spa_meta_og_description"`
-	HideUpstreamRequestID    bool   `json:"hide_upstream_request_id"`
+	ApiInfo                    string `json:"api_info"`              // 控制台 API 信息 (JSON 数组字符串)
+	UptimeKumaGroups           string `json:"uptime_kuma_groups"`    // Uptime Kuma 分组配置 (JSON 数组字符串)
+	Announcements              string `json:"announcements"`         // 系统公告 (JSON 数组字符串)
+	FAQ                        string `json:"faq"`                   // 常见问题 (JSON 数组字符串)
+	ApiInfoEnabled             bool   `json:"api_info_enabled"`      // 是否启用 API 信息面板
+	UptimeKumaEnabled          bool   `json:"uptime_kuma_enabled"`   // 是否启用 Uptime Kuma 面板
+	AnnouncementsEnabled       bool   `json:"announcements_enabled"` // 是否启用系统公告面板
+	FAQEnabled                 bool   `json:"faq_enabled"`           // 是否启用常见问答面板
+	BackgroundImage            string `json:"background_image"`
+	BackgroundBlurOpacity      int    `json:"background_blur_opacity"`
+	LegalBackgroundEnabled     bool   `json:"legal_background_enabled"`
+	AuthBackgroundEnabled      bool   `json:"auth_background_enabled"`
+	AuthPageStyle              string `json:"auth_page_style"`
+	AuthSplitImage             string `json:"auth_split_image"`
+	DefaultTheme               string `json:"default_theme"`
+	DefaultThemeOverride       string `json:"default_theme_override"`
+	DefaultThemePreset         string `json:"default_theme_preset"`
+	DefaultThemeFont           string `json:"default_theme_font"`
+	DefaultThemeRadius         string `json:"default_theme_radius"`
+	DefaultThemeScale          string `json:"default_theme_scale"`
+	DefaultSidebarVariant      string `json:"default_sidebar_variant"`
+	DefaultSidebarLayout       string `json:"default_sidebar_layout"`
+	DefaultContentLayout       string `json:"default_content_layout"`
+	DefaultDirection           string `json:"default_direction"`
+	ModelSquareDefaultView     string `json:"model_square_default_view"`
+	ModelSquareCardPageSize    int    `json:"model_square_card_page_size"`
+	ModelSquareTablePageSize   int    `json:"model_square_table_page_size"`
+	ModelSquareVisibleGroups   string `json:"model_square_visible_groups"`
+	ModelSquareGroupCategories string `json:"model_square_group_categories"`
+	GroupAccessRules           string `json:"group_access_rules"`
+	HomepageStyle              string `json:"homepage_style"`
+	HomepagePresetTitleMode    string `json:"homepage_preset_title_mode"`
+	HomepagePresetSLAEnabled   bool   `json:"homepage_preset_sla_enabled"`
+	HomepagePresetSLAText      string `json:"homepage_preset_sla_text"`
+	SPAMetaDescription         string `json:"spa_meta_description"`
+	SPAMetaOGType              string `json:"spa_meta_og_type"`
+	SPAMetaOGDescription       string `json:"spa_meta_og_description"`
+	HideUpstreamRequestID      bool   `json:"hide_upstream_request_id"`
 }
 
 // 默认配置
 var defaultConsoleSetting = ConsoleSetting{
-	ApiInfo:                  "",
-	UptimeKumaGroups:         "",
-	Announcements:            "",
-	FAQ:                      "",
-	ApiInfoEnabled:           true,
-	UptimeKumaEnabled:        true,
-	AnnouncementsEnabled:     true,
-	FAQEnabled:               true,
-	BackgroundBlurOpacity:    40,
-	LegalBackgroundEnabled:   true,
-	DefaultTheme:             "system",
-	DefaultThemeOverride:     "none",
-	DefaultThemePreset:       "default",
-	DefaultThemeFont:         "default",
-	DefaultThemeRadius:       "default",
-	DefaultThemeScale:        "default",
-	DefaultSidebarVariant:    "inset",
-	DefaultSidebarLayout:     "expanded",
-	DefaultContentLayout:     "full",
-	DefaultDirection:         "ltr",
-	ModelSquareDefaultView:   "card",
-	ModelSquareCardPageSize:  18,
-	ModelSquareTablePageSize: 20,
-	ModelSquareVisibleGroups: "[]",
-	GroupAccessRules:         "[]",
-	HomepageStyle:            "default",
-	HomepagePresetTitleMode:  "i18n",
-	HomepagePresetSLAEnabled: true,
-	HomepagePresetSLAText:    "99% SLA guarantee",
-	SPAMetaDescription:       "Unified AI API gateway and admin dashboard.",
-	SPAMetaOGType:            "website",
-	SPAMetaOGDescription:     "Unified AI API gateway and admin dashboard.",
-	HideUpstreamRequestID:    false,
+	ApiInfo:                    "",
+	UptimeKumaGroups:           "",
+	Announcements:              "",
+	FAQ:                        "",
+	ApiInfoEnabled:             true,
+	UptimeKumaEnabled:          true,
+	AnnouncementsEnabled:       true,
+	FAQEnabled:                 true,
+	BackgroundBlurOpacity:      40,
+	LegalBackgroundEnabled:     true,
+	AuthBackgroundEnabled:      true,
+	AuthPageStyle:              "centered",
+	DefaultTheme:               "system",
+	DefaultThemeOverride:       "none",
+	DefaultThemePreset:         "default",
+	DefaultThemeFont:           "default",
+	DefaultThemeRadius:         "default",
+	DefaultThemeScale:          "default",
+	DefaultSidebarVariant:      "inset",
+	DefaultSidebarLayout:       "expanded",
+	DefaultContentLayout:       "full",
+	DefaultDirection:           "ltr",
+	ModelSquareDefaultView:     "card",
+	ModelSquareCardPageSize:    18,
+	ModelSquareTablePageSize:   20,
+	ModelSquareVisibleGroups:   "[]",
+	ModelSquareGroupCategories: "{}",
+	GroupAccessRules:           "[]",
+	HomepageStyle:              "default",
+	HomepagePresetTitleMode:    "i18n",
+	HomepagePresetSLAEnabled:   true,
+	HomepagePresetSLAText:      "99% SLA guarantee",
+	SPAMetaDescription:         "Unified AI API gateway and admin dashboard.",
+	SPAMetaOGType:              "website",
+	SPAMetaOGDescription:       "Unified AI API gateway and admin dashboard.",
+	HideUpstreamRequestID:      false,
 }
 
 // 全局实例
@@ -101,6 +108,9 @@ type AppearanceSetting struct {
 	BackgroundImage          string `json:"background_image"`
 	BackgroundBlurOpacity    int    `json:"background_blur_opacity"`
 	LegalBackgroundEnabled   bool   `json:"legal_background_enabled"`
+	AuthBackgroundEnabled    bool   `json:"auth_background_enabled"`
+	AuthPageStyle            string `json:"auth_page_style"`
+	AuthSplitImage           string `json:"auth_split_image"`
 	DefaultTheme             string `json:"default_theme"`
 	DefaultThemeOverride     string `json:"default_theme_override"`
 	DefaultThemePreset       string `json:"default_theme_preset"`
@@ -143,6 +153,9 @@ func GetAppearanceSetting() AppearanceSetting {
 		BackgroundImage:          consoleSetting.BackgroundImage,
 		BackgroundBlurOpacity:    consoleSetting.BackgroundBlurOpacity,
 		LegalBackgroundEnabled:   consoleSetting.LegalBackgroundEnabled,
+		AuthBackgroundEnabled:    consoleSetting.AuthBackgroundEnabled,
+		AuthPageStyle:            consoleSetting.AuthPageStyle,
+		AuthSplitImage:           consoleSetting.AuthSplitImage,
 		DefaultTheme:             consoleSetting.DefaultTheme,
 		DefaultThemeOverride:     consoleSetting.DefaultThemeOverride,
 		DefaultThemePreset:       consoleSetting.DefaultThemePreset,
@@ -218,8 +231,12 @@ func ValidatePublicOption(key, value string) error {
 		if err != nil || parsed < 0 || parsed > 100 {
 			return fmt.Errorf("background blur opacity must be between 0 and 100")
 		}
-	case "legal_background_enabled":
+	case "legal_background_enabled", "auth_background_enabled":
 		return validateEnum(value, "true", "false")
+	case "auth_page_style":
+		return validateEnum(value, "centered", "split")
+	case "auth_split_image":
+		return validatePublicImageURL("login illustration", value)
 	case "default_theme":
 		return validateEnum(value, "system", "light", "dark")
 	case "default_theme_override":

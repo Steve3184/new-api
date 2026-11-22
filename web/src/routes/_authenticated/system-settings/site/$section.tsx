@@ -28,6 +28,15 @@ export const Route = createFileRoute(
   '/_authenticated/system-settings/site/$section'
 )({
   beforeLoad: ({ params }) => {
+    // Homepage and appearance settings moved to the Appearance Settings group.
+    if (params.section === 'homepage' || params.section === 'appearance') {
+      throw redirect({
+        to: '/system-settings/appearance/$section',
+        params: {
+          section: params.section === 'homepage' ? 'homepage' : 'theme',
+        },
+      })
+    }
     const validSections = SITE_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({

@@ -60,6 +60,7 @@ type GroupFormValues = {
   GroupDefaultModel: string
   GroupRetryTimes: string
   ModelSquareVisibleGroups: string
+  ModelSquareGroupCategories: string
 }
 
 const values: GroupFormValues = {
@@ -75,6 +76,7 @@ const values: GroupFormValues = {
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
   ModelSquareVisibleGroups: '[]',
+  ModelSquareGroupCategories: '{}',
 }
 
 function TestForm(props: {

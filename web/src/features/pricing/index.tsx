@@ -51,6 +51,7 @@ export function Pricing() {
     usableGroup,
     modelSquareGroupDescriptions,
     modelSquareGroups,
+    modelSquareGroupCategories,
     endpointMap,
     autoGroups,
     isLoading,
@@ -220,6 +221,7 @@ export function Pricing() {
               vendors={vendors || []}
               groups={availableGroups}
               groupRatios={groupRatio}
+              groupCategories={modelSquareGroupCategories}
               tags={availableTags}
               models={models || []}
               hasActiveFilters={hasActiveFilters}
@@ -252,6 +254,7 @@ export function Pricing() {
                 vendors={vendors || []}
                 groups={availableGroups}
                 groupRatios={groupRatio}
+                groupCategories={modelSquareGroupCategories}
                 tags={availableTags}
                 models={models || []}
                 hasActiveFilters={hasActiveFilters}

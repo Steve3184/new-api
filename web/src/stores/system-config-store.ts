@@ -65,6 +65,9 @@ export interface SiteAppearanceConfig {
   backgroundImage: string
   backgroundBlurOpacity: number
   legalBackgroundEnabled: boolean
+  authBackgroundEnabled: boolean
+  authPageStyle: 'centered' | 'split'
+  authSplitImage: string
   defaultTheme: SiteTheme
   defaultThemeOverride: SiteThemeOverride
   defaultThemePreset: SiteThemePreset
@@ -121,6 +124,9 @@ export const DEFAULT_SITE_APPEARANCE: SiteAppearanceConfig = {
   backgroundImage: '',
   backgroundBlurOpacity: 40,
   legalBackgroundEnabled: true,
+  authBackgroundEnabled: true,
+  authPageStyle: 'centered',
+  authSplitImage: '',
   defaultTheme: 'system',
   defaultThemeOverride: 'none',
   defaultThemePreset: 'default',

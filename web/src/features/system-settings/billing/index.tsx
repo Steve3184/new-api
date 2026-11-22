@@ -65,6 +65,7 @@ const defaultBillingSettings: BillingSettings = {
   GroupDefaultModel: '{}',
   GroupRetryTimes: '{}',
   'console_setting.model_square_visible_groups': '[]',
+  'console_setting.model_square_group_categories': '{}',
   'console_setting.group_access_rules': '[]',
   PayAddress: '',
   EpayId: '',

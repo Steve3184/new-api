@@ -134,6 +134,7 @@ export type PricingData = {
   supported_endpoint: Record<string, string>
   auto_groups: string[]
   model_square_groups?: string[]
+  model_square_group_categories?: Record<string, string>
 }
 
 export type TokenUnit = 'M' | 'K'

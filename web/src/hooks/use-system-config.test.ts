@@ -27,6 +27,9 @@ describe('mapStatusDataToConfig', () => {
         background_image: '/background.webp',
         background_blur_opacity: 60,
         legal_background_enabled: false,
+        auth_background_enabled: false,
+        auth_page_style: 'split',
+        auth_split_image: '/login.webp',
         default_theme: 'dark',
         default_theme_override: 'light',
         default_theme_preset: 'anthropic',
@@ -52,6 +55,9 @@ describe('mapStatusDataToConfig', () => {
       backgroundImage: '/background.webp',
       backgroundBlurOpacity: 60,
       legalBackgroundEnabled: false,
+      authBackgroundEnabled: false,
+      authPageStyle: 'split',
+      authSplitImage: '/login.webp',
       defaultTheme: 'dark',
       defaultThemeOverride: 'light',
       defaultThemePreset: 'anthropic',
@@ -88,6 +94,8 @@ describe('mapStatusDataToConfig', () => {
     expect(config.appearance?.defaultSidebarLayout).toBe('expanded')
     expect(config.appearance?.modelSquareDefaultView).toBe('card')
     expect(config.appearance?.legalBackgroundEnabled).toBe(true)
+    expect(config.appearance?.authBackgroundEnabled).toBe(true)
+    expect(config.appearance?.authPageStyle).toBe('centered')
   })
 
   test('clamps the background blur opacity to its supported range', () => {

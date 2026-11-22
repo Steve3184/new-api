@@ -48,10 +48,16 @@ type FilterOption = {
   icon?: ReactNode
 }
 
+type FilterCategory = {
+  title: string
+  options: FilterOption[]
+}
+
 type FilterSectionProps = {
   title: string
   value: string
   options: FilterOption[]
+  categories?: FilterCategory[]
   onChange: (value: string) => void
 }
 
@@ -69,6 +75,7 @@ export interface PricingSidebarProps {
   vendors: PricingVendor[]
   groups: string[]
   groupRatios?: Record<string, number>
+  groupCategories?: Record<string, string>
   tags: string[]
   models: PricingModel[]
   hasActiveFilters: boolean
@@ -119,6 +126,26 @@ function FilterChip(props: {
   )
 }
 
+function FilterChipList(props: {
+  options: FilterOption[]
+  value: string
+  onChange: (value: string) => void
+  className?: string
+}) {
+  return (
+    <div className={cn('flex flex-wrap gap-1.5', props.className)}>
+      {props.options.map((option) => (
+        <FilterChip
+          key={option.value}
+          option={option}
+          active={props.value === option.value}
+          onClick={() => props.onChange(option.value)}
+        />
+      ))}
+    </div>
+  )
+}
+
 function FilterSection(props: FilterSectionProps) {
   return (
     <Collapsible
@@ -132,16 +159,27 @@ function FilterSection(props: FilterSectionProps) {
         <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180' />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className='flex flex-wrap gap-1.5'>
-          {props.options.map((option) => (
-            <FilterChip
-              key={option.value}
-              option={option}
-              active={props.value === option.value}
-              onClick={() => props.onChange(option.value)}
-            />
-          ))}
-        </div>
+        <FilterChipList
+          options={props.options}
+          value={props.value}
+          onChange={props.onChange}
+        />
+        {props.categories?.map((category) => (
+          <Collapsible key={category.title} defaultOpen className='mt-2.5'>
+            <CollapsibleTrigger className='group text-muted-foreground flex w-full items-center gap-1 py-1 text-left text-xs font-medium'>
+              <ChevronDown className='size-3.5 -rotate-90 transition-transform group-data-[panel-open]:rotate-0' />
+              <span className='truncate'>{category.title}</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <FilterChipList
+                options={category.options}
+                value={props.value}
+                onChange={props.onChange}
+                className='pt-1'
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        ))}
       </CollapsibleContent>
     </Collapsible>
   )
@@ -200,12 +238,28 @@ export const PricingSidebar = memo(function PricingSidebar(
       value: FILTER_ALL,
       label: t('All Groups'),
     },
-    ...props.groups.map((group) => ({
+  ]
+  const categorizedGroups = new Map<string, FilterOption[]>()
+  for (const group of props.groups) {
+    const option = {
       value: group,
       label: group,
       suffix: formatGroupRatio(props.groupRatios?.[group]),
-    })),
-  ]
+    }
+    const category = props.groupCategories?.[group]
+    if (!category) {
+      groupOptions.push(option)
+    } else {
+      categorizedGroups.set(category, [
+        ...(categorizedGroups.get(category) ?? []),
+        option,
+      ])
+    }
+  }
+  const groupCategorySections = Array.from(
+    categorizedGroups,
+    ([title, options]) => ({ title, options })
+  )
 
   const quotaOptions: FilterOption[] = [
     {
@@ -291,6 +345,7 @@ export const PricingSidebar = memo(function PricingSidebar(
           title={t('Groups')}
           value={props.groupFilter}
           options={groupOptions}
+          categories={groupCategorySections}
           onChange={props.onGroupChange}
         />
         <FilterSection

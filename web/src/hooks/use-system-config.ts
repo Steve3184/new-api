@@ -60,6 +60,9 @@ interface StatusApiResponse {
       background_image?: string
       background_blur_opacity?: number
       legal_background_enabled?: boolean
+      auth_background_enabled?: boolean
+      auth_page_style?: string
+      auth_split_image?: string
       default_theme?: string
       default_theme_override?: string
       default_theme_preset?: string
@@ -110,6 +113,14 @@ function normalizeAppearance(
     ),
     legalBackgroundEnabled:
       value?.legal_background_enabled ?? defaults.legalBackgroundEnabled,
+    authBackgroundEnabled:
+      value?.auth_background_enabled ?? defaults.authBackgroundEnabled,
+    authPageStyle: enumValue(
+      value?.auth_page_style,
+      ['centered', 'split'],
+      defaults.authPageStyle
+    ),
+    authSplitImage: value?.auth_split_image?.trim() || '',
     defaultTheme: enumValue(
       value?.default_theme,
       ['system', 'light', 'dark'],

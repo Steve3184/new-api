@@ -108,6 +108,9 @@
       {
         "allowConstantExport": true,
         "allowExportNames": [
+          "getAppearanceSectionNavItems",
+          "getAppearanceSectionContent",
+          "getAppearanceSectionMeta",
           "getAuthSectionNavItems",
           "getAuthSectionContent",
           "getAuthSectionMeta",

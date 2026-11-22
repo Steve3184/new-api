@@ -304,6 +304,49 @@ describe('pricing controls', () => {
     ).toBeVisible()
   })
 
+  it('lists categorized groups under collapsible headings after the uncategorized ones', async () => {
+    const props = toolbarProps()
+    const user = userEvent.setup()
+    render(
+      <PricingSidebar
+        {...props}
+        groups={['default', 'claude-max', 'claude-pro', 'gpt-plus']}
+        groupRatios={{
+          default: 1,
+          'claude-max': 1.4,
+          'claude-pro': 0.47,
+          'gpt-plus': 0.13,
+        }}
+        groupCategories={{
+          'claude-max': 'Claude',
+          'claude-pro': 'Claude',
+          'gpt-plus': 'GPT',
+        }}
+      />
+    )
+
+    const uncategorized = screen.getByRole('button', { name: /^default\s*x1$/ })
+    const claude = screen.getByRole('button', { name: 'Claude' })
+    expect(claude).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      uncategorized.compareDocumentPosition(claude) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: /^claude-max\s*x1\.4$/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^gpt-plus\s*x0\.13$/ })
+    ).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: /^claude-pro/ }))
+    expect(props.onGroupChange).toHaveBeenCalledWith('claude-pro')
+
+    await user.click(claude)
+    expect(screen.queryByRole('button', { name: /^claude-max/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /^gpt-plus/ })).toBeVisible()
+  })
+
   it('changes the token unit and keeps the selected unit pressed when clicked again', async () => {
     const props = toolbarProps()
     const user = userEvent.setup()

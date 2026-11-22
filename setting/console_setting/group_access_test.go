@@ -47,6 +47,25 @@ func TestNormalizeGroupAccessRulesSupportsSpendCondition(t *testing.T) {
 	assert.Contains(t, normalized, `"type":"spend"`)
 }
 
+func TestNormalizeModelSquareGroupCategoriesKeepsKnownGroups(t *testing.T) {
+	previous := ratio_setting.GetGroupRatioCopy()
+	t.Cleanup(func() {
+		data, err := common.Marshal(previous)
+		require.NoError(t, err)
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(string(data)))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"claude-max":1,"gpt-plus":2}`))
+
+	normalized, err := NormalizeModelSquareGroupCategories(`{" claude-max ":" Claude ","gpt-plus":"   ","missing":"GPT"}`)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"claude-max":"Claude"}`, normalized)
+
+	_, err = NormalizeModelSquareGroupCategories(`["claude-max"]`)
+	assert.Error(t, err)
+	_, err = NormalizeModelSquareGroupCategories(`{"claude-max":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`)
+	assert.Error(t, err)
+}
+
 func TestNormalizeModelSquareVisibleGroupsPreservesDescriptions(t *testing.T) {
 	previous := ratio_setting.GetGroupRatioCopy()
 	t.Cleanup(func() {

@@ -175,7 +175,7 @@ export type SystemTaskFilters = {
   offset?: number
 }
 
-export type SiteSettings = {
+export type SiteAndAppearanceSettings = {
   Notice: string
   NoticePopupEnabled: boolean
   NoticePopupMode: 'home' | 'dashboard' | 'both'
@@ -196,6 +196,9 @@ export type SiteSettings = {
   'console_setting.background_image': string
   'console_setting.background_blur_opacity': number
   'console_setting.legal_background_enabled': boolean
+  'console_setting.auth_background_enabled': boolean
+  'console_setting.auth_page_style': 'centered' | 'split'
+  'console_setting.auth_split_image': string
   'console_setting.default_theme': 'system' | 'light' | 'dark'
   'console_setting.default_theme_override': 'none' | 'light' | 'dark'
   'console_setting.default_theme_preset':
@@ -237,6 +240,41 @@ export type SiteSettings = {
   'console_setting.homepage_preset_sla_enabled': boolean
   'console_setting.homepage_preset_sla_text': string
 }
+
+export type AppearanceSettingKey =
+  | 'HomePageContent'
+  | 'console_setting.background_image'
+  | 'console_setting.background_blur_opacity'
+  | 'console_setting.legal_background_enabled'
+  | 'console_setting.auth_background_enabled'
+  | 'console_setting.auth_page_style'
+  | 'console_setting.auth_split_image'
+  | 'console_setting.default_theme'
+  | 'console_setting.default_theme_override'
+  | 'console_setting.default_theme_preset'
+  | 'console_setting.default_theme_font'
+  | 'console_setting.default_theme_radius'
+  | 'console_setting.default_theme_scale'
+  | 'console_setting.default_sidebar_variant'
+  | 'console_setting.default_sidebar_layout'
+  | 'console_setting.default_content_layout'
+  | 'console_setting.default_direction'
+  | 'console_setting.model_square_default_view'
+  | 'console_setting.model_square_card_page_size'
+  | 'console_setting.model_square_table_page_size'
+  | 'console_setting.homepage_style'
+  | 'console_setting.homepage_preset_title_mode'
+  | 'console_setting.homepage_preset_sla_enabled'
+  | 'console_setting.homepage_preset_sla_text'
+
+/** Options edited under Appearance Settings. */
+export type AppearanceSettings = Pick<
+  SiteAndAppearanceSettings,
+  AppearanceSettingKey
+>
+
+/** Options edited under Site & Branding. */
+export type SiteSettings = Omit<SiteAndAppearanceSettings, AppearanceSettingKey>
 
 export type AuthSettings = {
   PasswordLoginEnabled: boolean
@@ -430,6 +468,7 @@ export type BillingSettings = {
   GroupDefaultModel: string
   GroupRetryTimes: string
   'console_setting.model_square_visible_groups': string
+  'console_setting.model_square_group_categories': string
   'console_setting.group_access_rules': string
   PayAddress: string
   EpayId: string
