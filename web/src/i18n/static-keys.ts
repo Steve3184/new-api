@@ -870,4 +870,9 @@ export const STATIC_I18N_KEYS = [
   'Counts only the final attempt of each request. Periods without real requests use model degradation checks when the group runs them.',
   'Counts only requests with cached tokens. Probes and configured excluded models are omitted.',
   'Average time to the first streamed token.',
+  // Live platform figures on the preset 2 homepage.
+  'models available',
+  'providers connected',
+  'requests per minute, live',
+  'tokens per minute, live',
 ] as const

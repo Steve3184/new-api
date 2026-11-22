@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +31,21 @@ func GetUserRankings(c *gin.Context) {
 			"success": false,
 			"message": err.Error(),
 		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    result,
+	})
+}
+
+// GetPlatformTraffic reports the request and token rates of the whole
+// deployment over the last minute, for the public homepage.
+func GetPlatformTraffic(c *gin.Context) {
+	result, err := service.GetPlatformTraffic()
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
 

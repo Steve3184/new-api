@@ -49,3 +49,38 @@ func TestGetUserRankingsReturnsMetricSpecificTopGroups(t *testing.T) {
 	assert.Equal(t, "default", payload.Data.ByTokens[0].TopGroup)
 
 }
+
+func TestGetPlatformTrafficCountsTheLastMinuteAcrossUsersAndCachesIt(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	now := time.Now().Unix()
+	require.NoError(t, db.Create(&[]model.Log{
+		{UserId: 1, CreatedAt: now - 5, Type: model.LogTypeConsume, PromptTokens: 100, CompletionTokens: 20},
+		{UserId: 2, CreatedAt: now - 30, Type: model.LogTypeConsume, PromptTokens: 7, CompletionTokens: 3},
+		{UserId: 1, CreatedAt: now - 300, Type: model.LogTypeConsume, PromptTokens: 900, CompletionTokens: 900},
+		{UserId: 1, CreatedAt: now - 5, Type: model.LogTypeTopup, PromptTokens: 50},
+	}).Error)
+
+	fetch := func() service.PlatformTraffic {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/rankings/traffic", nil)
+		GetPlatformTraffic(ctx)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		var payload struct {
+			Success bool                    `json:"success"`
+			Data    service.PlatformTraffic `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+		require.True(t, payload.Success)
+		return payload.Data
+	}
+
+	assert.Equal(t, service.PlatformTraffic{Rpm: 2, Tpm: 130}, fetch())
+
+	// The endpoint is public, so a second visitor moments later is served the
+	// same answer instead of another read of the log table.
+	require.NoError(t, db.Create(&model.Log{UserId: 3, CreatedAt: now, Type: model.LogTypeConsume, PromptTokens: 1000}).Error)
+	assert.Equal(t, service.PlatformTraffic{Rpm: 2, Tpm: 130}, fetch())
+}

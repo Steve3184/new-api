@@ -44,6 +44,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	// Fork routes retain their existing role and ownership checks in addition to scopes.
 	"GET /api/status-check":                                        accessTokenAnyRule,
 	"GET /api/rankings/users":                                      accessTokenAnyRule,
+	"GET /api/rankings/traffic":                                    accessTokenAnyRule,
 	"GET /api/log/export":                                          accessTokenScopeRule("log:read"),
 	"GET /api/log/self/export":                                     accessTokenScopeRule("usage:read"),
 	"GET /api/mj/export":                                           accessTokenScopeRule("log:read"),

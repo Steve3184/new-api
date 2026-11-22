@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { HomePageContentResponse } from './types'
+import type { HomePageContentResponse, PlatformTrafficResponse } from './types'
 
 // ============================================================================
 // Home Page APIs
@@ -35,5 +35,14 @@ export async function getHomePageContent(): Promise<HomePageContentResponse> {
   const res = await api.get('/api/home_page_content', {
     headers: { 'Cache-Control': null },
   })
+  return res.data
+}
+
+/**
+ * Get the request and token rates of the whole deployment over the last
+ * minute. Readable by whoever may open the rankings page.
+ */
+export async function getPlatformTraffic(): Promise<PlatformTrafficResponse> {
+  const res = await api.get('/api/rankings/traffic')
   return res.data
 }

@@ -32,6 +32,20 @@ export interface HomePageContentResponse {
 }
 
 /**
+ * Response from the platform traffic API
+ */
+export interface PlatformTrafficResponse {
+  success: boolean
+  message?: string
+  data?: {
+    /** Requests served in the last minute, across all users. */
+    rpm: number
+    /** Tokens served in the last minute, across all users. */
+    tpm: number
+  }
+}
+
+/**
  * Home page content result from hook
  */
 export interface HomePageContentResult {
