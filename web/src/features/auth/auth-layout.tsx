@@ -196,16 +196,19 @@ function SplitAuthLayout({ children }: AuthLayoutProps) {
   )
 }
 
-/** Animated particle field drawn from the active theme colors. */
+/**
+ * Animated particle field drawn from the active theme colors. The glows sit
+ * where the field's strands gather: at its waist and at both of its ends.
+ */
 function BuiltInIllustration() {
   return (
     <div
       aria-hidden='true'
       className='from-muted via-background to-secondary absolute inset-0 overflow-hidden bg-gradient-to-br'
     >
-      <div className='bg-chart-1/20 absolute top-[10%] left-[8%] size-[38%] rounded-full blur-3xl' />
-      <div className='bg-chart-2/20 absolute right-[6%] bottom-[8%] size-[42%] rounded-full blur-3xl' />
-      <div className='bg-chart-4/15 absolute top-[40%] left-[30%] size-[30%] rounded-full blur-3xl' />
+      <div className='bg-chart-3/15 absolute -top-[8%] -left-[10%] size-[44%] rounded-full blur-3xl' />
+      <div className='bg-chart-1/15 absolute top-[28%] left-[34%] size-[44%] rounded-full blur-3xl' />
+      <div className='bg-chart-2/15 absolute -right-[10%] -bottom-[8%] size-[48%] rounded-full blur-3xl' />
       <AuthParticleField className='absolute inset-0' />
     </div>
   )

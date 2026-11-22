@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PresetTwoActions } from './actions'
+import { HeroFibers } from './hero-fibers'
 import { EASE_OUT, cascadeVariants, riseVariants } from './motion'
 import { RoutingVisual } from './routing-visual'
 
@@ -18,10 +19,17 @@ type PresetTwoHeroProps = {
 
 const TITLE_LEAD = 'One endpoint.'
 const TITLE_ACCENT = 'Every frontier model.'
+// Entrance of the routing card, in seconds. It fades in well before it lands.
+const CARD_DELAY = 0.55
+const CARD_FADE = 0.5
+// While the card fades in, its frosted nodes cannot blur what lies behind the
+// card, so the fibers stay dark until it is solid.
+const FIBERS_DELAY = CARD_DELAY + CARD_FADE + 0.15
 
 export function PresetTwoHero(props: PresetTwoHeroProps) {
   const { t } = useTranslation()
   const sectionRef = useRef<HTMLElement>(null)
+  const diagramRef = useRef<HTMLDivElement>(null)
   const rise = riseVariants(props.reduced)
   const titleLead = props.titleMode === 'english' ? TITLE_LEAD : t(TITLE_LEAD)
   const titleAccent =
@@ -45,6 +53,12 @@ export function PresetTwoHero(props: PresetTwoHeroProps) {
         <div className='preset-two-aurora absolute top-[38%] left-[38%] h-[24rem] w-[24rem] rounded-full bg-amber-300/10 blur-[110px] [animation-delay:-13s]' />
         <div className='absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.045)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_70%_55%_at_50%_0%,#000_40%,transparent_100%)] bg-[size:72px_72px]' />
         <div className='absolute inset-0 bg-[radial-gradient(520px_circle_at_var(--spot-x)_var(--spot-y),rgba(233,213,255,0.09),transparent_60%)]' />
+        <HeroFibers
+          anchorRef={diagramRef}
+          delay={FIBERS_DELAY}
+          reduced={props.reduced}
+          className='absolute inset-0 hidden size-full md:block'
+        />
         <div className='absolute inset-x-0 bottom-0 h-56 bg-gradient-to-b from-transparent to-[#050607]' />
       </div>
 
@@ -82,7 +96,7 @@ export function PresetTwoHero(props: PresetTwoHeroProps) {
           </span>
           <span
             lang={props.titleMode === 'english' ? 'en' : undefined}
-            className='preset-two-accent preset-two-gradient-text block pb-2 tracking-[-0.03em]'
+            className='preset-two-accent preset-two-gradient-text -mb-[calc(0.2em-var(--spacing)*2)] block pb-[0.2em] tracking-[-0.03em]'
           >
             {titleAccent}
           </span>
@@ -124,13 +138,26 @@ export function PresetTwoHero(props: PresetTwoHeroProps) {
             : { opacity: 0, y: 70, rotateX: 16, scale: 0.96 }
         }
         animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-        transition={{
-          delay: props.reduced ? 0 : 0.55,
-          duration: props.reduced ? 0 : 1.3,
-          ease: EASE_OUT,
-        }}
+        transition={
+          props.reduced
+            ? { duration: 0 }
+            : {
+                delay: CARD_DELAY,
+                duration: 1.3,
+                ease: EASE_OUT,
+                opacity: {
+                  delay: CARD_DELAY,
+                  duration: CARD_FADE,
+                  ease: 'easeOut',
+                },
+              }
+        }
       >
-        <RoutingVisual brandName={props.brandName} reduced={props.reduced} />
+        <RoutingVisual
+          brandName={props.brandName}
+          reduced={props.reduced}
+          diagramRef={diagramRef}
+        />
       </motion.div>
     </section>
   )

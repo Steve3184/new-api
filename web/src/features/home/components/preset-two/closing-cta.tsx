@@ -28,9 +28,17 @@ export function ClosingCta(props: ClosingCtaProps) {
           className='preset-two-orbit-border absolute inset-0'
         />
         <div className='relative isolate overflow-hidden rounded-[32px] bg-[#08090c] px-6 py-20 text-center sm:px-12 lg:py-28'>
-          <div aria-hidden='true' className='absolute inset-0 -z-10'>
-            <div className='preset-two-aurora absolute -bottom-1/2 left-1/2 h-[30rem] w-[52rem] -translate-x-1/2 rounded-full bg-violet-500/25 blur-[120px]' />
-            <div className='absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_100%,#000,transparent)] bg-[size:22px_22px]' />
+          {/* The grain only blends with what shares this layer, so the layer
+              carries its own opaque base under the drifting colors. */}
+          <div
+            aria-hidden='true'
+            className='absolute inset-0 -z-10 bg-[#08090c]'
+          >
+            <div className='preset-two-flow absolute top-[42%] -left-[22%] h-[80%] w-[70%] rounded-full bg-violet-600/75 blur-[70px]' />
+            <div className='preset-two-flow absolute -top-[46%] -right-[20%] h-[80%] w-[60%] rounded-full bg-cyan-400/40 blur-[80px] [--flow-delay:-11s] [--flow-duration:31s]' />
+            <div className='preset-two-flow absolute -right-[18%] -bottom-[56%] h-[78%] w-[58%] rounded-full bg-fuchsia-500/50 blur-[80px] [--flow-delay:-5s] [--flow-direction:alternate-reverse] [--flow-duration:27s]' />
+            <div className='absolute inset-0 bg-[radial-gradient(ellipse_62%_64%_at_50%_46%,rgba(8,9,12,0.8),transparent_78%)]' />
+            <div className='preset-two-frost absolute inset-0 opacity-70 mix-blend-overlay' />
           </div>
           <p className='text-[11px] font-medium tracking-[0.3em] text-white/45 uppercase'>
             {props.brandName}
@@ -39,7 +47,7 @@ export function ClosingCta(props: ClosingCtaProps) {
             <span className='inline-block'>
               {t('Your models. Your rules.')}
             </span>{' '}
-            <span className='preset-two-accent preset-two-gradient-text inline-block'>
+            <span className='preset-two-accent preset-two-gradient-text -mb-[0.2em] inline-block pb-[0.2em]'>
               {t('One gateway.')}
             </span>
           </h2>

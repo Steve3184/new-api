@@ -39,7 +39,7 @@ function buildSnippet(language: SnippetLanguage, baseUrl: string): string {
       ')',
       '',
       'reply = client.chat.completions.create(',
-      '    model="claude-sonnet-4-5",',
+      '    model="claude-sonnet-5-5",',
       '    messages=[{"role": "user", "content": "Hello"}],',
       ')',
     ].join('\n')
@@ -54,7 +54,7 @@ function buildSnippet(language: SnippetLanguage, baseUrl: string): string {
       '})',
       '',
       'const reply = await client.chat.completions.create({',
-      "  model: 'gemini-2.5-pro',",
+      "  model: 'gemini-4-carbon',",
       "  messages: [{ role: 'user', content: 'Hello' }],",
       '})',
     ].join('\n')
@@ -64,7 +64,7 @@ function buildSnippet(language: SnippetLanguage, baseUrl: string): string {
     '  -H "Authorization: Bearer $API_KEY" \\',
     '  -H "Content-Type: application/json" \\',
     "  -d '{",
-    '    "model": "gpt-5",',
+    '    "model": "gpt-6.2-sol",',
     '    "messages": [{"role": "user", "content": "Hello"}]',
     "  }'",
   ].join('\n')

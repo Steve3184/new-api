@@ -1,6 +1,6 @@
 import { Bot, Code2, Laptop, Waypoints } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { type Ref, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -28,12 +28,12 @@ const PROVIDERS = [
 ] as const
 
 const SAMPLE_TRAFFIC = [
-  ['/v1/messages', 'claude-sonnet-4-5', 512],
-  ['/v1/responses', 'gpt-5', 448],
-  ['/v1/chat/completions', 'deepseek-chat', 386],
+  ['/v1/messages', 'claude-sonnet-5-5', 512],
+  ['/v1/responses', 'gpt-6.2-sol', 448],
+  ['/v1/chat/completions', 'deepseek-flash', 386],
   ['/v1/embeddings', 'text-embedding-3-large', 92],
-  ['/v1/chat/completions', 'qwen3-max', 301],
-  ['/v1beta/models', 'gemini-2.5-pro', 467],
+  ['/v1/chat/completions', 'qwen4-max', 301],
+  ['/v1beta/models', 'gemini-4-carbon', 467],
 ] as const
 
 function nodePosition(x: number, y: number) {
@@ -46,6 +46,8 @@ function nodePosition(x: number, y: number) {
 type RoutingVisualProps = {
   brandName: string
   reduced: boolean
+  /** Receives the diagram area, whose center is the gateway node. */
+  diagramRef?: Ref<HTMLDivElement>
 }
 
 export function RoutingVisual(props: RoutingVisualProps) {
@@ -76,7 +78,7 @@ export function RoutingVisual(props: RoutingVisualProps) {
   })
 
   return (
-    <div className='relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.025] shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl'>
+    <div className='relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0a0b0f]/60 shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9)]'>
       <div
         aria-hidden='true'
         className='pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent'
@@ -97,7 +99,10 @@ export function RoutingVisual(props: RoutingVisualProps) {
         </span>
       </div>
 
-      <div className='relative hidden aspect-[1000/420] md:block'>
+      <div
+        ref={props.diagramRef}
+        className='relative hidden aspect-[1000/420] md:block'
+      >
         <svg
           aria-hidden='true'
           viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
@@ -165,6 +170,10 @@ export function RoutingVisual(props: RoutingVisualProps) {
           className='absolute -translate-x-1/2 -translate-y-1/2'
           style={nodePosition(GATEWAY.x, GATEWAY.y)}
         >
+          <span
+            aria-hidden='true'
+            className='pointer-events-none absolute -inset-x-24 -inset-y-[4.5rem] rounded-full bg-[radial-gradient(closest-side,rgba(167,139,250,0.3),rgba(103,232,249,0.08)_58%,transparent)]'
+          />
           {!props.reduced && (
             <motion.span
               aria-hidden='true'
