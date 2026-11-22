@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
@@ -67,8 +68,11 @@ export function PanelWrapper(props: PanelWrapperProps) {
   const { t } = useTranslation()
   const resolvedEmptyMessage = props.emptyMessage ?? t('No data available')
   const height = props.height ?? 'h-64'
+  // The frame fills its slot, so a panel that ends a dashboard column can
+  // stretch to line up with the neighbouring column. Bodies grow from their
+  // natural height (flex-auto) and never shrink below it.
   const frameClassName = cn(
-    'overflow-hidden rounded-2xl border bg-card shadow-xs',
+    'flex h-full flex-col overflow-hidden rounded-2xl border bg-card shadow-xs',
     props.className
   )
 
@@ -76,7 +80,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
     return (
       <div className={frameClassName}>
         <PanelHeader title={props.title} description={props.description} />
-        <div className={cn('p-4 sm:p-5', props.contentClassName)}>
+        <div className={cn('flex-auto p-4 sm:p-5', props.contentClassName)}>
           <Skeleton className={`w-full ${height}`} />
         </div>
       </div>
@@ -89,7 +93,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
         <PanelHeader title={props.title} description={props.description} />
         <div
           className={cn(
-            'text-muted-foreground flex items-center justify-center px-4 text-sm',
+            'text-muted-foreground flex flex-auto items-center justify-center px-4 text-sm',
             height,
             props.contentClassName
           )}
@@ -107,9 +111,30 @@ export function PanelWrapper(props: PanelWrapperProps) {
         description={props.description}
         actions={props.headerActions}
       />
-      <div className={cn('p-4 sm:p-5', props.contentClassName)}>
+      <div
+        className={cn(
+          'flex flex-auto flex-col p-4 sm:p-5',
+          props.contentClassName
+        )}
+      >
         {props.children}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Scrolling body of a panel. It keeps at least `minHeight` and grows with the
+ * panel; the content scrolls inside instead of making the panel taller, so a
+ * long list never pushes the dashboard columns out of line.
+ */
+export function PanelScrollArea(props: {
+  minHeight: 'min-h-48' | 'min-h-72' | 'min-h-80'
+  children: ReactNode
+}) {
+  return (
+    <div className={cn('relative flex-1', props.minHeight)}>
+      <ScrollArea className='absolute inset-0'>{props.children}</ScrollArea>
     </div>
   )
 }

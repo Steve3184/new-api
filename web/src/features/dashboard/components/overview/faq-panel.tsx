@@ -27,11 +27,10 @@ import {
 } from '@/components/ui/accordion'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Markdown } from '@/components/ui/markdown'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useFAQ } from '@/features/dashboard/hooks/use-status-data'
 import type { FAQItem } from '@/features/dashboard/types'
 
-import { PanelWrapper } from '../ui/panel-wrapper'
+import { PanelScrollArea, PanelWrapper } from '../ui/panel-wrapper'
 
 export function FAQPanel() {
   const { t } = useTranslation()
@@ -54,7 +53,7 @@ export function FAQPanel() {
       height='h-80'
       contentClassName='p-0'
     >
-      <ScrollArea className='h-80'>
+      <PanelScrollArea minHeight='min-h-80'>
         <Accordion className='w-full px-4 sm:px-5'>
           {list.map((item: FAQItem, idx: number) => {
             const key = item.id ?? `faq-${idx}`
@@ -79,7 +78,7 @@ export function FAQPanel() {
             )
           })}
         </Accordion>
-      </ScrollArea>
+      </PanelScrollArea>
     </PanelWrapper>
   )
 }

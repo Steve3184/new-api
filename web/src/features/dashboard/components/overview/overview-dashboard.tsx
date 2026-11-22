@@ -615,9 +615,9 @@ export function OverviewDashboard() {
   const setupStatusReady = apiKeysQuery.isFetched && Boolean(user)
   const setupGuideExpanded =
     manualSetupGuideExpanded ?? (setupStatusReady && !setupComplete)
-  const showLeftContentPanels =
-    isAdmin || showApiInfoPanel || showAnnouncementsPanel || showFAQPanel
-  const showContentPanels = showLeftContentPanels || showUptimePanel
+  const showSidePanels = showApiInfoPanel || showUptimePanel
+  const showBottomPanels = showAnnouncementsPanel || showFAQPanel
+  const showMainPanels = isAdmin || showBottomPanels
 
   const handleSetupGuideToggle = () => {
     const nextExpanded = !setupGuideExpanded
@@ -789,56 +789,91 @@ export function OverviewDashboard() {
           )}
 
           <SummaryCards />
-          <ContributionsCard />
 
-          {showContentPanels && (
-            <CardStaggerContainer
+          {/* Wide screens pair the panels by row: the usage calendar beside
+              the API routes, then the remaining panels beside Uptime Kuma.
+              Each row ends level, and a taller calendar (such as the 3D
+              view) only lengthens its own row, never the uptime list. */}
+          <CardStaggerContainer
+            className={cn(
+              'grid grid-cols-1 gap-4',
+              showApiInfoPanel && showUptimePanel && 'lg:grid-cols-2',
+              showSidePanels && 'xl:grid-cols-[minmax(0,1fr)_22rem]'
+            )}
+          >
+            <div
               className={cn(
-                'grid grid-cols-1 gap-4',
-                showLeftContentPanels &&
+                'min-w-0 xl:col-start-1 xl:row-start-1',
+                showApiInfoPanel &&
                   showUptimePanel &&
-                  'xl:grid-cols-[minmax(0,1fr)_22rem]'
+                  'lg:col-span-2 xl:col-span-1'
               )}
             >
-              {showLeftContentPanels && (
-                <div
-                  className={cn(
-                    'grid min-w-0 grid-cols-1 gap-4',
-                    (showApiInfoPanel ||
-                      showAnnouncementsPanel ||
-                      showFAQPanel) &&
-                      'lg:grid-cols-2'
-                  )}
-                >
-                  {isAdmin && (
-                    <CardStaggerItem className='lg:col-span-2'>
+              <ContributionsCard />
+            </div>
+
+            {showMainPanels && (
+              <div
+                className={cn(
+                  'flex min-w-0 flex-col gap-4 xl:col-start-1 xl:row-start-2',
+                  showApiInfoPanel &&
+                    showUptimePanel &&
+                    'lg:col-span-2 xl:col-span-1'
+                )}
+              >
+                {isAdmin && (
+                  <CardStaggerContainer>
+                    <CardStaggerItem>
                       <PerformanceHealthPanel />
                     </CardStaggerItem>
-                  )}
-                  {showApiInfoPanel && (
-                    <CardStaggerItem>
-                      <ApiInfoPanel />
-                    </CardStaggerItem>
-                  )}
-                  {showAnnouncementsPanel && (
-                    <CardStaggerItem>
-                      <AnnouncementsPanel />
-                    </CardStaggerItem>
-                  )}
-                  {showFAQPanel && (
-                    <CardStaggerItem>
-                      <FAQPanel />
-                    </CardStaggerItem>
-                  )}
-                </div>
-              )}
-              {showUptimePanel && (
-                <CardStaggerItem>
-                  <UptimePanel />
-                </CardStaggerItem>
-              )}
-            </CardStaggerContainer>
-          )}
+                  </CardStaggerContainer>
+                )}
+
+                {showBottomPanels && (
+                  <CardStaggerContainer
+                    className={cn(
+                      'grid flex-1 grid-cols-1 gap-4',
+                      showAnnouncementsPanel && showFAQPanel && 'lg:grid-cols-2'
+                    )}
+                  >
+                    {showAnnouncementsPanel && (
+                      <CardStaggerItem>
+                        <AnnouncementsPanel />
+                      </CardStaggerItem>
+                    )}
+                    {showFAQPanel && (
+                      <CardStaggerItem>
+                        <FAQPanel />
+                      </CardStaggerItem>
+                    )}
+                  </CardStaggerContainer>
+                )}
+              </div>
+            )}
+
+            {showApiInfoPanel && (
+              <CardStaggerItem
+                className={cn(
+                  'xl:col-start-2 xl:row-start-1',
+                  !showUptimePanel && 'xl:row-span-2'
+                )}
+              >
+                <ApiInfoPanel />
+              </CardStaggerItem>
+            )}
+            {showUptimePanel && (
+              <CardStaggerItem
+                className={cn(
+                  'xl:col-start-2',
+                  showApiInfoPanel
+                    ? 'xl:row-start-2'
+                    : 'xl:row-span-2 xl:row-start-1 xl:self-start'
+                )}
+              >
+                <UptimePanel />
+              </CardStaggerItem>
+            )}
+          </CardStaggerContainer>
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

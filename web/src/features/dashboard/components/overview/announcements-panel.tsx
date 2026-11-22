@@ -21,7 +21,6 @@ import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { getPreviewText } from '@/features/dashboard/lib'
 import type { AnnouncementItem } from '@/features/dashboard/types'
@@ -29,7 +28,7 @@ import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
-import { PanelWrapper } from '../ui/panel-wrapper'
+import { PanelScrollArea, PanelWrapper } from '../ui/panel-wrapper'
 import { AnnouncementDetailModal } from './announcement-detail-dialog'
 
 const AnnouncementStatusDot = memo(function AnnouncementStatusDot(props: {
@@ -74,7 +73,7 @@ export function AnnouncementsPanel() {
       height='h-72'
       contentClassName='p-0'
     >
-      <ScrollArea className='h-72'>
+      <PanelScrollArea minHeight='min-h-72'>
         <div>
           {list.map((item: AnnouncementItem, idx: number) => {
             const key = item.id ?? `announcement-${idx}`
@@ -110,7 +109,7 @@ export function AnnouncementsPanel() {
             )
           })}
         </div>
-      </ScrollArea>
+      </PanelScrollArea>
 
       <AnnouncementDetailModal
         open={isDialogOpen}

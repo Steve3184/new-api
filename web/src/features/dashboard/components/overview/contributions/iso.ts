@@ -9,10 +9,11 @@ import { CONTRIBUTION_LEVEL_ALPHA, type ContributionDay } from './calendar'
  * The side faces are the top colour darkened by fixed factors, so the shading
  * never depends on a light rig.
  */
-// Screen slope of one iso step. A true 30° projection (0.577) is noticeably
-// steep on a wide, short card, so the year grid is flattened a little: the
-// calendar stays readable while the cubes still read as isometric.
-export const ISO_SLOPE = 0.45
+// Screen slope of one iso step, roughly the sine of the camera's elevation. A
+// true 30° projection (0.577) looks down too steeply on a wide, short card, so
+// the camera sits lower, about 19° above the ground: the calendar reads as a
+// landscape and the columns stand out, while the cubes still read as isometric.
+export const ISO_SLOPE = 0.32
 // Side faces carry the cube's volume. A wider spread than the reference's
 // 0.8367/0.7 keeps neighbouring columns readable at this scale.
 const LEFT_DARKEN = 0.78

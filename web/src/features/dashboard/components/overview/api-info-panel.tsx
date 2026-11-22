@@ -21,7 +21,6 @@ import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useApiInfo } from '@/features/dashboard/hooks/use-status-data'
 import {
   testUrlLatency,
@@ -29,7 +28,7 @@ import {
 } from '@/features/dashboard/lib/api-info'
 import type { PingStatusMap, ApiInfoItem } from '@/features/dashboard/types'
 
-import { PanelWrapper } from '../ui/panel-wrapper'
+import { PanelScrollArea, PanelWrapper } from '../ui/panel-wrapper'
 import { ApiInfoItemComponent } from './api-info-item'
 
 export function ApiInfoPanel() {
@@ -61,10 +60,10 @@ export function ApiInfoPanel() {
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No API routes configured')}
-      height='h-72'
+      height='h-48'
       contentClassName='p-0'
     >
-      <ScrollArea className='h-72'>
+      <PanelScrollArea minHeight='min-h-48'>
         <div>
           {list.map((item: ApiInfoItem, idx: number) => (
             <div
@@ -81,7 +80,7 @@ export function ApiInfoPanel() {
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </PanelScrollArea>
     </PanelWrapper>
   )
 }

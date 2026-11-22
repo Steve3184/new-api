@@ -39,6 +39,10 @@ export function ContributionGrid(props: ContributionGridProps) {
   }>()
 
   const weekCount = Math.ceil(props.days.length / 7)
+  // Month labels and cells share one track size, in the same spacing unit as the
+  // cells, and both spread any spare width between weeks so the grid ends flush
+  // with its container at every density scale.
+  const weekColumns = `repeat(${weekCount}, calc(var(--spacing) * 3))`
   const monthFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { month: 'short' }),
     [locale]
@@ -106,8 +110,8 @@ export function ContributionGrid(props: ContributionGridProps) {
         onMouseLeave={() => setHovered(undefined)}
       >
         <div
-          className='text-muted-foreground mb-2 ml-10 grid gap-[3px] text-xs'
-          style={{ gridTemplateColumns: `repeat(${weekCount}, 12px)` }}
+          className='text-muted-foreground mb-2 ml-10 grid justify-between gap-[3px] text-xs'
+          style={{ gridTemplateColumns: weekColumns }}
           aria-hidden='true'
         >
           {props.days
@@ -139,7 +143,10 @@ export function ContributionGrid(props: ContributionGridProps) {
               </span>
             ))}
           </div>
-          <div className='grid grid-flow-col grid-rows-7 gap-[3px]'>
+          <div
+            className='grid flex-1 grid-flow-col grid-rows-7 justify-between gap-[3px]'
+            style={{ gridTemplateColumns: weekColumns }}
+          >
             {props.days.map((day, index) => (
               <Button
                 key={day.date}

@@ -23,7 +23,6 @@ import { useTranslation } from 'react-i18next'
 import { HeartbeatBar, type HeartbeatBeat } from '@/components/heartbeat-bar'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { getUptimeStatus } from '@/features/dashboard/api'
 import type {
   UptimeGroupResult,
@@ -31,7 +30,7 @@ import type {
 } from '@/features/dashboard/types'
 import { cn } from '@/lib/utils'
 
-import { PanelWrapper } from '../ui/panel-wrapper'
+import { PanelScrollArea, PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
   1: 'bg-emerald-500',
@@ -164,7 +163,7 @@ export function UptimePanel() {
         </Button>
       }
     >
-      <ScrollArea className='h-80'>
+      <PanelScrollArea minHeight='min-h-80'>
         <div>
           {groups.map((group, groupIdx) => (
             <div key={group.categoryName}>
@@ -213,7 +212,7 @@ export function UptimePanel() {
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </PanelScrollArea>
     </PanelWrapper>
   )
 }

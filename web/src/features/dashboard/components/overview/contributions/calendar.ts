@@ -16,10 +16,22 @@ export function localDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-export function contributionRange(now: Date, maxDays = 365) {
+/**
+ * The days a calendar shows and the window to query for them. Without `weeks`
+ * it is the rolling year ending today; with `weeks` it is that many whole
+ * weeks ending with the current one, so a grid gets exactly that many columns.
+ * Either way coverage never reaches past the site's query limit.
+ */
+export function contributionRange(now: Date, maxDays = 365, weeks?: number) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const start = new Date(today)
-  start.setDate(start.getDate() - 364)
+  if (weeks === undefined) {
+    start.setDate(start.getDate() - 364)
+  } else {
+    start.setDate(
+      start.getDate() - start.getDay() - (Math.max(1, weeks) - 1) * 7
+    )
+  }
   const end = new Date(today)
   end.setDate(end.getDate() + 1)
   const earliest = new Date(now.getTime() - Math.max(1, maxDays) * 86400000)

@@ -170,3 +170,109 @@ describe('contributions request range', () => {
     )
   })
 })
+
+/** Reports `width` as the card's content width as soon as it is observed. */
+function reportCardWidth(width: number) {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      private callback: ResizeObserverCallback
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+      }
+      observe(target: Element) {
+        this.callback(
+          [{ target, contentRect: { width } } as ResizeObserverEntry],
+          this as unknown as ResizeObserver
+        )
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+}
+
+function dayCells() {
+  return screen.getAllByRole('button', {
+    name: /tokens$|No statistics available$/,
+  })
+}
+
+/** Cells in a grid of `weeks` columns that stops at today. */
+function cellsUpToToday(weeks: number) {
+  return weeks * 7 - (6 - new Date().getDay())
+}
+
+describe('contributions grid width', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('shows as many whole weeks as fit the card, ending today, instead of scrolling', async () => {
+    // 40px of weekday labels plus 20 columns of 12px cells and 3px gaps.
+    reportCardWidth(40 + 20 * 12 + 19 * 3)
+    usageHandler = async () =>
+      selfResponse([{ created_at: hoursAgo(1), token_used: 42, count: 1 }])
+
+    renderCard()
+
+    expect(
+      await screen.findByRole('button', { name: /: 42 tokens$/ })
+    ).toBeInTheDocument()
+    expect(dayCells()).toHaveLength(cellsUpToToday(20))
+  })
+
+  it('leaves no cells for the days after today', async () => {
+    reportCardWidth(40 + 10 * 12 + 9 * 3)
+    const today = new Date()
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+    renderCard()
+
+    await screen.findByText('No usage recorded in this period.')
+    const dates = dayCells().map((cell) => cell.getAttribute('data-date'))
+    expect(dates.at(-1)).toBe(todayKey)
+  })
+
+  it('fits more weeks when a compact density scale shrinks the cells', async () => {
+    // A compact scale makes cells 10.8px and the weekday labels 36px.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        const size = this.classList.contains('size-3') ? 10.8 : 0
+        return new DOMRect(0, 0, size, size)
+      }
+    )
+    reportCardWidth(36 + 40 * 10.8 + 39 * 3)
+
+    renderCard()
+
+    await screen.findByText('No usage recorded in this period.')
+    expect(dayCells()).toHaveLength(cellsUpToToday(40))
+  })
+
+  it('shows more than a year when the card is wide enough and asks for those weeks', async () => {
+    reportCardWidth(40 + 80 * 12 + 79 * 3)
+    vi.mocked(api.get).mockImplementation(async (url) => {
+      if (url === '/api/status') {
+        return { data: { success: true, data: { log_max_range_days: 1000 } } }
+      }
+      if (url === '/api/data/self') return usageHandler()
+      throw new Error(`Unexpected contributions request: ${url}`)
+    })
+
+    renderCard()
+
+    await waitFor(() => expect(dayCells()).toHaveLength(cellsUpToToday(80)))
+    const requests = vi
+      .mocked(api.get)
+      .mock.calls.filter(([url]) => url === '/api/data/self')
+    const params = requests.at(-1)?.[1]?.params as {
+      start_timestamp: number
+      end_timestamp: number
+    }
+    expect(params.end_timestamp - params.start_timestamp).toBeGreaterThan(
+      79 * 7 * 24 * 60 * 60
+    )
+  })
+})

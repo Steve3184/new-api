@@ -41,6 +41,29 @@ describe('contributionRange', () => {
 
     expect(localDateKey(range.coverageStart)).toBe('2025-05-21')
   })
+
+  it('spans whole weeks ending with the current one when given a week count', () => {
+    const range = contributionRange(NOW, 365, 3)
+    const days = buildContributionCalendar([], range)
+
+    expect(localDateKey(range.start)).toBe('2026-05-03')
+    expect(days).toHaveLength(21)
+    expect(days.at(-1)?.date).toBe('2026-05-23')
+  })
+
+  it('lets a grid wider than a year reach back as far as the site limit allows', () => {
+    const range = contributionRange(NOW, 1000, 80)
+
+    expect(localDateKey(range.start)).toBe('2024-11-10')
+    expect(localDateKey(range.coverageStart)).toBe('2024-11-10')
+  })
+
+  it('keeps a grid wider than a year inside a shorter site limit', () => {
+    const range = contributionRange(NOW, 365, 80)
+
+    expect(localDateKey(range.start)).toBe('2024-11-10')
+    expect(localDateKey(range.coverageStart)).toBe('2025-05-21')
+  })
 })
 
 describe('buildContributionCalendar', () => {
