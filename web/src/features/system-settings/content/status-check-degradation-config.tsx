@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import { getEnabledModels } from '@/features/channels/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
+import { cn } from '@/lib/utils'
 
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import {
@@ -42,6 +43,7 @@ export function StatusCheckDegradationConfig(props: {
   onChange: (update: Partial<DegradationGroupConfig>) => void
   /** Shown under the interval when it fails validation. */
   intervalError?: string
+  className?: string
 }) {
   const { t } = useTranslation()
   const modelsQuery = useQuery({
@@ -66,7 +68,7 @@ export function StatusCheckDegradationConfig(props: {
   const controlId = `status-check-degradation-${props.group}`
 
   return (
-    <div className='space-y-4 border-t pt-4'>
+    <div className={cn('space-y-4 border-t pt-4', props.className)}>
       <SettingsSwitchField
         controlId={controlId}
         checked={props.value.enabled}

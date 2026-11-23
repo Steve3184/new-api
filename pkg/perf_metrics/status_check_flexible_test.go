@@ -31,6 +31,14 @@ func TestParseStatusCheckFlexibleConfigValidatesBounds(t *testing.T) {
 	_, err = ParseStatusCheckFlexibleConfig(`{"groups":{"default":{"enabled":true,"idle_minutes":15,"max_consecutive_probes":1001}}}`)
 	require.ErrorContains(t, err, "max_consecutive_probes")
 
+	_, err = ParseStatusCheckFlexibleConfig(`{"groups":{"default":{"enabled":true,"idle_minutes":15,"max_consecutive_probes":-1}}}`)
+	require.ErrorContains(t, err, "max_consecutive_probes")
+
+	config, err = ParseStatusCheckFlexibleConfig(`{"groups":{"default":{"enabled":true,"idle_minutes":5,"max_consecutive_probes":0}}}`)
+	require.NoError(t, err)
+	groupConfig, _ = config.EnabledGroup("default")
+	assert.True(t, groupConfig.Continuous())
+
 	_, err = ParseStatusCheckFlexibleConfig(`{"groups":{"auto":{"enabled":true,"idle_minutes":15,"max_consecutive_probes":40}}}`)
 	require.ErrorContains(t, err, "automatic group")
 }

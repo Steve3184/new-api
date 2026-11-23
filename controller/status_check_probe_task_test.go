@@ -73,6 +73,57 @@ func TestRunStatusCheckProbeTaskRecordsOneProbeAndHonorsBackoff(t *testing.T) {
 	assert.Zero(t, summary.Tested)
 }
 
+func TestRunStatusCheckProbeTaskContinuousModeIgnoresProbeStreak(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.StatusCheckProbeState{}))
+
+	previousGroups := common.StatusCheckGroups
+	previousFlexibleMode := common.StatusCheckFlexibleMode
+	previousProbeTest := runStatusCheckProbeChannelTest
+	common.StatusCheckGroups = `["default"]`
+	common.StatusCheckFlexibleMode = `{"groups":{"default":{"enabled":true,"idle_minutes":5,"max_consecutive_probes":0}}}`
+	runStatusCheckProbeChannelTest = func(context.Context, *model.Channel, int, string, string, bool) testResult {
+		return testResult{}
+	}
+	t.Cleanup(func() {
+		common.StatusCheckGroups = previousGroups
+		common.StatusCheckFlexibleMode = previousFlexibleMode
+		runStatusCheckProbeChannelTest = previousProbeTest
+	})
+
+	require.NoError(t, db.Create(&model.User{
+		Username: "status-probe-continuous-root",
+		Password: "unused",
+		Role:     common.RoleRootUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}).Error)
+	require.NoError(t, db.Create(&model.Channel{
+		Name:   "status-probe-continuous-channel",
+		Key:    "status-probe-continuous-key",
+		Group:  "default",
+		Status: common.ChannelStatusEnabled,
+	}).Error)
+	now := time.Now()
+	require.NoError(t, db.Create(&model.StatusCheckProbeState{
+		Group:                 "default",
+		LastProbeAt:           now.Add(-6 * time.Minute).Unix(),
+		ConsecutiveProbeCount: 5000,
+	}).Error)
+
+	summary, err := runStatusCheckProbeTask(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.Tested)
+	assert.Zero(t, summary.SkippedBackoff)
+
+	// Real traffic inside the idle window still suppresses the probe.
+	require.NoError(t, model.TouchStatusCheckProbePassiveActivity("default", now.Unix()))
+	summary, err = runStatusCheckProbeTask(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.SkippedRecent)
+	assert.Zero(t, summary.Tested)
+}
+
 func TestStatusCheckFlexibleProbeGroupsUsesPerGroupSettings(t *testing.T) {
 	previousGroups := common.StatusCheckGroups
 	previousFlexibleMode := common.StatusCheckFlexibleMode

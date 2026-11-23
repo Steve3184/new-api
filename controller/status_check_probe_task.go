@@ -24,7 +24,8 @@ var runStatusCheckProbeChannelTest = testChannel
 
 // runStatusCheckProbeTask performs at most one no-charge channel test for each
 // explicitly configured group. A real relay request resets that group's probe
-// streak; otherwise MaxConsecutiveProbes bounds the recurring spend.
+// streak; otherwise MaxConsecutiveProbes bounds the recurring spend, unless the
+// group runs continuous monitoring.
 func runStatusCheckProbeTask(ctx context.Context) (statusCheckProbeTaskSummary, error) {
 	summary := statusCheckProbeTaskSummary{}
 	groups := statusCheckFlexibleProbeGroups()
@@ -76,7 +77,7 @@ func runStatusCheckProbeTask(ctx context.Context) (statusCheckProbeTaskSummary, 
 		if lastPassiveAt > state.LastProbeAt {
 			consecutiveProbes = 0
 		}
-		if consecutiveProbes >= probeGroup.Config.MaxConsecutiveProbes {
+		if !probeGroup.Config.Continuous() && consecutiveProbes >= probeGroup.Config.MaxConsecutiveProbes {
 			summary.SkippedBackoff++
 			continue
 		}

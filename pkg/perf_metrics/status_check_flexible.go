@@ -25,8 +25,10 @@ const (
 
 // StatusCheckFlexibleGroupConfig controls active checks for one explicitly
 // configured status-page group. The limits cap accidental spend from malformed
-// settings. An empty Model tests each channel's own test model; a configured
-// model is routed like a relay request for that model.
+// settings. MaxConsecutiveProbes of 0 selects continuous monitoring: the group
+// is probed every idle period for as long as it has no real traffic. An empty
+// Model tests each channel's own test model; a configured model is routed like
+// a relay request for that model.
 type StatusCheckFlexibleGroupConfig struct {
 	Enabled              bool   `json:"enabled"`
 	IdleMinutes          int    `json:"idle_minutes"`
@@ -85,8 +87,8 @@ func ParseStatusCheckFlexibleConfig(value string) (StatusCheckFlexibleConfig, er
 		if groupConfig.IdleMinutes < 1 || groupConfig.IdleMinutes > maxStatusCheckIdleMinutes {
 			return StatusCheckFlexibleConfig{}, fmt.Errorf("idle_minutes for group %q must be between 1 and %d", group, maxStatusCheckIdleMinutes)
 		}
-		if groupConfig.MaxConsecutiveProbes < 1 || groupConfig.MaxConsecutiveProbes > maxStatusCheckConsecutiveProbes {
-			return StatusCheckFlexibleConfig{}, fmt.Errorf("max_consecutive_probes for group %q must be between 1 and %d", group, maxStatusCheckConsecutiveProbes)
+		if groupConfig.MaxConsecutiveProbes < 0 || groupConfig.MaxConsecutiveProbes > maxStatusCheckConsecutiveProbes {
+			return StatusCheckFlexibleConfig{}, fmt.Errorf("max_consecutive_probes for group %q must be 0 (continuous) or between 1 and %d", group, maxStatusCheckConsecutiveProbes)
 		}
 		groupConfig.Model = strings.TrimSpace(groupConfig.Model)
 		if len(groupConfig.Model) > 255 {
@@ -104,6 +106,11 @@ func GetStatusCheckFlexibleConfig() StatusCheckFlexibleConfig {
 		return DefaultStatusCheckFlexibleConfig()
 	}
 	return config
+}
+
+// Continuous reports whether probing never pauses for lack of real traffic.
+func (config StatusCheckFlexibleGroupConfig) Continuous() bool {
+	return config.MaxConsecutiveProbes == 0
 }
 
 func (config StatusCheckFlexibleConfig) EnabledGroup(group string) (StatusCheckFlexibleGroupConfig, bool) {

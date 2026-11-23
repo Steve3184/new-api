@@ -13,6 +13,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -23,7 +24,9 @@ import { api } from '@/lib/api'
 import { SettingsPageProvider } from '../components/settings-page-context'
 import { StatusCheckSection } from '../content/status-check-section'
 
-const mutateAsync = vi.fn(async () => ({ success: true }))
+const mutateAsync = vi.fn(
+  async (_update: { key: string; value: string }) => ({ success: true })
+)
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
@@ -38,19 +41,25 @@ afterEach(() => {
   vi.mocked(toast.error).mockClear()
 })
 
-function Harness(props: { flexibleMode?: string; degradationMode?: string }) {
+type SectionProps = {
+  groups?: string
+  flexibleMode?: string
+  degradationMode?: string
+}
+
+function Harness(props: SectionProps) {
   const [actions, setActions] = useState<HTMLDivElement | null>(null)
   return (
     <>
       <div ref={setActions} />
       <SettingsPageProvider actionsContainer={actions}>
         <StatusCheckSection
-          defaultValue='["default"]'
+          defaultValue={props.groups ?? '["default"]'}
           cacheExcludedModels='[]'
           announcement=''
           flexibleMode={props.flexibleMode ?? '{"groups":{}}'}
           degradationMode={props.degradationMode ?? '{"groups":{}}'}
-          groupRatio='{"default":1}'
+          groupRatio='{"default":1,"vip":1}'
           modelRatio='{}'
         />
       </SettingsPageProvider>
@@ -58,9 +67,7 @@ function Harness(props: { flexibleMode?: string; degradationMode?: string }) {
   )
 }
 
-function renderSection(
-  props: { flexibleMode?: string; degradationMode?: string } = {}
-) {
+function renderSection(props: SectionProps = {}) {
   vi.spyOn(api, 'get').mockResolvedValue({
     data: { success: true, data: ['gpt-5', 'gpt-5-mini'] },
   })
@@ -74,27 +81,102 @@ function renderSection(
   )
 }
 
+function savedFlexibleGroups(): Record<string, unknown> {
+  const update = mutateAsync.mock.calls
+    .map(([call]) => call)
+    .find((call) => call.key === 'StatusCheckFlexibleMode')
+  if (!update) throw new Error('StatusCheckFlexibleMode was not saved')
+  return (JSON.parse(update.value) as { groups: Record<string, unknown> })
+    .groups
+}
+
 describe('StatusCheckSection save', () => {
-  it('saves a changed per-group probe setting', async () => {
+  it('saves a probe toggled in the group table', async () => {
     renderSection()
-    fireEvent.click(await screen.findByRole('switch', { name: 'default' }))
+    fireEvent.click(
+      await screen.findByRole('switch', {
+        name: 'Availability probe for default',
+      })
+    )
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
+
     await waitFor(() =>
-      expect(mutateAsync).toHaveBeenCalledWith({
-        key: 'StatusCheckFlexibleMode',
-        value: expect.stringContaining('"enabled":true'),
+      expect(savedFlexibleGroups()).toEqual({
+        default: expect.objectContaining({ enabled: true }),
       })
     )
   })
 
-  it('reports an out-of-range per-group value instead of silently ignoring save', async () => {
-    renderSection()
+  it('saves continuous monitoring applied from the group sheet as an unlimited probe count', async () => {
+    renderSection({
+      flexibleMode:
+        '{"groups":{"default":{"enabled":true,"idle_minutes":5,"max_consecutive_probes":40}}}',
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit default' }))
+    const sheet = await screen.findByRole('dialog')
     fireEvent.click(
-      await screen.findByRole('switch', { name: 'Model degradation detection' })
+      within(sheet).getByRole('switch', { name: 'Continuous monitoring' })
     )
-    const interval = screen.getByLabelText('Check interval (minutes)')
-    fireEvent.change(interval, { target: { value: '3' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Apply' }))
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() =>
+      expect(savedFlexibleGroups()).toEqual({
+        default: {
+          enabled: true,
+          idle_minutes: 5,
+          max_consecutive_probes: 0,
+          model: '',
+        },
+      })
+    )
+  })
+
+  it('applies a batch edit to every selected group and keeps each probe model', async () => {
+    renderSection({
+      groups: '["default","vip"]',
+      flexibleMode:
+        '{"groups":{"vip":{"enabled":false,"idle_minutes":30,"max_consecutive_probes":10,"model":"gpt-5"}}}',
+    })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit selected' }))
+    const sheet = await screen.findByRole('dialog')
+    fireEvent.click(
+      within(sheet).getByRole('switch', { name: 'Enable availability probe' })
+    )
+    fireEvent.change(within(sheet).getByLabelText('Idle period (minutes)'), {
+      target: { value: '5' },
+    })
+    fireEvent.click(
+      within(sheet).getByRole('switch', { name: 'Continuous monitoring' })
+    )
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Apply' }))
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() =>
+      expect(savedFlexibleGroups()).toEqual({
+        default: {
+          enabled: true,
+          idle_minutes: 5,
+          max_consecutive_probes: 0,
+          model: '',
+        },
+        vip: {
+          enabled: true,
+          idle_minutes: 5,
+          max_consecutive_probes: 0,
+          model: 'gpt-5',
+        },
+      })
+    )
+  })
+
+  it('reports an out-of-range saved value instead of silently ignoring save', async () => {
+    renderSection({
+      degradationMode:
+        '{"groups":{"default":{"enabled":true,"interval_minutes":3,"models":[]}}}',
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /save/i }))
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
@@ -102,9 +184,7 @@ describe('StatusCheckSection save', () => {
       )
     )
     expect(mutateAsync).not.toHaveBeenCalled()
-    expect(interval).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Enter a whole number from 5 to 10080'
-    )
+    const row = screen.getByRole('row', { name: /default/ })
+    expect(within(row).getByText('Needs fixing')).toBeInTheDocument()
   })
 })

@@ -7,7 +7,7 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -23,19 +23,12 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
-import {
-  SettingsForm,
-  SettingsSwitchContent,
-  SettingsSwitchItem,
-} from '../components/settings-form-layout'
+import { SettingsForm } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
-import { StatusCheckDegradationConfig } from './status-check-degradation-config'
 import {
   DEGRADATION_EFFORTS,
   DEGRADATION_INTERVAL_MAX,
@@ -45,7 +38,23 @@ import {
   type DegradationModelConfig,
   defaultDegradationGroup,
 } from './status-check-degradation-options'
-import { StatusCheckProbeModelField } from './status-check-probe-model-field'
+import {
+  FLEXIBLE_CONTINUOUS_PROBES,
+  FLEXIBLE_IDLE_MAX,
+  FLEXIBLE_IDLE_MIN,
+  FLEXIBLE_PROBES_MAX,
+  type FlexibleGroupConfig,
+  defaultFlexibleGroup,
+  parseFlexibleMode,
+} from './status-check-flexible-options'
+import {
+  StatusCheckGroupSheet,
+  type StatusCheckGroupSheetApply,
+} from './status-check-group-sheet'
+import {
+  type StatusCheckGroupRow,
+  StatusCheckGroupTable,
+} from './status-check-group-table'
 
 const statusCheckSchema = z.object({
   groups: z.array(z.string()),
@@ -55,8 +64,17 @@ const statusCheckSchema = z.object({
     z.object({
       group: z.string().min(1).max(64),
       enabled: z.boolean(),
-      idle_minutes: z.number().int().min(1).max(1440),
-      max_consecutive_probes: z.number().int().min(1).max(1000),
+      idle_minutes: z
+        .number()
+        .int()
+        .min(FLEXIBLE_IDLE_MIN)
+        .max(FLEXIBLE_IDLE_MAX),
+      // 0 is continuous monitoring; any other value is a probe limit.
+      max_consecutive_probes: z
+        .number()
+        .int()
+        .min(FLEXIBLE_CONTINUOUS_PROBES)
+        .max(FLEXIBLE_PROBES_MAX),
       model: z.string().max(255),
     })
   ),
@@ -86,30 +104,9 @@ const statusCheckSchema = z.object({
 })
 type StatusCheckValues = z.infer<typeof statusCheckSchema>
 
-type FlexibleGroupConfig = {
-  enabled: boolean
-  idle_minutes: number
-  max_consecutive_probes: number
-  /** Empty tests each channel with its own test model. */
-  model: string
-}
-
 type FlexibleGroupFormValue = FlexibleGroupConfig & {
   group: string
 }
-
-type FlexibleModeConfig = {
-  groups: Record<string, FlexibleGroupConfig>
-}
-
-const defaultFlexibleGroup: FlexibleGroupConfig = {
-  enabled: false,
-  idle_minutes: 15,
-  max_consecutive_probes: 40,
-  model: '',
-}
-
-const defaultFlexibleMode: FlexibleModeConfig = { groups: {} }
 
 type DegradationModeConfig = {
   groups: Record<string, DegradationGroupConfig>
@@ -147,48 +144,6 @@ function parseAvailableModels(value: string): string[] {
     return Object.keys(parsed).sort()
   } catch {
     return []
-  }
-}
-
-function parseFlexibleMode(value: string): FlexibleModeConfig {
-  try {
-    const parsed = JSON.parse(value) as { groups?: unknown }
-    if (
-      !parsed.groups ||
-      typeof parsed.groups !== 'object' ||
-      Array.isArray(parsed.groups)
-    ) {
-      return defaultFlexibleMode
-    }
-    const groups: Record<string, FlexibleGroupConfig> = {}
-    for (const [group, config] of Object.entries(parsed.groups)) {
-      if (!config || typeof config !== 'object' || Array.isArray(config)) {
-        continue
-      }
-      const candidate = config as Partial<FlexibleGroupConfig>
-      if (
-        typeof candidate.enabled !== 'boolean' ||
-        typeof candidate.idle_minutes !== 'number' ||
-        !Number.isInteger(candidate.idle_minutes) ||
-        candidate.idle_minutes < 1 ||
-        candidate.idle_minutes > 1440 ||
-        typeof candidate.max_consecutive_probes !== 'number' ||
-        !Number.isInteger(candidate.max_consecutive_probes) ||
-        candidate.max_consecutive_probes < 1 ||
-        candidate.max_consecutive_probes > 1000
-      ) {
-        continue
-      }
-      groups[group] = {
-        enabled: candidate.enabled,
-        idle_minutes: candidate.idle_minutes,
-        max_consecutive_probes: candidate.max_consecutive_probes,
-        model: typeof candidate.model === 'string' ? candidate.model : '',
-      }
-    }
-    return { groups }
-  } catch {
-    return defaultFlexibleMode
   }
 }
 
@@ -332,59 +287,89 @@ export function StatusCheckSection(props: {
     props.announcement,
   ])
 
-  const getFlexibleGroupConfig = (group: string): FlexibleGroupConfig => {
-    const config = flexibleGroups.find((candidate) => candidate.group === group)
-    return config ?? defaultFlexibleGroup
-  }
-
-  const updateFlexibleGroupConfig = (
-    group: string,
-    update: Partial<FlexibleGroupConfig>
-  ) => {
-    const current = getFlexibleGroupConfig(group)
-    const nextConfig: FlexibleGroupFormValue = {
-      group,
-      ...current,
-      ...update,
-    }
-    const nextGroups = flexibleGroups.some(
-      (candidate) => candidate.group === group
-    )
-      ? flexibleGroups.map((candidate) =>
-          candidate.group === group ? nextConfig : candidate
-        )
-      : [...flexibleGroups, nextConfig]
-    form.setValue('flexibleGroups', nextGroups, {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-  }
+  const getFlexibleGroupConfig = (group: string): FlexibleGroupConfig =>
+    flexibleGroups.find((candidate) => candidate.group === group) ??
+    defaultFlexibleGroup
 
   const getDegradationGroupConfig = (group: string): DegradationGroupConfig =>
     degradationGroups.find((candidate) => candidate.group === group) ??
     defaultDegradationGroup
 
-  const updateDegradationGroupConfig = (
-    group: string,
-    update: Partial<DegradationGroupConfig>
+  // Batch edits update several groups at once, so each write reads the
+  // latest form value instead of the array captured by this render.
+  const updateFlexibleGroups = (
+    groups: string[],
+    update: Partial<FlexibleGroupConfig>
   ) => {
-    const nextConfig = {
-      ...getDegradationGroupConfig(group),
-      ...update,
-      group,
-    }
-    const nextGroups = degradationGroups.some(
-      (candidate) => candidate.group === group
+    const current = form.getValues('flexibleGroups')
+    const next: FlexibleGroupFormValue[] = current.map((candidate) =>
+      groups.includes(candidate.group) ? { ...candidate, ...update } : candidate
     )
-      ? degradationGroups.map((candidate) =>
-          candidate.group === group ? nextConfig : candidate
-        )
-      : [...degradationGroups, nextConfig]
-    form.setValue('degradationGroups', nextGroups, {
+    for (const group of groups) {
+      if (!current.some((candidate) => candidate.group === group)) {
+        next.push({ ...defaultFlexibleGroup, ...update, group })
+      }
+    }
+    form.setValue('flexibleGroups', next, {
       shouldDirty: true,
       shouldValidate: true,
     })
   }
+
+  const updateDegradationGroup = (
+    group: string,
+    config: DegradationGroupConfig
+  ) => {
+    const current = form.getValues('degradationGroups')
+    const nextConfig = { ...config, group }
+    const next = current.some((candidate) => candidate.group === group)
+      ? current.map((candidate) =>
+          candidate.group === group ? nextConfig : candidate
+        )
+      : [...current, nextConfig]
+    form.setValue('degradationGroups', next, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }
+
+  const [selectedRows, setSelectedRows] = useState<string[]>([])
+  // The sheet stays mounted while it closes; a new session remounts it so its
+  // draft starts from the current values of the groups being edited.
+  const [editor, setEditor] = useState<{
+    groups: string[]
+    session: number
+    open: boolean
+  } | null>(null)
+  const openEditor = (groups: string[]) =>
+    setEditor((current) => ({
+      groups,
+      session: (current?.session ?? 0) + 1,
+      open: true,
+    }))
+  const applyEditor = (update: StatusCheckGroupSheetApply) => {
+    if (!editor) return
+    updateFlexibleGroups(editor.groups, update.flexible)
+    if (update.degradation) {
+      updateDegradationGroup(editor.groups[0], update.degradation)
+    }
+  }
+
+  const visibleSelectedRows = selectedRows.filter((group) =>
+    visibleProbeGroups.includes(group)
+  )
+  const groupRows: StatusCheckGroupRow[] = visibleProbeGroups.map((group) => ({
+    group,
+    flexible: getFlexibleGroupConfig(group),
+    degradation: getDegradationGroupConfig(group),
+    invalid:
+      !!form.formState.errors.flexibleGroups?.[
+        flexibleGroups.findIndex((candidate) => candidate.group === group)
+      ] ||
+      !!form.formState.errors.degradationGroups?.[
+        degradationGroups.findIndex((candidate) => candidate.group === group)
+      ],
+  }))
 
   const onSubmit = async (values: StatusCheckValues) => {
     const flexibleGroupSettings = values.groups.reduce<
@@ -459,9 +444,6 @@ export function StatusCheckSection(props: {
   const submit = form.handleSubmit(onSubmit, () => {
     toast.error(t('Please fix the highlighted fields before saving'))
   })
-  const rangeMessage = (min: number, max: number) =>
-    t('Enter a whole number from {{min}} to {{max}}', { min, max })
-
   return (
     <SettingsSection title={t('Status Check')}>
       <Form {...form}>
@@ -521,155 +503,15 @@ export function StatusCheckSection(props: {
                 )}
               </FormDescription>
             </div>
-            {visibleProbeGroups.length === 0 ? (
-              <p className='text-muted-foreground text-sm'>
-                {t('Select one or more visible groups to configure probes.')}
-              </p>
-            ) : (
-              visibleProbeGroups.map((group) => {
-                const config = getFlexibleGroupConfig(group)
-                const flexibleErrors =
-                  form.formState.errors.flexibleGroups?.[
-                    flexibleGroups.findIndex(
-                      (candidate) => candidate.group === group
-                    )
-                  ]
-                const degradationErrors =
-                  form.formState.errors.degradationGroups?.[
-                    degradationGroups.findIndex(
-                      (candidate) => candidate.group === group
-                    )
-                  ]
-                // Degradation checks already fill idle hours, so the backend
-                // skips flexible probes for groups that run them.
-                const degradationEnabled =
-                  getDegradationGroupConfig(group).enabled
-                const probeActive = config.enabled && !degradationEnabled
-                return (
-                  <div
-                    key={group}
-                    className='border-border space-y-4 rounded-lg border p-4'
-                  >
-                    <SettingsSwitchItem>
-                      <SettingsSwitchContent>
-                        <FormLabel>{group}</FormLabel>
-                        <FormDescription>
-                          {degradationEnabled
-                            ? t(
-                                'Not needed while model degradation detection is on: its checks fill hours without requests.'
-                              )
-                            : t(
-                                'Probe this group only when it has no real relay requests.'
-                              )}
-                        </FormDescription>
-                      </SettingsSwitchContent>
-                      <FormControl>
-                        <Switch
-                          checked={probeActive}
-                          disabled={degradationEnabled}
-                          onCheckedChange={(enabled) =>
-                            updateFlexibleGroupConfig(group, { enabled })
-                          }
-                          aria-label={`${t('Enable')} ${group}`}
-                        />
-                      </FormControl>
-                    </SettingsSwitchItem>
-                    <div className='grid gap-4 sm:grid-cols-2'>
-                      <FormItem>
-                        <FormLabel>{t('Idle period (minutes)')}</FormLabel>
-                        <FormControl
-                          aria-invalid={!!flexibleErrors?.idle_minutes}
-                        >
-                          <Input
-                            type='number'
-                            min={1}
-                            max={1440}
-                            step={1}
-                            disabled={!probeActive}
-                            value={config.idle_minutes}
-                            onChange={(event) => {
-                              if (Number.isFinite(event.target.valueAsNumber)) {
-                                updateFlexibleGroupConfig(group, {
-                                  idle_minutes: event.target.valueAsNumber,
-                                })
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'Minimum time without a relay request before probing.'
-                          )}
-                        </FormDescription>
-                        {flexibleErrors?.idle_minutes && (
-                          <p className='text-destructive text-sm' role='alert'>
-                            {rangeMessage(1, 1440)}
-                          </p>
-                        )}
-                      </FormItem>
-                      <FormItem>
-                        <FormLabel>{t('Maximum consecutive probes')}</FormLabel>
-                        <FormControl
-                          aria-invalid={
-                            !!flexibleErrors?.max_consecutive_probes
-                          }
-                        >
-                          <Input
-                            type='number'
-                            min={1}
-                            max={1000}
-                            step={1}
-                            disabled={!probeActive}
-                            value={config.max_consecutive_probes}
-                            onChange={(event) => {
-                              if (Number.isFinite(event.target.valueAsNumber)) {
-                                updateFlexibleGroupConfig(group, {
-                                  max_consecutive_probes:
-                                    event.target.valueAsNumber,
-                                })
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'After this many automatic probes without a real relay request, probing pauses until traffic resumes.'
-                          )}
-                        </FormDescription>
-                        {flexibleErrors?.max_consecutive_probes && (
-                          <p className='text-destructive text-sm' role='alert'>
-                            {rangeMessage(1, 1000)}
-                          </p>
-                        )}
-                      </FormItem>
-                    </div>
-                    <StatusCheckProbeModelField
-                      group={group}
-                      value={config.model}
-                      disabled={!probeActive}
-                      onChange={(model) =>
-                        updateFlexibleGroupConfig(group, { model })
-                      }
-                    />
-                    <StatusCheckDegradationConfig
-                      group={group}
-                      value={getDegradationGroupConfig(group)}
-                      intervalError={
-                        degradationErrors?.interval_minutes
-                          ? rangeMessage(
-                              DEGRADATION_INTERVAL_MIN,
-                              DEGRADATION_INTERVAL_MAX
-                            )
-                          : undefined
-                      }
-                      onChange={(update) =>
-                        updateDegradationGroupConfig(group, update)
-                      }
-                    />
-                  </div>
-                )
-              })
-            )}
+            <StatusCheckGroupTable
+              rows={groupRows}
+              selected={visibleSelectedRows}
+              onSelectedChange={setSelectedRows}
+              onProbeToggle={(group, enabled) =>
+                updateFlexibleGroups([group], { enabled })
+              }
+              onEdit={openEditor}
+            />
             <p className='text-muted-foreground text-sm'>
               {t(
                 'Flexible probes never affect cache hit rate and do not change channel state.'
@@ -706,6 +548,19 @@ export function StatusCheckSection(props: {
           />
         </SettingsForm>
       </Form>
+      {editor && (
+        <StatusCheckGroupSheet
+          key={editor.session}
+          open={editor.open}
+          onOpenChange={(open) =>
+            setEditor((current) => current && { ...current, open })
+          }
+          groups={editor.groups}
+          flexible={getFlexibleGroupConfig(editor.groups[0])}
+          degradation={getDegradationGroupConfig(editor.groups[0])}
+          onApply={applyEditor}
+        />
+      )}
     </SettingsSection>
   )
 }
