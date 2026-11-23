@@ -31,6 +31,18 @@ export async function getStatusCheck(): Promise<StatusCheckData> {
   return res.data
 }
 
+export async function getDashboardPerfMetricsSummary(
+  hours = 24
+): Promise<PerfSummaryAllData> {
+  const res = await api.get<PerfSummaryAllData>(
+    '/api/data/perf-metrics/summary',
+    {
+      params: { hours },
+    }
+  )
+  return res.data
+}
+
 export async function getPerfMetricsSummary(
   hours = 24,
   recentModels?: string[]

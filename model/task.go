@@ -578,8 +578,7 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 
 func GetTimedOutUnfinishedTasks(cutoffUnix int64, limit int) []*Task {
 	var tasks []*Task
-	err := DB.Where("progress != ? OR subscription_billing_pending = ?", "100%", true).
-		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess}).
+	err := DB.Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess}).
 		Where("submit_time < ?", cutoffUnix).
 		Order("submit_time").
 		Limit(limit).
@@ -593,8 +592,9 @@ func GetTimedOutUnfinishedTasks(cutoffUnix int64, limit int) []*Task {
 func GetAllUnFinishSyncTasks(limit int) []*Task {
 	var tasks []*Task
 	var err error
-	// get all tasks progress is not 100%
-	err = DB.Where("progress != ? OR subscription_billing_pending = ?", "100%", true).Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
+	// Upstream progress can reach 100% before the task enters a terminal state,
+	// and a nonterminal task with pending subscription billing is included too.
+	err = DB.Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
 	if err != nil {
 		return nil
 	}
@@ -610,7 +610,6 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 // database error postpones the work to the next scheduled pass.
 func HasUnfinishedSyncTasks() bool {
 	return taskRowExists(DB.Model(&Task{}).
-		Where("progress != ? OR subscription_billing_pending = ?", "100%", true).
 		Where("status NOT IN ?", []string{TaskStatusFailure, TaskStatusSuccess})) ||
 		taskRowExists(DB.Model(&Task{}).Where("subscription_billing_pending = ? OR subscription_report_pending = ?", true, true)) ||
 		taskRowExists(DB.Model(&SubscriptionPreConsumeRecord{}).Where("billing_log_pending = ?", true))

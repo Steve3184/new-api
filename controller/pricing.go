@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -24,83 +25,99 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 
 	filtered := make([]model.Pricing, 0, len(pricing))
 	for _, item := range pricing {
-		if common.StringsContains(item.EnableGroup, "all") {
-			filtered = append(filtered, item)
-			continue
-		}
+		// The pricing cache is shared by all viewers.
+		groups := make([]string, 0, len(item.EnableGroup))
 		for _, group := range item.EnableGroup {
-			if _, ok := usableGroup[group]; ok {
-				filtered = append(filtered, item)
-				break
+			if _, ok := usableGroup[group]; ok || group == "all" {
+				groups = append(groups, group)
 			}
+		}
+		if len(groups) > 0 {
+			item.EnableGroup = groups
+			filtered = append(filtered, item)
 		}
 	}
 	return filtered
 }
 
-func GetPricing(c *gin.Context) {
-	pricing := model.GetPricing()
-	userId, exists := c.Get("id")
-	groupRatio := map[string]float64{}
-	maps.Copy(groupRatio, ratio_setting.GetGroupRatioCopy())
-	var group string
-	if exists {
-		user, err := model.GetUserCache(userId.(int))
-		if err == nil {
-			group = user.Group
-			for g := range groupRatio {
-				ratio, ok := ratio_setting.GetGroupGroupRatio(group, g)
-				if ok {
-					groupRatio[g] = ratio
-				}
-			}
+// modelSquareGroups are the groups the model square shows one viewer: the
+// groups that viewer can use, the groups an administrator made visible to
+// everyone, and the subscription groups on sale. Pricing and performance
+// metrics read the same set, so neither exposes a group the other hides.
+type modelSquareGroups struct {
+	usable       map[string]string
+	visible      []string
+	subscription []string
+	descriptions map[string]string
+	// shown maps every group above to the description the viewer sees.
+	shown map[string]string
+}
+
+func resolveModelSquareGroups(userID int, userGroup string) (modelSquareGroups, error) {
+	usable, subscription, err := service.GetUserGroupAccessSnapshot(userID, userGroup)
+	if err != nil {
+		return modelSquareGroups{}, err
+	}
+	visible := slices.Clone(console_setting.GetModelSquareVisibleGroups())
+	subscription = slices.DeleteFunc(subscription, func(name string) bool {
+		return !ratio_setting.ContainsGroupRatio(name)
+	})
+	for _, name := range subscription {
+		if !slices.Contains(visible, name) {
+			visible = append(visible, name)
 		}
 	}
-
-	userID := 0
-	if exists {
-		userID, _ = userId.(int)
+	shown := make(map[string]string, len(usable)+len(visible))
+	maps.Copy(shown, usable)
+	descriptions := console_setting.GetModelSquareVisibleGroupDescriptions()
+	for _, name := range visible {
+		if _, exists := shown[name]; exists {
+			continue
+		}
+		if description := descriptions[name]; description != "" {
+			shown[name] = description
+		} else {
+			shown[name] = setting.GetUsableGroupDescription(name)
+		}
 	}
-	usableGroup, subscriptionGroups, err := service.GetUserGroupAccessSnapshot(userID, group)
+	return modelSquareGroups{
+		usable:       usable,
+		visible:      visible,
+		subscription: subscription,
+		descriptions: descriptions,
+		shown:        shown,
+	}, nil
+}
+
+func GetPricing(c *gin.Context) {
+	userID := c.GetInt("id")
+	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	groups, err := resolveModelSquareGroups(userID, userGroup)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	visibleGroups := slices.Clone(console_setting.GetModelSquareVisibleGroups())
-	subscriptionGroups = slices.DeleteFunc(subscriptionGroups, func(name string) bool {
-		return !ratio_setting.ContainsGroupRatio(name)
+	pricing := filterPricingByUsableGroups(model.GetPricing(), groups.shown)
+	groupCategories := console_setting.GetModelSquareGroupCategories()
+	maps.DeleteFunc(groupCategories, func(name, _ string) bool {
+		_, ok := groups.shown[name]
+		return !ok
 	})
-	for _, name := range subscriptionGroups {
-		groupRatio[name] = 1
-		if !slices.Contains(visibleGroups, name) {
-			visibleGroups = append(visibleGroups, name)
+	groupRatio := ratio_setting.GetGroupRatioCopy()
+	for group := range groupRatio {
+		if _, ok := groups.shown[group]; !ok {
+			delete(groupRatio, group)
+			continue
 		}
-	}
-	pricingGroups := make(map[string]string, len(usableGroup)+len(visibleGroups))
-	for groupName, description := range usableGroup {
-		pricingGroups[groupName] = description
-	}
-	visibleDescriptions := console_setting.GetModelSquareVisibleGroupDescriptions()
-	for _, groupName := range visibleGroups {
-		if _, exists := pricingGroups[groupName]; !exists {
-			if description, ok := visibleDescriptions[groupName]; ok && description != "" {
-				pricingGroups[groupName] = description
-			} else {
-				pricingGroups[groupName] = setting.GetUsableGroupDescription(groupName)
+		if userGroup != "" {
+			if ratio, ok := ratio_setting.GetGroupGroupRatio(userGroup, group); ok {
+				groupRatio[group] = ratio
 			}
 		}
 	}
-	pricing = filterPricingByUsableGroups(pricing, pricingGroups)
-	groupCategories := console_setting.GetModelSquareGroupCategories()
-	maps.DeleteFunc(groupCategories, func(name, _ string) bool {
-		_, ok := pricingGroups[name]
-		return !ok
-	})
-	// check groupRatio contains usableGroup
-	for group := range ratio_setting.GetGroupRatioCopy() {
-		if _, ok := pricingGroups[group]; !ok {
-			delete(groupRatio, group)
-		}
+	// Subscription groups are paid for by the plan, not by a group ratio.
+	for _, name := range groups.subscription {
+		groupRatio[name] = 1
 	}
 
 	c.JSON(200, gin.H{
@@ -108,13 +125,13 @@ func GetPricing(c *gin.Context) {
 		"data":                            pricing,
 		"vendors":                         model.GetVendors(),
 		"group_ratio":                     groupRatio,
-		"usable_group":                    usableGroup,
-		"model_square_groups":             visibleGroups,
-		"subscription_groups":             subscriptionGroups,
-		"model_square_group_descriptions": visibleDescriptions,
+		"usable_group":                    groups.usable,
+		"model_square_groups":             groups.visible,
+		"subscription_groups":             groups.subscription,
+		"model_square_group_descriptions": groups.descriptions,
 		"model_square_group_categories":   groupCategories,
 		"supported_endpoint":              model.GetSupportedEndpointMap(),
-		"auto_groups":                     service.GetUserAutoGroupForUser(userID, group),
+		"auto_groups":                     service.GetUserAutoGroupForUser(userID, userGroup),
 		"pricing_version":                 "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }
