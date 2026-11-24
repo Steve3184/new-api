@@ -2,8 +2,10 @@ package model
 
 import (
 	"context"
+	"database/sql"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strconv"
@@ -1026,13 +1028,148 @@ func GetUserTokenRPM(userID int, tokenIDs []int) (map[int]int, error) {
 	return GetTokenRPM(ownedTokenIDs)
 }
 
-// sumLogTokens streams only token counts and metadata; decoding in Go keeps
-// historical empty/malformed metadata safe across all supported log databases.
-// prompt_tokens means something different per upstream protocol: OpenAI and
-// Gemini report cache reads inside the prompt total, while Claude Messages logs
-// input_tokens without them. Each row is normalized to one input total so a
-// cached token is never counted twice.
-func sumLogTokens(tx *gorm.DB) (int64, error) {
+// errAggregatedLogStatUnsupported reports that the log database dialect cannot
+// evaluate the server-side consume-stat aggregation, so the caller must use the
+// row-streaming fallback.
+var errAggregatedLogStatUnsupported = errors.New("aggregated log stat unsupported for this log database")
+
+// JSON keys inside the other column that carry per-protocol token semantics.
+const (
+	logOtherInputTotal   = "input_tokens_total"
+	logOtherCacheRead    = "cache_tokens"
+	logOtherCacheWrite   = "cache_creation_tokens"
+	logOtherCacheWrite5m = "cache_creation_tokens_5m"
+	logOtherCacheWrite1h = "cache_creation_tokens_1h"
+	logOtherClaude       = "claude"
+)
+
+// logJSONExprHooks adapts the normalized token expression to one SQL dialect.
+type logJSONExprHooks struct {
+	validJSON  func() string             // other parses as JSON
+	jsonNum    func(field string) string // numeric field value, NULL when absent
+	jsonIsTrue func(field string) string // boolean field is true
+	max0       func(expr string) string  // greatest(expr, 0), NULL-safe
+}
+
+func logJSONExprHooksFor(dialect string) (logJSONExprHooks, bool) {
+	switch dialect {
+	case "postgres":
+		return logJSONExprHooks{
+			validJSON: func() string {
+				// pg_input_is_valid (PostgreSQL 16+) keeps historical
+				// malformed metadata from failing the whole aggregation.
+				return "other IS NOT NULL AND pg_input_is_valid(other, 'jsonb')"
+			},
+			jsonNum: func(field string) string {
+				return fmt.Sprintf("CASE WHEN (other::jsonb->>'%[1]s') ~ '^-?[0-9]+$' THEN (other::jsonb->>'%[1]s')::bigint ELSE NULL END", field)
+			},
+			jsonIsTrue: func(field string) string {
+				return fmt.Sprintf("(other::jsonb->>'%s') IN ('true', '1')", field)
+			},
+			max0: func(expr string) string { return "GREATEST(COALESCE(" + expr + ", 0), 0)" },
+		}, true
+	case "mysql":
+		return logJSONExprHooks{
+			validJSON: func() string { return "other IS NOT NULL AND JSON_VALID(other)" },
+			jsonNum:   func(field string) string { return fmt.Sprintf("CAST(JSON_EXTRACT(other, '$.%s') AS SIGNED)", field) },
+			jsonIsTrue: func(field string) string {
+				return fmt.Sprintf("CAST(JSON_EXTRACT(other, '$.%s') AS SIGNED) = 1", field)
+			},
+			max0: func(expr string) string { return "GREATEST(COALESCE(" + expr + ", 0), 0)" },
+		}, true
+	case "sqlite":
+		return logJSONExprHooks{
+			validJSON: func() string { return "other IS NOT NULL AND json_valid(other)" },
+			jsonNum:   func(field string) string { return fmt.Sprintf("CAST(json_extract(other, '$.%s') AS INTEGER)", field) },
+			jsonIsTrue: func(field string) string {
+				return fmt.Sprintf("COALESCE(CAST(json_extract(other, '$.%s') AS INTEGER), 0) = 1", field)
+			},
+			max0: func(expr string) string { return "MAX(COALESCE(" + expr + ", 0), 0)" },
+		}, true
+	default:
+		return logJSONExprHooks{}, false
+	}
+}
+
+// normalizedInputExpr mirrors sumLogTokensStreamed's per-row normalization in
+// SQL: the settled input total wins when present and positive; Claude rows add
+// cache reads and writes on top of prompt_tokens; every other row already
+// counts cache reads inside prompt_tokens.
+func normalizedInputExpr(h logJSONExprHooks) string {
+	inputTotal := h.jsonNum(logOtherInputTotal)
+	cacheRead := h.max0(h.jsonNum(logOtherCacheRead))
+	cacheWrite := h.max0(h.jsonNum(logOtherCacheWrite))
+	cacheWrite5m := h.max0(h.jsonNum(logOtherCacheWrite5m))
+	cacheWrite1h := h.max0(h.jsonNum(logOtherCacheWrite1h))
+	prompt := h.max0("prompt_tokens")
+	return "CASE" +
+		" WHEN " + h.validJSON() + " AND " + inputTotal + " > 0 THEN " + inputTotal +
+		" WHEN " + h.validJSON() + " AND " + h.jsonIsTrue(logOtherClaude) +
+		" THEN " + prompt + " + " + cacheRead +
+		" + CASE WHEN " + cacheWrite5m + " > 0 OR " + cacheWrite1h + " > 0" +
+		" THEN " + cacheWrite5m + " + " + cacheWrite1h +
+		" ELSE " + cacheWrite + " END" +
+		" ELSE " + prompt + " END"
+}
+
+// sumUsedQuotaExpr returns a SELECT fragment that aggregates the quota total
+// and the protocol-normalized token total in one server-side pass. ok reports
+// whether the SQL dialect can evaluate the expression.
+func sumUsedQuotaExpr(dialect string) (string, bool) {
+	h, ok := logJSONExprHooksFor(dialect)
+	if !ok {
+		return "", false
+	}
+	input := "COALESCE(SUM(" + normalizedInputExpr(h) + "), 0)"
+	output := "COALESCE(SUM(" + h.max0("completion_tokens") + "), 0)"
+	return "COALESCE(sum(quota), 0) AS quota, " + input + " + " + output + " AS total_tokens", true
+}
+
+// sumUsedQuotaAggregated computes the consume stat in a single server-side
+// aggregation so the log database returns one row instead of streaming every
+// consume log over the wire.
+func sumUsedQuotaAggregated(tx *gorm.DB) (quota int64, totalTokens int64, err error) {
+	expr, ok := sumUsedQuotaExpr(tx.Dialector.Name())
+	if !ok {
+		return 0, 0, errAggregatedLogStatUnsupported
+	}
+	var result struct {
+		Quota       sql.NullString
+		TotalTokens sql.NullString
+	}
+	if err := tx.Select(expr).Scan(&result).Error; err != nil {
+		return 0, 0, err
+	}
+	quota, err = parseAggregatedInt(result.Quota)
+	if err != nil {
+		return 0, 0, err
+	}
+	totalTokens, err = parseAggregatedInt(result.TotalTokens)
+	if err != nil {
+		return 0, 0, err
+	}
+	return quota, totalTokens, nil
+}
+
+// parseAggregatedInt reads a SUM() result delivered as numeric text. Engines
+// with numeric SUM stay exact past int64 and ParseInt applies the same upper
+// bound as the streaming fallback's overflow guard.
+func parseAggregatedInt(value sql.NullString) (int64, error) {
+	text := strings.TrimSpace(value.String)
+	if text == "" {
+		return 0, nil
+	}
+	return strconv.ParseInt(text, 10, 64)
+}
+
+// sumLogTokensStreamed is the fallback for log databases whose dialect cannot
+// evaluate the server-side aggregation: it streams only token counts and
+// metadata; decoding in Go keeps historical empty/malformed metadata safe
+// across all supported log databases. prompt_tokens means something different
+// per upstream protocol: OpenAI and Gemini report cache reads inside the
+// prompt total, while Claude Messages logs input_tokens without them. Each row
+// is normalized to one input total so a cached token is never counted twice.
+func sumLogTokensStreamed(tx *gorm.DB) (int64, error) {
 	rows, err := tx.Select("COALESCE(prompt_tokens, 0), COALESCE(completion_tokens, 0), COALESCE(other, '')").Rows()
 	if err != nil {
 		return 0, err
@@ -1090,14 +1227,24 @@ func SumUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp in
 		return stat, err
 	}
 	tx = tx.Where("logs.type = ?", LogTypeConsume).Session(&gorm.Session{})
-	if err := tx.Select("COALESCE(sum(quota), 0) quota").Scan(&stat).Error; err != nil {
-		common.SysError("failed to query log stat: " + err.Error())
-		return stat, errors.New("查询统计数据失败")
-	}
-	stat.TotalTokens, err = sumLogTokens(tx)
-	if err != nil {
-		common.SysError("failed to query log token total: " + err.Error())
-		return stat, errors.New("查询统计数据失败")
+	aggregatedQuota, aggregatedTokens, aggErr := sumUsedQuotaAggregated(tx)
+	if aggErr == nil {
+		stat.Quota = int(aggregatedQuota)
+		stat.TotalTokens = aggregatedTokens
+	} else {
+		if !errors.Is(aggErr, errAggregatedLogStatUnsupported) {
+			common.SysError("failed to aggregate log stat server-side, falling back to row streaming: " + aggErr.Error())
+		}
+		if err := tx.Select("COALESCE(sum(quota), 0) quota").Scan(&stat).Error; err != nil {
+			common.SysError("failed to query log stat: " + err.Error())
+			return stat, errors.New("查询统计数据失败")
+		}
+		streamedTotal, streamErr := sumLogTokensStreamed(tx)
+		if streamErr != nil {
+			common.SysError("failed to query log token total: " + streamErr.Error())
+			return stat, errors.New("查询统计数据失败")
+		}
+		stat.TotalTokens = streamedTotal
 	}
 
 	// Rates continue to describe the last minute, independently of the chosen date range.

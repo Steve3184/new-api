@@ -133,3 +133,64 @@ func TestLogTokenTotalsDatabaseMatrix(t *testing.T) {
 		})
 	}
 }
+
+// TestSumLogTokensStreamedMatchesAggregated keeps the row-streaming fallback
+// equivalent with the server-side aggregation on identical data, covering the
+// per-protocol normalization rules on both code paths.
+func TestSumLogTokensStreamedMatchesAggregated(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Log{}))
+	oldDB, oldType := LOG_DB, common.LogDatabaseType()
+	LOG_DB = db
+	common.SetLogDatabaseType(common.DatabaseType("sqlite"))
+	initCol()
+	t.Cleanup(func() {
+		LOG_DB = oldDB
+		common.SetLogDatabaseType(oldType)
+		initCol()
+	})
+	now := time.Now().Unix()
+	entries := []Log{
+		{Type: LogTypeConsume, CreatedAt: now - 10, Quota: 7, PromptTokens: 100, CompletionTokens: 20, Other: `{"cache_tokens":30,"cache_creation_tokens":40}`},
+		{Type: LogTypeConsume, CreatedAt: now - 20, Quota: 8, PromptTokens: 50, CompletionTokens: 10, Other: `{"cache_tokens":5,"cache_creation_tokens":999,"cache_creation_tokens_5m":7,"cache_creation_tokens_1h":8}`},
+		{Type: LogTypeConsume, CreatedAt: now - 30, Quota: 1, PromptTokens: 2, CompletionTokens: 3, Other: `malformed historical data`},
+		{Type: LogTypeConsume, CreatedAt: now - 40, Quota: 2, PromptTokens: 3, CompletionTokens: 4, Other: `null`},
+		{Type: LogTypeConsume, CreatedAt: now - 50, Quota: 0, PromptTokens: 0, CompletionTokens: 0},
+		{Type: LogTypeConsume, CreatedAt: now - 60, Quota: 9, PromptTokens: 1000, CompletionTokens: 100, Other: `{"cache_tokens":800}`},
+		{Type: LogTypeConsume, CreatedAt: now - 70, Quota: 9, PromptTokens: 200, CompletionTokens: 100, Other: `{"claude":true,"cache_tokens":800,"cache_creation_tokens":100}`},
+		{Type: LogTypeConsume, CreatedAt: now - 80, Quota: 9, PromptTokens: 200, CompletionTokens: 50, Other: `{"claude":true,"cache_tokens":800,"cache_creation_tokens_5m":60,"cache_creation_tokens_1h":40}`},
+		{Type: LogTypeConsume, CreatedAt: now - 90, Quota: 9, PromptTokens: 200, CompletionTokens: 50, Other: `{"cache_tokens":800,"cache_creation_tokens":100,"input_tokens_total":1100}`},
+		{Type: LogTypeManage, CreatedAt: now - 95, PromptTokens: 999, CompletionTokens: 999},
+	}
+	for i := range entries {
+		require.NoError(t, createLog(&entries[i]))
+	}
+	tx := LOG_DB.Model(&Log{}).Where("type = ?", LogTypeConsume).Session(&gorm.Session{})
+	streamed, err := sumLogTokensStreamed(tx)
+	require.NoError(t, err)
+	_, aggregated, err := sumUsedQuotaAggregated(tx)
+	require.NoError(t, err)
+	assert.Equal(t, streamed, aggregated)
+
+	var quotaSum int64
+	require.NoError(t, LOG_DB.Model(&Log{}).Where("type = ?", LogTypeConsume).
+		Select("COALESCE(sum(quota), 0)").Scan(&quotaSum).Error)
+	quota, _, err := sumUsedQuotaAggregated(tx)
+	require.NoError(t, err)
+	assert.Equal(t, quotaSum, quota)
+}
+
+// TestSumUsedQuotaExprDialects ensures the aggregation expression exists for
+// every SQL dialect new-api supports and that other dialects (ClickHouse)
+// report as unsupported so SumUsedQuota stays on the row-streaming fallback.
+func TestSumUsedQuotaExprDialects(t *testing.T) {
+	for _, dialect := range []string{"postgres", "mysql", "sqlite"} {
+		expr, ok := sumUsedQuotaExpr(dialect)
+		require.True(t, ok, "dialect %s must support server-side aggregation", dialect)
+		assert.Contains(t, expr, "sum(quota)")
+		assert.Contains(t, expr, "total_tokens")
+	}
+	_, ok := sumUsedQuotaExpr("clickhouse")
+	assert.False(t, ok, "clickhouse must fall back to row streaming")
+}
